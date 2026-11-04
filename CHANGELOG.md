@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-04 (test data loader)
+- New `scripts/seed_test_data.php`: fills the masterlists completely for testing, in one command
+  (`C:\xampp\php\php.exe scripts\seed_test_data.php`). Imports `database/seed_masterlists.sql` when the database is empty,
+  then completes every truck (details, regular driver and helper, OR/CR and insurance files), driver and helper
+  (employee no., contact, license), client (information sheet, the 5 required files, rates -> Active), mechanics,
+  parts inventory with opening stock, suppliers and a purchasing budget. Attachments are real PDF/PNG files in
+  `storage/private`, labelled "SAMPLE DOCUMENT - TEST DATA".
+- Adds special test cases (expired license, people on leave, inactive records, truck Unavailable, truck under repair,
+  repair waiting for verification, regular driver on leave, expiring registration, mechanic on leave, clients with
+  missing files / no rate / one rate, low and zero stock).
+- Writes a test basis report in `storage/test_data/` with the expected automatic assignment order per truck type,
+  what each special case should do, and the full masterlists. The expected order was checked against the real
+  automatic assignment (18 of 18 trips matched) on a fresh database.
+- Safe to run again: only adds what is missing, never deletes or overwrites, never creates trips, money records or accounts.
+- New `public/seed_test_data.php` for hosting without SSH: works only while `SEED_TEST_TOKEN` (32+ characters) is set in
+  `.env` and the Admin is logged in. `.env.example` gained that optional line; `.gitignore` gained `storage/test_data`.
+
 ## 2026-11-04 (revision 2: email login codes, e-signature, corrective maintenance, mechanics, map, redesign, demo scripts)
 Source: "Consolidated additional project requirements". Decisions confirmed by the team: Gmail + App Password for the
 login emails, the operator types the login codes in the scripts, the Admin sets new users' passwords, MapTiler free plan

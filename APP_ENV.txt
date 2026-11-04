@@ -1,0 +1,49 @@
+APP_ENV=production
+APP_TIMEZONE=Asia/Manila
+SESSION_NAME=rp_mulawin_fms_v2
+# Minutes of no activity before the user is logged out (0 = never).
+SESSION_IDLE_MINUTES=60
+
+
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=u826906339_mulawin_v2
+DB_USER=u826906339_serpent_eagle
+DB_PASS=MulawinFleetops1234
+INSTALL_TOKEN=d21e27ed1448ba999dc36010c91c37589ef4ca44
+
+# Printed on payslips and reports
+COMPANY_NAME=R P MULAWIN TRUCKING SERVICE
+COMPANY_ADDRESS=#086-A Purok 2 Brgy. Luyos Tanauan City, Batangas
+
+buksan ang public/install.php
+mulawin fleetops
+admin - MulawinAdmin123
+
+MulawinTest123
+
+QTEX-KMF2-H2UD-K4RR - admin recovery code
+
+# ---------------------------------------------------------------------------
+# EMAIL (login codes / OTP). Free option: Gmail + App Password.
+#   1. Turn on 2-Step Verification in your Google account.
+#   2. Google account > Security > App passwords > create one for "Mulawin FleetOps".
+#   3. Paste the 16-character App Password below (spaces are fine).
+# Test with:  php scripts/test_email.php you@gmail.com
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+# tls = STARTTLS on port 587 | ssl = port 465 | none = local test mailbox (e.g. Mailpit on 1025)
+MAIL_ENCRYPTION=tls
+MAIL_USERNAME=spaceboy09195@gmail.com
+MAIL_PASSWORD=psvc uzbq orns vneh
+MAIL_FROM_ADDRESS=spaceboy09195@gmail.com
+MAIL_FROM_NAME="Mulawin FleetOps"
+
+# ---------------------------------------------------------------------------
+# MAP (New Trip Request). Free MapTiler account: https://cloud.maptiler.com
+# Account > API keys > copy the key. Restrict it to your site address in MapTiler.
+MAPTILER_API_KEY=Ts5S2TW2wYOosnN15IKw
+# Optional: map style (streets-v4 is the default)
+MAPTILER_STYLE=streets-v4
+
+https://github.com/space-boy09195/mulawin-fleetops-v2v.git
