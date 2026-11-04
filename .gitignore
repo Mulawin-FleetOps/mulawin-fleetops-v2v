@@ -14,3 +14,4 @@ __pycache__/
 /automation/reports/
 /automation/demo_manifest.json
 /automation/sample_files/
+APP_ENV.txt
