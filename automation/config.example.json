@@ -1,0 +1,16 @@
+{
+  "_help": "Copy this file to config.json and edit it. See guide H (Playwright scripts). Use a TEST copy of the system or the real one for the defense demo - the scripts never delete anything.",
+  "base_url": "http://localhost/RP_Mulawin_FMS_V2/public",
+  "admin_username": "admin",
+  "admin_email": "yourname@gmail.com",
+  "accounts": {
+    "operations_head":              { "username": "ops.head",    "full_name": "Olivia Ramos",      "email": "yourname+opshead@gmail.com" },
+    "car_carrier_dispatcher":       { "username": "cc.dispatch", "full_name": "Carlo Mendoza",     "email": "yourname+ccd@gmail.com", "shift": "Day" },
+    "container_wingvan_dispatcher": { "username": "cw.dispatch", "full_name": "Cora Villanueva",   "email": "yourname+cwd@gmail.com", "shift": "Day" },
+    "motorpool":                    { "username": "motorpool",   "full_name": "Mario Dizon",       "email": "yourname+motorpool@gmail.com" },
+    "purchasing":                   { "username": "purchasing",  "full_name": "Pia Santos",        "email": "yourname+purchasing@gmail.com" },
+    "finance":                      { "username": "finance",     "full_name": "Fe Navarro",        "email": "yourname+finance@gmail.com" },
+    "billing":                      { "username": "billing",     "full_name": "Bea Castillo",      "email": "yourname+billing@gmail.com" },
+    "audit":                        { "username": "audit",       "full_name": "Aldo Reyes",        "email": "yourname+audit@gmail.com" }
+  }
+}

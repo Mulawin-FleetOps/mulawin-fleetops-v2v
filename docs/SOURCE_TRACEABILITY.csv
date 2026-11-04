@@ -1,0 +1,61 @@
+ID,Module,Requirement,Source,Implementation (file),Status
+SR-001,Access,Individual accounts; role-based access; activate/deactivate,FMS PDF II.A,Modules/Administration/Admin.php (users); Core/Access.php,Implemented
+SR-002,Access,Activity logs with date/time of create/update/approve/process,FMS PDF II.A; V.61,bootstrap.php audit(); Activity Log page,Implemented
+SR-003,Access,Admin and Head Management merged as one role,V2 scope note,role admin,Implemented
+SR-004,Access,Audit reviews financial records and approval logs (read-only),FMS PDF Audit role,Access.php; Documents canView; audit dashboard,Implemented
+SR-005,Fleet,Vehicle record: plate; type; details; driver/helper; status; OR/CR; insurance and expiry,FMS PDF II.B; CC OFFICIAL RECEIPT REGISTRATION sheet,Modules/Operations/Fleet.php; vehicles table,Implemented
+SR-006,Fleet,Statuses Available/Assigned/On Trip/Under Maintenance/Unavailable,FMS PDF II.B,Core/FleetState.php,Implemented
+SR-007,Fleet,Prevent double truck/crew booking on overlapping schedule,FMS PDF II.B,Trips autoAssign + reassign (same-day check; repo dispatch_assignment.php),Implemented (day window = C01)
+SR-008,Fleet,Motorpool updates truck status Available / Under Maintenance,FMS PDF p.18,Fleet.vehicle_status,Implemented
+SR-009,Fleet,Reminders for expiring vehicle documents,FMS PDF II.B,Notify::dailyReminders; dashboards,Implemented
+SR-010,Crew,Driver and helper records (no staff; no employee/contractor or resigned on screen); license expiry; availability; trip history,FMS PDF v6 II.C,Modules/Operations/Fleet.php crew page,Implemented
+SR-011,Operations,Scenario A: client to Operations Head; system assigns,FMS PDF p.16,Trips::create (Ops Head),Implemented
+SR-012,Operations,Scenario B: client to dispatcher; Ops Head sets truck type and dispatcher type,FMS PDF p.16-17,Trips::create + review,Implemented
+SR-013,Operations,System auto-assigns truck/driver/helper,FMS PDF p.16,Trips::autoAssign,Implemented (rule = C01)
+SR-014,Operations,Dispatcher fund request: preset categories plus added categories; system computes the total,FMS PDF v2 Scenario A step 3; B step 4,Modules/Accounting/Funds.php request/revise; Core/TripFunds.php; Formula Settings (Fund request categories),Implemented (C02 answered)
+SR-015,Operations,Pre-dispatch checklist then Ready for Dispatch; can be done while Finance releases the fund,FMS PDF v2 Scenario A step 6; B step 7; checklist scans,Trips checklist_start/checklist_departure; Inspections/Checklist.php,Implemented
+SR-016,Operations,Dispatch validation: Confirm Dispatch enabled only when fund Released and trip Ready for Dispatch (Ops Head clearance removed),FMS PDF v2 Scenario A steps 7-8; B steps 8-9,Trips::dispatch; trips.js dispatchWhy,Implemented
+SR-017,Operations,Dispatcher confirms dispatch after release; Finance status Completed,FMS PDF p.16,Trips::dispatch,Implemented
+SR-018,Operations,Container: nomination/booking; pre-advice; empty container,FMS PDF II.E Container,Trips::details + dispatch checks,Implemented
+SR-019,Operations,Wing Van: confirm with client; give truck details and plate,FMS PDF II.E Wing Van,Trips::details + dispatch checks,Implemented
+SR-020,Operations,Progress; delivery; delays; incidents; departure and arrival times,FMS PDF II.F,Trips progress/incident/arrival,Implemented (delay causes from repo docs Q5/Q8)
+SR-021,Operations,Incident: trip On Hold; Maintenance assesses. Minor: Repaired - Cleared to Continue then Resume Trip (In Transit). Major: For Reschedule; repair; Reschedule Trip; Confirm Redispatch = Second Attempt,FMS PDF v2 Scenario C,Trips::incident/resume/reschedule/dispatch; Maintenance::assess/jobComplete,Implemented (C07)
+SR-022,Operations,Arrival checklist; compare before/after; photos; who and when; min duration,FMS PDF II.G,Trips::arrival; Trip.compare (UI); Documents inspection; inspection_min_minutes,Implemented
+SR-023,Operations,Waybills as basis of billing and trip pay,FMS PDF II.H; Payroll role,waybills table; Trips::waybillAdd,Implemented
+SR-024,Maintenance,Incident appears in Motorpool,FMS PDF p.17,maintenance_jobs from incident,Implemented
+SR-025,Maintenance,Preventive maintenance by accumulated km (e.g. 10000 km),FMS PDF p.18,Trips::checkPreventive; pm_interval_km,Implemented (C08)
+SR-026,Maintenance,Repair process: issue; photos; parts used; costs; status; completion; expected availability,FMS PDF II.L,Modules/Maintenance/Maintenance.php,Implemented
+SR-027,Purchasing,Motorpool requests parts; Purchasing checks stock and releases,FMS PDF p.17 A,Maintenance.part_request; Purchasing.issue,Implemented
+SR-028,Purchasing,Purchase approval >10k Admin; <=10k Finance; budget check; insufficient = rejected by system,FMS PDF p.17 B,Purchasing::decide; purchase_approval_threshold,Implemented
+SR-029,Purchasing,Suppliers; part numbers; costs; stock in/out; adjustments; receipts; warranty; low-stock alerts,FMS PDF II.K,Modules/Maintenance/Purchasing.php,Implemented
+SR-030,Finance,Fund approval by Operations Head (all amounts); approve = Ready for Release; reject = back to dispatcher,FMS PDF v2 Scenario A step 4; B step 5; company instruction (15k limit removed),Funds::approve/reject,Implemented (C04 answered)
+SR-031,Finance,Finance Confirm Release (even before the checklist); records payment details; liquidation,FMS PDF v2 Scenario A step 5; B step 6; II.I,Modules/Accounting/Funds.php release/liquidate,Implemented (liquidation = C19)
+SR-032,Finance,AP; expenses; vouchers; cheques; disbursements; cash advances; cash flow; budgets,FMS PDF II.I; Finance role,Modules/Accounting/Finance.php; Core/Money.php,Implemented
+SR-033,Billing,Client profiles; client-specific and route-based rates,FMS PDF II.H,Modules/Accounting/Billing.php clients page,Implemented
+SR-034,Billing,Invoices linked to completed trips; collections; outstanding; unbilled trips; AR reports,FMS PDF II.H,Modules/Accounting/Billing.php billing page; Analytics money section,Implemented (C10)
+SR-035,Billing,Projected P&L per trip,Dummy Computation for Billing PL.xlsx,Settings::projectedPnl,Implemented (matches G36/G44/G46)
+SR-036,Payroll,Payroll for drivers and helpers only (PDF v6); trip pay from waybills; allowances; deductions; payslips; deduction forms; Finance disbursement,FMS PDF II.J; Payroll role,Modules/Accounting/Payroll.php; Finance::payrollDisburse,Implemented
+SR-037,Payroll,Wage=rate x days; SSS=(775/24) x days; PhilHealth 75; Pag-IBIG 50; savings 500; net=gross-deductions,DRIVERS PAYROLL.xlsx (N14 O14 P14 X15 M13 Y13 Z13),config/formulas.php; Settings::computeItems,Implemented (tests/formula_test.php)
+SR-038,Payroll,Cash bond; damages; uniform installments; balances,DRIVERS PAYROLL.xlsx CASH BOND / damages / UNIFORM / BALANCES sheets,employee_ledgers; Payroll balances page,Implemented
+SR-039,Payroll,Trip pay = rate per destination x trips; driver and helper rates differ,repo docs (questionnaire Q23),trip_pay_rates; Payroll::tripsFor,Implemented
+SR-040,Documents,Upload; attach; search; download; categories; access by role; expiry reminders; bulk upload,FMS PDF II.M; II.O,Modules/General/Documents.php,Implemented
+SR-041,Dashboards,Dashboards per role (Management; Operations; Billing; Finance; Payroll; Purchasing; Maintenance),FMS PDF III,Modules/General/Analytics.php,Implemented
+SR-042,Reports,Trip performance: daily/weekly/monthly/custom; by truck type/truck/driver/dispatcher/client/status; compare periods; downloadable,FMS PDF IV,Analytics::reports; CSV in every table,Implemented
+SR-043,Reports,Monday-start weeks; units and trips per company/client,CAR CARRIER MONITORING (TRIPS SUMMARY PER WEEK; WEEK 10: MARCH 2-8),Analytics tripSection,Implemented
+SR-044,Reports,Down-truck days per truck,CONTAINER MONITORING TRUCK STATUS COUNTIF DT,Analytics fleetSection,Implemented
+SR-045,Reports,Maintenance cost per truck = parts + labor + other,repo docs Q26 #3,Analytics fleetSection,Implemented
+SR-046,General,Notifications for approvals; trip updates; expiring documents,FMS PDF V.63,Core/Notify.php; bell,Implemented
+SR-047,General,Backup and recovery,FMS PDF V.65,Admin::backupCreate; Backup page,Implemented
+SR-048,General,Search and filtering,FMS PDF V.59,Trip Records filters; table search,Implemented
+SR-049,General,Formulas editable without code,User request 2026-10-31,Formula Settings page; config/formulas.php,Implemented
+SR-050,General,Modular: one failing module does not stop others,User request; V2 README,Actions::load try/catch; per-page data; per-module JS,Implemented and tested
+SR-051,Design,Follow the repo design,User request,layout.css/login.css/vendor from mulawin_fleetops,Implemented
+SR-052,Structure,Follow the V2 zip structure,User request,backend/ public/ database/ scripts/ storage/ docs/ tests/,Implemented
+SR-053,Operations,Scenario B delivery request appears to Ops Head as Pending Review; Ops Head completes trip details and confirms,FMS PDF v2 Scenario B steps 2-3,Trips::create/review,Implemented
+SR-054,Maintenance,Maintenance assesses incident severity; major = truck cannot be assigned while Under Maintenance,FMS PDF v2 Scenario C steps 3-4,Maintenance::assess; Trips::autoAssign excludes open repairs,Implemented
+SR-055,Billing,System creates a billing draft when the trip is ongoing (based on the route); Billing finalizes only when the trip is completed and the required documents are verified; invoice from finalized billings,FMS PDF v7 Scenario A step 9 / B step 10,Core/BillingDraft.php; Billing::draftVerify/draftFinalize/invoiceCreate; database/migrations/2026-11-02_billing_drafts.sql,Implemented (C14)
+SR-056,Payroll,Per-trip pay vs attendance and deductions for drivers (to be confirmed by the company),Operations Head interview; FMS PDF v6 II.J,Payroll::computeLine (daily rate 0 / deductions inactive = per trip only),Pending (C13)
+SR-057,General,Screen language per account: English (default) or Tagalog (office Taglish); statuses / PDF and Excel terms / printouts stay English,Instruction from the team (2026-11-02),public/assets/js/i18n.js; public/assets/js/i18n/tl.js; Admin::setLanguage; database/migrations/2026-11-03_user_language.sql,Implemented
+SR-058,Access,Account lock after 5 wrong passwords; Admin recovery code (no email); sign out of old sessions after a password change,Instruction from the team (2026-11-02) and FMS PDF II.A (user and access management),Core/AccountSecurity.php; public/index.php (login / recover); Admin::recoveryCodeCreate; scripts/reset_password.php; database/migrations/2026-11-04_account_security.sql,Implemented
+SR-059,Access,Admin sets how many accounts each role can have (dispatchers per shift); full roles are hidden from the choices,Instruction from the team (2026-11-02),AccountSecurity::checkSlot / limits; Admin::roleLimitsSave; administration/admin.js,Implemented
+SR-060,Operations,Map of the route when adding a route and on the trip (Google Maps embed without key),Instruction from the team (2026-11-02); mulawin_fleetops repo (system-hardening) dispatch.js,core.js UI.mapHtml / UI.mapPreview; accounting/billing.js; operations/trips.js,Implemented

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 150" role="img" aria-label="R.P. Mulawin Trucking Service logo">
+  <title>RPM — R.P. Mulawin Trucking Service</title>
+  <rect x="0" y="0" width="240" height="150" rx="10" fill="#111111"/>
+  <g fill="none" stroke="#E2A426" stroke-width="13">
+    <ellipse cx="78" cy="75" rx="62" ry="56"/>
+    <ellipse cx="162" cy="75" rx="62" ry="56"/>
+  </g>
+  <g fill="none" stroke="#F6C453" stroke-width="2.5" opacity=".75">
+    <ellipse cx="78" cy="75" rx="56" ry="50"/>
+    <ellipse cx="162" cy="75" rx="56" ry="50"/>
+  </g>
+  <text x="120" y="98" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="66"
+        fill="#C0161D" stroke="#FFFFFF" stroke-width="3" paint-order="stroke" letter-spacing="1">RPM</text>
+</svg>

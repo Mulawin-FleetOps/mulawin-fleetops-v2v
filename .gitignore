@@ -1,0 +1,16 @@
+.env
+.DS_Store
+/storage/private/*
+!/storage/private/.htaccess
+/storage/backups/*
+!/storage/backups/.htaccess
+/tests/reports/
+/tests/system_test_accounts.json
+__pycache__/
+# automation scripts (Script 1 / Script 2): private and generated files
+/automation/config.json
+/automation/.credentials.json
+/automation/.sessions/
+/automation/reports/
+/automation/demo_manifest.json
+/automation/sample_files/

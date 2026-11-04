@@ -1,0 +1,9 @@
+DirectoryIndex index.php
+Options -Indexes
+<IfModule mod_rewrite.c>
+ RewriteEngine On
+ RewriteRule ^(backend|config|database|docs|scripts|storage|tests)(/|$) - [F,L,NC]
+</IfModule>
+<FilesMatch "^(\.env|\.env\.example|README\.md|\.gitignore|.*\.sql|.*\.log)$">
+ Require all denied
+</FilesMatch>
