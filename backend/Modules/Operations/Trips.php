@@ -94,6 +94,7 @@ final class Trips {
         $data['incidentTypes'] = self::INCIDENT_TYPES;
         $data['statuses'] = self::STATUSES;
         $data['fuelLevels'] = self::FUEL_LEVELS;
+        $data['checklistMinMinutes'] = (int)Settings::value('inspection_min_minutes');
         $data['unitsPerTrip'] = Settings::value('units_per_trip');
         $data['filterOptions'] = readSections([
             'clients' => fn() => many($p, 'SELECT id, company_name FROM clients ORDER BY company_name'),
@@ -172,6 +173,7 @@ final class Trips {
             'edit' => self::edit($u, $d),
             'auto_assign' => self::retryAssign($u, $d),
             'reassign' => self::reassign($u, $d),
+            'checklist_start' => self::checklistStart($u, $d),
             'checklist' => self::checklist($u, $d),
             'dispatch' => self::dispatch($u, $d),
             'progress' => self::progress($u, $d),
@@ -482,6 +484,46 @@ final class Trips {
     }
 
     // ---------- pre-dispatch checklist (PDF #12 step 7) ----------
+    // ---------- checklist timer (PDF #11 G: minimum inspection duration) ----------
+    /**
+     * Called when the dispatcher OPENS a checklist. Records the start time once per trip attempt
+     * and kind (opening it again does not restart the timer) and returns the time left.
+     */
+    private static function checklistStart(array $u, array $d): array {
+        $id = idField($d, 'trip_id');
+        $kind = choiceField($d, 'kind', ['Pre-Dispatch', 'Arrival']);
+        return transaction(function (PDO $p) use ($u, $id, $kind) {
+            $t = self::lockTrip($p, $id);
+            self::mustBeTripDispatcher($u, $t);
+            if ($kind === 'Pre-Dispatch') self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist');
+            else must($t['status'] === 'Completed' && FleetState::awaitingArrival($p, $id), 'The arrival checklist is not pending for this trip.', 409);
+            $p->prepare('INSERT IGNORE INTO checklist_starts (trip_id, attempt_number, kind, started_by) VALUES (?,?,?,?)')
+              ->execute([$id, $t['attempt_number'], $kind, $u['id']]);
+            return self::timerState($p, $t, $kind);
+        });
+    }
+
+    /** Start time, minimum minutes and seconds left (computed with the database clock). */
+    private static function timerState(PDO $p, array $t, string $kind): array {
+        $min = (int)Settings::value('inspection_min_minutes');
+        $s = one($p, 'SELECT started_at, TIMESTAMPDIFF(SECOND, started_at, NOW()) AS secs FROM checklist_starts WHERE trip_id=? AND attempt_number=? AND kind=?',
+                 [$t['id'], $t['attempt_number'], $kind]);
+        return ['started_at' => $s['started_at'] ?? null, 'min_minutes' => $min,
+                'remaining_seconds' => $s ? max(0, $min * 60 - (int)$s['secs']) : $min * 60];
+    }
+
+    /** Refuses a checklist submitted before the minimum duration. Returns the start time. */
+    private static function mustRespectTimer(PDO $p, array $t, string $kind): ?string {
+        $st = self::timerState($p, $t, $kind);
+        if ($st['min_minutes'] <= 0) return $st['started_at'];
+        $label = $kind === 'Arrival' ? 'arrival checklist' : 'pre-dispatch checklist';
+        must($st['started_at'] !== null, 'Open the ' . $label . ' first. The ' . $st['min_minutes'] . '-minute inspection timer starts when the checklist is opened.', 409);
+        $left = (int)$st['remaining_seconds'];
+        must($left <= 0, 'The ' . $label . ' must take at least ' . $st['min_minutes'] . ' minute(s) (started ' . substr((string)$st['started_at'], 11, 5)
+            . '). You can submit in ' . intdiv($left, 60) . ' min ' . ($left % 60) . ' sec.', 409);
+        return $st['started_at'];
+    }
+
     private static function checklist(array $u, array $d): array {
         $id = idField($d, 'trip_id');
         require_once __DIR__ . '/Inspections/Checklist.php';
@@ -495,11 +537,12 @@ final class Trips {
             self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist');
             $v = one($p, 'SELECT status, plate_number FROM vehicles WHERE id=?', [$t['vehicle_id']]);
             must($v && $v['status'] === 'Assigned', 'The assigned truck is ' . ($v['status'] ?? 'missing') . '.', 409);
-            $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, actor_id, completed_at)
-                         VALUES (?,?,?,'Pre-Dispatch',?,?,?,?,?,?,NOW())
+            $started = self::mustRespectTimer($p, $t, 'Pre-Dispatch');
+            $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, actor_id, started_at, completed_at)
+                         VALUES (?,?,?,'Pre-Dispatch',?,?,?,?,?,?,?,NOW())
                          ON DUPLICATE KEY UPDATE vehicle_id=VALUES(vehicle_id), items_json=VALUES(items_json), has_not_ok=VALUES(has_not_ok), odometer_km=VALUES(odometer_km),
-                           fuel_level=VALUES(fuel_level), remarks=VALUES(remarks), actor_id=VALUES(actor_id), completed_at=NOW()")
-              ->execute([$id, $t['vehicle_id'], $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $check['has_not_ok'] ? 1 : 0, $km, $fuel, $remarks, $u['id']]);
+                           fuel_level=VALUES(fuel_level), remarks=VALUES(remarks), actor_id=VALUES(actor_id), started_at=VALUES(started_at), completed_at=NOW()")
+              ->execute([$id, $t['vehicle_id'], $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $check['has_not_ok'] ? 1 : 0, $km, $fuel, $remarks, $u['id'], $started]);
             if ($check['has_not_ok']) {
                 $bad = []; foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) { $k = $s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT); if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label; }
                 self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'], implode(', ', $bad));
@@ -718,6 +761,7 @@ final class Trips {
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['Completed'], 'do the arrival checklist');
             must(FleetState::awaitingArrival($p, $id), 'The arrival checklist of ' . $t['trip_ref'] . ' is already done.', 409);
+            $started = self::mustRespectTimer($p, $t, 'Arrival');
             $vid = (int)$t['vehicle_id'];
             $plate = one($p, 'SELECT plate_number FROM vehicles WHERE id=? FOR UPDATE', [$vid])['plate_number'];
 
@@ -753,9 +797,9 @@ final class Trips {
                         [$jobId, null, 'Reported', cut('from the arrival checklist of ' . $t['trip_ref'], 500), $u['id']]);
                 }
             }
-            $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, damage_notes, maintenance_job_id, actor_id, completed_at)
-                         VALUES (?,?,?,'Arrival',?,?,?,?,?,?,?,?,NOW())")
-              ->execute([$id, $vid, $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $bad ? 1 : 0, $km, $fuel, $remarks, $damage, $jobId, $u['id']]);
+            $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, damage_notes, maintenance_job_id, actor_id, started_at, completed_at)
+                         VALUES (?,?,?,'Arrival',?,?,?,?,?,?,?,?,?,NOW())")
+              ->execute([$id, $vid, $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $bad ? 1 : 0, $km, $fuel, $remarks, $damage, $jobId, $u['id'], $started]);
 
             FleetState::release($p, $id);
             $truck = FleetState::reconcile($p, $vid, $u['id'], 'Arrival checklist ' . $t['trip_ref'] . ($bad ? ' (NOT OK items, ' . $jobRef . ')' : ' (all OK)'));

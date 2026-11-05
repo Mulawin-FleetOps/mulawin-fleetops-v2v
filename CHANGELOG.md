@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-05 (checklist timer)
+- **Minimum checklist duration** (PDF #11 section G, "such as 15 minutes"), for both the pre-dispatch and the arrival
+  checklist. The timer starts on the server when the dispatcher opens the checklist (closing and reopening does not
+  reset it). The Submit button shows a countdown and stays disabled until the time has passed, and the server refuses
+  an early submission even through the API. Start time is saved with the checklist; trip details show how long it took.
+- **Editable by the Admin**: User Management > Settings > "Minimum checklist duration" (0 to 120 minutes, 0 = off,
+  default 15 from `config/formulas.php`). Changes are written to the activity log.
+- Database: `database/migrations/2026-11-05_checklist_timer.sql` (table `checklist_starts`, column `inspections.started_at`).
+
 ## 2026-11-05 (arrival checklist, PMS removed)
 - **Arrival checklist** (PDF #11 section G; Car Carrier step "Complete the arrival checklist"). After **Complete Trip**
   the billing still moves to For Billing and the driver and helper are free at once, but the **truck stays On Trip**

@@ -290,7 +290,10 @@ const TripUI = {
       'Trips.reassign', { extra: { trip_id: t.id }, intro: 'Busy or unavailable trucks and people are marked; the system refuses them.', after: () => { TripUI.open(t.id); App.route(); } });
   },
   /** Checklist modal. kind = 'Pre-Dispatch' (before departure) or 'Arrival' (truck is back; before = the pre-dispatch result). */
-  checklist(t, kind = 'Pre-Dispatch', before = null) {
+  async checklist(t, kind = 'Pre-Dispatch', before = null) {
+    // Starts (or continues) the server-side inspection timer; reopening does not restart it.
+    let timer;
+    try { timer = await App.api('Trips.checklist_start', { trip_id: t.id, kind }); } catch (e) { return UI.toast(e.message, 'error'); }
     const secs = TripUI.data.checklist || [];
     const arrival = kind === 'Arrival';
     const prev = before ? (JSON.parse(before.items_json || '{}').items || {}) : {};
@@ -306,7 +309,8 @@ const TripUI = {
           { name: 'photos', label: 'Photos (required when an item is NOT OK)', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }])
       : UI.fields([{ name: 'odometer_km', label: 'Odometer (km)', type: 'number', col: 4 }, { name: 'fuel_level', label: 'Fuel level', type: 'select', options: UI.list(['Full', '3/4', '1/2', '1/4', 'Low']), col: 4 },
           { name: 'remarks', label: 'Remarks', col: 4 }]);
-    const body = `<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">${intro}</div>
+    const timerBox = +timer.min_minutes > 0 ? `<div class="alert alert-info py-2 small mb-2 d-flex align-items-center gap-2" data-timer><i class="bi bi-stopwatch"></i><span data-timer-text></span></div>` : '';
+    const body = `${timerBox}<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">${intro}</div>
       <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark all OK</button></div>
       ${secs.map(s => `<div class="chk-sec"><h6>${UI.esc(s.title)}</h6>${s.items.map((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0');
         return `<div class="chk-row" data-k="${k}"><span>${UI.esc(label)}${hint(k)}</span><div class="btn-group" role="group">
@@ -329,7 +333,24 @@ const TripUI = {
         r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks });
       }
       UI.result(r); TripUI.open(t.id); App.route();
-    }, { size: 'modal-xl', submit: arrival ? 'Submit arrival checklist' : 'Submit checklist', onShow: (w) => {
+    }, { size: 'modal-xl', submit: arrival ? 'Submit arrival checklist' : 'Submit checklist', onShow: (w, form) => {
+      if (+timer.min_minutes > 0) {
+        const btn = form.querySelector('button[type=submit]'), box = w.querySelector('[data-timer]'), txt = w.querySelector('[data-timer-text]');
+        const end = Date.now() + (+timer.remaining_seconds) * 1000;
+        const started = timer.started_at ? String(timer.started_at).slice(11, 16) : '';
+        const tick = () => {
+          const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+          if (left > 0) {
+            txt.innerHTML = `Minimum inspection time: <b>${timer.min_minutes} min</b> (started ${UI.esc(started)}). You can submit in <b>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</b>. Closing this window does not reset the timer.`;
+            btn.disabled = true;
+          } else {
+            txt.innerHTML = `Minimum inspection time of ${timer.min_minutes} min reached (started ${UI.esc(started)}). You can submit the checklist.`;
+            box.classList.replace('alert-info', 'alert-success'); btn.disabled = false;
+          }
+          return left;
+        };
+        if (tick() > 0) { const iv = setInterval(() => { if (!w.isConnected || tick() === 0) clearInterval(iv); }, 1000); }
+      }
       w.querySelector('#chkAll').onclick = () => w.querySelectorAll('input[value=OK]').forEach(x => { x.checked = true; x.closest('.chk-row').classList.remove('bad'); });
       w.addEventListener('change', (e) => { if (e.target.classList.contains('btn-check')) e.target.closest('.chk-row').classList.toggle('bad', e.target.value === 'NOT OK'); });
     } });
@@ -383,6 +404,13 @@ const TripUI = {
       { name: 'note', label: 'Note', type: 'textarea', required: true, col: 12 }], 'Trips.progress', { extra: { trip_id: t.id }, after: () => { TripUI.open(t.id); App.route(); } });
   },
 
+  /** " (17 min)" — how long the checklist took, from opening to submission. */
+  duration(i) {
+    if (!i.started_at) return '';
+    const m = Math.round((new Date(String(i.completed_at).replace(' ', 'T')) - new Date(String(i.started_at).replace(' ', 'T'))) / 60000);
+    return ` <span class="text-muted small">(${m} min)</span>`;
+  },
+
   /** Arrival checklist result, compared with the pre-dispatch checklist (PDF #11 G: condition before departure vs upon arrival). */
   arrivalHtml(t, pre, arr) {
     if (!arr) return `<div class="text-muted small">${+t.awaiting_arrival ? 'Pending. The truck stays On Trip until the dispatcher submits the arrival checklist.' : 'Not required (trip completed before the arrival checklist was added).'}</div>`;
@@ -391,7 +419,7 @@ const TripUI = {
     (TripUI.data.checklist || []).forEach(s => s.items.forEach((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0');
       if (now[k] && now[k].condition === 'NOT OK') { bad.push(label + (now[k].remarks ? ' (' + now[k].remarks + ')' : '')); if (then[k] && then[k].condition === 'OK') changed.push(label); } }));
     const km = pre && pre.odometer_km && arr.odometer_km ? +arr.odometer_km - +pre.odometer_km : null;
-    return UI.kv([['Result', bad.length ? '<span class="badge-s red">NOT OK items</span>' : '<span class="badge-s green">All 57 items OK</span>'], ['Done by', UI.e(arr.actor) + ' · ' + UI.datetime(arr.completed_at)],
+    return UI.kv([['Result', bad.length ? '<span class="badge-s red">NOT OK items</span>' : '<span class="badge-s green">All 57 items OK</span>'], ['Done by', UI.e(arr.actor) + ' · ' + UI.datetime(arr.completed_at) + TripUI.duration(arr)],
       ['Odometer', arr.odometer_km ? (pre && pre.odometer_km ? UI.esc(pre.odometer_km) + ' → ' : '') + UI.esc(arr.odometer_km) + ' km' + (km !== null ? ` <span class="text-muted small">(${UI.num(km, 0)} km travelled)</span>` : '') : 'Not recorded on arrival' + (pre && pre.odometer_km ? ' (departure: ' + UI.esc(pre.odometer_km) + ' km)' : '')],
       ['Fuel', (pre && pre.fuel_level ? UI.esc(pre.fuel_level) + ' → ' : '') + UI.e(arr.fuel_level)],
       bad.length ? ['NOT OK', UI.esc(bad.join('; '))] : null,
@@ -461,7 +489,7 @@ const TripUI = {
     if (ins) {
       const items = JSON.parse(ins.items_json || '{}').items || {};
       const bad = []; (TripUI.data.checklist || []).forEach(s => s.items.forEach((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0'); if (items[k] && items[k].condition === 'NOT OK') bad.push(label + (items[k].remarks ? ' (' + items[k].remarks + ')' : '')); }));
-      checklistHtml = UI.kv([['Result', bad.length ? '<span class="badge-s red">NOT OK items</span>' : '<span class="badge-s green">All 57 items OK</span>'], ['Done by', UI.e(ins.actor) + ' · ' + UI.datetime(ins.completed_at)],
+      checklistHtml = UI.kv([['Result', bad.length ? '<span class="badge-s red">NOT OK items</span>' : '<span class="badge-s green">All 57 items OK</span>'], ['Done by', UI.e(ins.actor) + ' · ' + UI.datetime(ins.completed_at) + TripUI.duration(ins)],
         ['Odometer / fuel', UI.e(ins.odometer_km) + ' km · ' + UI.e(ins.fuel_level)], bad.length ? ['NOT OK', UI.esc(bad.join('; '))] : null, ins.remarks ? ['Remarks', UI.esc(ins.remarks)] : null]);
     }
     const html = `${UI.steps(TripUI.STAGES, st, { warn })}

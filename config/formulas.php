@@ -91,7 +91,7 @@ return [
         'inspection_min_minutes' => [
             'group' => 'Inspection', 'label' => 'Minimum checklist duration (minutes, 0 = off)',
             'value' => 15, 'unit' => 'minutes',
-            'help'  => 'Pinakamaikling oras mula pagpindot ng "Start checklist" hanggang ma-submit. Ilagay 0 para i-off.',
+            'help'  => 'Pinakamaikling oras mula pagbukas ng checklist (pre-dispatch at arrival) hanggang ma-submit. Ilagay 0 para i-off. Ito ang default; puwedeng palitan ng Admin sa User Management > Settings.',
             'source' => 'FMS PDF p.6: "set a minimum inspection duration, such as 15 minutes, if technically feasible"',
         ],
 

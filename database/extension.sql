@@ -130,6 +130,21 @@ CREATE TABLE trip_updates (
   CONSTRAINT chk_update_type CHECK (update_type IN ('Progress','Loading','Unloading','Delivery','Delay','Other'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Checklist timer (PDF #11 section G: minimum inspection duration, e.g. 15 minutes).
+-- Written when the dispatcher OPENS a checklist; the server refuses the submission until
+-- the minimum minutes (setting inspection_min_minutes, editable by the Admin) have passed.
+CREATE TABLE checklist_starts (
+  trip_id INT NOT NULL,
+  attempt_number INT NOT NULL,
+  kind VARCHAR(15) NOT NULL,
+  started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  started_by INT NOT NULL,
+  PRIMARY KEY (trip_id, attempt_number, kind),
+  CONSTRAINT chk_cstart_kind CHECK (kind IN ('Pre-Dispatch','Arrival')),
+  FOREIGN KEY (trip_id) REFERENCES trips(id),
+  FOREIGN KEY (started_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Vehicle checklists (57 items from the company checklist scans), PDF #11 section G.
 --   Pre-Dispatch: before departure, one per trip attempt (all OK -> Ready for Dispatch).
 --   Arrival:      when the truck is back after a Completed trip. Until it is done the truck
@@ -148,6 +163,7 @@ CREATE TABLE inspections (
   damage_notes VARCHAR(1000) NULL COMMENT 'arrival: damage, defects, missing equipment, reported incidents',
   maintenance_job_id INT NULL COMMENT 'arrival: corrective maintenance record opened for the NOT OK items',
   actor_id INT NOT NULL,
+  started_at DATETIME NULL COMMENT 'when the checklist was opened (minimum duration timer)',
   completed_at DATETIME NOT NULL,
   UNIQUE KEY uq_inspection_kind (trip_id, attempt_number, kind),
   CONSTRAINT chk_inspection_kind CHECK (kind IN ('Pre-Dispatch','Arrival')),

@@ -26,6 +26,7 @@ migration file → open the system and check. Migrations so far:
 | `2026-11-04_account_security.sql` | Adds `users.failed_logins`, `locked_until`, `recovery_hash` and `password_changed_at` (account lock, Admin recovery code, sign out of old sessions after a password change). Safe to import twice. Until it is imported, login still works without these protections. |
 | `2026-11-03_user_language.sql` | Adds `users.language` (screen language per account: English default or Tagalog). Safe to import twice. Until it is imported the system still works in English, but changing the language shows a message to import it. |
 | `2026-11-05_arrival_checklist.sql` | Arrival checklist: adds `inspections.kind` (Pre-Dispatch / Arrival), `damage_notes`, `maintenance_job_id` and one checklist per trip attempt per kind. **Import it together with the new code** (the new code needs these columns, and the old code cannot read two checklists per trip). Import once. |
+| `2026-11-05_checklist_timer.sql` | Checklist timer: adds `checklist_starts` and `inspections.started_at`. Import **after** `2026-11-05_arrival_checklist.sql`, together with the new code. Import once. The minimum is set by the Admin in User Management > Settings. |
 
 ## Automated test sa Hostinger TEST COPY
 

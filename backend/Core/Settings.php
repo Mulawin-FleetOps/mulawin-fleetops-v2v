@@ -35,9 +35,12 @@ final class Settings {
             'Used with the value above: estimated diesel = (km / km per liter) x price.', 0, 1000],
         'units_per_trip'              => ['Default units per car carrier trip', 5, 'units',
             'First value of "units" on a car carrier trip; can be changed per trip.', 1, 20],
+        'inspection_min_minutes'      => ['Minimum checklist duration', 15, 'minutes',
+            'Pre-dispatch and arrival checklists: the earliest a checklist can be submitted, counted from when the dispatcher opened it (PDF #11 section G). 0 = no minimum.', 0, 120],
     ];
     private const FROM_CONFIG = ['purchase_approval_threshold', 'document_alert_days', 'license_alert_days',
-                                 'default_payment_terms_days', 'km_per_liter', 'fuel_price_per_liter', 'units_per_trip'];
+                                 'default_payment_terms_days', 'km_per_liter', 'fuel_price_per_liter', 'units_per_trip',
+                                 'inspection_min_minutes'];
 
     private static ?array $saved = null;
     private static ?array $config = null;
