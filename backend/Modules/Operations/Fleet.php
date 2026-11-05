@@ -148,6 +148,7 @@ final class Fleet {
                 $msg = 'Truck is now ' . $now . '.' . ($auto ? ' ' . $auto : '');
             } else {
                 must(!$trip || !in_array($trip['status'], FleetState::ON_ROAD, true), 'The truck is on the road (' . ($trip['trip_ref'] ?? '') . '). It can be set Unavailable after the trip.', 409);
+                must(!$trip || $trip['status'] !== FleetState::RETURNING, 'The truck is returning from ' . ($trip['trip_ref'] ?? '') . '. The dispatcher must submit the arrival checklist first; NOT OK items there open a repair record automatically.', 409);
                 run($p, 'UPDATE vehicles SET status_reason=? WHERE id=?', [$reason, $id]);
                 FleetState::setStatus($p, $id, 'Unavailable', $u['id'], $reason);
                 $msg = 'Truck set Unavailable.';

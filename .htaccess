@@ -4,6 +4,6 @@ Options -Indexes
  RewriteEngine On
  RewriteRule ^(backend|config|database|docs|scripts|storage|tests)(/|$) - [F,L,NC]
 </IfModule>
-<FilesMatch "^(\.env|\.env\.example|README\.md|\.gitignore|.*\.sql|.*\.log)$">
+<FilesMatch "^(\.env.*|\.gitignore|.*\.sql|.*\.log|.*\.txt|.*\.md|.*\.csv|.*\.json|.*\.py|.*\.bat)$">
  Require all denied
 </FilesMatch>

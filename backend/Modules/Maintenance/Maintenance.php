@@ -138,6 +138,7 @@ final class Maintenance {
             must(!$open, 'Truck ' . $v['plate_number'] . ' already has an unresolved maintenance record (' . ($open['job_ref'] ?? '') . '). Add the new findings to that record.', 409);
             $trip = FleetState::activeTrip($p, $vid);
             must(!$trip || !in_array($trip['status'], FleetState::ON_ROAD, true), 'Truck ' . $v['plate_number'] . ' is on the road (' . ($trip['trip_ref'] ?? '') . '). The dispatcher reports trouble during a trip with "Report incident".', 409);
+            must(!$trip || $trip['status'] !== FleetState::RETURNING, 'Truck ' . $v['plate_number'] . ' is returning from ' . ($trip['trip_ref'] ?? '') . '. Its problems are recorded in the arrival checklist (NOT OK items open a repair record automatically).', 409);
             if ($mechanicId) self::freeMechanic($p, $mechanicId);
             $status = $mechanicId ? 'Under Inspection' : 'Reported';
             $jid = insert($p, 'maintenance_jobs', ['job_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'source' => 'On-Premise',
@@ -364,8 +365,11 @@ final class Maintenance {
         $inc = $j['incident_id'] ? one($p, 'SELECT i.*, ru.full_name AS reported_by_name, au.full_name AS assessed_by_name FROM incidents i JOIN users ru ON ru.id=i.reported_by LEFT JOIN users au ON au.id=i.assessed_by WHERE i.id=?', [$j['incident_id']]) : null;
         $docs = Files::of($p, 'maintenance', $id);
         if ($inc) foreach (Files::of($p, 'incident', (int)$inc['id']) as $doc) $docs[] = $doc;
+        // Repair opened by an arrival checklist: show the checklist findings and its photos.
+        $arrival = one($p, "SELECT ins.*, us.full_name AS actor FROM inspections ins JOIN users us ON us.id=ins.actor_id WHERE ins.maintenance_job_id=? AND ins.kind='Arrival' ORDER BY ins.id DESC LIMIT 1", [$id]);
+        if ($arrival) foreach (Files::of($p, 'trip', (int)$arrival['trip_id']) as $doc) if ($doc['category'] === 'Arrival Inspection Photo') $docs[] = $doc;
         return [
-            'job' => $j, 'incident' => $inc, 'documents' => $docs,
+            'job' => $j, 'incident' => $inc, 'arrival' => $arrival, 'documents' => $docs,
             'events' => many($p, 'SELECT e.*, u.full_name AS actor, mc.full_name AS mechanic FROM maintenance_events e LEFT JOIN users u ON u.id=e.actor_id LEFT JOIN mechanics mc ON mc.id=e.mechanic_id WHERE e.maintenance_job_id=? ORDER BY e.id', [$id]),
             'history' => many($p, 'SELECT m.id, m.job_ref, m.source, m.problem, m.status, m.reported_on, m.completed_on, mc.full_name AS mechanic FROM maintenance_jobs m LEFT JOIN mechanics mc ON mc.id=m.mechanic_id WHERE m.vehicle_id=? ORDER BY m.id DESC LIMIT 30', [$j['vehicle_id']]),
             'costs' => many($p, 'SELECT c.*, u.full_name AS recorded_by_name FROM maintenance_costs c JOIN users u ON u.id=c.recorded_by WHERE c.maintenance_job_id=? ORDER BY c.id', [$id]),

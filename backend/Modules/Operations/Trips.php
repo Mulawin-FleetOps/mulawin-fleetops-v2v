@@ -18,7 +18,10 @@
  *    Confirm Dispatch is allowed only when fund = Released AND trip = Ready for Dispatch
  *    -> "Dispatched" (billing draft generated) -> progress / delays
  *    -> Complete Trip (completion date/time + waybill + acknowledgement receipt)
- *    -> "Completed" (billing draft moves to For Billing)
+ *    -> "Completed" (billing draft moves to For Billing; driver and helper are free)
+ *    -> truck drives back: it stays held ("On Trip") until the dispatcher submits the
+ *       ARRIVAL CHECKLIST (PDF #11 section G). All OK -> truck Available.
+ *       NOT OK -> corrective maintenance record, truck Under Maintenance.
  *  SCENARIO C (breakdown)
  *    Dispatcher incident report -> "On Hold - Incident Reported" -> Maintenance assesses
  *      Minor: repaired on site -> Resume Trip -> "In Transit" (not a second attempt)
@@ -47,6 +50,8 @@ final class Trips {
     public const DOC_REQUEST = 'Trip Request Document';
     public const DOC_WAYBILL = 'Waybill';
     public const DOC_AR = 'Acknowledgement Receipt';
+    public const DOC_ARRIVAL_PHOTO = 'Arrival Inspection Photo';
+    public const FUEL_LEVELS = ['Full', '3/4', '1/2', '1/4', 'Low'];
 
     // =================================================================
     // READ
@@ -57,7 +62,9 @@ final class Trips {
         [$where, $args] = self::filters($q);
         $closed = "'" . implode("','", self::CLOSED) . "'";
         $data = readSections([
-            'active' => fn() => many($p, self::select() . " WHERE t.status NOT IN ($closed) $scope ORDER BY t.scheduled_at, t.id", $scopeArgs),
+            // Open trips + completed trips whose truck is still returning (arrival checklist pending).
+            'active' => fn() => many($p, self::select() . " WHERE (t.status NOT IN ($closed)
+                    OR EXISTS (SELECT 1 FROM trip_assignments aa WHERE aa.trip_id=t.id AND aa.resource_type='vehicle')) $scope ORDER BY t.scheduled_at, t.id", $scopeArgs),
             'history' => fn() => many($p, self::select() . " WHERE t.status IN ($closed) $scope $where ORDER BY t.scheduled_at DESC, t.id DESC LIMIT 1000", array_merge($scopeArgs, $args)),
             'incidents' => fn() => many($p, "SELECT i.*, t.trip_ref, t.status AS trip_status, v.plate_number, c.company_name AS client, ru.full_name AS reported_by_name,
                     (SELECT au.full_name FROM users au WHERE au.id=i.assessed_by) AS assessed_by_name, m.job_ref, m.status AS job_status
@@ -86,6 +93,7 @@ final class Trips {
         $data['delayCauses'] = self::DELAY_CAUSES;
         $data['incidentTypes'] = self::INCIDENT_TYPES;
         $data['statuses'] = self::STATUSES;
+        $data['fuelLevels'] = self::FUEL_LEVELS;
         $data['unitsPerTrip'] = Settings::value('units_per_trip');
         $data['filterOptions'] = readSections([
             'clients' => fn() => many($p, 'SELECT id, company_name FROM clients ORDER BY company_name'),
@@ -111,7 +119,9 @@ final class Trips {
                 d1.full_name AS driver_name, d2.full_name AS driver2_name, hp.full_name AS helper_name,
                 ds.full_name AS dispatcher_name, cr.full_name AS created_by_name,
                 f.id AS fund_id, f.status AS fund_status, f.amount AS fund_amount, f.rejected_reason AS fund_rejected_reason,
-                (SELECT ins.has_not_ok FROM inspections ins WHERE ins.trip_id=t.id AND ins.attempt_number=t.attempt_number) AS checklist_not_ok,
+                (SELECT ins.has_not_ok FROM inspections ins WHERE ins.trip_id=t.id AND ins.attempt_number=t.attempt_number AND ins.kind='Pre-Dispatch') AS checklist_not_ok,
+                (SELECT ia.has_not_ok FROM inspections ia WHERE ia.trip_id=t.id AND ia.attempt_number=t.attempt_number AND ia.kind='Arrival') AS arrival_not_ok,
+                EXISTS (SELECT 1 FROM trip_assignments aw WHERE aw.trip_id=t.id AND aw.resource_type='vehicle' AND t.status='Completed') AS awaiting_arrival,
                 (SELECT COUNT(*) FROM trip_updates up WHERE up.trip_id=t.id AND up.update_type='Delay') AS delay_count,
                 (SELECT i.status FROM incidents i WHERE i.trip_id=t.id ORDER BY i.id DESC LIMIT 1) AS incident_status,
                 (SELECT i.severity FROM incidents i WHERE i.trip_id=t.id ORDER BY i.id DESC LIMIT 1) AS incident_severity,
@@ -169,6 +179,7 @@ final class Trips {
             'resume' => self::resume($u, $d),
             'reschedule' => self::reschedule($u, $d),
             'complete' => self::complete($u, $d),
+            'arrival' => self::arrival($u, $d),
             'cancel' => self::cancel($u, $d),
             'details' => self::details($u, $d),
             default => throw new BusinessRuleException('Unknown trip action.', 404),
@@ -484,10 +495,10 @@ final class Trips {
             self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist');
             $v = one($p, 'SELECT status, plate_number FROM vehicles WHERE id=?', [$t['vehicle_id']]);
             must($v && $v['status'] === 'Assigned', 'The assigned truck is ' . ($v['status'] ?? 'missing') . '.', 409);
-            $p->prepare('INSERT INTO inspections (trip_id, vehicle_id, attempt_number, items_json, has_not_ok, odometer_km, fuel_level, remarks, actor_id, completed_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,NOW())
+            $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, actor_id, completed_at)
+                         VALUES (?,?,?,'Pre-Dispatch',?,?,?,?,?,?,NOW())
                          ON DUPLICATE KEY UPDATE vehicle_id=VALUES(vehicle_id), items_json=VALUES(items_json), has_not_ok=VALUES(has_not_ok), odometer_km=VALUES(odometer_km),
-                           fuel_level=VALUES(fuel_level), remarks=VALUES(remarks), actor_id=VALUES(actor_id), completed_at=NOW()')
+                           fuel_level=VALUES(fuel_level), remarks=VALUES(remarks), actor_id=VALUES(actor_id), completed_at=NOW()")
               ->execute([$id, $t['vehicle_id'], $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $check['has_not_ok'] ? 1 : 0, $km, $fuel, $remarks, $u['id']]);
             if ($check['has_not_ok']) {
                 $bad = []; foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) { $k = $s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT); if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label; }
@@ -671,13 +682,94 @@ final class Trips {
             run($p, "UPDATE trips SET status='Completed', completed_at=?, waybill_number=?, units_delivered=?, delivery_notes=? WHERE id=?",
                 [$when, $waybill, $units, $notes, $id]);
             self::event($p, $u['id'], $id, 'trip completed', $t['status'], 'Completed', 'Completed ' . $when . '; waybill ' . $waybill);
-            FleetState::release($p, $id);
-            $truck = FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Trip ' . $t['trip_ref'] . ' completed');
+            // Crew is free now; the truck stays held (On Trip) until the arrival checklist.
+            FleetState::releaseCrew($p, $id);
+            FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Trip ' . $t['trip_ref'] . ' completed, truck returning');
             BillingDraft::forBilling($p, $id);
             Notify::roles($p, ['billing'], 'For billing', $t['trip_ref'] . ' is completed. Verify the documents and finalize the billing.', 'billing', 'billing-verify-' . $id);
-            Notify::roles($p, ['operations_head'], 'Trip completed', $t['trip_ref'] . ' completed.', 'trips');
+            Notify::roles($p, ['operations_head'], 'Trip completed', $t['trip_ref'] . ' completed. The truck is returning (arrival checklist pending).', 'trips');
+            Notify::roles($p, [$t['dispatcher_role']], 'Arrival checklist', $t['trip_ref'] . ': do the arrival checklist when the truck is back.', 'trips', 'trip-arrival-' . $id);
             $auto = self::assignWaiting($p, $u);
-            return ['message' => 'Trip completed. Truck is now ' . $truck . '. The billing record moved to For Billing.' . ($auto ? ' ' . $auto : '')];
+            return ['message' => 'Trip completed. The billing record moved to For Billing. The driver and helper are free; the truck stays On Trip until you submit the arrival checklist.' . ($auto ? ' ' . $auto : '')];
+        });
+    }
+
+    /**
+     * ARRIVAL CHECKLIST (PDF #11 section G; PDF #11 Car Carrier "Complete the arrival checklist").
+     * Done by the trip's dispatcher when the truck is back after a Completed trip.
+     * Same 57 items as the pre-dispatch checklist so the condition before departure and
+     * upon arrival can be compared item by item.
+     *   All OK  -> the truck is released and becomes Available.
+     *   NOT OK  -> photos and a description are required; a corrective maintenance record is
+     *              opened (or the findings are added to the truck's open record) and the
+     *              truck becomes Under Maintenance.
+     */
+    private static function arrival(array $u, array $d): array {
+        $id = idField($d, 'trip_id');
+        require_once __DIR__ . '/Inspections/Checklist.php';
+        $check = Checklist::validate($d);
+        $km = intField($d, 'odometer_km', 0, false);
+        $fuel = choiceField($d, 'fuel_level', self::FUEL_LEVELS);
+        $remarks = optField($d, 'remarks', 500);
+        $damage = optField($d, 'damage_notes', 1000);
+        if ($check['has_not_ok']) must($damage !== null, 'Describe the damage, defects or missing equipment of the NOT OK items.');
+        return transaction(function (PDO $p) use ($u, $id, $check, $km, $fuel, $remarks, $damage) {
+            $t = self::lockTrip($p, $id);
+            self::mustBeTripDispatcher($u, $t);
+            self::mustBeStatus($t, ['Completed'], 'do the arrival checklist');
+            must(FleetState::awaitingArrival($p, $id), 'The arrival checklist of ' . $t['trip_ref'] . ' is already done.', 409);
+            $vid = (int)$t['vehicle_id'];
+            $plate = one($p, 'SELECT plate_number FROM vehicles WHERE id=? FOR UPDATE', [$vid])['plate_number'];
+
+            // Compare with the pre-dispatch checklist of the same attempt.
+            $pre = one($p, "SELECT items_json, odometer_km, fuel_level FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch'", [$id, $t['attempt_number']]);
+            if ($km && $pre && $pre['odometer_km']) must($km >= (int)$pre['odometer_km'], 'The arrival odometer (' . $km . ' km) is lower than at departure (' . $pre['odometer_km'] . ' km).');
+            $before = $pre ? (json_decode((string)$pre['items_json'], true)['items'] ?? []) : [];
+            $bad = []; $changed = [];
+            foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) {
+                $k = $s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT);
+                if ($check['items'][$k]['condition'] !== 'NOT OK') continue;
+                $bad[] = $label . ($check['items'][$k]['remarks'] !== '' ? ' (' . $check['items'][$k]['remarks'] . ')' : '');
+                if (($before[$k]['condition'] ?? null) === 'OK') $changed[] = $label;
+            }
+            Files::store($p, $u, 'photos', 'trip', $id, self::DOC_ARRIVAL_PHOTO, (bool)$bad, 'photos of the NOT OK items (damage, defects or missing equipment)');
+
+            $jobId = null; $jobRef = null;
+            if ($bad) {
+                $problem = cut('Arrival checklist ' . $t['trip_ref'] . ' - NOT OK: ' . implode('; ', $bad) . '. ' . $damage, 500);
+                $open = FleetState::openJob($p, $vid);
+                if ($open) {
+                    // One open record per truck: add the findings to it.
+                    $jobId = (int)$open['id']; $jobRef = $open['job_ref'];
+                    run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)',
+                        [$jobId, $open['status'], $open['status'], cut('Arrival checklist findings: ' . $problem, 500), $u['id']]);
+                } else {
+                    $jobId = insert($p, 'maintenance_jobs', ['job_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'source' => 'On-Premise',
+                        'trip_id' => $id, 'problem' => $problem, 'reported_on' => date('Y-m-d'), 'priority' => 'Normal', 'status' => 'Reported',
+                        'remarks' => cut('From the arrival checklist of ' . $t['trip_ref'], 500), 'created_by' => $u['id']]);
+                    $jobRef = refNumber('CM', $jobId);
+                    run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$jobRef, $jobId]);
+                    run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)',
+                        [$jobId, null, 'Reported', cut('from the arrival checklist of ' . $t['trip_ref'], 500), $u['id']]);
+                }
+            }
+            $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, damage_notes, maintenance_job_id, actor_id, completed_at)
+                         VALUES (?,?,?,'Arrival',?,?,?,?,?,?,?,?,NOW())")
+              ->execute([$id, $vid, $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $bad ? 1 : 0, $km, $fuel, $remarks, $damage, $jobId, $u['id']]);
+
+            FleetState::release($p, $id);
+            $truck = FleetState::reconcile($p, $vid, $u['id'], 'Arrival checklist ' . $t['trip_ref'] . ($bad ? ' (NOT OK items, ' . $jobRef . ')' : ' (all OK)'));
+            $summary = ($bad ? count($bad) . ' NOT OK item(s): ' . implode('; ', $bad) : 'All items OK') . ($km ? "; odometer $km" : '') . "; fuel $fuel"
+                     . ($changed ? '. Changed since departure: ' . implode(', ', $changed) : '');
+            self::event($p, $u['id'], $id, 'arrival checklist completed', 'Completed', 'Completed', cut($summary, 500));
+            Notify::resolve($p, 'trip-arrival-' . $id);
+            if ($bad) {
+                Notify::roles($p, ['motorpool'], 'Arrival checklist finding', "$plate back from " . $t['trip_ref'] . ' with NOT OK items (' . $jobRef . '). Assign a mechanic.', 'maintenance', 'job-open-' . $jobId);
+                Notify::roles($p, ['operations_head'], 'Truck under maintenance', "$plate came back from " . $t['trip_ref'] . " with NOT OK items ($jobRef). It cannot be assigned until the repair is verified.", 'maintenance');
+                return ['warning' => 'Arrival checklist saved. NOT OK items were found, so ' . $jobRef . ' was ' . ($open ? 'updated' : 'opened') . ' in Corrective Maintenance. Truck ' . $plate . ' is now ' . $truck . '.'];
+            }
+            $auto = self::assignWaiting($p, $u);
+            return ['message' => 'Arrival checklist saved (all OK). Truck ' . $plate . ' is now ' . $truck . '.' . ($auto ? ' ' . $auto : '')];
         });
     }
 
@@ -730,7 +822,8 @@ final class Trips {
             'trip' => $t,
             'events' => many($p, 'SELECT e.*, us.full_name AS actor FROM trip_events e LEFT JOIN users us ON us.id=e.actor_id WHERE e.trip_id=? ORDER BY e.id', [$id]),
             'updates' => many($p, 'SELECT up.*, us.full_name AS actor FROM trip_updates up JOIN users us ON us.id=up.actor_id WHERE up.trip_id=? ORDER BY up.id DESC', [$id]),
-            'inspections' => many($p, 'SELECT i.*, us.full_name AS actor FROM inspections i JOIN users us ON us.id=i.actor_id WHERE i.trip_id=? ORDER BY i.attempt_number', [$id]),
+            'inspections' => many($p, 'SELECT i.*, us.full_name AS actor, m.job_ref, m.status AS job_status FROM inspections i JOIN users us ON us.id=i.actor_id
+                LEFT JOIN maintenance_jobs m ON m.id=i.maintenance_job_id WHERE i.trip_id=? ORDER BY i.attempt_number, i.kind DESC', [$id]),
             'funds' => $funds,
             'incidents' => $incidents,
             'documents' => $docs,

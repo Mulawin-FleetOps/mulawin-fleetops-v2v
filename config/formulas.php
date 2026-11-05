@@ -87,20 +87,6 @@ return [
             'source' => 'CAR CARRIER MONITORING 2026.xlsx, TRIPS & DAMAGES N7 =O7*5 and CLIENT CAR CARRIER J8 =K8*5',
         ],
 
-        // ---------- MAINTENANCE ----------
-        'pm_interval_km' => [
-            'group' => 'Maintenance', 'label' => 'Preventive maintenance every (km)',
-            'value' => 10000, 'unit' => 'km',
-            'help'  => 'Kapag umabot sa ganitong km ang natakbo ng truck mula sa huling preventive maintenance, ise-set ng system ang truck for preventive maintenance.',
-            'source' => 'FMS PDF p.18: "pag umabot na for example is 10,000 km"',
-        ],
-        'pm_auto_hold' => [
-            'group' => 'Maintenance', 'label' => 'Automatically put truck Under Maintenance when PM is due (1 = yes, 0 = no)',
-            'value' => 1, 'unit' => '1/0',
-            'help'  => '1 = pagdating ng truck at umabot na sa km limit, gagawin ng system na "Under Maintenance" at gagawa ng preventive job. 0 = gagawa lang ng job at reminder pero mananatiling Available ang truck.',
-            'source' => 'FMS PDF p.18: "isset na sya ng system sa preventive maintenance"',
-        ],
-
         // ---------- INSPECTION ----------
         'inspection_min_minutes' => [
             'group' => 'Inspection', 'label' => 'Minimum checklist duration (minutes, 0 = off)',

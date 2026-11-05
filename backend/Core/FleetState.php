@@ -25,6 +25,14 @@ final class FleetState {
     public const ON_ROAD = ['Dispatched', 'On Hold - Incident Reported', 'In Transit'];
     /** Trip statuses that hold a truck and crew (reserved or on the road). */
     public const HOLDING = ['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule'];
+    /**
+     * A Completed trip that still holds its TRUCK (not the crew) = the truck is driving back
+     * and the arrival checklist is not done yet (PDF #11 section G). The truck is "On Trip"
+     * until the dispatcher submits the arrival checklist.
+     */
+    public const RETURNING = 'Completed';
+    /** Trip statuses where the truck is away from the garage (on the road or returning). */
+    public const AWAY = ['Dispatched', 'On Hold - Incident Reported', 'In Transit', 'Completed'];
 
     /** Changes a truck status and writes the status log (downtime analytics). */
     public static function setStatus(PDO $p, int $vehicleId, string $to, ?int $actorId, string $reason = ''): void {
@@ -53,6 +61,7 @@ final class FleetState {
      *   unresolved repair record    -> Under Maintenance, until the repair is VERIFIED
      *                                  (an incident not yet assessed, or a Minor roadside repair, keeps it On Trip)
      *   trip on the road            -> On Trip
+     *   completed, truck returning  -> On Trip (until the arrival checklist is submitted)
      *   reserved for a trip         -> Assigned
      *   manually Unavailable        -> stays Unavailable
      *   otherwise                   -> Available
@@ -66,7 +75,7 @@ final class FleetState {
         $job = one($p, "SELECT id FROM maintenance_jobs WHERE vehicle_id=? AND open_key=1
                         AND NOT (source='Incident' AND (severity IS NULL OR severity='Minor')) LIMIT 1", [$vehicleId]);
         if ($job) $next = 'Under Maintenance';
-        elseif ($trip && in_array($trip['status'], self::ON_ROAD, true)) $next = 'On Trip';
+        elseif ($trip && in_array($trip['status'], self::AWAY, true)) $next = 'On Trip';
         elseif ($trip) $next = 'Assigned';
         elseif ($v['status'] === 'Unavailable') $next = 'Unavailable';
         else $next = 'Available';
@@ -101,6 +110,22 @@ final class FleetState {
             run($p, "UPDATE personnel SET availability='Available' WHERE id=? AND availability='On Trip'", [(int)$r['resource_id']]);
         }
         return $vehicle;
+    }
+
+    /**
+     * Trip completed: the driver, 2nd driver and helper are free at once, but the truck stays
+     * held by the trip until the arrival checklist (then release() frees the truck).
+     */
+    public static function releaseCrew(PDO $p, int $tripId): void {
+        $rows = many($p, "SELECT resource_id FROM trip_assignments WHERE trip_id=? AND resource_type='person'", [$tripId]);
+        run($p, "DELETE FROM trip_assignments WHERE trip_id=? AND resource_type='person'", [$tripId]);
+        foreach ($rows as $r) run($p, "UPDATE personnel SET availability='Available' WHERE id=? AND availability='On Trip'", [(int)$r['resource_id']]);
+    }
+
+    /** True when a Completed trip still holds its truck (arrival checklist pending). */
+    public static function awaitingArrival(PDO $p, int $tripId): bool {
+        return (bool)one($p, "SELECT 1 FROM trip_assignments a JOIN trips t ON t.id=a.trip_id
+                              WHERE a.trip_id=? AND a.resource_type='vehicle' AND t.status=?", [$tripId, self::RETURNING]);
     }
 
     /** Is the person free for a new trip? Returns null when free, otherwise the reason. */

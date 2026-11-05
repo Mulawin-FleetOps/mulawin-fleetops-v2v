@@ -130,20 +130,27 @@ CREATE TABLE trip_updates (
   CONSTRAINT chk_update_type CHECK (update_type IN ('Progress','Loading','Unloading','Delivery','Delay','Other'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Pre-dispatch checklist (57 items from the company checklist scans). One per trip attempt.
+-- Vehicle checklists (57 items from the company checklist scans), PDF #11 section G.
+--   Pre-Dispatch: before departure, one per trip attempt (all OK -> Ready for Dispatch).
+--   Arrival:      when the truck is back after a Completed trip. Until it is done the truck
+--                 stays held (On Trip). NOT OK items open a corrective maintenance record.
 CREATE TABLE inspections (
   id INT AUTO_INCREMENT PRIMARY KEY,
   trip_id INT NOT NULL,
   vehicle_id INT NOT NULL,
   attempt_number INT NOT NULL,
+  kind VARCHAR(15) NOT NULL DEFAULT 'Pre-Dispatch',
   items_json MEDIUMTEXT NOT NULL,
   has_not_ok TINYINT NOT NULL DEFAULT 0,
   odometer_km INT NULL,
   fuel_level VARCHAR(20) NULL,
   remarks VARCHAR(500) NULL,
+  damage_notes VARCHAR(1000) NULL COMMENT 'arrival: damage, defects, missing equipment, reported incidents',
+  maintenance_job_id INT NULL COMMENT 'arrival: corrective maintenance record opened for the NOT OK items',
   actor_id INT NOT NULL,
   completed_at DATETIME NOT NULL,
-  UNIQUE KEY uq_inspection (trip_id, attempt_number),
+  UNIQUE KEY uq_inspection_kind (trip_id, attempt_number, kind),
+  CONSTRAINT chk_inspection_kind CHECK (kind IN ('Pre-Dispatch','Arrival')),
   FOREIGN KEY (trip_id) REFERENCES trips(id),
   FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
   FOREIGN KEY (actor_id) REFERENCES users(id)
@@ -514,6 +521,7 @@ CREATE TABLE disbursements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE fund_requests ADD CONSTRAINT fk_fund_disb FOREIGN KEY (disbursement_id) REFERENCES disbursements(id);
+ALTER TABLE inspections ADD CONSTRAINT fk_inspection_job FOREIGN KEY (maintenance_job_id) REFERENCES maintenance_jobs(id);
 
 -- Other bills to pay (accounts payable that do not come from a purchase order).
 CREATE TABLE payables (

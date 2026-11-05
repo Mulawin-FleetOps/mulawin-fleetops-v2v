@@ -1,4 +1,4 @@
-/* assets/js/modules/operations/trips.js — TRIPS (create, assign, fund, checklist, dispatch, progress, incident, complete)
+/* assets/js/modules/operations/trips.js — TRIPS (create, assign, fund, checklist, dispatch, progress, incident, complete, arrival checklist)
    One page for the whole trip workflow of PDF #12 (Scenarios A, B and C).
    - Active tab: every open trip as a card with a progress bar and the next step (who does what).
    - History tab: closed trips with ONE filter modal.
@@ -19,7 +19,7 @@ const TripUI = {
       case 'For Reschedule': return [2, true];
       case 'Dispatched': case 'In Transit': return [3, false];
       case 'On Hold - Incident Reported': return [3, true];
-      case 'Completed': return [5, false];
+      case 'Completed': return +t.awaiting_arrival ? [4, false] : [5, false];
       default: return [0, true];
     }
   },
@@ -30,6 +30,8 @@ const TripUI = {
     if (+t.delay_count) f.push(`<span class="badge-s amber">${+t.delay_count} delay update(s)</span>`);
     if (t.incident_status && t.incident_status !== 'Resolved') f.push(`<span class="badge-s red">Incident: ${UI.esc(t.incident_status)}</span>`);
     if (+t.attempt_number > 1) f.push(`<span class="badge-s blue">Attempt #${+t.attempt_number}</span>`);
+    if (+t.awaiting_arrival) f.push('<span class="badge-s amber">Arrival checklist pending</span>');
+    if (+t.arrival_not_ok) f.push('<span class="badge-s red">Arrival: NOT OK items</span>');
     return f.join(' ');
   },
   fundText(t) {
@@ -60,7 +62,9 @@ const TripUI = {
         if (t.incident_status === 'Repaired - Cleared to Continue') return 'Repaired on site. Dispatcher resumes the trip.';
         return 'Mechanic is repairing the truck on site.';
       case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Truck is repaired. Dispatcher reschedules the trip.' : 'Truck is being repaired (major damage). Then the dispatcher reschedules.';
-      case 'Completed': return 'Completed' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
+      case 'Completed':
+        if (+t.awaiting_arrival) return 'Delivered. The truck is returning: the dispatcher does the arrival checklist when it is back.' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
+        return 'Completed' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
       default: return t.cancel_reason ? 'Reason: ' + t.cancel_reason : '';
     }
   },
@@ -70,7 +74,7 @@ const TripUI = {
     if (UI.isDispatcher() && t.dispatcher_role === r) {
       return (t.status === 'Pre-Assigned') || (t.status === 'Ready for Dispatch' && (t.fund_status === 'Released' || (!t.fund_status && +t.attempt_number > 1)))
         || t.fund_status === 'Rejected' || (t.status === 'On Hold - Incident Reported' && t.incident_status === 'Repaired - Cleared to Continue')
-        || (t.status === 'For Reschedule' && t.truck_status === 'Assigned');
+        || (t.status === 'For Reschedule' && t.truck_status === 'Assigned') || (t.status === 'Completed' && +t.awaiting_arrival);
     }
     if (r === 'finance') return t.fund_status === 'Ready for Release';
     if (r === 'motorpool') return t.status === 'On Hold - Incident Reported' && t.incident_status === 'Reported';
@@ -285,25 +289,47 @@ const TripUI = {
       { name: 'reason', label: 'Reason for the change', required: true, col: 12 }],
       'Trips.reassign', { extra: { trip_id: t.id }, intro: 'Busy or unavailable trucks and people are marked; the system refuses them.', after: () => { TripUI.open(t.id); App.route(); } });
   },
-  checklist(t) {
+  /** Checklist modal. kind = 'Pre-Dispatch' (before departure) or 'Arrival' (truck is back; before = the pre-dispatch result). */
+  checklist(t, kind = 'Pre-Dispatch', before = null) {
     const secs = TripUI.data.checklist || [];
-    const body = `<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">Truck <b>${UI.esc(t.plate_number)}</b>. Mark every item OK or NOT OK. Any NOT OK item keeps the trip from being Ready for Dispatch.</div>
+    const arrival = kind === 'Arrival';
+    const prev = before ? (JSON.parse(before.items_json || '{}').items || {}) : {};
+    const hint = (k) => !arrival ? '' : (prev[k] ? `<span class="badge-s ${prev[k].condition === 'OK' ? 'green' : 'red'} ms-1" title="Result before departure">Before: ${UI.esc(prev[k].condition)}</span>` : '<span class="badge-s ms-1">Before: —</span>');
+    const intro = arrival
+      ? `Truck <b>${UI.esc(t.plate_number)}</b> is back. Check every item again; the result before departure is shown beside each item. <b>NOT OK</b> items need photos and a description and open a repair record (the truck becomes Under Maintenance). All OK makes the truck Available.`
+      : `Truck <b>${UI.esc(t.plate_number)}</b>. Mark every item OK or NOT OK. Any NOT OK item keeps the trip from being Ready for Dispatch.`;
+    const extra = arrival
+      ? UI.fields([{ name: 'odometer_km', label: 'Odometer on arrival (km)' + (before && before.odometer_km ? ' — departure: ' + before.odometer_km : ''), type: 'number', col: 4 },
+          { name: 'fuel_level', label: 'Fuel level on arrival' + (before && before.fuel_level ? ' — departure: ' + before.fuel_level : ''), type: 'select', options: UI.list(TripUI.data.fuelLevels), required: true, col: 4 },
+          { name: 'remarks', label: 'Remarks', col: 4 },
+          { name: 'damage_notes', label: 'Damage, defects, missing equipment or incidents (required when an item is NOT OK)', type: 'textarea', rows: 2, col: 12 },
+          { name: 'photos', label: 'Photos (required when an item is NOT OK)', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }])
+      : UI.fields([{ name: 'odometer_km', label: 'Odometer (km)', type: 'number', col: 4 }, { name: 'fuel_level', label: 'Fuel level', type: 'select', options: UI.list(['Full', '3/4', '1/2', '1/4', 'Low']), col: 4 },
+          { name: 'remarks', label: 'Remarks', col: 4 }]);
+    const body = `<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">${intro}</div>
       <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark all OK</button></div>
       ${secs.map(s => `<div class="chk-sec"><h6>${UI.esc(s.title)}</h6>${s.items.map((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0');
-        return `<div class="chk-row" data-k="${k}"><span>${UI.esc(label)}</span><div class="btn-group" role="group">
+        return `<div class="chk-row" data-k="${k}"><span>${UI.esc(label)}${hint(k)}</span><div class="btn-group" role="group">
           <input type="radio" class="btn-check" name="c_${k}" id="ok_${k}" value="OK"><label class="btn btn-outline-success" for="ok_${k}">OK</label>
           <input type="radio" class="btn-check" name="c_${k}" id="no_${k}" value="NOT OK"><label class="btn btn-outline-danger" for="no_${k}">NOT OK</label></div>
           <input class="form-control form-control-sm" placeholder="Remarks" data-rem="${k}" maxlength="250"></div>`; }).join('')}</div>`).join('')}
-      ${UI.fields([{ name: 'odometer_km', label: 'Odometer (km)', type: 'number', col: 4 }, { name: 'fuel_level', label: 'Fuel level', type: 'select', options: UI.list(['Full', '3/4', '1/2', '1/4', 'Low']), col: 4 },
-        { name: 'remarks', label: 'Remarks', col: 4 }])}`;
-    UI.modal('Pre-dispatch checklist ' + UI.esc(t.trip_ref), body, async (d, form) => {
+      ${extra}`;
+    UI.modal((arrival ? 'Arrival checklist ' : 'Pre-dispatch checklist ') + UI.esc(t.trip_ref), body, async (d, form) => {
       const items = {}; const missing = [];
       form.querySelectorAll('.chk-row').forEach(r => { const k = r.dataset.k; const v = form.querySelector(`input[name="c_${k}"]:checked`);
         if (!v) missing.push(r.firstElementChild.textContent); items[k] = { condition: v ? v.value : '', remarks: form.querySelector(`[data-rem="${k}"]`).value }; });
       if (missing.length) throw new Error('Mark OK or NOT OK for: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? ' and ' + (missing.length - 5) + ' more' : ''));
-      const r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks });
+      let r;
+      if (arrival) {
+        const bad = Object.values(items).some(x => x.condition === 'NOT OK');
+        if (bad && !String(d.damage_notes || '').trim()) throw new Error('Describe the damage, defects or missing equipment of the NOT OK items.');
+        if (bad && !form.querySelector('[name=photos]').files.length) throw new Error('Attach photos of the NOT OK items.');
+        r = await App.apiForm('Trips.arrival', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks, damage_notes: d.damage_notes }, form);
+      } else {
+        r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks });
+      }
       UI.result(r); TripUI.open(t.id); App.route();
-    }, { size: 'modal-xl', submit: 'Submit checklist', onShow: (w) => {
+    }, { size: 'modal-xl', submit: arrival ? 'Submit arrival checklist' : 'Submit checklist', onShow: (w) => {
       w.querySelector('#chkAll').onclick = () => w.querySelectorAll('input[value=OK]').forEach(x => { x.checked = true; x.closest('.chk-row').classList.remove('bad'); });
       w.addEventListener('change', (e) => { if (e.target.classList.contains('btn-check')) e.target.closest('.chk-row').classList.toggle('bad', e.target.value === 'NOT OK'); });
     } });
@@ -357,6 +383,23 @@ const TripUI = {
       { name: 'note', label: 'Note', type: 'textarea', required: true, col: 12 }], 'Trips.progress', { extra: { trip_id: t.id }, after: () => { TripUI.open(t.id); App.route(); } });
   },
 
+  /** Arrival checklist result, compared with the pre-dispatch checklist (PDF #11 G: condition before departure vs upon arrival). */
+  arrivalHtml(t, pre, arr) {
+    if (!arr) return `<div class="text-muted small">${+t.awaiting_arrival ? 'Pending. The truck stays On Trip until the dispatcher submits the arrival checklist.' : 'Not required (trip completed before the arrival checklist was added).'}</div>`;
+    const now = JSON.parse(arr.items_json || '{}').items || {}, then = pre ? (JSON.parse(pre.items_json || '{}').items || {}) : {};
+    const bad = [], changed = [];
+    (TripUI.data.checklist || []).forEach(s => s.items.forEach((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0');
+      if (now[k] && now[k].condition === 'NOT OK') { bad.push(label + (now[k].remarks ? ' (' + now[k].remarks + ')' : '')); if (then[k] && then[k].condition === 'OK') changed.push(label); } }));
+    const km = pre && pre.odometer_km && arr.odometer_km ? +arr.odometer_km - +pre.odometer_km : null;
+    return UI.kv([['Result', bad.length ? '<span class="badge-s red">NOT OK items</span>' : '<span class="badge-s green">All 57 items OK</span>'], ['Done by', UI.e(arr.actor) + ' · ' + UI.datetime(arr.completed_at)],
+      ['Odometer', arr.odometer_km ? (pre && pre.odometer_km ? UI.esc(pre.odometer_km) + ' → ' : '') + UI.esc(arr.odometer_km) + ' km' + (km !== null ? ` <span class="text-muted small">(${UI.num(km, 0)} km travelled)</span>` : '') : 'Not recorded on arrival' + (pre && pre.odometer_km ? ' (departure: ' + UI.esc(pre.odometer_km) + ' km)' : '')],
+      ['Fuel', (pre && pre.fuel_level ? UI.esc(pre.fuel_level) + ' → ' : '') + UI.e(arr.fuel_level)],
+      bad.length ? ['NOT OK', UI.esc(bad.join('; '))] : null,
+      changed.length ? ['Changed since departure', '<span class="text-danger">' + UI.esc(changed.join(', ')) + '</span>'] : null,
+      arr.damage_notes ? ['Damage / missing', UI.esc(arr.damage_notes)] : null, arr.remarks ? ['Remarks', UI.esc(arr.remarks)] : null,
+      arr.job_ref ? ['Repair record', UI.esc(arr.job_ref) + ' ' + UI.badge(arr.job_status)] : null]);
+  },
+
   printIncident(i, t) {
     UI.printForm('INCIDENT REPORT', `<div class="pf-grid"><div><b>NAME:</b> ${UI.esc(i.reported_by_name)}</div><div><b>DATE:</b> ${UI.date(i.created_at)}</div>
       <div><b>DEPARTMENT:</b> Operations</div><div><b>REFERENCE:</b> ${UI.esc(i.incident_ref)} / ${UI.esc(t.trip_ref || i.trip_ref || '')}</div></div>
@@ -407,10 +450,12 @@ const TripUI = {
         if (!ok) why = 'The truck is ' + t.truck_status + '. Reschedule after Maintenance confirms the repair (or the Operations Head assigns another truck).';
       }
       if (t.status === 'Awaiting Resources') acts.push(btn('auto', 'Try auto-assign now', 'outline-primary', 'bi-magic'));
+      if (t.status === 'Completed' && +t.awaiting_arrival) acts.push(btn('arrival', 'Arrival checklist', 'primary', 'bi-clipboard-check'));
       if (!['Completed', 'Cancelled', 'Rejected', 'Pending Review'].includes(t.status)) acts.push(btn('progress', 'Add update / delay', 'outline-secondary', 'bi-chat-left-text'), btn('edit', 'Booking / container details', 'outline-secondary', 'bi-pencil'));
     }
     const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
-    const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number);
+    const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
+    const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
     const crew = [['Driver', t.driver_name], ...(t.truck_type === 'Car Carrier' ? [['Driver 2', t.driver2_name]] : [['Helper', t.helper_name]])];
     let checklistHtml = '<div class="text-muted small">Not done yet.</div>';
     if (ins) {
@@ -438,6 +483,7 @@ const TripUI = {
           fund.rejected_reason ? ['Rejected because', UI.esc(fund.rejected_reason)] : null])
         : `<div class="text-muted small">${+t.attempt_number > 1 ? 'No new fund request for this attempt (optional for a redispatch).' : 'No fund request yet.'}</div>`}
       ${UI.h('Pre-dispatch checklist' + (+t.attempt_number > 1 ? ' (attempt #' + t.attempt_number + ')' : ''))}${checklistHtml}
+      ${t.status === 'Completed' ? UI.h('Arrival checklist') + TripUI.arrivalHtml(t, ins, arr) : ''}
       ${r.incidents.length ? UI.h('Incidents') + r.incidents.map(i => `<div class="border rounded p-2 mb-2 small"><div class="d-flex justify-content-between"><b>${UI.esc(i.incident_ref)} · ${UI.esc(i.incident_type)}</b>${UI.badge(i.status)}</div>
           ${UI.esc(i.problem)} @ ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}<br>Severity: ${UI.e(i.severity)}${i.recommendation ? ' · ' + UI.esc(i.recommendation) : ''} · Maintenance record ${UI.e(i.job_ref)} (${UI.e(i.job_status)})
           <div><button class="btn btn-link btn-sm p-0" data-printinc="${i.id}">Print Incident Report Form</button></div></div>`).join('') : ''}
@@ -462,6 +508,7 @@ const TripUI = {
           intro: old && old.rejected_reason ? 'Rejected because: ' + UI.esc(old.rejected_reason) + '. Revise and resubmit.' : 'Choose the applicable expenses. The system takes the preset amounts and computes the total.',
           after: () => { TripUI.open(t.id); App.route(); } }); }
       if (a === 'checklist') TripUI.checklist(t);
+      if (a === 'arrival') TripUI.checklist(t, 'Arrival', ins || null);
       if (a === 'dispatch') UI.confirmAction((+t.attempt_number > 1 ? 'Confirm Redispatch ' : 'Confirm Dispatch ') + UI.esc(t.trip_ref), 'Confirm only when the truck is actually leaving. The billing draft is generated now.', 'Trips.dispatch', { trip_id: t.id }, { submit: 'Confirm' });
       if (a === 'complete') TripUI.complete(t);
       if (a === 'incident') TripUI.incident(t);
@@ -488,7 +535,7 @@ App.page('trips', {
     ctx.el.innerHTML = UI.cards([
       { label: 'Waiting (review / resources)', value: counts(['Pending Review', 'Awaiting Resources']), icon: 'bi-hourglass-split', color: 'amber' },
       { label: 'Preparing (fund & checklist)', value: counts(['Pre-Assigned', 'Ready for Dispatch']), icon: 'bi-ui-checks', color: 'blue' },
-      { label: 'On the road', value: counts(['Dispatched', 'In Transit']), icon: 'bi-truck', color: 'green' },
+      { label: 'On the road / returning', value: counts(['Dispatched', 'In Transit']) + d.active.filter(t => +t.awaiting_arrival).length, icon: 'bi-truck', color: 'green' },
       { label: 'Problems (incident / reschedule)', value: counts(['On Hold - Incident Reported', 'For Reschedule']), icon: 'bi-exclamation-triangle', color: 'red' },
     ]);
     const filterFields = [

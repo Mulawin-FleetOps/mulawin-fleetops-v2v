@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-05 (arrival checklist, PMS removed)
+- **Arrival checklist** (PDF #11 section G; Car Carrier step "Complete the arrival checklist"). After **Complete Trip**
+  the billing still moves to For Billing and the driver and helper are free at once, but the **truck stays On Trip**
+  (it is driving back) until the trip's dispatcher submits the arrival checklist. Same 57 items as the pre-dispatch
+  checklist; the result before departure is shown beside each item, and the trip details compare odometer, fuel
+  and the items that changed since departure.
+  - All OK: the truck is released (Available) and waiting trips are assigned automatically.
+  - NOT OK: a description and photos are required; a corrective maintenance record is opened (or the findings are
+    added to the truck's open record) and the truck becomes Under Maintenance.
+  - While a truck is returning, it cannot be auto-assigned, set Unavailable or reported from the garage.
+- Database: `database/migrations/2026-11-05_arrival_checklist.sql` (existing databases). `extension.sql` updated for new installs.
+- Preventive maintenance removed for good: the unused `pm_interval_km` and `pm_auto_hold` settings were deleted from `config/formulas.php`.
+- Security: `.gitignore` ignores `APP_ENV.txt` and credential files; `.htaccess` blocks `.txt`, `.md`, `.csv`, `.json`, `.py`, `.bat` and every `.env*` file from the web.
+
 ## 2026-11-04 (test data loader)
 - New `scripts/seed_test_data.php`: fills the masterlists completely for testing, in one command
   (`C:\xampp\php\php.exe scripts\seed_test_data.php`). Imports `database/seed_masterlists.sql` when the database is empty,

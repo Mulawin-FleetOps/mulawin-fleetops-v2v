@@ -1,4 +1,7 @@
 .env
+# never commit passwords or notes with credentials
+APP_ENV.txt
+*.credentials*
 .DS_Store
 /storage/private/*
 !/storage/private/.htaccess
@@ -15,4 +18,3 @@ __pycache__/
 /automation/demo_manifest.json
 /automation/sample_files/
 /storage/test_data/*
-APP_ENV.txt
