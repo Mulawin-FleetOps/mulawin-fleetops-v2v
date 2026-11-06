@@ -179,15 +179,15 @@ const App = {
       toggle.className = 'btn btn-outline-secondary';
       toggle.setAttribute('aria-label', 'Show password');
       toggle.setAttribute('aria-pressed', 'false');
-      toggle.innerHTML = '<i class="bi bi-eye" aria-hidden="true"></i>';
+      toggle.innerHTML = '<i class="bi bi-eye" aria-hidden="true"></i><span class="ms-1">Show</span>';
       toggle.addEventListener('click', () => {
         const visible = input.type === 'password';
         input.type = visible ? 'text' : 'password';
         toggle.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
         toggle.setAttribute('aria-pressed', visible ? 'true' : 'false');
         toggle.innerHTML = visible
-          ? '<i class="bi bi-eye-slash" aria-hidden="true"></i>'
-          : '<i class="bi bi-eye" aria-hidden="true"></i>';
+          ? '<i class="bi bi-eye-slash" aria-hidden="true"></i><span class="ms-1">Hide</span>'
+          : '<i class="bi bi-eye" aria-hidden="true"></i><span class="ms-1">Show</span>';
       });
       group.appendChild(toggle);
     });

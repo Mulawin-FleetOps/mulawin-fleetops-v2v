@@ -78,9 +78,12 @@ App.page('admin', {
             actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Set new password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
             onAction: (a, u) => {
               if (a === 'edit') userForm(u);
-              if (a === 'pw') UI.formModal('Set a new password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Give it to the user privately. Their open sessions are signed out; logging in still needs the email code.' },
+              if (a === 'pw') {
+                const passwordResetModal = UI.formModal('Set a new password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Give it to the user privately. Their open sessions are signed out; logging in still needs the email code.' },
                 { name: 'password_confirm', label: 'Confirm new password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"' }], 'Admin.user_password',
                 { extra: { user_id: u.id }, size: '', transform: (x) => { if (x.password !== x.password_confirm) throw new Error('The passwords do not match.'); return x; } });
+                addPasswordVisibility(passwordResetModal);
+              }
               if (a === 'toggle') UI.confirmAction((+u.active ? 'Deactivate ' : 'Activate ') + UI.esc(u.full_name), +u.active ? 'The user can no longer log in. Records made by this user are kept.' : 'The user can log in again.', 'Admin.user_toggle', { user_id: u.id, active: +u.active ? 0 : 1 }, { danger: +u.active });
             } });
         setTimeout(() => body.querySelector('[data-adduser]')?.addEventListener('click', () => userForm()), 0);
