@@ -110,7 +110,8 @@ final class Admin {
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
                 'full_name' => $name, 'role' => $role, 'shift' => $shift]);
-            audit($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . Mailer::mask($email));
+            auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . Mailer::mask($email), [],
+                ['Username' => $username, 'Full name' => $name, 'Email' => Mailer::mask($email), 'Role' => $role, 'Shift' => $shift, 'Active' => 'Yes']);
             return ['id' => $id, 'message' => "Account $username created. Give the password to the user privately; each login also needs the code sent to " . Mailer::mask($email) . '.'];
         });
     }
@@ -120,11 +121,12 @@ final class Admin {
         $id = idField($d, 'user_id'); $active = !empty($d['active']) ? 1 : 0;
         must($id !== $u['id'], 'You cannot deactivate your own account.');
         return transaction(function (PDO $p) use ($u, $id, $active) {
-            $t = one($p, 'SELECT role, full_name FROM users WHERE id=? FOR UPDATE', [$id]);
+            $t = one($p, 'SELECT role, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
             must((bool)$t, 'User not found.', 404);
             if (!$active && $t['role'] === 'admin') must((int)one($p, "SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1")['n'] > 1, 'Keep at least one active Admin.');
             run($p, 'UPDATE users SET active=? WHERE id=?', [$active, $id]);
-            audit($p, $u['id'], 'Access', 'user ' . $id, $active ? 'account activated' : 'account deactivated', $t['full_name']);
+            auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, $active ? 'account activated' : 'account deactivated', $t['full_name'],
+                ['Account active' => (int)$t['active'] ? 'Yes' : 'No'], ['Account active' => $active ? 'Yes' : 'No']);
             return ['message' => $t['full_name'] . ($active ? ' can log in again.' : ' can no longer log in.')];
         });
     }
@@ -230,9 +232,17 @@ final class Admin {
         $order = (int)(intField($d, 'sort_order', 0, false) ?? 0);
         return transaction(function (PDO $p) use ($u, $id, $name, $amount, $active, $order) {
             must(!one($p, 'SELECT id FROM fund_categories WHERE name=? AND id<>?', [$name, $id ?? 0]), 'Category "' . $name . '" already exists.', 409);
-            if ($id) run($p, 'UPDATE fund_categories SET name=?, amount=?, active=?, sort_order=?, updated_by=? WHERE id=?', [$name, $amount, $active, $order, $u['id'], $id]);
-            else insert($p, 'fund_categories', ['name' => $name, 'amount' => $amount, 'active' => $active, 'sort_order' => $order, 'updated_by' => $u['id']]);
-            audit($p, $u['id'], 'Settings', 'fund category', 'fund category saved', "$name PHP $amount" . ($active ? '' : ' (inactive)'));
+            $old = $id ? one($p, 'SELECT name, amount, active, sort_order FROM fund_categories WHERE id=? FOR UPDATE', [$id]) : null;
+            if ($id) {
+                must((bool)$old, 'Fund category not found.', 404);
+                run($p, 'UPDATE fund_categories SET name=?, amount=?, active=?, sort_order=?, updated_by=? WHERE id=?', [$name, $amount, $active, $order, $u['id'], $id]);
+            } else {
+                $id = insert($p, 'fund_categories', ['name' => $name, 'amount' => $amount, 'active' => $active, 'sort_order' => $order, 'updated_by' => $u['id']]);
+            }
+            auditWithChanges($p, $u['id'], 'Settings', 'fund category ' . $id, $old ? 'fund category updated' : 'fund category created',
+                "$name PHP $amount" . ($active ? '' : ' (inactive)'),
+                $old ? ['Name' => $old['name'], 'Amount (PHP)' => $old['amount'], 'Active' => (int)$old['active'] ? 'Yes' : 'No', 'Sort order' => $old['sort_order']] : [],
+                ['Name' => $name, 'Amount (PHP)' => $amount, 'Active' => $active ? 'Yes' : 'No', 'Sort order' => $order]);
             return ['message' => 'Fund category saved. Old fund requests keep their amounts.'];
         });
     }
