@@ -55,8 +55,8 @@ final class Admin {
 
     public static function action(array $u, string $action, array $d): array {
         return match ($action) {
-            'user_save' => self::userSave($u, $d),
-            'user_toggle' => self::userToggle($u, $d),
+            'user_save' => self::withRoleSlotLock(fn() => self::userSave($u, $d)),
+            'user_toggle' => self::withRoleSlotLock(fn() => self::userToggle($u, $d)),
             'user_password' => self::userPassword($u, $d),
             'change_password' => self::changePassword($u, $d),
             'recovery_code_create' => self::recoveryCodeCreate($u, $d),
@@ -75,6 +75,34 @@ final class Admin {
         must(strlen($pw) <= PASSWORD_MAX_BYTES, 'Password is too long (max ' . PASSWORD_MAX_BYTES . ' characters).');
         if ($confirm !== null) must(hash_equals($pw, $confirm), 'The password and the confirmation do not match.');
         must(preg_match('/[A-Za-z]/', $pw) && preg_match('/\d/', $pw), 'Password must have letters and numbers.');
+    }
+
+    /** Adjustment: one active account per role/dispatcher shift (role-slot lock).
+     * Serialize account actions to prevent concurrent requests claiming the same vacant slot.
+     * Existing duplicates are kept untouched until Admin manually deactivates extras.
+     */
+    private static function withRoleSlotLock(callable $work): mixed {
+        $p = db();
+        $lock = one($p, "SELECT GET_LOCK('mulawin_user_role_slots', 10) AS acquired");
+        must((int)($lock['acquired'] ?? 0) === 1, 'User accounts are being updated. Please try again.', 409);
+        try {
+            return $work();
+        } finally {
+            try { one($p, "SELECT RELEASE_LOCK('mulawin_user_role_slots') AS released"); }
+            catch (Throwable $ignored) { /* Connection shutdown releases locks too. */ }
+        }
+    }
+
+    /** Active non-dispatcher roles have one slot; each dispatcher role has Day and Night slots. */
+    private static function assertRoleShiftVacancy(PDO $p, string $role, ?string $shift, ?int $excludeId = null): void {
+        if (roleIsDispatcher($role)) {
+            must(in_array($shift, ['Day', 'Night'], true), 'Select a dispatcher shift.', 400);
+            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND shift=? AND active=1 AND id<>? LIMIT 1', [$role, $shift, $excludeId ?? 0]);
+            must(!$occupied, 'This dispatcher role and shift already have an active account. Deactivate that account first.', 409);
+        } else {
+            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND active=1 AND id<>? LIMIT 1', [$role, $excludeId ?? 0]);
+            must(!$occupied, 'This role already has an active account. Deactivate that account first.', 409);
+        }
     }
 
     // ---------------------------------------------------------------- users
@@ -96,8 +124,9 @@ final class Admin {
             must(!one($p, 'SELECT id FROM users WHERE email=? AND id<>?', [$email, $id ?? 0]), 'Another account already uses this email address.', 409);
             if ($id) {
                 if ($id === $u['id']) must($role === 'admin', 'You cannot remove your own Admin role.');
-                $oldUser = one($p, 'SELECT full_name, email, role, shift FROM users WHERE id=? FOR UPDATE', [$id]);
+                $oldUser = one($p, 'SELECT full_name, email, role, shift, active FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
+                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'])) self::assertRoleShiftVacancy($p, $role, $shift, $id);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=? WHERE id=?', [$name, $email, $role, $shift, $id]);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
                     ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift']],
@@ -108,6 +137,7 @@ final class Admin {
             must((bool)preg_match('/^[a-zA-Z0-9_.-]{3,70}$/', $username), 'Username: 3-70 letters, numbers, dot, dash or underscore.');
             $pw = field($d, 'password', 255); self::strongPassword($pw, field($d, 'password_confirm', 255, false));
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
+            self::assertRoleShiftVacancy($p, $role, $shift);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
                 'full_name' => $name, 'role' => $role, 'shift' => $shift]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
@@ -124,6 +154,7 @@ final class Admin {
             $t = one($p, 'SELECT role, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
             must((bool)$t, 'User not found.', 404);
             if (!$active && $t['role'] === 'admin') must((int)one($p, "SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1")['n'] > 1, 'Keep at least one active Admin.');
+            if ($active && (int)$t['active'] !== 1) self::assertRoleShiftVacancy($p, $t['role'], $t['shift'], $id);
             run($p, 'UPDATE users SET active=? WHERE id=?', [$active, $id]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, $active ? 'account activated' : 'account deactivated', $t['full_name'],
                 ['Account active' => (int)$t['active'] ? 'Yes' : 'No'], ['Account active' => $active ? 'Yes' : 'No']);
