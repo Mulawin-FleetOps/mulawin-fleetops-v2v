@@ -54,6 +54,16 @@ const ClientUI = {
         const r = await App.api('Clients.rate_save', { id: c.id, rates: list, payment_terms_days: d.payment_terms_days }); UI.result(r); UI.closeDrawer(); App.route();
       }, { submit: 'Save rate' });
   },
+  /** Read-only Approved routes of the client (Checklist #20; data from the Routes module). */
+  async routes(el, clientId) {
+    const box = el.querySelector('[data-client-routes]'); if (!box) return;
+    let r; try { r = await App.api('Routes.for_client', { client_id: clientId }); } catch (e) { box.innerHTML = '<div class="text-muted small">Approved routes are not available right now.</div>'; return; }
+    const rate = (x) => x.rate_type === 'Flat' ? 'Flat ' + UI.money(x.rate_amount) : UI.money(x.rate_amount) + ' per km' + (+x.minimum_charge > 0 ? ' (minimum ' + UI.money(x.minimum_charge) + ')' : '');
+    box.innerHTML = UI.table([['Origin → destination', 'origin_label', (v, x) => UI.esc(x.origin_label + ' → ' + x.destination_label)], ['Truck type', 'truck_type'], ['Km', 'distance_km', 'num'],
+      ['Rate', 'rate_amount', (v, x) => rate(x)], ['Since', 'effective_from', 'date']], r.routes, { plain: true, empty: 'No approved route yet.' })
+      + (r.can_open_routes ? `<a class="small" href="#routes?client_id=${encodeURIComponent(clientId)}">Open all routes of this client</a>` : '');
+    UI.activate(box);
+  },
   async open(id, d) {
     let r; try { r = await App.api('Clients.details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
     const c = r.client;
@@ -72,10 +82,12 @@ const ClientUI = {
         ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_position].filter(Boolean).join(', ') || '—')], ['Phone / email', UI.esc([c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
         ['Payment terms', c.payment_terms_days !== null ? c.payment_terms_days + ' days' : 'default'], ['Created by', UI.e(c.created_by_name)], ['Rate set by', c.rate_set_by_name ? UI.esc(c.rate_set_by_name) + ' · ' + UI.datetime(c.rate_set_at) : '—']])}
       ${UI.h('Billing rates')}${r.rates.length ? UI.table([['Truck type', 'truck_type'], ['Rate per km', 'rate_per_km', 'money'], ['Minimum charge', 'minimum_charge', 'money'], ['Updated by', 'updated_by_name'], ['Updated', 'updated_at', 'date']], r.rates) : '<div class="text-muted small">No rate yet.</div>'}
+      ${UI.h('Approved routes')}<div data-client-routes><div class="text-muted small">Loading approved routes…</div></div>
       ${UI.h('Accreditation documents')}${UI.docs(r.documents)}
       ${UI.h('Billing summary')}${UI.kv([['Invoices', UI.num(r.billing.invoices)], ['Billed', UI.money(r.billing.billed)], ['Paid', UI.money(r.billing.paid)], ['Balance', UI.money(r.billing.billed - r.billing.paid)]])}
       ${UI.h('Recent trips')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Type', 'truck_type'], ['Schedule', 'scheduled_at', 'date'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
     const el = UI.drawer(UI.esc(c.company_name), html, { subtitle: 'Client profile' });
+    ClientUI.routes(el, c.id);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') UI.formModal('Edit ' + UI.esc(c.company_name), ClientUI.infoFields(c), 'Clients.update', { extra: { id: c.id }, after: () => { ClientUI.open(c.id, d); App.route(); } });
