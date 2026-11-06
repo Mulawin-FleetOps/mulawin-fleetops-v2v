@@ -38,6 +38,7 @@
  */
 declare(strict_types=1);
 core('Notify');
+core('Routing');
 
 final class Routes {
     /**
@@ -80,6 +81,10 @@ final class Routes {
         $data['truckTypes'] = TRUCK_TYPES;
         $data['rateTypes'] = self::POLICY['rate_types'];
         $data['maxDistance'] = self::MAX_DISTANCE_KM;
+        $data['routeOptions'] = array_map(fn($o) => $o['label'], Routing::OPTIONS);
+        $data['defaultRouteOption'] = Routing::DEFAULT_OPTION;
+        $data['routing'] = Routing::configured();
+        $data['overrideWarningRatio'] = self::OVERRIDE_WARNING_RATIO;
         $data['me'] = $u['id'];
         $data['can'] = [
             'request' => self::allowed($u, 'request'), 'withdraw' => self::allowed($u, 'withdraw'),
@@ -247,7 +252,11 @@ final class Routes {
         $row = ['client_id' => $clientId, 'truck_type' => $type, 'origin_label' => $origin, 'destination_label' => $destination,
                 'origin_key' => $okey, 'destination_key' => $dkey, 'distance_km' => number_format($km, 2, '.', ''), 'distance_source' => 'Manual',
                 'notes' => optField($d, 'notes', 500), 'status' => 'Pending Rate', 'requested_by' => $u['id']] + self::coordinates($d);
-        return transaction(function (PDO $p) use ($u, $row) {
+        // Road distance is computed again HERE (the km sent by the browser is never trusted), before the
+        // transaction so no database lock is held while the map service answers. Usually a cache hit.
+        [$dist, $distNote] = self::distanceFields($u, $d, $km, $row);
+        $row = array_merge($row, $dist);
+        return transaction(function (PDO $p) use ($u, $row, $distNote) {
             $c = one($p, 'SELECT id, company_name, status FROM clients WHERE id=? FOR UPDATE', [$row['client_id']]);
             must((bool)$c, 'Client not found.', 404);
             must(self::clientEligible($c),
@@ -266,10 +275,53 @@ final class Routes {
             run($p, 'UPDATE client_routes SET route_ref=? WHERE id=?', [$ref, $id]);
             $r = $row + ['route_ref' => $ref];
             self::event($p, $u['id'], $id, null, 'route requested', '', 'Pending Rate',
-                $c['company_name'] . ': ' . $r['origin_label'] . ' to ' . $r['destination_label'] . ', ' . $r['truck_type'] . ', ' . $r['distance_km'] . ' km');
+                $c['company_name'] . ': ' . $r['origin_label'] . ' to ' . $r['destination_label'] . ', ' . $r['truck_type'] . ', ' . $r['distance_km'] . ' km (' . $r['distance_source']
+                . ($r['distance_computed_km'] !== null ? ', computed ' . $r['distance_computed_km'] . ' km, ' . Routing::OPTIONS[$r['route_option']]['label'] : '') . ')'
+                . ($r['distance_override_reason'] ? '. Km changed by hand: ' . $r['distance_override_reason'] : ''));
             Notify::roles($p, self::POLICY['rate'], 'Route rate', 'Route request ' . self::routeName($r) . ' for ' . $c['company_name'] . ' needs a rate.', 'routes', 'route-rate-' . $id);
-            return ['route_id' => $id, 'route_ref' => $ref, 'message' => "Route $ref was sent to Billing for the rate (Pending Rate)."];
+            $out = ['route_id' => $id, 'route_ref' => $ref, 'message' => "Route $ref was sent to Billing for the rate (Pending Rate)."];
+            if ($distNote !== '') $out['warning'] = $distNote;
+            return $out;
         });
+    }
+
+    /**
+     * DISTANCE OF A ROUTE REQUEST (Checklist #5). Returns [columns, warning].
+     *  - No route option or no map pins      -> typed km only (distance_source = Manual).
+     *  - Map service not available           -> typed km kept, Manual, with a note (safe fallback).
+     *  - Computed                            -> final km = typed km;
+     *        same as computed (to 2 decimals) -> distance_source = Map
+     *        different                        -> a reason is REQUIRED, distance_source = Map (edited);
+     *                                            warning when the difference is more than 15%.
+     */
+    public const OVERRIDE_WARNING_RATIO = 0.15;
+    private static function distanceFields(array $u, array $d, float $finalKm, array $row): array {
+        $cols = ['distance_source' => 'Manual', 'route_option' => null, 'distance_computed_km' => null, 'distance_provider' => null,
+                 'distance_computed_at' => null, 'distance_override_reason' => null, 'route_geometry' => null];
+        $opt = is_string($d['route_option'] ?? null) ? trim($d['route_option']) : '';
+        if ($opt === '' || $row['origin_lat'] === null || $row['destination_lat'] === null) return [$cols, ''];
+        $opt = Routing::option($opt);
+        try {
+            $r = Routing::route(db(), $u['id'], [$row['origin_lat'], $row['origin_lng']], [$row['destination_lat'], $row['destination_lng']], $opt);
+        } catch (RoutingUnavailable $e) {
+            return [$cols, 'Automatic km was not available (' . $e->getMessage() . ') The typed km was saved as Manual.'];
+        }
+        $computed = (float)$r['distance_km'];
+        $cols = ['distance_source' => 'Map', 'route_option' => $opt, 'distance_computed_km' => number_format($computed, 2, '.', ''),
+                 'distance_provider' => $r['provider'], 'distance_computed_at' => date('Y-m-d H:i:s'), 'distance_override_reason' => null,
+                 'route_geometry' => $r['geometry'] !== '' ? $r['geometry'] : null];
+        $warning = $r['warning'];
+        if (abs(round($finalKm, 2) - $computed) >= 0.005) {
+            $reason = trim((string)($d['distance_override_reason'] ?? ''));
+            must($reason !== '', 'The km (' . number_format($finalKm, 2) . ') is different from the computed road distance (' . number_format($computed, 2)
+                . ' km). Give the reason for the change, or use the computed km.');
+            must(textLength($reason) <= 300, 'The reason is too long (max 300 characters).');
+            $cols['distance_source'] = 'Map (edited)';
+            $cols['distance_override_reason'] = $reason;
+            if (abs($finalKm - $computed) > self::OVERRIDE_WARNING_RATIO * $computed)
+                $warning = trim($warning . ' The km differs from the computed road distance by more than ' . (int)(self::OVERRIDE_WARNING_RATIO * 100) . '%. Billing and the Admin will see the reason.');
+        }
+        return [$cols, $warning];
     }
 
     // ---------- withdraw (Operations Head, own request, before approval) ----------
@@ -458,7 +510,8 @@ final class Routes {
         $id = idField($d, 'route_id'); $p = db();
         $r = one($p, self::listSql() . ' WHERE r.id=?', [$id]);
         must((bool)$r, 'Route not found.', 404);
-        $extra = one($p, 'SELECT r.notes, r.origin_lat, r.origin_lng, r.destination_lat, r.destination_lng, r.closed_at, cu.full_name AS closed_by_name
+        $extra = one($p, 'SELECT r.notes, r.origin_lat, r.origin_lng, r.destination_lat, r.destination_lng, r.closed_at, cu.full_name AS closed_by_name,
+                                 r.route_option, r.distance_computed_km, r.distance_provider, r.distance_computed_at, r.distance_override_reason, r.route_geometry
                           FROM client_routes r LEFT JOIN users cu ON cu.id=r.closed_by WHERE r.id=?', [$id]);
         return [
             'route' => $r + ($extra ?: []),
