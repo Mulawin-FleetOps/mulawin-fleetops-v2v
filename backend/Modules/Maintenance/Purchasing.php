@@ -38,7 +38,7 @@ final class Purchasing {
         $data = readSections([
             'parts' => fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
                     (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock FROM parts pt ORDER BY pt.active DESC, pt.part_number"),
-            'supplierSuggestions' => fn() => self::supplierSuggestions($p),
+            'supplierSuggestions' => fn() => hasRole($u, 'purchasing') ? self::supplierSuggestions($p) : [],
             'requests' => fn() => many($p, "SELECT r.*, v.plate_number, m.job_ref, ru.full_name AS requested_by_name, pu.full_name AS processed_by_name,
                     (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
                        FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
