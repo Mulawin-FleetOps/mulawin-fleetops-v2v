@@ -176,9 +176,15 @@ final class Documents {
         $p = db();
         $d = one($p, 'SELECT * FROM documents WHERE id=?', [$id]);
         must((bool)$d, 'Document not found.', 404);
-        // E-signatures of approvers are shown on printed purchase orders.
-        $isSignature = $d['category'] === 'User E-Signature' && (Access::canOpen($u, 'purchasing') || Access::canOpen($u, 'finance'));
-        must($isSignature || self::canView($u['role'], $d['entity_type']), 'You cannot open this document.', 403);
+        // Signature files are private account credentials. Printable business forms
+        // use the separate ?api=signature endpoint, with its own server-side policy.
+        // Do not grant generic download access to all Purchasing/Finance signatures.
+        if ($d['category'] === 'User E-Signature') {
+            must($d['entity_type'] === 'user' && (int)$d['entity_id'] === (int)$u['id'],
+                'You cannot open this signature.', 403);
+        } else {
+            must(self::canView($u['role'], $d['entity_type']), 'You cannot open this document.', 403);
+        }
         if ($d['entity_type'] === 'trip' && roleIsDispatcher($u['role'])) must(self::dispatcherTrip($p, $u, (int)$d['entity_id']), 'You cannot open this document.', 403);
         $file = dirname(__DIR__, 3) . '/storage/private/' . $d['storage_name'];
         must(is_file($file), 'The file is missing on the server.', 404);
