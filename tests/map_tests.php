@@ -328,7 +328,7 @@ if (!is_file($baseSchema) || !is_file($baseExt)) {
     $pa = test_conn($PARTIAL);
     test_import($pa, (string)file_get_contents($baseSchema));
     test_import($pa, (string)file_get_contents($baseExt));
-    foreach (test_migrations_from('2026-11-06_02') as $m) if (strcmp($m, $MIG) < 0) test_import($pa, test_sql("database/migrations/$m.sql"));
+    // (the base schema = the commit before this migration was added, so every earlier migration is already in it)
     $parts = array_values(array_filter(array_map('trim', preg_split('/;\s*\n/', (string)preg_replace('/^\s*--.*$/m', '', test_sql("database/migrations/$MIG.sql")))), fn($s) => $s !== ''));
     $pa->exec($parts[0]); $pa->exec($parts[1]);   // tracker + map_cache only
     $detect = "SELECT (SELECT COUNT(*) FROM schema_migrations WHERE id='$MIG') AS tracked,
