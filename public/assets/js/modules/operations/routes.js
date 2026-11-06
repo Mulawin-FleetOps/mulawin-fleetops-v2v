@@ -6,8 +6,12 @@
    Backend: backend/Modules/Operations/Routes.php */
 'use strict';
 const RouteUI = {
-  /** Same rule as Routes::normalize() on the server (used only for the "similar route" warning). */
-  norm: (v) => String(v || '').toUpperCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(),
+  /**
+   * Same steps, in the same order, as Routes::normalize() on the server: upper case -> every
+   * run of non-letters/non-digits becomes one space -> every run of whitespace becomes one space -> trim.
+   * Used only for the "similar route" warning; the database unique key is the real duplicate check.
+   */
+  norm: (v) => String(v ?? '').toUpperCase().replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/gu, ' ').trim(),
   rateText(type, amount, min) {
     if (!type) return '—';
     return type === 'Flat' ? `Flat ${UI.money(amount)}` : `${UI.money(amount)} per km${+min > 0 ? ` (minimum ${UI.money(min)})` : ''}`;

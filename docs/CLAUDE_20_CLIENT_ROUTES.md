@@ -34,7 +34,10 @@ Admin:    Approve ─▶ lumang rate = Superseded (may effective_to), bagong rat
 
 Mga patakaran na laging sinusuri sa **server** (hindi lang sa screen):
 
-- Pending, Rejected, Withdrawn at Inactive routes ay **hindi** kasama sa listahan ng mapipili (`Routes::approvedFor()`).
+- **Dalawang magkaibang listahan** (PR #1 review):
+  - `Routes::selectableFor()` = **planning eligibility**. Ito LANG ang gagamitin ng batch planning sa susunod. Kasama lang ang route kapag Approved ito, may current Approved rate, AT **Active** ang client (`Routes::PLANNING_CLIENT_STATUSES`, gaya ng patakaran ng Trip Management ngayon). Hindi kasama ang Pending, Rejected, Withdrawn at Inactive routes, pati ang routes ng Inactive / Pending Rate / Incomplete na client. Dapat itong tawagin ulit ng planning sa server bago mag-save.
+  - `Routes::approvedFor()` = **record / display**. Approved routes kahit ano ang status ng client. Ginagamit sa client details para hindi maitago ang history ng client na na-deactivate. **Huwag** itong gamitin sa pagpili ng route para sa trip.
+- **Client eligibility sa approval:** sinusuri ulit ang client sa oras ng approval (bagong route at rate revision). Kapag Inactive na (o hindi na `Active` / `Pending Rate`), hindi papayagan ang approve; puwede pa ring i-reject para maisara ang request. Naka-lock ang client row habang nagde-decide (lock order: client → route → rates), kaya hindi ito mababago sa gitna ng approval.
 - Ang Approved route ay laging may isang valid na Approved rate.
 - **Separation of duties:** hindi puwedeng i-approve/reject ng isang user ang rate na siya mismo ang nag-enter.
 - Isang pending rate lang bawat route; isang current Approved rate lang bawat route.
@@ -185,7 +188,8 @@ Hindi ginalaw: `Trips.php`, `trips.js`, `Funds.php`, `core.js`, `BillingDraft.ph
 ## 9. Mga kilalang limitasyon
 
 - Typed pa ang distance (`distance_source = Manual`); ang map-based distance ay sa routing assignment (#5).
-- Hindi pa konektado sa New Trip / batch planning at sa billing.
+- Hindi pa konektado sa New Trip / batch planning at sa billing. Kapag ikinonekta na, `Routes::selectableFor()` ang gagamitin (hindi `approvedFor()`).
+- Ang "similar route" warning sa screen ay tulong lang; ang database unique key pa rin ang tunay na duplicate check. Pareho na ang normalization steps ng screen at server (sinusubukan ng test section L kapag may Node.js).
 - Hindi pa nakikita sa Dashboard / Reports.
 - Walang "reactivate": kapag na-deactivate, mag-request ng bago (nananatili ang luma bilang history).
 - Ang Approved rate ng isang Inactive route ay naiiwang `Approved` sa history (ito ang huling valid na rate bago na-deactivate); hindi ito mapipili dahil Inactive ang route.

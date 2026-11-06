@@ -17,6 +17,9 @@
  *    F. Rate revision safety: atomic supersede, rollback on failure, concurrent approval
  *    G. Duplicate prevention (application and database keys), truck types, directional routes
  *    H. Selectable routes, withdraw, deactivate, history
+ *    J. Client eligibility re-checked at approval (new route and revision), lock order
+ *    K. approvedFor (record list) vs selectableFor (planning eligibility)
+ *    L. Screen normalization (routes.js) = server normalization (Routes.php), when Node.js exists
  *    I. Historical data preserved + regression of the trip / fund / dispatch / billing flow
  * =====================================================================
  */
@@ -457,6 +460,114 @@ $page = Routes::read($users['billing'], 'routes', []);
 ok(empty($page['_errors']) && count($page['routes']) >= 10 && $page['can']['rate'] && !$page['can']['approve'], 'page data loads for Billing with the right buttons');
 $pf = Routes::read($users['operations_head'], 'routes', ['client_id' => (string)$cPending]);
 ok(count(array_unique(array_column($pf['routes'], 'client_id'))) === 1, 'page filter by client works');
+
+// ---------------------------------------------------------------------
+// J. CLIENT ELIGIBILITY IS CHECKED AGAIN AT APPROVAL (PR #1 review, item 1)
+// ---------------------------------------------------------------------
+section('J. Client eligibility re-checked at approval time');
+$state = function (int $routeId, int $rateId) use ($p): array {
+    return [
+        'route' => one($p, 'SELECT status, closed_reason, closed_by, updated_at FROM client_routes WHERE id=?', [$routeId]),
+        'rates' => many($p, 'SELECT id, status, decided_by, decided_at, effective_from, effective_to FROM client_route_rates WHERE route_id=? ORDER BY id', [$routeId]),
+        'events' => (int)one($p, 'SELECT COUNT(*) AS n FROM client_route_events WHERE route_id=?', [$routeId])['n'],
+        'audit' => (int)one($p, "SELECT COUNT(*) AS n FROM audit_events WHERE area='Routes' AND record_ref=?", ['route ' . $routeId])['n'],
+        'notif' => many($p, 'SELECT user_id, state FROM notifications WHERE dedupe_key=? ORDER BY user_id', ['route-approve-' . $rateId]),
+    ];
+};
+// 1) New route: request (eligible) -> rate -> client deactivated -> approval blocked
+$cJ = $client('LATE DEACTIVATION CORP', 'Active');
+$jr = (int)$act('operations_head', 'request', $req(['client_id' => $cJ]))['route_id'];
+$jrate = (int)$act('billing', 'rate_enter', ['route_id' => $jr, 'rate_type' => 'Flat', 'rate_amount' => '8000'])['rate_id'];
+run($p, "UPDATE clients SET status='Inactive' WHERE id=?", [$cJ]);
+$snap = $state($jr, $jrate);
+fails(fn() => $act('admin', 'decide', ['rate_id' => $jrate, 'decision' => 'approve']), 'approval blocked when the client became Inactive after the request', 409, 'Cannot approve');
+ok($state($jr, $jrate) === $snap, 'blocked approval changed nothing (route, rates, events, activity log, notifications)');
+ok(one($p, 'SELECT status FROM client_routes WHERE id=?', [$jr])['status'] === 'Pending Approval'
+   && one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$jrate])['status'] === 'Pending Approval', 'route and rate stay Pending Approval');
+ok(!$p->inTransaction(), 'no transaction left open after the blocked approval');
+ok(count(Routes::approvedFor($p, $cJ)) === 0 && count(Routes::selectableFor($p, $cJ)) === 0, 'blocked route is neither approved nor selectable');
+$act('admin', 'decide', ['rate_id' => $jrate, 'decision' => 'reject', 'reason' => 'Client deactivated']);
+ok(one($p, 'SELECT status FROM client_routes WHERE id=?', [$jr])['status'] === 'Rejected', 'rejection is still allowed for a deactivated client (request can be closed)');
+// Incomplete is also not eligible (policy: Active or Pending Rate)
+$cJ2 = $client('BECAME INCOMPLETE CORP', 'Pending Rate');
+$jr2 = (int)$act('operations_head', 'request', $req(['client_id' => $cJ2]))['route_id'];
+$jrate2 = (int)$act('billing', 'rate_enter', ['route_id' => $jr2, 'rate_type' => 'Flat', 'rate_amount' => '8100'])['rate_id'];
+run($p, "UPDATE clients SET status='Incomplete' WHERE id=?", [$cJ2]);
+fails(fn() => $act('admin', 'decide', ['rate_id' => $jrate2, 'decision' => 'approve']), 'approval blocked for a client that is no longer eligible (Incomplete)', 409, 'Cannot approve');
+run($p, "UPDATE clients SET status='Pending Rate' WHERE id=?", [$cJ2]);
+$act('admin', 'decide', ['rate_id' => $jrate2, 'decision' => 'approve']);
+ok(one($p, 'SELECT status FROM client_routes WHERE id=?', [$jr2])['status'] === 'Approved', 'approval works again once the client is eligible');
+// 2) Revision of an approved route: client deactivated -> revision approval blocked, old rate kept
+$cJ3 = $client('REVISION DEACTIVATION CORP', 'Active');
+$jr3 = (int)$act('operations_head', 'request', $req(['client_id' => $cJ3]))['route_id'];
+$v1 = (int)$act('billing', 'rate_enter', ['route_id' => $jr3, 'rate_type' => 'Flat', 'rate_amount' => '7000'])['rate_id'];
+$act('admin', 'decide', ['rate_id' => $v1, 'decision' => 'approve']);
+$v2 = (int)$act('billing', 'rate_enter', ['route_id' => $jr3, 'rate_type' => 'Flat', 'rate_amount' => '7500'])['rate_id'];
+run($p, "UPDATE clients SET status='Inactive' WHERE id=?", [$cJ3]);
+$snap = $state($jr3, $v2);
+fails(fn() => $act('admin', 'decide', ['rate_id' => $v2, 'decision' => 'approve']), 'revision approval blocked when the client became Inactive', 409, 'Cannot approve');
+ok($state($jr3, $v2) === $snap, 'blocked revision approval changed nothing');
+ok(one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$v1])['status'] === 'Approved' && one($p, 'SELECT status FROM client_routes WHERE id=?', [$jr3])['status'] === 'Approved',
+   'old approved rate and Approved route are kept');
+// 3) Lock order: while another session holds the client row, the decision waits instead of deciding on stale data
+$holder = conn($FRESH);
+$holder->exec('SET SESSION innodb_lock_wait_timeout = 10');
+$holder->beginTransaction();
+$holder->query("SELECT id FROM clients WHERE id=$cJ3 FOR UPDATE")->fetchAll();
+$p->exec('SET SESSION innodb_lock_wait_timeout = 1');
+try { $act('admin', 'decide', ['rate_id' => $v2, 'decision' => 'reject', 'reason' => 'x']); ok(false, 'decision waits for the client lock'); }
+catch (PDOException $e) { ok(($e->errorInfo[1] ?? 0) === 1205, 'decision waits for the client row lock (lock wait timeout while another session holds it)', $e->getMessage()); }
+$holder->rollBack();
+$p->exec('SET SESSION innodb_lock_wait_timeout = 50');
+ok(one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$v2])['status'] === 'Pending Approval', 'timed-out decision changed nothing');
+
+// ---------------------------------------------------------------------
+// K. RECORD LIST vs PLANNING LIST (PR #1 review, item 2)
+// ---------------------------------------------------------------------
+section('K. approvedFor (record) vs selectableFor (planning eligibility)');
+$cK = $client('PLANNING ELIGIBILITY CORP', 'Active');
+$kr = (int)$act('operations_head', 'request', $req(['client_id' => $cK, 'truck_type' => 'Container']))['route_id'];
+$act('admin', 'decide', ['rate_id' => (int)$act('billing', 'rate_enter', ['route_id' => $kr, 'rate_type' => 'Flat', 'rate_amount' => '6000'])['rate_id'], 'decision' => 'approve']);
+$kw = (int)$act('operations_head', 'request', $req(['client_id' => $cK, 'truck_type' => 'Wing Van']))['route_id'];
+$act('admin', 'decide', ['rate_id' => (int)$act('billing', 'rate_enter', ['route_id' => $kw, 'rate_type' => 'Flat', 'rate_amount' => '6500'])['rate_id'], 'decision' => 'approve']);
+$kp = (int)$act('operations_head', 'request', $req(['client_id' => $cK, 'truck_type' => 'Car Carrier']))['route_id'];   // stays Pending Rate
+ok(array_column(Routes::selectableFor($p, $cK), 'id') === array_column(Routes::approvedFor($p, $cK), 'id') && count(Routes::selectableFor($p, $cK)) === 2,
+   'Active client: both approved routes are selectable');
+ok(!in_array($kp, array_column(Routes::selectableFor($p, $cK), 'id'), true), 'Pending route of an Active client is not selectable');
+ok(count(Routes::selectableFor($p, $cK, 'Wing Van')) === 1 && (int)Routes::selectableFor($p, $cK, 'Wing Van')[0]['id'] === $kw, 'selectable list filters by truck type');
+run($p, "UPDATE clients SET status='Inactive' WHERE id=?", [$cK]);
+ok(count(Routes::selectableFor($p, $cK)) === 0, 'Inactive client: no selectable routes');
+ok(count(Routes::approvedFor($p, $cK)) === 2, 'Inactive client: approved route records are still listed (history not hidden)');
+ok(count($act('operations_head', 'for_client', ['client_id' => $cK])['routes']) === 2, 'client details still show the approved routes of an Inactive client');
+run($p, "UPDATE clients SET status='Pending Rate' WHERE id=?", [$cK]);
+ok(count(Routes::selectableFor($p, $cK)) === 0, 'Pending Rate client: not selectable for planning (trips need an Active client)');
+run($p, "UPDATE clients SET status='Active' WHERE id=?", [$cK]);
+ok(count(Routes::selectableFor($p, $cK)) === 2, 'reactivated client: routes are selectable again');
+$all = array_merge(...array_map(fn($c) => Routes::selectableFor($p, (int)$c['id']), many($p, 'SELECT id FROM clients')));
+$bad = array_filter($all, fn($r) => one($p, 'SELECT c.status AS cs, r.status AS rs FROM client_routes r JOIN clients c ON c.id=r.client_id WHERE r.id=?', [$r['id']]) != ['cs' => 'Active', 'rs' => 'Approved']);
+ok(!$bad && count($all) > 0, 'every selectable route in the database has an Approved route and an Active client', count($bad) . ' bad of ' . count($all));
+
+// ---------------------------------------------------------------------
+// L. SCREEN NORMALIZATION = SERVER NORMALIZATION (PR #1 review, item 3)
+// ---------------------------------------------------------------------
+section('L. RouteUI.norm() (screen) matches Routes::normalize() (server)');
+$samples = ["  Tanauan,\t\t  Batangas  ", "Sto.   Tomas", "STO TOMAS", "malvar - batangas", "Lipa\n\nCity", "x--y__z", "Parañaque  City", "Biñan,   Laguna",
+            "a\u{00A0}\u{00A0}b", "  ", "123   Road", "San José del Monte", "straße"];
+$js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/operations/routes.js');
+$node = trim((string)@shell_exec((DIRECTORY_SEPARATOR === '\\' ? 'where node 2>NUL' : 'command -v node 2>/dev/null')));
+if (!preg_match('/^\s*norm: (\(v\) => .*?),\s*$/m', $js, $mm)) {
+    ok(false, 'RouteUI.norm found in routes.js');
+} elseif ($node === '') {
+    echo "  NOTE  Node.js not found: screen/server normalization comparison skipped\n";
+} else {
+    $tmpJs = tempnam(sys_get_temp_dir(), 'norm') . '.js';
+    file_put_contents($tmpJs, 'const norm = ' . $mm[1] . ";\nconst s = " . json_encode($samples, JSON_UNESCAPED_UNICODE) . ";\nprocess.stdout.write(JSON.stringify(s.map(norm)));\n");
+    $jsOut = json_decode((string)shell_exec(escapeshellarg(strtok($node, "\r\n")) . ' ' . escapeshellarg($tmpJs)), true);
+    @unlink($tmpJs);
+    $phpOut = array_map([Routes::class, 'normalize'], $samples);
+    ok(is_array($jsOut) && count($jsOut) === count($samples), 'screen normalization ran in Node.js for ' . count($samples) . ' samples');
+    foreach ($samples as $i => $s) ok(($jsOut[$i] ?? null) === $phpOut[$i], 'same result for ' . json_encode($s, JSON_UNESCAPED_UNICODE) . ' -> ' . json_encode($phpOut[$i], JSON_UNESCAPED_UNICODE), json_encode($jsOut[$i] ?? null, JSON_UNESCAPED_UNICODE));
+}
 
 // ---------------------------------------------------------------------
 // I. HISTORICAL DATA + REGRESSION OF THE TRIP / BILLING FLOW

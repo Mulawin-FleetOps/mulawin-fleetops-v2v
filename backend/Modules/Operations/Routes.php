@@ -12,7 +12,8 @@
  *  PROVISIONAL WORKFLOW (see POLICY below, pending company confirmation):
  *    1. Operations Head requests a route              -> "Pending Rate"
  *    2. Billing & Collection enters the rate           -> "Pending Approval"
- *    3. Admin approves                                  -> "Approved" (can be used for planning)
+ *    3. Admin approves                                  -> "Approved"
+ *       (the client must STILL be eligible at approval time; rejecting is always allowed)
  *       or rejects (terminal for a new request)         -> "Rejected"
  *    Ops Head may withdraw a request that is not approved yet -> "Withdrawn"
  *    Admin may deactivate an approved route             -> "Inactive"
@@ -25,6 +26,9 @@
  *
  *  HISTORY: an approved rate row is never edited or deleted. Every step is saved
  *  in client_route_events and in the activity log (audit_events).
+ *
+ *  TWO READ LISTS: approvedFor() = record/display (any client status);
+ *  selectableFor() = planning eligibility (Approved route + current rate + Active client).
  *
  *  NOT CONNECTED (yet) to Trip Management or billing: the old client_rates
  *  (rate per km) and BillingDraft keep working exactly as before.
@@ -100,15 +104,50 @@ final class Routes {
     }
 
     /**
-     * Approved routes of a client with their current rate. Only these can be
-     * selected later in planning (Pending, Rejected, Withdrawn and Inactive never).
+     * Client statuses whose Approved routes can be SELECTED for new trip planning.
+     * Same rule as Trip Management today (only Active clients can be used for trips).
+     */
+    public const PLANNING_CLIENT_STATUSES = ['Active'];
+
+    /** True when the client may get route requests and approvals (POLICY['client_statuses']). */
+    private static function clientEligible(array $client): bool {
+        return in_array($client['status'], self::POLICY['client_statuses'], true);
+    }
+
+    /** Shared SELECT of an approved route with its current approved rate. */
+    private static function approvedSql(): string {
+        return "SELECT r.id, r.route_ref, r.client_id, r.truck_type, r.origin_label, r.destination_label, r.distance_km, r.distance_source,
+                    cr.id AS rate_id, cr.version_no AS rate_version, cr.rate_type, cr.rate_amount, cr.minimum_charge, cr.effective_from
+                FROM client_routes r
+                JOIN client_route_rates cr ON cr.route_id=r.id AND cr.status='Approved'
+                JOIN clients c ON c.id=r.client_id
+                WHERE r.client_id=? AND r.status='Approved'";
+    }
+
+    /**
+     * RECORD / DISPLAY: Approved routes of a client with their current rate, WHATEVER the
+     * client's status (used by the client details window, so the history of an Inactive
+     * client is still visible). Do NOT use this list to choose a route for a new trip:
+     * use selectableFor().
      */
     public static function approvedFor(PDO $p, int $clientId, ?string $truckType = null): array {
-        $sql = "SELECT r.id, r.route_ref, r.truck_type, r.origin_label, r.destination_label, r.distance_km, r.distance_source,
-                    cr.id AS rate_id, cr.version_no AS rate_version, cr.rate_type, cr.rate_amount, cr.minimum_charge, cr.effective_from
-                FROM client_routes r JOIN client_route_rates cr ON cr.route_id=r.id AND cr.status='Approved'
-                WHERE r.client_id=? AND r.status='Approved'";
-        $args = [$clientId];
+        $sql = self::approvedSql(); $args = [$clientId];
+        if ($truckType !== null) { $sql .= ' AND r.truck_type=?'; $args[] = $truckType; }
+        return many($p, $sql . ' ORDER BY r.origin_label, r.destination_label, r.truck_type', $args);
+    }
+
+    /**
+     * PLANNING ELIGIBILITY: the ONLY list future batch planning may offer. A route is
+     * selectable when ALL are true:
+     *   - route status is Approved (not Pending, Rejected, Withdrawn or Inactive),
+     *   - it has a current Approved rate,
+     *   - the client's status is in PLANNING_CLIENT_STATUSES (Active).
+     * Planning must call this again on the server when saving (never trust the screen).
+     */
+    public static function selectableFor(PDO $p, int $clientId, ?string $truckType = null): array {
+        $marks = implode(',', array_fill(0, count(self::PLANNING_CLIENT_STATUSES), '?'));
+        $sql = self::approvedSql() . " AND c.status IN ($marks)";
+        $args = array_merge([$clientId], self::PLANNING_CLIENT_STATUSES);
         if ($truckType !== null) { $sql .= ' AND r.truck_type=?'; $args[] = $truckType; }
         return many($p, $sql . ' ORDER BY r.origin_label, r.destination_label, r.truck_type', $args);
     }
@@ -211,7 +250,7 @@ final class Routes {
         return transaction(function (PDO $p) use ($u, $row) {
             $c = one($p, 'SELECT id, company_name, status FROM clients WHERE id=? FOR UPDATE', [$row['client_id']]);
             must((bool)$c, 'Client not found.', 404);
-            must(in_array($c['status'], self::POLICY['client_statuses'], true),
+            must(self::clientEligible($c),
                 $c['company_name'] . ' is ' . $c['status'] . '. Routes can be requested only for ' . implode(' or ', self::POLICY['client_statuses']) . ' clients.', 409);
             $dup = one($p, "SELECT route_ref, status FROM client_routes WHERE client_id=? AND truck_type=? AND origin_key=? AND destination_key=? AND active_key=1 FOR UPDATE",
                 [$row['client_id'], $row['truck_type'], $row['origin_key'], $row['destination_key']]);
@@ -329,8 +368,12 @@ final class Routes {
         $decision = choiceField($d, 'decision', ['approve', 'reject']);
         $notes = $decision === 'reject' ? field($d, 'reason', 300) : optField($d, 'notes', 300);
         return transaction(function (PDO $p) use ($u, $rateId, $decision, $notes) {
-            $peek = one($p, 'SELECT route_id FROM client_route_rates WHERE id=?', [$rateId]);
+            $peek = one($p, 'SELECT rt.route_id, r.client_id FROM client_route_rates rt JOIN client_routes r ON r.id=rt.route_id WHERE rt.id=?', [$rateId]);
             must((bool)$peek, 'Rate not found.', 404);
+            // LOCK ORDER client -> route -> rates (same as rate entry). Locking the client row means it
+            // cannot be deactivated in the middle of this decision.
+            $client = one($p, 'SELECT id, company_name, status FROM clients WHERE id=? FOR UPDATE', [$peek['client_id']]);
+            must((bool)$client, 'Client not found.', 404);
             $r = self::lockRoute($p, (int)$peek['route_id']);
             $rates = self::lockRates($p, (int)$r['id']);
             $rate = null; $current = null;
@@ -344,8 +387,16 @@ final class Routes {
             $revision = $r['status'] === 'Approved';
             must($revision || $r['status'] === 'Pending Approval', 'The route is ' . $r['status'] . '.', 409);
             if ($revision) must((bool)$current, 'This approved route has no current rate. Check the route history.', 409);
+            // Client eligibility is checked AGAIN at approval time: the client may have been deactivated
+            // after the request. Approving (new route or revision) needs an eligible client; rejecting is
+            // always allowed, so a request for a deactivated client can still be closed.
+            if ($decision === 'approve') {
+                must(self::clientEligible($client),
+                    'Cannot approve: ' . $client['company_name'] . ' is ' . $client['status'] . '. Routes can be approved only for '
+                    . implode(' or ', self::POLICY['client_statuses']) . ' clients. Reject the rate, or reactivate the client first.', 409);
+            }
             $txt = self::rateText($rate['rate_type'], $rate['rate_amount'], $rate['minimum_charge']);
-            $c = one($p, 'SELECT company_name FROM clients WHERE id=?', [$r['client_id']]);
+            $c = $client;
             Notify::resolve($p, 'route-approve-' . $rateId);
 
             if ($decision === 'reject') {
