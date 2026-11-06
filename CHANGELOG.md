@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-06 (Checklist #5: OpenStreetMap and automatic road distance; Phase 1 + 2)
+- **Maps use OpenStreetMap** (MapTiler removed). Address search and map-point addresses go through the server
+  (openrouteservice geocoding); the browser never sees an API key. The map code moved from `core.js` to `assets/js/map.js`.
+- **Client Routes > Request route**: pin origin and destination; the road distance (openrouteservice, truck profile) fills in
+  the km and the road line is shown. Route options: Recommended (default), Avoid toll roads, General roads only.
+  The km keeps 2 decimals. Changing the km needs a reason; a difference above 15% shows a warning. The server computes the
+  distance again before saving. Without `ORS_API_KEY`, or when the service does not answer, the km is typed (Manual).
+- **Trip Management is unchanged** (straight-line guide, typed billable km); only the map tiles and the search provider changed.
+- Database: `database/migrations/2026-11-06_04_maps_routing.sql` (map cache and usage tables; 6 nullable columns in
+  `client_routes`). Settings: `ORS_*`, `MAP_TILE_*`, `MAP_USER_PER_MINUTE` in `.env.example`.
+- Tests: `tests/run_map_tests.php`. `tests/run_route_tests.php` now checks the whole migration chain (it broke when
+  `2026-11-06_03_audit_changes` was added). Details: `docs/CLAUDE_05_OSM_ROUTING.md`. Implementation defaults only: the
+  company still has to confirm the kilometer billing and toll-road policies.
+
 ## 2026-11-06 (Checklist #20: client routes, provisional policy)
 - **Client Routes** (Masterlists): approved routes per client and truck type, with contractual rates. Operations Head
   requests a route (origin to destination is one direction; same route can have another rate for another truck type),
