@@ -204,10 +204,16 @@ final class Routes {
         return many($p, 'SELECT * FROM client_route_rates WHERE route_id=? ORDER BY version_no FOR UPDATE', [$routeId]);
     }
 
-    private static function event(PDO $p, ?int $uid, int $routeId, ?int $rateId, string $type, string $from, string $to, string $notes = ''): void {
+    // Adjustment #5H-2: structured Client Routes audit; keep the existing route event and ONE activity event per action.
+    private static function event(PDO $p, ?int $uid, int $routeId, ?int $rateId, string $type, string $from, string $to, string $notes = '', array $before = [], array $after = []): void {
         $p->prepare('INSERT INTO client_route_events (route_id, rate_id, actor_id, event_type, from_status, to_status, notes) VALUES (?,?,?,?,?,?,?)')
           ->execute([$routeId, $rateId, $uid, $type, $from, $to, cut($notes, 500)]);
-        audit($p, $uid, 'Routes', 'route ' . $routeId, $type, ($from !== $to ? "$from -> $to. " : '') . $notes);
+        if ($from !== $to) {
+            $before = ['Route status' => $from === '' ? null : $from] + $before;
+            $after = ['Route status' => $to] + $after;
+        }
+        auditWithChanges($p, $uid, 'Routes', 'route ' . $routeId, $type,
+            ($from !== $to ? "$from -> $to. " : '') . $notes, $before, $after);
     }
 
     private static function routeName(array $r): string {
@@ -393,10 +399,14 @@ final class Routes {
             }
             $txt = self::rateText($type, $amount, $min);
             if ($revision) {
-                self::event($p, $u['id'], $id, $rateId, 'rate revision entered', 'Approved', 'Approved', "Version $version: $txt (current: " . self::rateText($current['rate_type'], $current['rate_amount'], $current['minimum_charge']) . ')' . ($notes ? ". $notes" : ''));
+                self::event($p, $u['id'], $id, $rateId, 'rate revision entered', 'Approved', 'Approved', "Version $version: $txt (current: " . self::rateText($current['rate_type'], $current['rate_amount'], $current['minimum_charge']) . ')' . ($notes ? ". $notes" : ''),
+                    ['Current approved rate (PHP)' => $current['rate_amount'], 'Current rate type' => $current['rate_type'], 'Proposed rate status' => 'Not submitted'],
+                    ['Current approved rate (PHP)' => $current['rate_amount'], 'Current rate type' => $current['rate_type'], 'Proposed rate status' => 'Pending Approval',
+                     'Proposed rate (PHP)' => $amount, 'Proposed rate type' => $type, 'Proposed version' => $version]);
             } else {
                 run($p, "UPDATE client_routes SET status='Pending Approval' WHERE id=?", [$id]);
-                self::event($p, $u['id'], $id, $rateId, 'rate entered', 'Pending Rate', 'Pending Approval', "Version $version: $txt" . ($notes ? ". $notes" : ''));
+                self::event($p, $u['id'], $id, $rateId, 'rate entered', 'Pending Rate', 'Pending Approval', "Version $version: $txt" . ($notes ? ". $notes" : ''),
+                    [], ['Proposed rate (PHP)' => $amount, 'Rate type' => $type, 'Rate version' => $version, 'Rate status' => 'Pending Approval']);
                 Notify::resolve($p, 'route-rate-' . $id);
             }
             Notify::roles($p, self::POLICY['approve'], $revision ? 'Route rate revision' : 'Route approval',
@@ -455,12 +465,15 @@ final class Routes {
                 run($p, "UPDATE client_route_rates SET status='Rejected', decided_by=?, decided_at=NOW(), decision_notes=? WHERE id=? AND status='Pending Approval'", [$u['id'], $notes, $rateId]);
                 if ($revision) {
                     // Only the proposed revision is rejected: the route stays Approved with its old rate.
-                    self::event($p, $u['id'], (int)$r['id'], $rateId, 'rate revision rejected', 'Approved', 'Approved', "Version {$rate['version_no']} ($txt): $notes");
+                    self::event($p, $u['id'], (int)$r['id'], $rateId, 'rate revision rejected', 'Approved', 'Approved', "Version {$rate['version_no']} ($txt): $notes",
+                        ['Proposed rate status' => 'Pending Approval'],
+                        ['Proposed rate status' => 'Rejected', 'Proposed rate (PHP)' => $rate['rate_amount'], 'Current approved rate (PHP)' => $current['rate_amount']]);
                     $msg = 'Rate revision rejected. The route stays Approved with its current rate.';
                 } else {
                     // A new route request that is rejected is closed (terminal).
                     run($p, "UPDATE client_routes SET status='Rejected', closed_reason=?, closed_by=?, closed_at=NOW() WHERE id=?", [$notes, $u['id'], $r['id']]);
-                    self::event($p, $u['id'], (int)$r['id'], $rateId, 'route rejected', 'Pending Approval', 'Rejected', "Version {$rate['version_no']} ($txt): $notes");
+                    self::event($p, $u['id'], (int)$r['id'], $rateId, 'route rejected', 'Pending Approval', 'Rejected', "Version {$rate['version_no']} ($txt): $notes",
+                        ['Proposed rate status' => 'Pending Approval'], ['Proposed rate status' => 'Rejected', 'Proposed rate (PHP)' => $rate['rate_amount']]);
                     $msg = 'Route rejected. A new request is needed to use this route.';
                 }
                 Notify::user($p, (int)$r['requested_by'], 'Route rejected', self::routeName($r) . ($revision ? ' rate revision' : '') . ' was rejected: ' . $notes, 'routes');
@@ -477,7 +490,9 @@ final class Routes {
             must($done === 1, 'The rate could not be approved. Nothing was changed. Reload the page.', 409);
             if (!$revision) run($p, "UPDATE client_routes SET status='Approved' WHERE id=?", [$r['id']]);
             self::event($p, $u['id'], (int)$r['id'], $rateId, $revision ? 'rate revision approved' : 'route approved', $r['status'], 'Approved',
-                "Version {$rate['version_no']}: $txt" . ($current ? ' (replaces version ' . $current['version_no'] . ': ' . self::rateText($current['rate_type'], $current['rate_amount'], $current['minimum_charge']) . ')' : '') . ($notes ? ". $notes" : ''));
+                "Version {$rate['version_no']}: $txt" . ($current ? ' (replaces version ' . $current['version_no'] . ': ' . self::rateText($current['rate_type'], $current['rate_amount'], $current['minimum_charge']) . ')' : '') . ($notes ? ". $notes" : ''),
+                ['Approved rate (PHP)' => $current['rate_amount'] ?? null, 'Approved rate version' => $current['version_no'] ?? null, 'Proposed rate status' => 'Pending Approval'],
+                ['Approved rate (PHP)' => $rate['rate_amount'], 'Approved rate version' => $rate['version_no'], 'Proposed rate status' => 'Approved']);
             $who = array_unique([(int)$r['requested_by'], (int)$rate['entered_by']]);
             foreach ($who as $uid) Notify::user($p, $uid, 'Route approved', self::routeName($r) . ' of ' . ($c['company_name'] ?? '') . ' is Approved: ' . $txt . '.', 'routes');
             return ['message' => ($revision ? 'Rate revision approved. ' : 'Route approved. ') . $r['route_ref'] . ' now uses ' . $txt . '.'];
