@@ -8,18 +8,66 @@ App.page('admin', {
   subtitle: 'User accounts, settings, activity log and backup.',
   render(ctx) {
     const d = ctx.data, isAdmin = d.can.admin, roles = Object.entries(d.roles);
+    // Adjustment: vacancy-aware account role/shift options and password visibility.
+    const dispatcherRoles = ['car_carrier_dispatcher', 'container_wingvan_dispatcher'];
+    const shifts = ['Day', 'Night'];
+    const activeAccounts = (d.users || []).filter(x => Number(x.active) === 1);
+    const occupied = (role, shift, excludeId) => activeAccounts.some(x =>
+      String(x.id) !== String(excludeId ?? '') && x.role === role &&
+      (!dispatcherRoles.includes(role) || x.shift === shift));
+    const roleAvailable = (role, u) => {
+      if (u.id && u.role === role) return true; // Keep existing role visible while editing.
+      return dispatcherRoles.includes(role)
+        ? shifts.some(s => !occupied(role, s, u.id))
+        : !occupied(role, null, u.id);
+    };
+    const addPasswordVisibility = (wrap) => {
+      ['password', 'password_confirm'].forEach(name => {
+        const field = wrap.querySelector(`input[name="${name}"]`);
+        if (!field) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-outline-secondary mt-1';
+        button.textContent = 'Show password';
+        button.setAttribute('aria-label', `Show ${name === 'password' ? 'password' : 'confirmation password'}`);
+        button.setAttribute('aria-pressed', 'false');
+        field.insertAdjacentElement('afterend', button);
+        button.addEventListener('click', () => {
+          const show = field.type === 'password';
+          field.type = show ? 'text' : 'password';
+          button.textContent = show ? 'Hide password' : 'Show password';
+          button.setAttribute('aria-pressed', String(show));
+        });
+      });
+    };
     const userForm = (u = {}) => {
+      const availableRoles = roles.filter(([role]) => roleAvailable(role, u));
       const wrap = UI.formModal(u.id ? 'Edit ' + UI.esc(u.username) : 'New user account', [
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
         { name: 'email', label: 'Email (login codes are sent here)', type: 'email', required: true, col: 6, value: u.email },
         ...(u.id ? [] : [{ name: 'password', label: 'Password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password" maxlength="72"', help: (App.me.passwordMin || 8) + '+ characters with letters and numbers. Give it to the user privately.' },
           { name: 'password_confirm', label: 'Confirm password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Type the same password again.' }]),
-        { name: 'role', label: 'Role', type: 'select', options: roles, required: true, col: 6, value: u.role },
-        { name: 'shift', label: 'Shift (dispatchers)', type: 'select', options: UI.list(['Day', 'Night']), col: 6, value: u.shift }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
+        { name: 'role', label: 'Role', type: 'select', options: availableRoles, required: true, col: 6, value: u.role },
+        { name: 'shift', label: 'Shift (dispatchers)', type: 'select', options: UI.list(shifts), col: 6, value: u.shift }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
           transform: (x) => { if (!u.id && x.password !== x.password_confirm) throw new Error('The password and the confirmation do not match.'); return x; } });
-      const role = wrap.querySelector('[name=role]'), shift = wrap.querySelector('[name=shift]').closest('[class*=col-]');
-      const t = () => { shift.style.display = /dispatcher/.test(role.value) ? '' : 'none'; }; role.onchange = t; t();
+      const role = wrap.querySelector('[name=role]');
+      const shiftInput = wrap.querySelector('[name=shift]');
+      const shiftWrapper = shiftInput.closest('[class*=col-]');
+      const refreshShifts = () => {
+        const dispatch = dispatcherRoles.includes(role.value);
+        shiftWrapper.style.display = dispatch ? '' : 'none';
+        shiftInput.required = dispatch;
+        if (!dispatch) { shiftInput.value = ''; return; }
+        const current = shiftInput.value;
+        const options = shifts.filter(s => (u.id && role.value === u.role && s === u.shift) ||
+          !occupied(role.value, s, u.id));
+        shiftInput.replaceChildren(new Option('Choose…', ''), ...options.map(s => new Option(s, s)));
+        shiftInput.value = options.includes(current) ? current : '';
+      };
+      role.addEventListener('change', () => { shiftInput.value = ''; refreshShifts(); });
+      refreshShifts();
+      if (!u.id) addPasswordVisibility(wrap);
     };
     const tabs = [];
     if (isAdmin) {
