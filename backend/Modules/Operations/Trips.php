@@ -205,6 +205,12 @@ final class Trips {
         $p->prepare('INSERT INTO trip_events (trip_id, actor_id, event_type, from_status, to_status, notes) VALUES (?,?,?,?,?,?)')
           ->execute([$tripId, $uid, $type, $from, $to, cut($notes, 500)]);
         $message = ($from !== $to ? "$from -> $to. " : '') . $notes;
+        // Adjustment #5H-1: Trip status and safe delivery-field changes.
+        // Status is a real transition. Preserve any supplied driver/truck edit details.
+        if ($from !== $to) {
+            $before = ['Trip status' => $from !== '' ? $from : null] + $before;
+            $after = ['Trip status' => $to !== '' ? $to : null] + $after;
+        }
         if ($after) auditWithChanges($p, $uid, 'Trips', 'trip ' . $tripId, $type, $message, $before, $after);
         else audit($p, $uid, 'Trips', 'trip ' . $tripId, $type, $message);
     }
@@ -367,7 +373,16 @@ final class Trips {
             }
             $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
             run($p, "UPDATE trips SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-            self::event($p, $u['id'], $id, 'trip details updated', $t['status'], $t['status']);
+            // Audit only operational fields; omit free-text/identifiers that may contain private data.
+            $labels = ['scheduled_at' => 'Scheduled at', 'pickup_point' => 'Pickup point',
+                'delivery_point' => 'Delivery point', 'truck_type' => 'Truck type',
+                'distance_km' => 'Distance (km)', 'units_planned' => 'Units planned'];
+            $oldFields = []; $newFields = [];
+            foreach ($labels as $key => $label) if (array_key_exists($key, $row)) {
+                $oldFields[$label] = $t[$key] ?? null;
+                $newFields[$label] = $row[$key];
+            }
+            self::event($p, $u['id'], $id, 'trip details updated', $t['status'], $t['status'], '', $oldFields, $newFields);
             return ['message' => 'Trip details updated.' . self::$scheduleWarning];
         });
     }
@@ -598,11 +613,14 @@ final class Trips {
               ->execute([$id, $t['vehicle_id'], $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $check['has_not_ok'] ? 1 : 0, $km, $fuel, $remarks, $u['id'], $started]);
             if ($check['has_not_ok']) {
                 $bad = []; foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) { $k = $s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT); if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label; }
-                self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'], implode(', ', $bad));
+                self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'], implode(', ', $bad), [],
+                    ['Inspection result' => 'NOT OK', 'NOT OK item count' => count($bad)]);
                 Notify::roles($p, ['motorpool'], 'Checklist finding', $t['trip_ref'] . ' / ' . $v['plate_number'] . ' NOT OK: ' . implode(', ', array_slice($bad, 0, 6)), 'maintenance');
                 return ['warning' => 'Checklist saved with NOT OK items (' . implode(', ', array_slice($bad, 0, 5)) . '). The trip cannot be Ready for Dispatch until every item is OK. Fix the items and submit the checklist again.'];
             }
-            self::setStatus($p, $u['id'], $t, 'Ready for Dispatch', 'pre-dispatch checklist completed', 'All items OK' . ($km ? "; odometer $km" : ''));
+            run($p, 'UPDATE trips SET status=? WHERE id=?', ['Ready for Dispatch', $id]);
+            self::event($p, $u['id'], $id, 'pre-dispatch checklist completed', $t['status'], 'Ready for Dispatch',
+                'All items OK' . ($km ? "; odometer $km" : ''), [], ['Inspection result' => 'All OK']);
             $fund = one($p, 'SELECT status FROM fund_requests WHERE trip_id=? AND attempt_number=?', [$id, $t['attempt_number']]);
             $msg = 'Trip is Ready for Dispatch.';
             if ($fund && $fund['status'] === 'Released') $msg .= ' Fund is Released, so Confirm Dispatch is now enabled.';
@@ -840,7 +858,8 @@ final class Trips {
             $truck = FleetState::reconcile($p, $vid, $u['id'], 'Arrival checklist ' . $t['trip_ref'] . ($bad ? ' (NOT OK items, ' . $jobRef . ')' : ' (all OK)'));
             $summary = ($bad ? count($bad) . ' NOT OK item(s): ' . implode('; ', $bad) : 'All items OK') . ($km ? "; odometer $km" : '') . "; fuel $fuel"
                      . ($changed ? '. Changed since departure: ' . implode(', ', $changed) : '');
-            self::event($p, $u['id'], $id, 'arrival checklist completed', 'Completed', 'Completed', cut($summary, 500));
+            self::event($p, $u['id'], $id, 'arrival checklist completed', 'Completed', 'Completed', cut($summary, 500), [],
+                ['Inspection result' => $bad ? 'NOT OK' : 'All OK', 'NOT OK item count' => count($bad)]);
             Notify::resolve($p, 'trip-arrival-' . $id);
             if ($bad) {
                 Notify::roles($p, ['motorpool'], 'Arrival checklist finding', "$plate back from " . $t['trip_ref'] . ' with NOT OK items (' . $jobRef . '). Assign a mechanic.', 'maintenance', 'job-open-' . $jobId);
