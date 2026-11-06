@@ -17,7 +17,37 @@ declare(strict_types=1);
 
 final class Access {
     /** Small headings in the menu (only shown when the role has pages under them). */
-    public const SECTIONS = ['Masterlists', 'Maintenance', 'Accounting', 'Records'];
+    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Accounting', 'Billing', 'Records'];
+
+    /**
+     * Shared workflow pages belong in the employee's work area, never in a
+     * foreign department heading merely because of the PHP module folder.
+     * This is presentation ONLY. Role/record/action permissions must still
+     * be enforced by backend modules and are reviewed separately in S4B-2.
+     */
+    private const NAV_SECTIONS = [
+        'operations_head' => [
+            'funds' => 'Operations', 'maintenance' => 'Operations', 'mechanics' => 'Operations',
+        ],
+        'car_carrier_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
+        'container_wingvan_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
+        'motorpool' => ['trucks' => 'Maintenance', 'purchasing' => 'Maintenance', 'mechanics' => 'Maintenance'],
+        'purchasing' => ['trucks' => 'Maintenance'],
+        'finance' => ['purchasing' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
+        'billing' => ['trips' => 'Billing', 'clients' => 'Billing', 'routes' => 'Billing'],
+        'audit' => [
+            'trips' => 'Records', 'trucks' => 'Records', 'crew' => 'Records',
+            'clients' => 'Records', 'routes' => 'Records', 'mechanics' => 'Records',
+            'maintenance' => 'Records', 'purchasing' => 'Records', 'funds' => 'Records',
+            'billing' => 'Records', 'finance' => 'Records', 'admin' => 'Records',
+            'reports' => 'Records',
+        ],
+    ];
+    private const NAV_LABELS = [
+        'audit' => ['admin' => 'Activity Log'],
+        'car_carrier_dispatcher' => ['funds' => 'My Trip Funds'],
+        'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
+    ];
 
     public static function pages(): array {
         $D = ['car_carrier_dispatcher', 'container_wingvan_dispatcher'];
@@ -65,6 +95,10 @@ final class Access {
         $out = [];
         foreach (self::pages() as $id => [$label, $icon, $section, $module, $js, $roles]) {
             if (in_array($u['role'], $roles, true)) {
+                // Navigation grouping is per ROLE, not per backend department.
+                // Existing server-side page/action authorization stays unchanged.
+                $section = self::NAV_SECTIONS[$u['role']][$id] ?? $section;
+                $label = self::NAV_LABELS[$u['role']][$id] ?? $label;
                 $out[] = ['id' => $id, 'label' => $label, 'icon' => $icon, 'section' => $section, 'js' => $js];
             }
         }
