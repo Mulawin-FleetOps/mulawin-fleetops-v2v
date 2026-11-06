@@ -79,7 +79,12 @@ final class Documents {
                           ELSE 'Company file' END AS record_label
                     FROM documents d JOIN users us ON us.id=d.uploaded_by WHERE d.entity_type IN ($marks) AND d.category<>'User E-Signature' ORDER BY d.id DESC LIMIT 2000", $types);
                 if (roleIsDispatcher($u['role'])) {
-                    $rows = array_values(array_filter($rows, fn($d) => $d['entity_type'] !== 'trip' || self::dispatcherTrip($p, $u, (int)$d['entity_id'])));
+                    // S4B: dispatcher incident documents must match the permitted trip.
+                    $rows = array_values(array_filter($rows, static function (array $d) use ($p, $u): bool {
+                        if ($d['entity_type'] === 'trip') return self::dispatcherTrip($p, $u, (int)$d['entity_id']);
+                        if ($d['entity_type'] === 'incident') return self::dispatcherIncident($p, $u, (int)$d['entity_id']);
+                        return true;
+                    }));
                 }
                 return $rows;
             },
@@ -104,6 +109,11 @@ final class Documents {
         return (bool)one($p, 'SELECT id FROM trips WHERE id=? AND (dispatcher_role=? OR created_by=?)', [$tripId, $u['role'], $u['id']]);
     }
 
+    private static function dispatcherIncident(PDO $p, array $u, int $incidentId): bool {
+        return (bool)one($p, 'SELECT i.id FROM incidents i JOIN trips t ON t.id=i.trip_id WHERE i.id=? AND (t.dispatcher_role=? OR t.created_by=?)',
+            [$incidentId, $u['role'], $u['id']]);
+    }
+
     public static function action(array $u, string $action, array $d): array {
         throw new BusinessRuleException('Use the upload form for documents.', 404);
     }
@@ -114,7 +124,10 @@ final class Documents {
         if ($table === null) { must($id === null, 'Company documents are not linked to a record number.'); return; }
         must($id !== null, 'Enter the record number (ID) this file belongs to.');
         must((bool)one($p, "SELECT id FROM $table WHERE id=?", [$id]), 'The linked record was not found.', 404);
-        if ($type === 'trip' && roleIsDispatcher($u['role'])) must(self::dispatcherTrip($p, $u, $id), 'This trip belongs to the other dispatcher team.', 403);
+        if (roleIsDispatcher($u['role'])) {
+            if ($type === 'trip') must(self::dispatcherTrip($p, $u, $id), 'This trip belongs to the other dispatcher team.', 403);
+            if ($type === 'incident') must(self::dispatcherIncident($p, $u, $id), 'This incident belongs to the other dispatcher team.', 403);
+        }
     }
 
     /** POST multipart: one or many files (bulk upload). */
@@ -185,7 +198,10 @@ final class Documents {
         } else {
             must(self::canView($u['role'], $d['entity_type']), 'You cannot open this document.', 403);
         }
-        if ($d['entity_type'] === 'trip' && roleIsDispatcher($u['role'])) must(self::dispatcherTrip($p, $u, (int)$d['entity_id']), 'You cannot open this document.', 403);
+        if (roleIsDispatcher($u['role'])) {
+            if ($d['entity_type'] === 'trip') must(self::dispatcherTrip($p, $u, (int)$d['entity_id']), 'You cannot open this document.', 403);
+            if ($d['entity_type'] === 'incident') must(self::dispatcherIncident($p, $u, (int)$d['entity_id']), 'You cannot open this document.', 403);
+        }
         $file = dirname(__DIR__, 3) . '/storage/private/' . $d['storage_name'];
         must(is_file($file), 'The file is missing on the server.', 404);
         header('Content-Type: ' . $d['mime_type']);
