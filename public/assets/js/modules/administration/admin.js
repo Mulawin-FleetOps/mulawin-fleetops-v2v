@@ -57,19 +57,28 @@ App.page('admin', {
     }
     const catForm = (c = {}) => UI.formModal(c.id ? 'Edit category' : 'Add category', [{ name: 'name', label: 'Category', required: true, col: 6, value: c.name }, { name: 'amount', label: 'Preset amount', type: 'money', required: true, col: 3, value: c.amount },
       { name: 'sort_order', label: 'Order', type: 'number', col: 3, value: c.sort_order ?? 0 }, { name: 'active', label: 'Active (shown to dispatchers)', type: 'checkbox', value: c.id ? c.active : 1, col: 12 }], 'Admin.fund_category_save', { extra: c.id ? { id: c.id } : {} });
-    // Adjustment #5: summary first, full audit metadata in the View drawer.
+    // Audit Phase 1: concise list, action-first drawer and verified changed fields.
     const activityDetails = (e) => {
       const fields = [
         ['Date and time', UI.datetime(e.created_at)],
         ['Performed by', UI.e(e.actor)],
         ['Email address', UI.e(e.actor_email || '—')],
         ['User role', UI.esc(d.roles[e.role] || e.role || 'System')],
-        ['Activity', UI.e(e.action)],
-        ['Description', UI.e(e.details)],
-        ['Related record', UI.e(e.record_ref)],
-        ['Module / area', UI.e(e.area)],
+        ['Action performed', UI.e(e.action)],
+        ['What was done', UI.e(e.details || 'No additional description was recorded.')],
       ];
-      UI.drawer('Activity details', UI.kv(fields), { subtitle: 'Read-only audit record' });
+      let changes = [];
+      if (e.changes_json) {
+        try { const parsed = JSON.parse(e.changes_json); if (Array.isArray(parsed)) changes = parsed; } catch (_) { /* legacy or invalid optional data */ }
+      }
+      const html = UI.kv(fields) + (changes.length
+        ? UI.h('Changes made') + UI.table([['Field', 'field', v => UI.esc(v)],
+          ['Before', 'before', v => UI.esc(v === null || v === '' ? '—' : String(v))],
+          ['After', 'after', v => UI.esc(v === null || v === '' ? '—' : String(v))]],
+          changes, { plain: true, limit: 30 })
+        : '<p class="small text-muted mt-3">No field-by-field changes recorded for this activity.</p>');
+      const drawer = UI.drawer('Activity details', html, { subtitle: 'Read-only audit record' });
+      UI.activate(drawer);
     };
     tabs.push(['log', 'Activity log', () => UI.filterModal(ctx, [{ name: 'from', label: 'From', type: 'date', col: 6 }, { name: 'to', label: 'To', type: 'date', col: 6 },
         { name: 'actor_id', label: 'User', type: 'select', options: UI.opts(d.actors, u => u.full_name), col: 12 }],

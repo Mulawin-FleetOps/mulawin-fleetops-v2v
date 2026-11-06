@@ -101,6 +101,7 @@ final class Funds {
             $lines = self::lines($p, $d);
             $total = number_format(array_sum(array_map(fn($l) => (float)$l['amount'], $lines)), 2, '.', '');
             $old = one($p, 'SELECT * FROM fund_requests WHERE trip_id=? AND attempt_number=? FOR UPDATE', [$tripId, $t['attempt_number']]);
+            $oldBreakdown = $old ? many($p, 'SELECT category_name, amount FROM fund_request_lines WHERE fund_request_id=? ORDER BY id', [$old['id']]) : [];
             if ($old) {
                 must($old['status'] === 'Rejected', 'This trip already has a fund request (' . $old['fund_ref'] . ', ' . $old['status'] . ').', 409);
                 run($p, 'DELETE FROM fund_request_lines WHERE fund_request_id=?', [$old['id']]);
@@ -115,7 +116,13 @@ final class Funds {
                 $verb = 'submitted';
             }
             foreach ($lines as $l) insert($p, 'fund_request_lines', ['fund_request_id' => $fid] + $l);
-            audit($p, $u['id'], 'Funds', 'fund ' . $fid, "fund request $verb", $ref . ' for ' . $t['trip_ref'] . ': PHP ' . $total);
+            if ($old) {
+                auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $fid, 'fund request resubmitted', $ref . ' for ' . $t['trip_ref'] . ': PHP ' . $total,
+                    ['Requested amount' => $old['amount'], 'Notes' => $old['notes'], 'Expense breakdown' => implode('; ', array_map(fn($x) => $x['category_name'] . ': ' . $x['amount'], $oldBreakdown))],
+                    ['Requested amount' => $total, 'Notes' => $notes, 'Expense breakdown' => implode('; ', array_map(fn($x) => $x['category_name'] . ': ' . $x['amount'], $lines))]);
+            } else {
+                audit($p, $u['id'], 'Funds', 'fund ' . $fid, "fund request $verb", $ref . ' for ' . $t['trip_ref'] . ': PHP ' . $total);
+            }
             Notify::resolve($p, 'fund-revise-' . $fid . '-*');
             Notify::roles($p, ['operations_head'], 'Fund approval', "Fund request $ref (" . $t['trip_ref'] . ") for PHP " . number_format((float)$total, 2) . " is waiting for approval.", 'funds', Notify::key('fund-approve-' . $fid));
             return ['fund_id' => $fid, 'message' => "Fund request $ref $verb (PHP " . number_format((float)$total, 2) . '). Waiting for Operations Head approval.'];

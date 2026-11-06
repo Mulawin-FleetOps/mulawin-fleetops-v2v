@@ -29,7 +29,10 @@ final class Admin {
         if (!empty($q['area'])) { $w .= ' AND a.area=?'; $args[] = (string)$q['area']; }
         if (!empty($q['actor_id']) && ctype_digit((string)$q['actor_id'])) { $w .= ' AND a.actor_id=?'; $args[] = (int)$q['actor_id']; }
         $data = readSections([
-            'events' => fn() => many($p, "SELECT a.*, COALESCE(us.full_name, 'System') AS actor, us.role, us.email AS actor_email FROM audit_events a LEFT JOIN users us ON us.id=a.actor_id $w ORDER BY a.id DESC LIMIT 3000", $args),
+            'events' => fn() => many($p, "SELECT a.*, COALESCE(us.full_name, 'System') AS actor, us.role, us.email AS actor_email, ac.changes_json
+                FROM audit_events a LEFT JOIN users us ON us.id=a.actor_id
+                LEFT JOIN audit_event_changes ac ON ac.audit_event_id=a.id
+                $w ORDER BY a.id DESC LIMIT 3000", $args),
             'areas' => fn() => array_column(many($p, 'SELECT DISTINCT area FROM audit_events ORDER BY area'), 'area'),
             'actors' => fn() => many($p, 'SELECT id, full_name FROM users ORDER BY full_name'),
         ]);
@@ -93,9 +96,12 @@ final class Admin {
             must(!one($p, 'SELECT id FROM users WHERE email=? AND id<>?', [$email, $id ?? 0]), 'Another account already uses this email address.', 409);
             if ($id) {
                 if ($id === $u['id']) must($role === 'admin', 'You cannot remove your own Admin role.');
-                must((bool)one($p, 'SELECT id FROM users WHERE id=?', [$id]), 'User not found.', 404);
+                $oldUser = one($p, 'SELECT full_name, email, role, shift FROM users WHERE id=? FOR UPDATE', [$id]);
+                must((bool)$oldUser, 'User not found.', 404);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=? WHERE id=?', [$name, $email, $role, $shift, $id]);
-                audit($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . Mailer::mask($email));
+                auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . Mailer::mask($email),
+                    ['Full name' => $oldUser['full_name'], 'Email' => Mailer::mask($oldUser['email']), 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift']],
+                    ['Full name' => $name, 'Email' => Mailer::mask($email), 'Role' => $role, 'Shift' => $shift]);
                 return ['message' => 'Account updated.'];
             }
             $username = field($d, 'username', 70);
@@ -207,10 +213,12 @@ final class Admin {
         $raw = trim((string)($d['value'] ?? ''));
         must(is_numeric($raw) && (float)$raw >= $min && (float)$raw <= $max, "$label must be a number from $min to $max.");
         return transaction(function (PDO $p) use ($u, $key, $raw, $label) {
+            $previousSetting = one($p, 'SELECT setting_value FROM app_settings WHERE setting_key=?', [$key]);
             $p->prepare('INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)')
               ->execute([$key, $raw, $u['id']]);
             Settings::clearCache();
-            audit($p, $u['id'], 'Settings', $key, 'setting changed', "$label = $raw");
+            auditWithChanges($p, $u['id'], 'Settings', $key, 'setting changed', "$label = $raw",
+                [$label => $previousSetting['setting_value'] ?? null], [$label => $raw]);
             return ['message' => "$label saved ($raw). New records use the new value."];
         });
     }

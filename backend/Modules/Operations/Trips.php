@@ -201,10 +201,12 @@ final class Trips {
     private static function mustBeStatus(array $t, array $allowed, string $what): void {
         must(in_array($t['status'], $allowed, true), "Cannot $what: the trip is " . $t['status'] . ' (allowed only when ' . implode(' / ', $allowed) . ').', 409);
     }
-    public static function event(PDO $p, ?int $uid, int $tripId, string $type, string $from, string $to, string $notes = ''): void {
+    public static function event(PDO $p, ?int $uid, int $tripId, string $type, string $from, string $to, string $notes = '', array $before = [], array $after = []): void {
         $p->prepare('INSERT INTO trip_events (trip_id, actor_id, event_type, from_status, to_status, notes) VALUES (?,?,?,?,?,?)')
           ->execute([$tripId, $uid, $type, $from, $to, cut($notes, 500)]);
-        audit($p, $uid, 'Trips', 'trip ' . $tripId, $type, ($from !== $to ? "$from -> $to. " : '') . $notes);
+        $message = ($from !== $to ? "$from -> $to. " : '') . $notes;
+        if ($after) auditWithChanges($p, $uid, 'Trips', 'trip ' . $tripId, $type, $message, $before, $after);
+        else audit($p, $uid, 'Trips', 'trip ' . $tripId, $type, $message);
     }
     public static function setStatus(PDO $p, ?int $uid, array $t, string $to, string $type, string $notes = ''): void {
         run($p, 'UPDATE trips SET status=? WHERE id=?', [$to, $t['id']]);
@@ -520,8 +522,16 @@ final class Trips {
             if ($t['truck_type'] !== 'Car Carrier') must((bool)$helper, 'A helper is required for ' . $t['truck_type'] . ' trips.');
             else must(!$helper, 'Car carrier trips use Driver 1 and Driver 2 (no helper).');
             $keep = $t['status'] === 'For Reschedule' ? 'For Reschedule' : null;
+            $personName = static function (?int $personId) use ($p): ?string {
+                return $personId ? (one($p, 'SELECT full_name FROM personnel WHERE id=?', [$personId])['full_name'] ?? null) : null;
+            };
+            $oldPlate = $t['vehicle_id'] ? (one($p, 'SELECT plate_number FROM vehicles WHERE id=?', [$t['vehicle_id']])['plate_number'] ?? null) : null;
+            $beforeAssignment = ['Truck' => $oldPlate, 'Driver 1' => $personName($t['driver_id'] ? (int)$t['driver_id'] : null),
+                'Driver 2' => $personName($t['driver2_id'] ? (int)$t['driver2_id'] : null), 'Helper' => $personName($t['helper_id'] ? (int)$t['helper_id'] : null)];
+            $afterAssignment = ['Truck' => $v['plate_number'], 'Driver 1' => $personName($driver),
+                'Driver 2' => $personName($driver2), 'Helper' => $personName($helper)];
             self::applyAssignment($p, $u['id'], $t, ['vehicle_id' => $vid, 'plate' => $v['plate_number'], 'driver_id' => $driver, 'driver2_id' => $driver2, 'helper_id' => $helper], 'Manual', $keep);
-            self::event($p, $u['id'], $id, 'assignment changed by Operations Head', $t['status'], $keep ?? 'Pre-Assigned', $reason);
+            self::event($p, $u['id'], $id, 'assignment changed by Operations Head', $t['status'], $keep ?? 'Pre-Assigned', $reason, $beforeAssignment, $afterAssignment);
             return ['message' => 'Assignment updated.' . ($t['status'] === 'Ready for Dispatch' ? ' The pre-dispatch checklist must be done again for the new assignment.' : '')];
         });
     }

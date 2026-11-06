@@ -321,6 +321,24 @@ function audit(PDO $pdo, ?int $uid, string $area, string $record, string $action
     $pdo->prepare('INSERT INTO audit_events (actor_id, area, record_ref, action, details) VALUES (?,?,?,?,?)')
         ->execute([$uid, $area, $record, $action, cut($details, 1000)]);
 }
+/** Audit Phase 1: structured before/after. Call only inside an existing save transaction.
+ *  Never pass passwords, tokens, recovery codes, or raw secrets in $before/$after.
+ *  The existing audit_events row remains the canonical activity record.
+ */
+function auditWithChanges(PDO $pdo, ?int $uid, string $area, string $record, string $action, string $details, array $before, array $after): void {
+    if (!$pdo->inTransaction()) throw new LogicException('auditWithChanges requires an open transaction.');
+    $changes = [];
+    foreach ($after as $field => $value) {
+        $old = $before[$field] ?? null;
+        if ((string)($old ?? '') === (string)($value ?? '')) continue;
+        $changes[] = ['field' => (string)$field, 'before' => $old, 'after' => $value];
+    }
+    audit($pdo, $uid, $area, $record, $action, $details);
+    if (!$changes) return;
+    $eventId = (int)$pdo->lastInsertId();
+    $json = json_encode($changes, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $pdo->prepare('INSERT INTO audit_event_changes (audit_event_id, changes_json) VALUES (?,?)')->execute([$eventId, $json]);
+}
 /** Runs $cb inside a database transaction; everything is undone if an error happens. */
 function transaction(callable $cb, ?PDO $connection = null): mixed {
     $p = $connection ?? db();

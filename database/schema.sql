@@ -78,6 +78,14 @@ CREATE TABLE audit_events (
   INDEX idx_audit_area (area, record_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Optional exact field changes for new audit events. Legacy audit_events are unchanged.
+CREATE TABLE audit_event_changes (
+  audit_event_id BIGINT PRIMARY KEY,
+  changes_json LONGTEXT NOT NULL,
+  CONSTRAINT fk_audit_changes_event FOREIGN KEY (audit_event_id) REFERENCES audit_events(id) ON DELETE CASCADE,
+  CONSTRAINT chk_audit_changes_json CHECK (JSON_VALID(changes_json))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Bell notifications (pending approvals, trip updates, expiring documents).
 CREATE TABLE notifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

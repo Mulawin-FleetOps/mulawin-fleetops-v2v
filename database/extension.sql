@@ -15,7 +15,7 @@ CREATE TABLE schema_migrations (
 INSERT INTO schema_migrations (id) VALUES
   ('2026-11-04_account_security'), ('2026-11-05_arrival_checklist'), ('2026-11-05_checklist_timer'),
   ('2026-11-06_00_schema_migrations'), ('2026-11-06_01_phase1_supplier_snapshot_and_trip_key'),
-  ('2026-11-06_02_client_routes');
+  ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes');
 
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)

@@ -117,11 +117,19 @@ final class Clients {
         $id = idField($d, 'id');
         $row = self::infoFields($d);
         return transaction(function (PDO $p) use ($u, $id, $row) {
-            must((bool)one($p, 'SELECT id FROM clients WHERE id=? FOR UPDATE', [$id]), 'Client not found.', 404);
+            $oldClient = one($p, 'SELECT * FROM clients WHERE id=? FOR UPDATE', [$id]);
+            must((bool)$oldClient, 'Client not found.', 404);
             self::assertUnique($p, $row, $id);
             $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
             run($p, "UPDATE clients SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-            audit($p, $u['id'], 'Clients', 'client ' . $id, 'client information updated', $row['company_name']);
+            $oldFields = []; $newFields = [];
+            foreach ($row as $key => $value) {
+                if ($key === 'tin') continue; // do not duplicate government identifiers in audit history
+                $label = ucwords(str_replace('_', ' ', $key));
+                $oldFields[$label] = $oldClient[$key] ?? null;
+                $newFields[$label] = $value;
+            }
+            auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client information updated', $row['company_name'], $oldFields, $newFields);
             return ['id' => $id, 'message' => 'Client information updated.'];
         });
     }
@@ -169,14 +177,20 @@ final class Clients {
             $c = one($p, 'SELECT * FROM clients WHERE id=? FOR UPDATE', [$id]);
             must((bool)$c, 'Client not found.', 404);
             must(in_array($c['status'], ['Pending Rate', 'Active'], true), 'Rates are set after the Operations Head completes the client profile (status is ' . $c['status'] . ').', 409);
+            $oldRates = []; $newRates = [];
             foreach ($clean as $type => $r) {
+                $previous = one($p, 'SELECT rate_per_km, minimum_charge FROM client_rates WHERE client_id=? AND truck_type=?', [$id, $type]);
+                $oldRates[$type . ' rate/km'] = $previous['rate_per_km'] ?? null;
+                $newRates[$type . ' rate/km'] = $r['rate_per_km'];
+                $oldRates[$type . ' minimum charge'] = $previous['minimum_charge'] ?? null;
+                $newRates[$type . ' minimum charge'] = $r['minimum_charge'];
                 $p->prepare('INSERT INTO client_rates (client_id, truck_type, rate_per_km, minimum_charge, updated_by) VALUES (?,?,?,?,?)
                              ON DUPLICATE KEY UPDATE rate_per_km=VALUES(rate_per_km), minimum_charge=VALUES(minimum_charge), updated_by=VALUES(updated_by)')
                   ->execute([$id, $type, $r['rate_per_km'], $r['minimum_charge'], $u['id']]);
             }
             run($p, "UPDATE clients SET status='Active', payment_terms_days=?, rate_set_by=?, rate_set_at=NOW() WHERE id=?", [$terms, $u['id'], $id]);
             $txt = implode('; ', array_map(fn($t, $r) => "$t {$r['rate_per_km']}/km" . ((float)$r['minimum_charge'] > 0 ? " (min {$r['minimum_charge']})" : ''), array_keys($clean), $clean));
-            audit($p, $u['id'], 'Clients', 'client ' . $id, 'client rate set', $c['company_name'] . ': ' . $txt);
+            auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client rate set', $c['company_name'] . ': ' . $txt, $oldRates, $newRates);
             if ($c['status'] === 'Pending Rate') {
                 Notify::resolve($p, 'client-rate-' . $id);
                 Notify::roles($p, ['operations_head'], 'Client ready', 'Client ' . $c['company_name'] . ' is complete with its billing rate and can now be used for trips.', 'clients');
