@@ -85,7 +85,9 @@ final class Billing {
             must($b['status'] === 'For Billing', $b['status'] === 'Ongoing' ? 'The billing draft is view-only while the trip is ongoing.' : 'Charges can only be changed before the invoice is finalized.', 409);
             insert($p, 'billing_charges', ['billing_id' => $id, 'description' => $desc, 'amount' => $amount, 'added_by' => $u['id']]);
             self::recompute($p, $id);
-            audit($p, $u['id'], 'Billing', 'billing ' . $id, 'additional charge added', $b['trip_ref'] . ": $desc PHP $amount");
+            auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $id, 'additional charge added', $b['trip_ref'] . ": $desc PHP $amount",
+                ['Total billed amount' => $b['total_amount'], 'Added charge: ' . $desc => null],
+                ['Total billed amount' => number_format((float)$b['total_amount'] + (float)$amount, 2, '.', ''), 'Added charge: ' . $desc => $amount]);
             return ['message' => 'Charge added.'];
         });
     }
@@ -100,7 +102,9 @@ final class Billing {
             must($b['status'] === 'For Billing', 'Charges can only be changed before the invoice is finalized.', 409);
             run($p, 'DELETE FROM billing_charges WHERE id=?', [$cid]);
             self::recompute($p, (int)$b['id']);
-            audit($p, $u['id'], 'Billing', 'billing ' . $b['id'], 'additional charge removed', $b['trip_ref'] . ': ' . $c['description']);
+            auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $b['id'], 'additional charge removed', $b['trip_ref'] . ': ' . $c['description'],
+                ['Total billed amount' => $b['total_amount'], 'Removed charge: ' . $c['description'] => $c['amount']],
+                ['Total billed amount' => number_format((float)$b['total_amount'] - (float)$c['amount'], 2, '.', ''), 'Removed charge: ' . $c['description'] => null]);
             return ['message' => 'Charge removed.'];
         });
     }
@@ -117,7 +121,9 @@ final class Billing {
             foreach (['Waybill', 'Acknowledgement Receipt'] as $cat) if (!Files::count($p, 'trip', (int)$b['trip_id'], $cat)) $missing[] = $cat;
             must(!$missing, 'Cannot verify. Missing supporting documents: ' . implode(', ', $missing) . '.', 422);
             run($p, 'UPDATE billings SET docs_verified_by=?, docs_verified_at=NOW() WHERE id=?', [$u['id'], $id]);
-            audit($p, $u['id'], 'Billing', 'billing ' . $id, 'supporting documents verified', $b['trip_ref']);
+            auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $id, 'supporting documents verified', $b['trip_ref'],
+                ['Supporting documents' => $b['docs_verified_at'] ? 'Verified' : 'Not verified'],
+                ['Supporting documents' => 'Verified']);
             return ['message' => 'Documents verified. The billing can now be finalized.'];
         });
     }
@@ -141,7 +147,9 @@ final class Billing {
             $terms = $c['payment_terms_days'] !== null ? (int)$c['payment_terms_days'] : (int)Settings::value('default_payment_terms_days');
             $due = date('Y-m-d', strtotime($date . " +$terms days"));
             run($p, "UPDATE billings SET status='Invoiced', invoice_number=?, invoice_date=?, due_date=?, finalized_by=?, finalized_at=NOW() WHERE id=?", [$number, $date, $due, $u['id'], $id]);
-            audit($p, $u['id'], 'Billing', 'billing ' . $id, 'invoice finalized', "$number for " . $b['trip_ref'] . ' PHP ' . $b['total_amount'] . ", due $due");
+            auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $id, 'invoice finalized', "$number for " . $b['trip_ref'] . ' PHP ' . $b['total_amount'] . ", due $due",
+                ['Status' => $b['status'], 'Invoice number' => $b['invoice_number'], 'Invoice date' => $b['invoice_date'], 'Due date' => $b['due_date']],
+                ['Status' => 'Invoiced', 'Invoice number' => $number, 'Invoice date' => $date, 'Due date' => $due]);
             return ['message' => "Invoice $number finalized (due $due). It is ready for printing and collection."];
         });
     }
@@ -168,7 +176,9 @@ final class Billing {
             $paid = round((float)$b['amount_paid'] + (float)$amount, 2);
             $status = $paid >= (float)$b['total_amount'] ? 'Paid' : 'Partially Paid';
             run($p, 'UPDATE billings SET amount_paid=?, status=? WHERE id=?', [$paid, $status, $id]);
-            audit($p, $u['id'], 'Billing', 'billing ' . $id, 'payment recorded', $b['invoice_number'] . ": PHP $amount ({$pay['payment_method']}), AR $ar -> $status");
+            auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $id, 'payment recorded', $b['invoice_number'] . ": PHP $amount ({$pay['payment_method']}), AR $ar -> $status",
+                ['Amount paid' => $b['amount_paid'], 'Remaining balance' => number_format($balance, 2, '.', ''), 'Status' => $b['status']],
+                ['Amount paid' => number_format($paid, 2, '.', ''), 'Remaining balance' => number_format((float)$b['total_amount'] - $paid, 2, '.', ''), 'Status' => $status]);
             Notify::roles($p, ['finance'], 'Collection', $b['invoice_number'] . ' received PHP ' . number_format((float)$amount, 2) . " ($status).", 'billing');
             return ['collection_id' => $cid, 'message' => 'Payment recorded. Invoice is ' . $status . '.'];
         });

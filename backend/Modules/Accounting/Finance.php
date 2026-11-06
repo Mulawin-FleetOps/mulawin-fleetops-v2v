@@ -90,7 +90,10 @@ final class Finance {
             Purchasing::refreshPayment($p, $id);
             Money::expense($p, $u, 'Parts', $amount, $pay['released_on'], 'PO Payment', $id, null, null, $o['supplier'], $o['po_ref'], 'Payment of ' . $o['po_ref'] . ' (invoice ' . $invoice . ')');
             $st = one($p, 'SELECT payment_status FROM purchase_orders WHERE id=?', [$id])['payment_status'];
-            audit($p, $u['id'], 'Finance', 'po ' . $id, 'purchase order payment recorded', $o['po_ref'] . ' PHP ' . $amount . ' -> ' . $st);
+            auditWithChanges($p, $u['id'], 'Finance', 'po ' . $id, 'purchase order payment recorded', $o['po_ref'] . ' PHP ' . $amount . ' -> ' . $st,
+                ['Paid amount' => $o['paid_amount'], 'Reserved amount' => $o['reserved_amount'], 'Payment status' => $o['payment_status']],
+                ['Paid amount' => number_format((float)$o['paid_amount'] + (float)$amount, 2, '.', ''),
+                 'Reserved amount' => number_format(max(0, (float)$o['reserved_amount'] - $fromReserve), 2, '.', ''), 'Payment status' => $st]);
             Notify::user($p, (int)$o['requested_by'], 'PO paid', $o['po_ref'] . ' payment recorded (' . $st . ').', 'purchasing');
             if ($st === 'Paid') Notify::resolve($p, 'po-pay-' . $o['id']);
             return ['message' => 'Payment recorded. ' . $o['po_ref'] . ' is ' . $st . '.'];
@@ -106,7 +109,9 @@ final class Finance {
             $ref = refNumber('AP', $id);
             run($p, 'UPDATE payables SET payable_ref=? WHERE id=?', [$ref, $id]);
             Files::store($p, $u, 'bill', 'payable', $id, 'Supplier Bill / Invoice');
-            audit($p, $u['id'], 'Finance', 'payable ' . $id, 'payable recorded', "$ref {$row['payee']} PHP {$row['amount']}");
+            auditWithChanges($p, $u['id'], 'Finance', 'payable ' . $id, 'payable recorded', "$ref {$row['payee']} PHP {$row['amount']}", [],
+                ['Payable reference' => $ref, 'Payee' => $row['payee'], 'Category' => $row['category'],
+                 'Amount' => $row['amount'], 'Due date' => $row['due_on'], 'Status' => 'Unpaid']);
             return ['message' => "Payable $ref recorded."];
         });
     }
@@ -127,7 +132,9 @@ final class Finance {
             $paid = round((float)$a['paid_amount'] + (float)$amount, 2);
             run($p, 'UPDATE payables SET paid_amount=?, status=? WHERE id=?', [$paid, $paid >= (float)$a['amount'] ? 'Paid' : 'Partially Paid', $id]);
             Money::expense($p, $u, $a['category'], $amount, $pay['released_on'], 'Payable', $id, null, $a['vehicle_id'] ? (int)$a['vehicle_id'] : null, $a['payee'], $a['payable_ref'], $a['description']);
-            audit($p, $u['id'], 'Finance', 'payable ' . $id, 'payable paid', $a['payable_ref'] . ' PHP ' . $amount);
+            auditWithChanges($p, $u['id'], 'Finance', 'payable ' . $id, 'payable paid', $a['payable_ref'] . ' PHP ' . $amount,
+                ['Paid amount' => $a['paid_amount'], 'Status' => $a['status']],
+                ['Paid amount' => number_format($paid, 2, '.', ''), 'Status' => $paid >= (float)$a['amount'] ? 'Paid' : 'Partially Paid']);
             return ['message' => 'Payment recorded.'];
         });
     }
@@ -144,7 +151,8 @@ final class Finance {
             if ($tripId) must((bool)one($p, 'SELECT id FROM trips WHERE id=?', [$tripId]), 'Trip not found.');
             $id = Money::expense($p, $u, $cat, $amount, $date, 'Manual', null, $tripId, $vid, $payee, $ref, $desc);
             Files::store($p, $u, 'receipt', 'expense', $id, 'Expense Receipt');
-            audit($p, $u['id'], 'Finance', 'expense ' . $id, 'expense recorded', "$cat PHP $amount: $desc");
+            auditWithChanges($p, $u['id'], 'Finance', 'expense ' . $id, 'expense recorded', "$cat PHP $amount: $desc", [],
+                ['Category' => $cat, 'Amount' => $amount, 'Date' => $date, 'Payee' => $payee, 'Description' => $desc]);
             return ['message' => 'Expense recorded.'];
         });
     }
@@ -158,7 +166,8 @@ final class Finance {
         return transaction(function (PDO $p) use ($u, $amount, $start, $end) {
             run($p, "UPDATE budgets SET status='Closed' WHERE status='Active' AND category='Purchasing'");
             $id = insert($p, 'budgets', ['category' => 'Purchasing', 'amount' => $amount, 'period_start' => $start, 'period_end' => $end, 'status' => 'Active', 'set_by' => $u['id']]);
-            audit($p, $u['id'], 'Finance', 'budget ' . $id, 'purchasing budget set', "PHP $amount ($start to $end)");
+            auditWithChanges($p, $u['id'], 'Finance', 'budget ' . $id, 'purchasing budget set', "PHP $amount ($start to $end)", [],
+                ['Category' => 'Purchasing', 'Amount' => $amount, 'Period start' => $start, 'Period end' => $end, 'Status' => 'Active']);
             return ['message' => 'Purchasing budget set: PHP ' . number_format((float)$amount, 2) . '.'];
         });
     }

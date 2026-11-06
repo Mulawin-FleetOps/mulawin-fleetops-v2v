@@ -143,13 +143,16 @@ final class Funds {
             must(!in_array($f['trip_status'], ['Cancelled', 'Rejected', 'Completed'], true), 'The trip is ' . $f['trip_status'] . '.', 409);
             if ($decision === 'approve') {
                 run($p, "UPDATE fund_requests SET status='Ready for Release', approved_by=?, approved_at=NOW() WHERE id=?", [$u['id'], $id]);
-                audit($p, $u['id'], 'Funds', 'fund ' . $id, 'fund request approved', $f['fund_ref'] . ' -> Ready for Release');
+                auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $id, 'fund request approved', $f['fund_ref'] . ' -> Ready for Release',
+                    ['Status' => $f['status']], ['Status' => 'Ready for Release']);
                 Notify::roles($p, ['finance'], 'Fund release', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') PHP ' . number_format((float)$f['amount'], 2) . ' is Ready for Release.', 'funds', 'fund-release-' . $f['id']);
                 Notify::user($p, (int)$f['requested_by'], 'Fund approved', $f['fund_ref'] . ' was approved and is waiting for Finance release.', 'funds');
                 return ['message' => 'Approved. The request is Ready for Release and now appears to Finance.'];
             }
             run($p, "UPDATE fund_requests SET status='Rejected', rejected_reason=? WHERE id=?", [$reason, $id]);
-            audit($p, $u['id'], 'Funds', 'fund ' . $id, 'fund request rejected', $f['fund_ref'] . ': ' . $reason);
+            auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $id, 'fund request rejected', $f['fund_ref'] . ': ' . $reason,
+                ['Status' => $f['status'], 'Rejection reason' => $f['rejected_reason']],
+                ['Status' => 'Rejected', 'Rejection reason' => $reason]);
             Notify::user($p, (int)$f['requested_by'], 'Fund rejected', $f['fund_ref'] . ' was rejected: ' . $reason . '. Please revise and resubmit.', 'funds', Notify::key('fund-revise-' . $f['id']));
             return ['message' => 'Rejected. The dispatcher can revise and resubmit it.'];
         });
@@ -170,7 +173,9 @@ final class Funds {
             $disb = Money::disburse($p, $u, 'fund_request', $id, $payee, $f['amount'], $pay);
             run($p, "UPDATE fund_requests SET status='Released', released_by=?, released_at=NOW(), disbursement_id=? WHERE id=?", [$u['id'], $disb, $id]);
             Money::expense($p, $u, 'Trip Allowance', $f['amount'], $pay['released_on'], 'Fund Release', $id, (int)$f['trip_id'], $f['vehicle_id'] ? (int)$f['vehicle_id'] : null, $payee, $f['fund_ref'], 'Trip fund ' . $f['trip_ref']);
-            audit($p, $u['id'], 'Funds', 'fund ' . $id, 'fund released', $f['fund_ref'] . ' PHP ' . $f['amount'] . ' via ' . $pay['payment_method']);
+            auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $id, 'fund released', $f['fund_ref'] . ' PHP ' . $f['amount'] . ' via ' . $pay['payment_method'],
+                ['Status' => $f['status'], 'Amount released' => null],
+                ['Status' => 'Released', 'Amount released' => $f['amount']]);
             Notify::user($p, (int)$f['requested_by'], 'Fund released', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') is Released. Confirm Dispatch is enabled once the checklist is done.', 'trips');
             Notify::roles($p, ['operations_head'], 'Fund released', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') was released.', 'funds');
             Notify::resolve($p, 'fund-release-' . $f['id']);
@@ -198,7 +203,9 @@ final class Funds {
                 [$spent, $returned, $notes, $u['id'], $id]);
             // Returned cash lowers the trip allowance expense (so expenses show what was really spent).
             if ((float)$returned > 0) Money::expense($p, $u, 'Trip Allowance', '-' . $returned, date('Y-m-d'), 'Liquidation', $id, (int)$f['trip_id'], $f['vehicle_id'] ? (int)$f['vehicle_id'] : null, null, $f['fund_ref'], 'Cash returned for ' . $f['trip_ref']);
-            audit($p, $u['id'], 'Funds', 'fund ' . $id, 'fund liquidated', $f['fund_ref'] . ": spent $spent, returned $returned");
+            auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $id, 'fund liquidated', $f['fund_ref'] . ": spent $spent, returned $returned",
+                ['Liquidation status' => $f['liquidation_status'], 'Amount spent' => $f['liquidated_amount'], 'Cash returned' => $f['returned_amount']],
+                ['Liquidation status' => 'Liquidated', 'Amount spent' => $spent, 'Cash returned' => $returned]);
             return ['message' => "Liquidation recorded: spent PHP $spent, returned PHP $returned."];
         });
     }
