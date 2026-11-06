@@ -79,11 +79,15 @@ final class Documents {
                           ELSE 'Company file' END AS record_label
                     FROM documents d JOIN users us ON us.id=d.uploaded_by WHERE d.entity_type IN ($marks) AND d.category<>'User E-Signature' ORDER BY d.id DESC LIMIT 2000", $types);
                 if (roleIsDispatcher($u['role'])) {
-                    // S4B: dispatcher incident documents must match the permitted trip.
-                    $rows = array_values(array_filter($rows, static function (array $d) use ($p, $u): bool {
-                        if ($d['entity_type'] === 'trip') return self::dispatcherTrip($p, $u, (int)$d['entity_id']);
-                        if ($d['entity_type'] === 'incident') return self::dispatcherIncident($p, $u, (int)$d['entity_id']);
-                        return true;
+                    // Filter all dispatcher-visible document types by their linked record.
+                    // Cache duplicate record checks within the listing.
+                    $checked = [];
+                    $rows = array_values(array_filter($rows, static function (array $d) use ($p, $u, &$checked): bool {
+                        $key = $d['entity_type'] . ':' . (string)$d['entity_id'];
+                        if (!array_key_exists($key, $checked)) {
+                            $checked[$key] = self::recordAllowed($p, $u, (string)$d['entity_type'], (int)$d['entity_id']);
+                        }
+                        return $checked[$key];
                     }));
                 }
                 return $rows;
@@ -95,7 +99,7 @@ final class Documents {
             'vehicle' => fn() => in_array('vehicle', $data['uploadTypes'], true) ? many($p, 'SELECT id, plate_number AS label FROM vehicles WHERE active=1 ORDER BY plate_number') : [],
             'personnel' => fn() => in_array('personnel', $data['uploadTypes'], true) ? many($p, 'SELECT id, full_name AS label FROM personnel WHERE active=1 ORDER BY full_name') : [],
             'client' => fn() => in_array('client', $data['uploadTypes'], true) ? many($p, "SELECT id, company_name AS label FROM clients WHERE status<>'Inactive' ORDER BY company_name") : [],
-            'trip' => fn() => in_array('trip', $data['uploadTypes'], true) ? many($p, 'SELECT id, trip_ref AS label FROM trips ' . (roleIsDispatcher($u['role']) ? 'WHERE dispatcher_role=' . db()->quote($u['role']) : '') . ' ORDER BY id DESC LIMIT 300') : [],
+            'trip' => fn() => in_array('trip', $data['uploadTypes'], true) ? (roleIsDispatcher($u['role']) ? many($p, 'SELECT id, trip_ref AS label FROM trips WHERE dispatcher_role=? OR created_by=? ORDER BY id DESC LIMIT 300', [$u['role'], $u['id']]) : many($p, 'SELECT id, trip_ref AS label FROM trips ORDER BY id DESC LIMIT 300')) : [],
         ]);
         $data['categories'] = self::CATEGORIES;
         $data['entityLabels'] = ['trip' => 'Trip', 'incident' => 'Incident', 'vehicle' => 'Truck', 'personnel' => 'Driver / Helper', 'client' => 'Client',
@@ -114,6 +118,27 @@ final class Documents {
             [$incidentId, $u['role'], $u['id']]);
     }
 
+    /**
+     * S4B-2B: Record visibility for dispatcher document workflows.
+     * Use one rule for list/upload/download; deny unlinked vehicles/clients.
+     * Other roles keep their existing document-type grants pending separate audit.
+     */
+    private static function recordAllowed(PDO $p, array $u, string $type, ?int $id): bool {
+        if (!roleIsDispatcher($u['role'])) return true;
+        if ($id === null || $id <= 0) return false;
+        return match ($type) {
+            'trip' => self::dispatcherTrip($p, $u, $id),
+            'incident' => self::dispatcherIncident($p, $u, $id),
+            'vehicle' => (bool)one($p,
+                'SELECT t.id FROM trips t WHERE t.vehicle_id=? AND (t.dispatcher_role=? OR t.created_by=?) LIMIT 1',
+                [$id, $u['role'], $u['id']]),
+            'client' => (bool)one($p,
+                'SELECT t.id FROM trips t WHERE t.client_id=? AND (t.dispatcher_role=? OR t.created_by=?) LIMIT 1',
+                [$id, $u['role'], $u['id']]),
+            default => false,
+        };
+    }
+
     public static function action(array $u, string $action, array $d): array {
         throw new BusinessRuleException('Use the upload form for documents.', 404);
     }
@@ -124,10 +149,7 @@ final class Documents {
         if ($table === null) { must($id === null, 'Company documents are not linked to a record number.'); return; }
         must($id !== null, 'Enter the record number (ID) this file belongs to.');
         must((bool)one($p, "SELECT id FROM $table WHERE id=?", [$id]), 'The linked record was not found.', 404);
-        if (roleIsDispatcher($u['role'])) {
-            if ($type === 'trip') must(self::dispatcherTrip($p, $u, $id), 'This trip belongs to the other dispatcher team.', 403);
-            if ($type === 'incident') must(self::dispatcherIncident($p, $u, $id), 'This incident belongs to the other dispatcher team.', 403);
-        }
+        must(self::recordAllowed($p, $u, $type, $id), 'You cannot attach documents to this record.', 403);
     }
 
     /** POST multipart: one or many files (bulk upload). */
@@ -198,9 +220,9 @@ final class Documents {
         } else {
             must(self::canView($u['role'], $d['entity_type']), 'You cannot open this document.', 403);
         }
-        if (roleIsDispatcher($u['role'])) {
-            if ($d['entity_type'] === 'trip') must(self::dispatcherTrip($p, $u, (int)$d['entity_id']), 'You cannot open this document.', 403);
-            if ($d['entity_type'] === 'incident') must(self::dispatcherIncident($p, $u, (int)$d['entity_id']), 'You cannot open this document.', 403);
+        if ($d['category'] !== 'User E-Signature') {
+            must(self::recordAllowed($p, $u, (string)$d['entity_type'], (int)$d['entity_id']),
+                'You cannot open this document.', 403);
         }
         $file = dirname(__DIR__, 3) . '/storage/private/' . $d['storage_name'];
         must(is_file($file), 'The file is missing on the server.', 404);
