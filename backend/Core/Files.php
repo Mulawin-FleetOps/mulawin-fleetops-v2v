@@ -66,7 +66,9 @@ final class Files {
                 'original_filename' => cut($name, 220), 'storage_name' => $storage, 'mime_type' => $mime, 'byte_size' => $bytes,
                 'expires_on' => $expiresOn, 'uploaded_by' => $u['id']]);
         }
-        if ($ids) audit($p, $u['id'], 'Documents', $entityType . ' ' . ($entityId ?? ''), 'document uploaded', $category . ' x' . count($ids));
+        if ($ids) auditWithChanges($p, $u['id'], 'Documents', $entityType . ' ' . ($entityId ?? ''), 'document uploaded', $category . ' x' . count($ids),
+            [], ['Document category' => $category, 'Linked to' => $entityType,
+                 'Record ID' => $entityId, 'Files uploaded' => count($ids), 'Expiry date' => $expiresOn]);
         return $ids;
     }
 

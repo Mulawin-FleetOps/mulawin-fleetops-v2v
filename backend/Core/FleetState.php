@@ -43,6 +43,17 @@ final class FleetState {
         run($p, 'UPDATE vehicles SET status=? WHERE id=?', [$to, $vehicleId]);
         $p->prepare('INSERT INTO vehicle_status_log (vehicle_id, from_status, to_status, reason, actor_id) VALUES (?,?,?,?,?)')
           ->execute([$vehicleId, $v['status'], $to, cut($reason, 255), $actorId]);
+        // Record automatic and manual status transitions once, only when status actually changes.
+        // The existing status log remains authoritative for downtime reporting.
+        $summary = $reason !== '' ? 'Reason: ' . cut($reason, 200) : 'Truck availability recalculated.';
+        if ($p->inTransaction()) {
+            auditWithChanges($p, $actorId, 'Fleet', 'vehicle ' . $vehicleId, 'truck status changed', $summary,
+                ['Status' => $v['status']], ['Status' => $to]);
+        } else {
+            // Preserve observability for callers not running in a transaction.
+            audit($p, $actorId, 'Fleet', 'vehicle ' . $vehicleId, 'truck status changed',
+                $v['status'] . ' -> ' . $to . '. ' . $summary);
+        }
     }
 
     /** The active trip holding a truck (on-the-road trip first). */

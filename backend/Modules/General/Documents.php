@@ -157,7 +157,9 @@ final class Documents {
                 $moved[] = $dir . '/' . $storage;
                 $id = insert($p, 'documents', ['category' => $category, 'entity_type' => $type, 'entity_id' => $eid, 'original_filename' => $original,
                     'storage_name' => $storage, 'mime_type' => $mime, 'byte_size' => $bytes, 'expires_on' => $expiry ?: null, 'notes' => $notes ?: null, 'uploaded_by' => $u['id']]);
-                audit($p, $u['id'], 'Documents', 'document ' . $id, 'document uploaded', "$category / $type " . ($eid ?? '') . ' / ' . $original);
+                auditWithChanges($p, $u['id'], 'Documents', 'document ' . $id, 'document uploaded', "$category / $type " . ($eid ?? '') . ' / ' . $original,
+                    [], ['Document category' => $category, 'Linked to' => $type, 'Record ID' => $eid,
+                         'File size (bytes)' => $bytes, 'Expiry date' => $expiry ?: null]);
                 $saved[] = $id;
             }
             $p->commit();
