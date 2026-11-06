@@ -78,18 +78,17 @@ final class Documents {
                           WHEN 'billing' THEN (SELECT COALESCE(x.invoice_number, CONCAT('Billing #', x.id)) FROM billings x WHERE x.id=d.entity_id)
                           ELSE 'Company file' END AS record_label
                     FROM documents d JOIN users us ON us.id=d.uploaded_by WHERE d.entity_type IN ($marks) AND d.category<>'User E-Signature' ORDER BY d.id DESC LIMIT 2000", $types);
-                if (roleIsDispatcher($u['role'])) {
-                    // Filter all dispatcher-visible document types by their linked record.
-                    // Cache duplicate record checks within the listing.
-                    $checked = [];
-                    $rows = array_values(array_filter($rows, static function (array $d) use ($p, $u, &$checked): bool {
-                        $key = $d['entity_type'] . ':' . (string)$d['entity_id'];
-                        if (!array_key_exists($key, $checked)) {
-                            $checked[$key] = self::recordAllowed($p, $u, (string)$d['entity_type'], (int)$d['entity_id']);
-                        }
-                        return $checked[$key];
-                    }));
-                }
+                // Enforce the SAME document authorization for every role on listings,
+                // direct downloads, and uploads. Cache repeated record checks.
+                $checked = [];
+                $rows = array_values(array_filter($rows, static function (array $d) use ($p, $u, &$checked): bool {
+                    $key = (string)$d['entity_type'] . ':' . (string)$d['entity_id'];
+                    if (!array_key_exists($key, $checked)) {
+                        $checked[$key] = self::authorizedDocument($p, $u, 'view',
+                            (string)$d['entity_type'], (int)$d['entity_id'], (string)$d['category']);
+                    }
+                    return $checked[$key];
+                }));
                 return $rows;
             },
         ]);
@@ -139,6 +138,26 @@ final class Documents {
         };
     }
 
+    /**
+     * S4B-2C: Single entry point for document access across ALL roles.
+     * Existing department-wide grants remain intact pending role-by-role
+     * record ownership policy approval; dispatcher record scope is retained.
+     * Signature documents are never exposed through generic document access.
+     */
+    private static function authorizedDocument(PDO $p, array $u, string $operation,
+        string $type, ?int $id, string $category = ''): bool {
+        if ($category === 'User E-Signature') return false;
+        if (!array_key_exists($type, self::ENTITY_TABLES)) return false;
+        if ($operation === 'upload') {
+            if (!self::canUpload((string)$u['role'], $type)) return false;
+        } elseif ($operation === 'view') {
+            if (!self::canView((string)$u['role'], $type)) return false;
+        } else {
+            return false;
+        }
+        return self::recordAllowed($p, $u, $type, $id);
+    }
+
     public static function action(array $u, string $action, array $d): array {
         throw new BusinessRuleException('Use the upload form for documents.', 404);
     }
@@ -149,7 +168,7 @@ final class Documents {
         if ($table === null) { must($id === null, 'Company documents are not linked to a record number.'); return; }
         must($id !== null, 'Enter the record number (ID) this file belongs to.');
         must((bool)one($p, "SELECT id FROM $table WHERE id=?", [$id]), 'The linked record was not found.', 404);
-        must(self::recordAllowed($p, $u, $type, $id), 'You cannot attach documents to this record.', 403);
+        must(self::authorizedDocument($p, $u, 'upload', $type, $id), 'You cannot attach documents to this record.', 403);
     }
 
     /** POST multipart: one or many files (bulk upload). */
@@ -158,6 +177,8 @@ final class Documents {
         must(self::canUpload($u['role'], $type), 'You cannot upload this type of document.', 403);
         $category = trim((string)($_POST['category'] ?? ''));
         must($category !== '' && textLength($category) <= 80, 'Choose a document category.');
+        // E-signatures must only be created by the authenticated profile workflow.
+        must(strcasecmp($category, 'User E-Signature') !== 0, 'This document category is reserved.', 403);
         $eid = trim((string)($_POST['entity_id'] ?? ''));
         $eid = $eid === '' ? null : filter_var($eid, FILTER_VALIDATE_INT);
         must($eid === null || ($eid !== false && $eid > 0), 'Invalid record number.');
@@ -218,10 +239,8 @@ final class Documents {
             must($d['entity_type'] === 'user' && (int)$d['entity_id'] === (int)$u['id'],
                 'You cannot open this signature.', 403);
         } else {
-            must(self::canView($u['role'], $d['entity_type']), 'You cannot open this document.', 403);
-        }
-        if ($d['category'] !== 'User E-Signature') {
-            must(self::recordAllowed($p, $u, (string)$d['entity_type'], (int)$d['entity_id']),
+            must(self::authorizedDocument($p, $u, 'view', (string)$d['entity_type'],
+                $d['entity_id'] === null ? null : (int)$d['entity_id'], (string)$d['category']),
                 'You cannot open this document.', 403);
         }
         $file = dirname(__DIR__, 3) . '/storage/private/' . $d['storage_name'];
