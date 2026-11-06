@@ -213,7 +213,6 @@
 .pin-icon { background: none; border: 0; }
 .pin-icon i { font-size: 30px; line-height: 30px; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .pin-icon.pickup i { color: var(--green); } .pin-icon.delivery i { color: var(--red); }
-.maptiler-logo img { display: block; }
 .route-map, [data-routemap] { height: 240px; border: 1px solid var(--border); border-radius: var(--r-lg); margin: 8px 0; }
 .leaflet-container { font-family: var(--font-sans); }
 

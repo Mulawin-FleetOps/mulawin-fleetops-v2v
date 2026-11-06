@@ -230,6 +230,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <script src="assets/vendor/chartjs/chart.umd.min.js"></script>
   <script src="assets/vendor/leaflet/leaflet.js"></script>
   <script src="assets/js/core.js?v=<?= $v('assets/js/core.js') ?>"></script>
+  <script src="assets/js/map.js?v=<?= $v('assets/js/map.js') ?>"></script>
 <?php foreach ($jsModules as $m): ?>
   <script src="assets/js/modules/<?= $m ?>.js?v=<?= $v('assets/js/modules/' . $m . '.js') ?>"></script>
 <?php endforeach; ?>

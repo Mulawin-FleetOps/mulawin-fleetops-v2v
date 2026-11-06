@@ -15,7 +15,8 @@ CREATE TABLE schema_migrations (
 INSERT INTO schema_migrations (id) VALUES
   ('2026-11-04_account_security'), ('2026-11-05_arrival_checklist'), ('2026-11-05_checklist_timer'),
   ('2026-11-06_00_schema_migrations'), ('2026-11-06_01_phase1_supplier_snapshot_and_trip_key'),
-  ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes');
+  ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes'),
+  ('2026-11-06_04_maps_routing');
 
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
@@ -777,3 +778,45 @@ CREATE TABLE client_route_events (
   FOREIGN KEY (actor_id) REFERENCES users(id),
   INDEX idx_route_events (route_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
+-- MAP SERVICES  (Checklist #5: road distance with openrouteservice)
+-- Same statements as database/migrations/2026-11-06_04_maps_routing.sql
+-- (the ALTER keeps the column order identical to an upgraded database).
+-- =====================================================================
+CREATE TABLE map_cache (
+  cache_key CHAR(64) PRIMARY KEY COMMENT 'sha256 of service + provider + option + rounded points or search text',
+  service VARCHAR(20) NOT NULL,
+  payload MEDIUMTEXT NOT NULL COMMENT 'JSON answer (no API key, no user data)',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL,
+  INDEX idx_map_cache_expiry (expires_at),
+  CONSTRAINT chk_map_cache_service CHECK (service IN ('route','search','reverse'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE map_api_usage (
+  usage_date DATE NOT NULL,
+  service VARCHAR(20) NOT NULL,
+  calls INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (usage_date, service),
+  CONSTRAINT chk_map_usage_service CHECK (service IN ('route','search','reverse'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE map_user_usage (
+  user_id INT NOT NULL,
+  minute_start DATETIME NOT NULL,
+  calls INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, minute_start),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE client_routes
+  ADD COLUMN route_option VARCHAR(20) NULL COMMENT 'recommended, avoid_tolls or general_roads (NULL = typed km only)',
+  ADD COLUMN distance_computed_km DECIMAL(10,2) NULL COMMENT 'road km computed by the map service (NULL = not computed)',
+  ADD COLUMN distance_provider VARCHAR(60) NULL COMMENT 'e.g. openrouteservice/driving-hgv',
+  ADD COLUMN distance_computed_at DATETIME NULL,
+  ADD COLUMN distance_override_reason VARCHAR(300) NULL COMMENT 'why the final km differs from the computed km',
+  ADD COLUMN route_geometry MEDIUMTEXT NULL COMMENT 'route line (encoded polyline) for display',
+  ADD CONSTRAINT chk_route_option CHECK (route_option IS NULL OR route_option IN ('recommended','avoid_tolls','general_roads')),
+  ADD CONSTRAINT chk_route_computed_km CHECK (distance_computed_km IS NULL OR (distance_computed_km > 0 AND distance_computed_km <= 3000)),
+  ADD CONSTRAINT chk_route_distance_source CHECK (distance_source IN ('Manual','Map','Map (edited)'));

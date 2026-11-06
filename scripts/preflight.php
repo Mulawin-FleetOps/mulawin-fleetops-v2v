@@ -17,6 +17,9 @@ $checks = [
     'storage/backups is writable' => is_writable(dirname(__DIR__) . '/storage/backups'),
     'config/formulas.php loads' => is_array(@include dirname(__DIR__) . '/config/formulas.php'),
 ];
+// Automatic km (Checklist #5) is optional: without curl or ORS_API_KEY the km is typed by hand.
+echo (extension_loaded('curl') ? 'PASS' : 'WARN') . ": curl extension (automatic km / address search)\n";
+echo (trim(envValue('ORS_API_KEY')) !== '' ? 'PASS' : 'WARN') . ": ORS_API_KEY set (empty = automatic km off, km typed by hand)\n";
 foreach ($checks as $k => $v) { echo ($v ? 'PASS' : 'FAIL') . ": $k\n"; if (!$v) $ready = false; }
 // Every module file must load on its own (module isolation check).
 require_once dirname(__DIR__) . '/backend/Actions.php';
@@ -26,7 +29,7 @@ foreach (array_keys(Actions::MODULES) as $m) {
 if (extension_loaded('pdo_mysql')) {
     try {
         $p = db();
-        foreach (['users', 'clients', 'client_rates', 'vehicles', 'personnel', 'trips', 'trip_assignments', 'fund_requests', 'inspections', 'incidents', 'maintenance_jobs', 'part_requests', 'purchase_orders', 'billings', 'collections', 'documents', 'app_settings', 'fund_categories'] as $t) {
+        foreach (['users', 'clients', 'client_rates', 'vehicles', 'personnel', 'trips', 'trip_assignments', 'fund_requests', 'inspections', 'incidents', 'maintenance_jobs', 'part_requests', 'purchase_orders', 'billings', 'collections', 'documents', 'app_settings', 'fund_categories', 'client_routes', 'map_cache'] as $t) {
             $p->query("SELECT 1 FROM `$t` LIMIT 1"); echo "PASS: table $t\n";
         }
     } catch (Throwable $e) { echo 'FAIL: database or schema: ' . $e->getMessage() . "\n"; $ready = false; }

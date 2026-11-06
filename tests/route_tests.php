@@ -26,6 +26,7 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('CLI only'); }
 require_once dirname(__DIR__) . '/backend/Actions.php';
+require_once __DIR__ . '/_launcher.php';
 core('Access');
 
 const NAME_RULE = '/^[a-z0-9_]+_test$/';
@@ -124,60 +125,59 @@ importSql($fresh, file_sql('database/schema.sql'));
 importSql($fresh, file_sql('database/extension.sql'));
 ok(true, 'fresh install imports schema.sql + extension.sql');
 
-// extension.sql BEFORE this feature: from git (launcher) and/or by removing the new section.
-$current = file_sql('database/extension.sql');
-$marker = "\n\n-- =====================================================================\n-- CLIENT ROUTES";
-$stripped = str_replace(",\n  ('2026-11-06_02_client_routes');", ';', substr($current, 0, (int)strpos($current, $marker))) . "\n";
-$prevFile = __DIR__ . '/_previous_extension.sql';
-if (is_file($prevFile)) {
-    ok(trim((string)file_get_contents($prevFile)) === trim($stripped), 'extension.sql only ADDS the route section (rest identical to the base commit)');
-    $previous = (string)file_get_contents($prevFile);
+// MIGRATION CHAIN: schema as it was BEFORE this feature (from git, written by tests/_launcher.php),
+// then EVERY migration from this one on, in order (later migrations of other features included),
+// must give exactly the same database as a fresh install.
+$baseSchema = __DIR__ . '/_base_schema.sql'; $baseExt = __DIR__ . '/_base_extension.sql';
+$CHAIN = test_migrations_from($MIG);
+if (!is_file($baseSchema) || !is_file($baseExt)) {
+    echo "  NOTE  git history not available: upgrade and partial-migration checks skipped (run from a git clone)\n";
 } else {
-    echo "  NOTE  git not available: using extension.sql without the route section as the previous version\n";
-    $previous = $stripped;
-}
-$up = conn($UPGRADE);
-importSql($up, file_sql('database/schema.sql'));
-importSql($up, $previous);
-// A little existing data, to prove the migration does not touch it.
-$up->exec("INSERT INTO users (username, email, password_hash, full_name, role) VALUES ('old_admin','old@x.test','x','Old Admin','admin')");
-$up->exec("INSERT INTO clients (company_name, status) VALUES ('OLD CLIENT INC', 'Active')");
-$up->exec("INSERT INTO client_rates (client_id, truck_type, rate_per_km, minimum_charge, updated_by) VALUES (1,'Wing Van',55.50,1000,1)");
-$beforeRates = $up->query('CHECKSUM TABLE client_rates')->fetch()['Checksum'];
-importSql($up, file_sql($MIGFILE));
-ok(true, 'upgrade: previous schema + migration imports');
-ok($up->query('CHECKSUM TABLE client_rates')->fetch()['Checksum'] === $beforeRates, 'upgrade: existing client_rates rows unchanged');
-$fa = fingerprint($fresh, $FRESH); $fb = fingerprint($up, $UPGRADE);
-foreach ($fa as $k => $v) ok($v === $fb[$k], "fresh install and upgraded database have identical $k", count(array_diff($v, $fb[$k])) . ' / ' . count(array_diff($fb[$k], $v)) . ' differences');
-$migFresh = array_column(many($fresh, 'SELECT id FROM schema_migrations ORDER BY id'), 'id');
-$migUp = array_column(many($up, 'SELECT id FROM schema_migrations ORDER BY id'), 'id');
-ok($migFresh === $migUp && in_array($MIG, $migFresh, true), 'schema_migrations has the same entries (including this migration)');
-try { importSql($up, file_sql($MIGFILE)); ok(false, 'second import is refused'); }
-catch (PDOException $e) { ok(($e->errorInfo[1] ?? 0) === 1062, 'second import is refused by schema_migrations (duplicate key)', $e->getMessage()); }
-ok(fingerprint($up, $UPGRADE) === $fb, 'refused second import changed nothing');
+    ok(!str_contains((string)file_get_contents($baseExt), 'client_routes'), 'base schema (before this feature) has no route tables');
+    ok($CHAIN[0] === $MIG, 'migration chain starts with ' . $MIG . ' (' . count($CHAIN) . ' migration(s): ' . implode(', ', $CHAIN) . ')');
+    $up = conn($UPGRADE);
+    importSql($up, (string)file_get_contents($baseSchema));
+    importSql($up, (string)file_get_contents($baseExt));
+    // A little existing data, to prove the migrations do not touch it.
+    $up->exec("INSERT INTO users (username, email, password_hash, full_name, role) VALUES ('old_admin','old@x.test','x','Old Admin','admin')");
+    $up->exec("INSERT INTO clients (company_name, status) VALUES ('OLD CLIENT INC', 'Active')");
+    $up->exec("INSERT INTO client_rates (client_id, truck_type, rate_per_km, minimum_charge, updated_by) VALUES (1,'Wing Van',55.50,1000,1)");
+    $beforeRates = $up->query('CHECKSUM TABLE client_rates')->fetch()['Checksum'];
+    foreach ($CHAIN as $m) importSql($up, file_sql("database/migrations/$m.sql"));
+    ok(true, 'upgrade: base schema + ' . count($CHAIN) . ' migration(s) import in order');
+    ok($up->query('CHECKSUM TABLE client_rates')->fetch()['Checksum'] === $beforeRates, 'upgrade: existing client_rates rows unchanged');
+    $fa = fingerprint($fresh, $FRESH); $fb = fingerprint($up, $UPGRADE);
+    foreach ($fa as $k => $v) ok($v === $fb[$k], "fresh install and upgraded database have identical $k", count(array_diff($v, $fb[$k])) . ' / ' . count(array_diff($fb[$k], $v)) . ' differences');
+    $migFresh = array_column(many($fresh, 'SELECT id FROM schema_migrations ORDER BY id'), 'id');
+    $migUp = array_column(many($up, 'SELECT id FROM schema_migrations ORDER BY id'), 'id');
+    ok($migFresh === $migUp && in_array($MIG, $migFresh, true), 'schema_migrations has the same entries (including this migration)');
+    try { importSql($up, file_sql($MIGFILE)); ok(false, 'second import is refused'); }
+    catch (PDOException $e) { ok(($e->errorInfo[1] ?? 0) === 1062, 'second import is refused by schema_migrations (duplicate key)', $e->getMessage()); }
+    ok(fingerprint($up, $UPGRADE) === $fb, 'refused second import changed nothing');
 
-section('A2. Partially failed migration: detection and recovery (docs procedure)');
-$pa = conn($PARTIAL);
-importSql($pa, file_sql('database/schema.sql'));
-importSql($pa, $previous);
-// Simulate a stop after the tracker row and the first table only.
-$parts = array_values(array_filter(array_map('trim', preg_split('/;\s*\n/', (string)preg_replace('/^\s*--.*$/m', '', file_sql($MIGFILE)))), fn($s) => $s !== ''));
-$pa->exec($parts[0]); $pa->exec($parts[1]);
-$detect = "SELECT (SELECT COUNT(*) FROM schema_migrations WHERE id='$MIG') AS tracked,
-                  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('client_routes','client_route_rates','client_route_events')) AS tables_found";
-$st = $pa->query($detect)->fetch();
-ok((int)$st['tracked'] === 1 && (int)$st['tables_found'] === 1, 'detection query shows: tracked = 1 but only 1 of 3 tables (partial)', json_encode($st));
-$empty = (int)$pa->query('SELECT COUNT(*) FROM client_routes')->fetchColumn() === 0;
-ok($empty, 'partially created table is empty (safe to drop)');
-// Recovery steps from docs/CLAUDE_20_CLIENT_ROUTES.md
-$pa->exec('DROP TABLE IF EXISTS client_route_events');
-$pa->exec('DROP TABLE IF EXISTS client_route_rates');
-$pa->exec('DROP TABLE IF EXISTS client_routes');
-$pa->exec("DELETE FROM schema_migrations WHERE id='$MIG'");
-importSql($pa, file_sql($MIGFILE));
-$st = $pa->query($detect)->fetch();
-ok((int)$st['tracked'] === 1 && (int)$st['tables_found'] === 3, 'after recovery: tracked = 1 and 3 of 3 tables', json_encode($st));
-ok(fingerprint($pa, $PARTIAL) === fingerprint($fresh, $FRESH), 'recovered database is identical to a fresh install');
+    section('A2. Partially failed migration: detection and recovery (docs procedure)');
+    $pa = conn($PARTIAL);
+    importSql($pa, (string)file_get_contents($baseSchema));
+    importSql($pa, (string)file_get_contents($baseExt));
+    // Simulate a stop after the tracker row and the first table only.
+    $parts = array_values(array_filter(array_map('trim', preg_split('/;\s*\n/', (string)preg_replace('/^\s*--.*$/m', '', file_sql($MIGFILE)))), fn($s) => $s !== ''));
+    $pa->exec($parts[0]); $pa->exec($parts[1]);
+    $detect = "SELECT (SELECT COUNT(*) FROM schema_migrations WHERE id='$MIG') AS tracked,
+                      (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('client_routes','client_route_rates','client_route_events')) AS tables_found";
+    $st = $pa->query($detect)->fetch();
+    ok((int)$st['tracked'] === 1 && (int)$st['tables_found'] === 1, 'detection query shows: tracked = 1 but only 1 of 3 tables (partial)', json_encode($st));
+    ok((int)$pa->query('SELECT COUNT(*) FROM client_routes')->fetchColumn() === 0, 'partially created table is empty (safe to drop)');
+    // Recovery steps from docs/CLAUDE_20_CLIENT_ROUTES.md
+    $pa->exec('DROP TABLE IF EXISTS client_route_events');
+    $pa->exec('DROP TABLE IF EXISTS client_route_rates');
+    $pa->exec('DROP TABLE IF EXISTS client_routes');
+    $pa->exec("DELETE FROM schema_migrations WHERE id='$MIG'");
+    importSql($pa, file_sql($MIGFILE));
+    $st = $pa->query($detect)->fetch();
+    ok((int)$st['tracked'] === 1 && (int)$st['tables_found'] === 3, 'after recovery: tracked = 1 and 3 of 3 tables', json_encode($st));
+    foreach (array_slice($CHAIN, 1) as $m) importSql($pa, file_sql("database/migrations/$m.sql"));
+    ok(fingerprint($pa, $PARTIAL) === fingerprint($fresh, $FRESH), 'recovered database (+ later migrations) is identical to a fresh install');
+}
 
 // ---------------------------------------------------------------------
 // Test data on the FRESH database (db() points to it through the test .env)

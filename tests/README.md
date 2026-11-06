@@ -2,6 +2,15 @@
 
 Automated tests. This folder is blocked from the web by the root `.htaccess`.
 
+## Suites
+
+| Command | What |
+| --- | --- |
+| `php tests/run_route_tests.php` | Client Routes (Checklist #20) and the whole migration chain (base schema + every migration = fresh install) |
+| `php tests/run_map_tests.php` | OpenStreetMap / road distance (Checklist #5). No real call to openrouteservice (fake transport + local mock server `tests/_mock_ors.php`) |
+
+Both need `TEST_DB_USER` / `TEST_DB_PASS` (see below). The shared launcher is `tests/_launcher.php`.
+
 ## Client Routes (Checklist #20)
 
 ```

@@ -25,12 +25,22 @@ const RouteUI = {
       { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes) },
       { name: 'origin', label: 'Origin (pickup point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
       { name: 'destination', label: 'Destination (delivery point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
+      { type: 'html', col: 12, html: '<div data-routemapbox></div>' },
+      { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
+      ...(d.routing ? [{ name: 'route_option', label: 'Route option', type: 'select', col: 8, placeholder: false, value: d.defaultRouteOption,
+        options: Object.entries(d.routeOptions || {}), help: 'Used for the road distance. The company still has to confirm the toll-road policy.' }] : []),
       { name: 'distance_km', label: 'Distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
-        help: 'Typed for now. Map-based distance will be added later.' },
-      { name: 'notes', label: 'Notes (optional)', col: 8, attrs: 'maxlength="500"' },
+        help: d.routing ? 'Filled in from the road distance when both points are pinned. You may change it (a reason is required).' : 'Type the km (automatic road distance is not set up on the server).' },
+      { type: 'html', col: 12, html: '<div class="small" data-kminfo></div>' },
+      { name: 'distance_override_reason', label: 'Reason for changing the computed km', required: true, col: 12, attrs: 'maxlength="300"' },
+      { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    UI.modal('Request a new route', '<p class="modal-intro">The route is sent to Billing for the rate, then to the Admin for approval. Origin to destination is one direction: the return trip is a separate route.</p>'
+    const st = { computed: null, option: null, seq: 0 };
+    UI.modal('Request a new route', '<p class="modal-intro">Pin the origin and the destination on the map (or search them). The road distance fills in the km. Origin to destination is one direction: the return trip is a separate route. The route is sent to Billing for the rate, then to the Admin for approval.</p>'
       + UI.fields(fields), async (f, form) => {
+      // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
+      if (st.computed === null) { delete f.route_option; delete f.distance_override_reason; }
+      else if (Math.abs(+f.distance_km - st.computed) < 0.005) delete f.distance_override_reason;
       // Soft warning: same client and truck type, and one place name contains the other (e.g. "TANAUAN" and "TANAUAN CITY").
       const o = RouteUI.norm(f.origin), t = RouteUI.norm(f.destination);
       const close = (a, b) => a && b && (a === b || a.includes(b) || b.includes(a));
@@ -41,7 +51,58 @@ const RouteUI = {
         throw new Error('Similar route already exists: ' + similar.map(r => `${r.route_ref} ${RouteUI.name(r)} (${r.status})`).join('; ') + '. Check it first. Click "Send request" again to continue anyway.');
       }
       const r = await App.api('Routes.request', f); UI.result(r); App.route();
-    }, { submit: 'Send request' });
+    }, { submit: 'Send request', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form, d, st) });
+  },
+
+  /** Map, route option, automatic km and manual override of the Request route form (Checklist #5). */
+  wireDistance(wrap, form, d, st) {
+    const km = form.querySelector('[name=distance_km]'), opt = form.querySelector('[name=route_option]');
+    const info = form.querySelector('[data-kminfo]');
+    const reasonBox = form.querySelector('[name=distance_override_reason]').closest('[class*="col-"]');
+    const ratio = +d.overrideWarningRatio || 0.15;
+    const noService = '<span class="text-muted">Automatic road distance is not set up on the server. Type the km.</span>';
+    const checkOverride = () => {
+      const show = st.computed !== null && km.value !== '' && Math.abs(+km.value - st.computed) >= 0.005;
+      reasonBox.classList.toggle('d-none', !show);
+      const warn = info.querySelector('[data-kmwarn]');
+      if (warn) warn.textContent = show && Math.abs(+km.value - st.computed) > ratio * st.computed
+        ? `Warning: the km differs from the computed road distance by more than ${Math.round(ratio * 100)}%.` : '';
+    };
+    const say = (html) => { info.innerHTML = html; checkOverride(); };
+    reasonBox.classList.add('d-none');
+    km.addEventListener('input', checkOverride);
+    const compute = async (points, picker) => {
+      st.computed = null;
+      if (!d.routing) { say(noService); return; }
+      if (!points.pickup || !points.delivery) { say('<span class="text-muted">Pin both points to get the road distance.</span>'); return; }
+      const seq = ++st.seq;
+      say('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Computing the road distance…</span>');
+      let r;
+      try { r = await UI.Map.route(points.pickup, points.delivery, opt ? opt.value : d.defaultRouteOption); }
+      catch (e) { r = { available: false, message: e.message }; }
+      if (seq !== st.seq) return;   // an older answer: ignore
+      if (!r.available) {
+        say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span>`); return;
+      }
+      st.computed = +r.distance_km; st.option = r.option;
+      km.value = st.computed.toFixed(2);
+      if (r.geometry && picker) picker.showRoute(UI.Map.decode(r.geometry));
+      say(`Road distance: <b>${UI.num(r.distance_km, 2)} km</b> · about ${UI.num(r.duration_min, 0)} min · ${UI.esc(r.option_label)}
+        <span class="text-muted">(straight line ${UI.num(r.straight_km, 1)} km)</span>
+        ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}
+        <button type="button" class="btn btn-link btn-sm p-0 ms-2" data-usekm>Use the computed km</button>
+        <div class="text-warning" data-kmwarn></div>`);
+      info.querySelector('[data-usekm]').onclick = () => { km.value = st.computed.toFixed(2); checkOverride(); };
+    };
+    const map = UI.mapPicker(form.querySelector('[data-routemapbox]'), form, {}, {
+      fields: { pickup: { addr: 'origin', lat: 'origin_lat', lng: 'origin_lng' }, delivery: { addr: 'destination', lat: 'destination_lat', lng: 'destination_lng' } },
+      labels: { pickup: 'Origin', delivery: 'Destination' },
+      footNote: d.routing ? 'Road distance by openrouteservice (estimate). Check it before sending.' : 'Type the km.',
+      onChange: compute,
+    });
+    if (opt && map) opt.addEventListener('change', () => compute(map.picker.points(), map.picker));
+    wrap.addEventListener('shown.bs.modal', () => map && map.invalidateSize());
+    if (!d.routing) say(noService);
   },
 
   rate(route, d) {
@@ -85,14 +146,19 @@ const RouteUI = {
     const html = `<div class="mb-2">${UI.badge(x.status)} ${x.pending_rate_id && x.status === 'Approved' ? UI.badge('Pending Approval') + ' <span class="small text-muted">rate revision</span>' : ''}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
       ${UI.h('Route')}${UI.kv([['Client', `<b>${UI.esc(x.client)}</b>`], ['Origin', UI.e(x.origin_label)], ['Destination', UI.e(x.destination_label)], ['Truck type', UI.e(x.truck_type)],
-        ['Distance', UI.num(x.distance_km, 2) + ' km · ' + UI.esc(x.distance_source)], ['Notes', UI.e(x.notes)], ['Requested by', UI.esc(x.requested_by_name) + ' · ' + UI.datetime(x.requested_at)],
+        ['Distance', UI.num(x.distance_km, 2) + ' km · ' + UI.esc(x.distance_source)],
+        x.distance_computed_km ? ['Computed road distance', UI.num(x.distance_computed_km, 2) + ' km · ' + UI.esc((d.routeOptions || {})[x.route_option] || x.route_option || '') + ' · ' + UI.esc(x.distance_provider || '') + ' · ' + UI.datetime(x.distance_computed_at)] : null,
+        x.distance_override_reason ? ['Reason the km was changed', UI.esc(x.distance_override_reason)] : null, ['Notes', UI.e(x.notes)], ['Requested by', UI.esc(x.requested_by_name) + ' · ' + UI.datetime(x.requested_at)],
         x.closed_reason ? ['Closed', UI.esc(x.closed_reason) + (x.closed_by_name ? ' · ' + UI.esc(x.closed_by_name) : '') + (x.closed_at ? ' · ' + UI.datetime(x.closed_at) : '')] : null])}
       ${UI.h('Current approved rate')}${x.rate_id ? UI.kv([['Rate', `<b>${RouteUI.rateText(x.rate_type, x.rate_amount, x.minimum_charge)}</b>`], ['Version', UI.e(x.rate_version)], ['Effective since', UI.datetime(x.effective_from)]]) : '<div class="text-muted small">No approved rate yet.</div>'}
       ${x.pending_rate_id ? UI.h('Waiting for approval') + UI.kv([['Proposed rate', `<b>${RouteUI.rateText(x.pending_rate_type, x.pending_rate_amount, x.pending_minimum_charge)}</b>`], ['Version', UI.e(x.pending_version)], ['Entered by', UI.esc(x.pending_entered_by_name) + ' · ' + UI.datetime(x.pending_entered_at)]]) : ''}
       ${UI.h('Rate history')}${UI.table([['Version', 'version_no'], ['Rate', 'rate_amount', (v, t) => RouteUI.rateText(t.rate_type, t.rate_amount, t.minimum_charge)], ['Status', 'status', 'badge'],
         ['Entered by', 'entered_by_name'], ['Decided by', 'decided_by_name'], ['Effective from', 'effective_from', 'datetime'], ['Effective to', 'effective_to', 'datetime'], ['Remarks', 'decision_notes']], r.rates, { plain: true, empty: 'No rate entered yet.' })}
       ${UI.h('History')}${UI.table([['Date', 'created_at', 'datetime'], ['Action', 'event_type'], ['By', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}`;
-    const el = UI.drawer(UI.esc(x.route_ref), html, { subtitle: 'Client route' });
+    const el = UI.drawer(UI.esc(x.route_ref), html.replace(UI.h('Current approved rate'), (x.origin_lat && x.destination_lat ? '<div class="route-map mb-3" data-routedetailmap style="height:240px"></div>' : '') + UI.h('Current approved rate')), { subtitle: 'Client route' });
+    const mbox = el.querySelector('[data-routedetailmap]');
+    if (mbox) setTimeout(() => UI.routeMap(mbox, null, { a: [+x.origin_lat, +x.origin_lng], b: [+x.destination_lat, +x.destination_lng],
+      aLabel: 'Origin: ' + x.origin_label, bLabel: 'Destination: ' + x.destination_label, geometry: x.route_geometry || '' }), 350);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'rate') RouteUI.rate(x, d);
