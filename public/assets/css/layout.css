@@ -223,7 +223,7 @@ textarea.form-control { min-height: 64px; }
 .bell-foot { display: block; text-align: center; padding: 10px; font-size: var(--fs-sm); font-weight: 600; background: var(--surface-2); }
 
 /* toasts */
-.toast-zone { position: fixed; right: 20px; bottom: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
+.toast-zone { position: fixed; right: 20px; top: calc(var(--topbar-h) + 12px); z-index: 2000; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
 .app-toast { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px 11px 14px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--green); border-radius: var(--r-lg); box-shadow: var(--shadow-md); font-size: var(--fs-md); color: var(--text); animation: toast-in .16s ease-out; }
 .app-toast > .bi { color: var(--green); font-size: 16px; margin-top: 1px; }
 .app-toast > span { flex: 1; }
