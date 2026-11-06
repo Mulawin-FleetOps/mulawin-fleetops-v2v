@@ -134,15 +134,24 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $id, $row, $opening) {
             must(!one($p, 'SELECT id FROM parts WHERE part_number=? AND id<>?', [$row['part_number'], $id ?? 0]), 'Part number ' . $row['part_number'] . ' already exists.', 409);
             if ($id) {
-                must((bool)one($p, 'SELECT id FROM parts WHERE id=? FOR UPDATE', [$id]), 'Part not found.', 404);
+                $old = one($p, 'SELECT * FROM parts WHERE id=? FOR UPDATE', [$id]);
+                must((bool)$old, 'Part not found.', 404);
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE parts SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-                audit($p, $u['id'], 'Inventory', 'part ' . $id, 'part updated', $row['part_number']);
+                $before = []; $after = [];
+                foreach (['part_number', 'description', 'category', 'unit', 'unit_cost', 'reorder_level', 'warranty_info'] as $key) {
+                    $label = ucwords(str_replace('_', ' ', $key));
+                    $before[$label] = $old[$key]; $after[$label] = $row[$key];
+                }
+                auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part updated', $row['part_number'], $before, $after);
                 return ['message' => 'Part updated.'];
             }
             $id = insert($p, 'parts', $row);
             if ($opening > 0) self::move($p, $u, $id, 'Adjustment', $opening, (float)$row['unit_cost'], 'Opening balance', 'adjustment', null);
-            audit($p, $u['id'], 'Inventory', 'part ' . $id, 'part added', $row['part_number'] . ($opening ? " (opening $opening)" : ''));
+            $added = ['Part number' => $row['part_number'], 'Description' => $row['description'], 'Category' => $row['category'],
+                'Unit' => $row['unit'], 'Unit cost' => $row['unit_cost'], 'Reorder level' => $row['reorder_level']];
+            if ($opening > 0) $added['Opening quantity'] = $opening;
+            auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part added', $row['part_number'] . ($opening ? " (opening $opening)" : ''), [], $added);
             return ['message' => 'Part ' . $row['part_number'] . ' added.'];
         });
     }
@@ -155,11 +164,21 @@ final class Purchasing {
         if ($row['email']) must((bool)filter_var($row['email'], FILTER_VALIDATE_EMAIL), 'Enter a valid email.');
         return transaction(function (PDO $p) use ($u, $id, $row) {
             must(!one($p, 'SELECT id FROM suppliers WHERE name=? AND id<>?', [$row['name'], $id ?? 0]), 'Supplier ' . $row['name'] . ' already exists.', 409);
+            $old = [];
             if ($id) {
+                $old = one($p, 'SELECT * FROM suppliers WHERE id=? FOR UPDATE', [$id]);
+                must((bool)$old, 'Supplier not found.', 404);
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE suppliers SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
             } else $id = insert($p, 'suppliers', $row);
-            audit($p, $u['id'], 'Purchasing', 'supplier ' . $id, 'supplier saved', $row['name']);
+            // Contact numbers and emails are intentionally excluded from permanent audit snapshots.
+            $before = []; $after = [];
+            foreach (['name', 'contact_person', 'address', 'active'] as $key) {
+                $label = ucwords(str_replace('_', ' ', $key));
+                $before[$label] = $key === 'active' ? (isset($old[$key]) ? ((int)$old[$key] ? 'Active' : 'Inactive') : null) : ($old[$key] ?? null);
+                $after[$label] = $key === 'active' ? ((int)$row[$key] ? 'Active' : 'Inactive') : $row[$key];
+            }
+            auditWithChanges($p, $u['id'], 'Purchasing', 'supplier ' . $id, 'supplier saved', $row['name'], $before, $after);
             return ['message' => 'Supplier saved.'];
         });
     }
@@ -173,10 +192,12 @@ final class Purchasing {
         must(abs((int)$delta) <= MAX_QUANTITY, 'The adjustment cannot be more than ' . number_format(MAX_QUANTITY) . ' at a time.');
         $reason = field($d, 'reason', 150);
         return transaction(function (PDO $p) use ($u, $partId, $delta, $reason) {
-            $pt = one($p, 'SELECT * FROM parts WHERE id=?', [$partId]);
+            $pt = one($p, 'SELECT * FROM parts WHERE id=? FOR UPDATE', [$partId]);
             must((bool)$pt, 'Part not found.', 404);
             self::move($p, $u, $partId, 'Adjustment', (int)$delta, (float)$pt['unit_cost'], $reason, 'adjustment', null);
-            audit($p, $u['id'], 'Inventory', 'part ' . $partId, 'inventory adjusted', $pt['part_number'] . ' ' . ($delta > 0 ? '+' : '') . $delta . ': ' . $reason);
+            auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $partId, 'inventory adjusted', $pt['part_number'] . ' ' . ($delta > 0 ? '+' : '') . $delta . ': ' . $reason,
+                ['Quantity on hand' => (int)$pt['quantity_on_hand']],
+                ['Quantity on hand' => (int)$pt['quantity_on_hand'] + (int)$delta]);
             return ['message' => 'Inventory adjusted.'];
         });
     }

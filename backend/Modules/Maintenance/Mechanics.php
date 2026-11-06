@@ -53,16 +53,20 @@ final class Mechanics {
         return transaction(function (PDO $p) use ($u, $id, $row) {
             must(!one($p, 'SELECT id FROM mechanics WHERE full_name=? AND id<>?', [$row['full_name'], $id ?? 0]), 'A mechanic named ' . $row['full_name'] . ' is already in the masterlist.', 409);
             if ($id) {
-                must((bool)one($p, 'SELECT id FROM mechanics WHERE id=? FOR UPDATE', [$id]), 'Mechanic not found.', 404);
+                $old = one($p, 'SELECT * FROM mechanics WHERE id=? FOR UPDATE', [$id]);
+                must((bool)$old, 'Mechanic not found.', 404);
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE mechanics SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-                audit($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic updated', $row['full_name']);
+                $before = ['Full name' => $old['full_name'], 'Specialization' => $old['specialization']];
+                $after = ['Full name' => $row['full_name'], 'Specialization' => $row['specialization']];
+                auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic updated', $row['full_name'], $before, $after);
                 return ['id' => $id, 'message' => 'Mechanic information updated.'];
             }
             $id = insert($p, 'mechanics', ['mechanic_code' => 'TMP-' . bin2hex(random_bytes(4))] + $row);
             $code = 'MEC-' . str_pad((string)$id, 3, '0', STR_PAD_LEFT);
             run($p, 'UPDATE mechanics SET mechanic_code=? WHERE id=?', [$code, $id]);
-            audit($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic added', "$code " . $row['full_name']);
+            auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic added', "$code " . $row['full_name'], [],
+                ['Mechanic code' => $code, 'Full name' => $row['full_name'], 'Specialization' => $row['specialization']]);
             return ['id' => $id, 'mechanic_code' => $code, 'message' => "Mechanic $code " . $row['full_name'] . ' added. Status: Available.'];
         });
     }
@@ -83,7 +87,10 @@ final class Mechanics {
             } else {
                 run($p, 'UPDATE mechanics SET availability=?, unavailable_reason=NULL WHERE id=?', [$job ? 'Assigned' : 'Available', $id]);
             }
-            audit($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic availability set', $m['full_name'] . ': ' . $to . ($reason ? " ($reason)" : ''));
+            $finalAvailability = $to === 'Available' && $job ? 'Assigned' : $to;
+            auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic availability set', $m['full_name'] . ': ' . $to . ($reason ? " ($reason)" : ''),
+                ['Availability' => $m['availability'], 'Unavailable reason' => $m['unavailable_reason']],
+                ['Availability' => $finalAvailability, 'Unavailable reason' => $to === 'Unavailable' ? $reason : null]);
             return ['message' => $m['full_name'] . ' is now ' . ($to === 'Available' && $job ? 'Assigned (still on ' . $job['job_ref'] . ')' : $to) . '.'];
         });
     }
@@ -99,7 +106,10 @@ final class Mechanics {
                 must(!$job, $m['full_name'] . ' is working on ' . ($job['job_ref'] ?? '') . '. Assign that repair to another mechanic first.', 409);
             }
             run($p, "UPDATE mechanics SET active=?, availability=IF(?=1 AND availability='Assigned', 'Available', availability) WHERE id=?", [$active, $active, $id]);
-            audit($p, $u['id'], 'Mechanics', 'mechanic ' . $id, $active ? 'mechanic reactivated' : 'mechanic deactivated', $m['full_name']);
+            $updated = one($p, 'SELECT active, availability FROM mechanics WHERE id=?', [$id]);
+            auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, $active ? 'mechanic reactivated' : 'mechanic deactivated', $m['full_name'],
+                ['Account status' => (int)$m['active'] ? 'Active' : 'Inactive', 'Availability' => $m['availability']],
+                ['Account status' => (int)$updated['active'] ? 'Active' : 'Inactive', 'Availability' => $updated['availability']]);
             return ['message' => $m['full_name'] . ($active ? ' is active again.' : ' was deactivated. The repair history is kept.')];
         });
     }

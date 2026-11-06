@@ -173,12 +173,15 @@ final class Maintenance {
             must(!($j['source'] === 'Incident' && $j['status'] === 'Reported'), 'Assess the incident first (Minor or Major); the mechanic is chosen there.', 409);
             if ((int)$j['mechanic_id'] === $mechanicId) return ['message' => 'This mechanic is already assigned.'];
             if ($j['mechanic_id']) must($reason !== null, 'Give the reason for changing the mechanic.');
+            $oldMechanic = $j['mechanic_id'] ? one($p, 'SELECT full_name FROM mechanics WHERE id=?', [$j['mechanic_id']]) : null;
             $m = self::freeMechanic($p, $mechanicId, (int)$j['id']);
             self::setMechanic($p, $j, $mechanicId);
             $to = $j['status'] === 'Reported' ? 'Under Inspection' : $j['status'];
             if ($to !== $j['status']) run($p, "UPDATE maintenance_jobs SET status=?, started_by=?, started_at=NOW() WHERE id=?", [$to, $u['id'], $id]);
             self::event($p, $id, $j['status'], $to, $u['id'], ($j['mechanic_id'] ? 'mechanic changed' : 'mechanic assigned') . ($reason ? ': ' . $reason : ''), $mechanicId);
-            audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'mechanic assigned', $j['job_ref'] . ' -> ' . $m['full_name']);
+            auditWithChanges($p, $u['id'], 'Maintenance', 'job ' . $id, 'mechanic assigned', $j['job_ref'] . ' -> ' . $m['full_name'],
+                ['Assigned mechanic' => $oldMechanic['full_name'] ?? null, 'Repair status' => $j['status']],
+                ['Assigned mechanic' => $m['full_name'], 'Repair status' => $to]);
             return ['message' => $m['full_name'] . ' is assigned to ' . $j['job_ref'] . ($to !== $j['status'] ? ' (Under Inspection).' : '.')];
         });
     }
