@@ -320,8 +320,8 @@ const TripUI = {
       <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark all OK</button></div>
       ${secs.map(s => `<div class="chk-sec"><h6>${UI.esc(s.title)}</h6>${s.items.map((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0');
         return `<div class="chk-row" data-k="${k}"><span>${UI.esc(label)}${hint(k)}</span><div class="btn-group" role="group">
-          <input type="radio" class="btn-check" name="c_${k}" id="ok_${k}" value="OK"><label class="btn btn-outline-success" for="ok_${k}">OK</label>
-          <input type="radio" class="btn-check" name="c_${k}" id="no_${k}" value="NOT OK"><label class="btn btn-outline-danger" for="no_${k}">NOT OK</label></div>
+          <input type="radio" class="btn-check" name="c_${k}" id="ok_${k}" value="OK"><label class="btn btn-outline-success" for="ok_${k}" title="OK" aria-label="OK">✓<span class="visually-hidden">OK</span></label>
+          <input type="radio" class="btn-check" name="c_${k}" id="no_${k}" value="NOT OK"><label class="btn btn-outline-danger" for="no_${k}" title="NOT OK" aria-label="NOT OK">✕<span class="visually-hidden">NOT OK</span></label></div>
           <input class="form-control form-control-sm" placeholder="Remarks" data-rem="${k}" maxlength="250"></div>`; }).join('')}</div>`).join('')}
       ${extra}`;
     UI.modal((arrival ? 'Arrival checklist ' : 'Pre-dispatch checklist ') + UI.esc(t.trip_ref), body, async (d, form) => {
