@@ -54,7 +54,9 @@ final class Purchasing {
                 LEFT JOIN vehicles v ON v.id=sm.vehicle_id JOIN users u ON u.id=sm.actor_id ORDER BY sm.id DESC LIMIT 500"),
             'trucks' => fn() => many($p, 'SELECT id, plate_number, truck_number FROM vehicles WHERE active=1 ORDER BY plate_number'),
             'openJobs' => fn() => many($p, "SELECT m.id, m.job_ref, m.vehicle_id, m.problem FROM maintenance_jobs m WHERE m.status IN ('Under Inspection','Under Repair') ORDER BY m.id DESC"),
-            'budget' => fn() => one($p, "SELECT *, amount-reserved_amount-spent_amount AS available FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? [],
+            // S4B-2D-B: Motorpool may request parts but does not need purchasing budget details.
+            'budget' => fn() => hasRole($u, 'purchasing', 'finance', 'admin', 'audit')
+                ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? []) : [],
         ]);
         $data['threshold'] = Settings::value('purchase_approval_threshold');
         $data['can'] = [
@@ -436,7 +438,10 @@ final class Purchasing {
         must((bool)$o, 'Purchase order not found.', 404);
         return ['po' => $o,
             'lines' => many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id', [$id]),
-            'payments' => many($p, "SELECT d.*, u.full_name AS recorded_by_name FROM disbursements d JOIN users u ON u.id=d.recorded_by WHERE d.source_type='purchase_order' AND d.source_id=? ORDER BY d.id", [$id]),
+            // S4B-2D-B: detailed disbursement records contain Finance-only payment data.
+            // Purchasing/Motorpool still receive PO payment_status, but not bank/payment details.
+            'payments' => hasRole($u, 'finance', 'admin', 'audit')
+                ? many($p, "SELECT d.*, u.full_name AS recorded_by_name FROM disbursements d JOIN users u ON u.id=d.recorded_by WHERE d.source_type='purchase_order' AND d.source_id=? ORDER BY d.id", [$id]) : [],
             'documents' => Files::of($p, 'purchase', $id)];
     }
 
