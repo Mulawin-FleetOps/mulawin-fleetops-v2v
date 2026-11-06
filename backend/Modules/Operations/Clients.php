@@ -150,7 +150,9 @@ final class Clients {
             if ($c['status'] === 'Incomplete' && !$missing) {
                 foreach (['business_address', 'contact_person', 'contact_number'] as $f) must(!empty($c[$f]), 'Complete the client information sheet (address, contact person, contact number) first.');
                 run($p, "UPDATE clients SET status='Pending Rate' WHERE id=?", [$id]);
-                audit($p, $u['id'], 'Clients', 'client ' . $id, 'client requirements completed', $c['company_name'] . ' -> Pending Rate');
+                // Adjustment #5G: client lifecycle status audit
+                auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client requirements completed', $c['company_name'] . ' -> Pending Rate',
+                    ['Client status' => $c['status']], ['Client status' => 'Pending Rate']);
                 Notify::roles($p, ['billing'], 'Client rate needed', 'Client ' . $c['company_name'] . ' is complete and waiting for its billing rate.', 'clients', 'client-rate-' . $id);
                 $msg .= ' All requirements are complete; the client now waits for Billing to set the rate.';
             } elseif ($missing) $msg .= ' Still missing: ' . implode(', ', $missing) . '.';
@@ -190,6 +192,11 @@ final class Clients {
             }
             run($p, "UPDATE clients SET status='Active', payment_terms_days=?, rate_set_by=?, rate_set_at=NOW() WHERE id=?", [$terms, $u['id'], $id]);
             $txt = implode('; ', array_map(fn($t, $r) => "$t {$r['rate_per_km']}/km" . ((float)$r['minimum_charge'] > 0 ? " (min {$r['minimum_charge']})" : ''), array_keys($clean), $clean));
+            // Adjustment #5G: include the lifecycle transition and payment terms with the approved rate changes.
+            $oldRates['Client status'] = $c['status'];
+            $newRates['Client status'] = 'Active';
+            $oldRates['Payment terms (days)'] = $c['payment_terms_days'];
+            $newRates['Payment terms (days)'] = $terms;
             auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client rate set', $c['company_name'] . ': ' . $txt, $oldRates, $newRates);
             if ($c['status'] === 'Pending Rate') {
                 Notify::resolve($p, 'client-rate-' . $id);
@@ -210,7 +217,9 @@ final class Clients {
                 $status = self::missingDocs($p, $id) ? 'Incomplete' : ($hasRate ? 'Active' : 'Pending Rate');
             } else $status = 'Inactive';
             run($p, 'UPDATE clients SET status=? WHERE id=?', [$status, $id]);
-            audit($p, $u['id'], 'Clients', 'client ' . $id, $active ? 'client reactivated' : 'client deactivated', $c['company_name'] . ' -> ' . $status);
+            // Adjustment #5G: record the actual status, which can also be Incomplete or Pending Rate.
+            auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, $active ? 'client reactivated' : 'client deactivated', $c['company_name'] . ' -> ' . $status,
+                ['Client status' => $c['status']], ['Client status' => $status]);
             return ['message' => $c['company_name'] . ' is now ' . $status . '.' . (!$active ? ' Existing trips and billings are kept.' : '')];
         });
     }
