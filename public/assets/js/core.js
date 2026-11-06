@@ -251,6 +251,42 @@ const App = {
     };
   },
 
+  /** Security S3: list only trusted-device metadata; revoke requires current password. */
+  async trustedDevicesScreen() {
+    let devices;
+    try { devices = (await this.api('Admin.trusted_devices_list', {})).devices || []; }
+    catch (e) { UI.toast(e.message, 'error'); return; }
+    const dt = (v) => v ? UI.datetime(v) : 'Never';
+    const body = `<p class="small text-muted">Remembered devices skip email OTP for up to 30 days, but still require your password. Each row is a trusted-browser record; browser names are not collected. Revoking a device affects its NEXT login, not the session already open.</p>
+      ${devices.length ? `<div class="list-group mb-3">${devices.map(d => `<div class="list-group-item d-flex justify-content-between align-items-start gap-2">
+        <div class="small"><strong>${d.current ? 'This browser' : 'Other / unrecognized browser'}</strong><br>
+        <span class="text-muted">Created: ${UI.esc(dt(d.created_at))}<br>Last used: ${UI.esc(dt(d.last_used_at))}<br>Expires: ${UI.esc(dt(d.expires_at))}</span></div>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-revoke-device="${Number(d.id)}">Revoke</button></div>`).join('')}</div>` : '<p class="small">No active remembered devices.</p>'}
+      <label class="form-label" for="tdPassword">Current password (required to revoke)</label>
+      <div class="input-group mb-3"><input class="form-control form-control-sm" type="password" id="tdPassword" autocomplete="current-password">
+        <button class="btn btn-sm btn-outline-secondary" type="button" id="tdEye" aria-label="Show password"><i class="bi bi-eye"></i></button></div>
+      ${devices.length ? '<button type="button" class="btn btn-sm btn-outline-danger" id="tdRevokeAll">Revoke all remembered devices</button>' : ''}`;
+    UI.modal('Trusted devices', body, null, { size: '', onShow: (wrap) => {
+      const inp = wrap.querySelector('#tdPassword');
+      wrap.querySelector('#tdEye').onclick = () => {
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+        wrap.querySelector('#tdEye').setAttribute('aria-label', inp.type === 'password' ? 'Show password' : 'Hide password');
+      };
+      const revoke = async (action, payload) => {
+        if (!inp.value) { UI.toast('Enter your current password first.', 'error'); inp.focus(); return; }
+        const btns = wrap.querySelectorAll('[data-revoke-device], #tdRevokeAll');
+        btns.forEach(b => b.disabled = true);
+        try {
+          const result = await this.api(action, { ...payload, current_password: inp.value });
+          bootstrap.Modal.getInstance(wrap)?.hide();
+          UI.toast(result.message || 'Device trust removed.');
+        } catch(e) { UI.toast(e.message, 'error'); btns.forEach(b => b.disabled = false); }
+      };
+      wrap.querySelectorAll('[data-revoke-device]').forEach(button => button.onclick = () => revoke('Admin.trusted_devices_revoke', { device_id: Number(button.dataset.revokeDevice) }));
+      wrap.querySelector('#tdRevokeAll')?.addEventListener('click', () => revoke('Admin.trusted_devices_revoke_all', {}));
+    }});
+  },
+
   async logout() {
     try { await this.request('index.php?api=logout', { method: 'POST', headers: { 'X-CSRF-Token': this.csrf } }); } catch { }
     clearInterval(this.timer); this.me = null; location.hash = ''; this.start();
@@ -295,6 +331,7 @@ const App = {
                 <button class="dropdown-item" id="mySig"><i class="bi bi-pen"></i> My e-signature${u.has_signature ? '' : ' <span class="badge-s amber">not set</span>'}</button>
                 <button class="dropdown-item" id="chgPw"><i class="bi bi-key"></i> Change password</button>
                 <button class="dropdown-item" id="chgEmail"><i class="bi bi-envelope-check"></i> Change email</button>
+                <button class="dropdown-item" id="trustDevices"><i class="bi bi-laptop"></i> Trusted devices</button>
                 <div class="dropdown-divider"></div>
                 <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>
               </div>
@@ -310,6 +347,7 @@ const App = {
     document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
     document.getElementById('chgPw').onclick = () => this.passwordScreen();
     document.getElementById('chgEmail').onclick = () => this.emailScreen();
+    document.getElementById('trustDevices').onclick = () => this.trustedDevicesScreen();
     document.getElementById('mySig').onclick = () => UI.signatureModal();
     document.getElementById('bellReadAll').onclick = async () => { try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();

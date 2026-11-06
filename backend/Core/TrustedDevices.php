@@ -42,6 +42,56 @@ final class TrustedDevices {
         return true;
     }
 
+    /** Security S3: self-service trusted-device management. Never expose cookie values or token hashes. */
+    public static function listFor(int $uid): array {
+        $token = (string)($_COOKIE[self::COOKIE] ?? '');
+        $currentHash = preg_match('/^[a-f0-9]{64}$/D', $token) ? hash('sha256', $token) : null;
+        $devices = many(db(), 'SELECT id, token_hash, created_at, last_used_at, expires_at FROM trusted_login_devices WHERE user_id=? AND expires_at>NOW() ORDER BY created_at DESC, id DESC LIMIT 100', [$uid]);
+        return array_map(static fn(array $r): array => [
+            'id' => (int)$r['id'],
+            'created_at' => $r['created_at'],
+            'last_used_at' => $r['last_used_at'],
+            'expires_at' => $r['expires_at'],
+            'current' => $currentHash !== null && hash_equals($currentHash, (string)$r['token_hash']),
+        ], $devices);
+    }
+
+    /** Require the employee's own password; never accept a target user ID from the client. */
+    public static function manage(array $u, string $action, array $d): array {
+        $p = db();
+        $uid = (int)$u['id'];
+        $password = field($d, 'current_password', 255);
+        $now = time();
+        $fails = array_values(array_filter((array)($_SESSION['trusted_device_password_failures'] ?? []),
+            static fn($t): bool => $now - (int)$t < 900));
+        must(count($fails) < 5, 'Too many failed confirmations. Try again in 15 minutes.', 429);
+        $record = one($p, 'SELECT password_hash FROM users WHERE id=? AND active=1', [$uid]);
+        if (!$record || !password_verify($password, (string)$record['password_hash'])) {
+            $fails[] = $now;
+            $_SESSION['trusted_device_password_failures'] = $fails;
+            must(false, 'Current password is incorrect.', 403);
+        }
+        unset($_SESSION['trusted_device_password_failures']);
+        if ($action === 'trusted_devices_revoke_all') {
+            $count = run($p, 'DELETE FROM trusted_login_devices WHERE user_id=?', [$uid]);
+            setcookie(self::COOKIE, '', self::cookieOptions(time() - 3600));
+            audit($p, $uid, 'Access', 'user ' . $uid, 'all trusted devices revoked', 'count: ' . $count);
+            return ['message' => 'All remembered devices removed. Email OTP is required on their next login.'];
+        }
+        must($action === 'trusted_devices_revoke', 'Unknown trusted-device action.', 404);
+        $id = idField($d, 'device_id');
+        $token = (string)($_COOKIE[self::COOKIE] ?? '');
+        $currentHash = preg_match('/^[a-f0-9]{64}$/D', $token) ? hash('sha256', $token) : null;
+        $row = one($p, 'SELECT token_hash FROM trusted_login_devices WHERE id=? AND user_id=?', [$id, $uid]);
+        must((bool)$row, 'Remembered device no longer exists.', 404);
+        run($p, 'DELETE FROM trusted_login_devices WHERE id=? AND user_id=?', [$id, $uid]);
+        if ($currentHash !== null && hash_equals($currentHash, (string)$row['token_hash'])) {
+            setcookie(self::COOKIE, '', self::cookieOptions(time() - 3600));
+        }
+        audit($p, $uid, 'Access', 'user ' . $uid, 'trusted device revoked', 'device record ' . $id);
+        return ['message' => 'Remembered device removed. Email OTP is required on its next login.'];
+    }
+
     public static function revokeAll(int $uid): void {
         run(db(), 'DELETE FROM trusted_login_devices WHERE user_id=?', [$uid]);
     }

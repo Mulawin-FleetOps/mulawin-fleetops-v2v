@@ -66,6 +66,12 @@ final class Actions {
         }
         core('SecurityPasswordChange');
         must(!SecurityPasswordChange::required((int)$u['id']), 'Complete your first-login password setup first.', 403);
+        // Security S3: self-service trusted-device management (for the signed-in user only).
+        if (in_array($api, ['Admin.trusted_devices_list','Admin.trusted_devices_revoke','Admin.trusted_devices_revoke_all'], true)) {
+            core('TrustedDevices');
+            if ($api === 'Admin.trusted_devices_list') return ['devices' => TrustedDevices::listFor((int)$u['id'])];
+            return TrustedDevices::manage($u, substr($api, strlen('Admin.')), $data);
+        }
         $class = self::load($m[1]);
         return $class::action($u, $m[2], $data);
     }
