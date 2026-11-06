@@ -81,6 +81,41 @@ final class Fleet {
         };
     }
 
+    // Adjustment #5D: Fleet before/after audit. Operational fields only.
+    // Avoid storing license IDs, chassis/engine numbers, contact details or free-text notes.
+    private static function auditTruckFields(PDO $p, array $values): array {
+        $labels = [
+            'plate_number' => 'Plate number', 'truck_number' => 'Truck number',
+            'truck_type' => 'Truck type', 'make_brand' => 'Brand', 'model' => 'Model',
+            'registration_expiry' => 'Registration expiry',
+            'insurance_provider' => 'Insurance provider', 'insurance_expiry' => 'Insurance expiry',
+            'assigned_driver_id' => 'Regular driver', 'assigned_helper_id' => 'Regular helper',
+        ];
+        $out = [];
+        foreach ($labels as $key => $label) {
+            if (!array_key_exists($key, $values)) continue;
+            $value = $values[$key];
+            if (($key === 'assigned_driver_id' || $key === 'assigned_helper_id') && $value) {
+                $person = one($p, 'SELECT full_name FROM personnel WHERE id=?', [(int)$value]);
+                $value = $person['full_name'] ?? 'Unknown personnel';
+            }
+            $out[$label] = $value;
+        }
+        return $out;
+    }
+
+    private static function auditCrewFields(array $values): array {
+        $labels = [
+            'full_name' => 'Full name', 'person_type' => 'Crew type',
+            'license_expiry' => 'License expiry', 'date_hired' => 'Date hired',
+        ];
+        $out = [];
+        foreach ($labels as $key => $label) {
+            if (array_key_exists($key, $values)) $out[$label] = $values[$key];
+        }
+        return $out;
+    }
+
     // ---------------------------------------------------------------- trucks
     private static function truckSave(array $u, array $d): array {
         requireRole($u, ...self::EDIT);
@@ -113,11 +148,13 @@ final class Fleet {
                 if ($old['truck_type'] !== $row['truck_type']) must(!FleetState::activeTrip($p, $id), 'The truck type cannot be changed while the truck is on an active trip.', 409);
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE vehicles SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-                audit($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck updated', $row['plate_number']);
+                auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck updated', $row['plate_number'],
+                    self::auditTruckFields($p, $old), self::auditTruckFields($p, $row));
                 return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' updated.'];
             }
             $id = insert($p, 'vehicles', $row + ['status' => 'Available']);
-            audit($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck added', $row['plate_number'] . ' (' . $row['truck_type'] . ')');
+            auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck added', $row['plate_number'] . ' (' . $row['truck_type'] . ')',
+                [], self::auditTruckFields($p, $row));
             return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' added to the masterlist.'];
         });
     }
@@ -157,7 +194,10 @@ final class Fleet {
                     $msg .= ' ' . Trips::resourceLost($p, $u, (int)$trip['id'], 'Truck ' . $v['plate_number'] . ' was set Unavailable: ' . $reason);
                 }
             }
-            audit($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck availability set', $v['plate_number'] . ': ' . $to . ($reason ? " ($reason)" : ''));
+            $current = one($p, 'SELECT status, status_reason FROM vehicles WHERE id=?', [$id]);
+            auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck availability set', $v['plate_number'] . ': ' . $to . ($reason ? " ($reason)" : ''),
+                ['Status' => $v['status'], 'Status reason' => $v['status_reason']],
+                ['Status' => $current['status'], 'Status reason' => $current['status_reason']]);
             return ['message' => $msg];
         });
     }
@@ -173,7 +213,8 @@ final class Fleet {
                 must(!FleetState::openJob($p, $id), 'The truck has an open maintenance job.', 409);
             }
             run($p, 'UPDATE vehicles SET active=? WHERE id=?', [$active, $id]);
-            audit($p, $u['id'], 'Fleet', 'vehicle ' . $id, $active ? 'truck reactivated' : 'truck deactivated', $v['plate_number']);
+            auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, $active ? 'truck reactivated' : 'truck deactivated', $v['plate_number'],
+                ['Active' => (int)$v['active'] ? 'Yes' : 'No'], ['Active' => $active ? 'Yes' : 'No']);
             return ['message' => 'Truck ' . $v['plate_number'] . ($active ? ' reactivated.' : ' deactivated. Its past trips and records are kept.')];
         });
     }
@@ -232,11 +273,13 @@ final class Fleet {
                 }
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE personnel SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-                audit($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper updated', $row['full_name']);
+                auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper updated', $row['full_name'],
+                    self::auditCrewFields($old), self::auditCrewFields($row));
                 return ['id' => $id, 'message' => $row['full_name'] . ' updated.'];
             }
             $id = insert($p, 'personnel', $row);
-            audit($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper added', $row['full_name'] . ' (' . $row['person_type'] . ')');
+            auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper added', $row['full_name'] . ' (' . $row['person_type'] . ')',
+                [], self::auditCrewFields($row));
             return ['id' => $id, 'message' => $row['full_name'] . ' added to the masterlist.'];
         });
     }
@@ -262,7 +305,10 @@ final class Fleet {
                 Actions::load('Trips');
                 if (!$hold && ($auto = Trips::assignWaiting($p, $u))) $msg .= ' ' . $auto;
             }
-            audit($p, $u['id'], 'Fleet', 'personnel ' . $id, 'availability set', $pe['full_name'] . ': ' . $to . ($reason ? " ($reason)" : ''));
+            $current = one($p, 'SELECT availability, unavailable_reason FROM personnel WHERE id=?', [$id]);
+            auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'availability set', $pe['full_name'] . ': ' . $to . ($reason ? " ($reason)" : ''),
+                ['Availability' => $pe['availability'], 'Reason' => $pe['unavailable_reason']],
+                ['Availability' => $current['availability'], 'Reason' => $current['unavailable_reason']]);
             return ['message' => $msg];
         });
     }
@@ -279,7 +325,8 @@ final class Fleet {
                 run($p, 'UPDATE vehicles SET assigned_helper_id=NULL WHERE assigned_helper_id=?', [$id]);
             }
             run($p, 'UPDATE personnel SET active=? WHERE id=?', [$active, $id]);
-            audit($p, $u['id'], 'Fleet', 'personnel ' . $id, $active ? 'driver/helper reactivated' : 'driver/helper deactivated', $pe['full_name']);
+            auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, $active ? 'driver/helper reactivated' : 'driver/helper deactivated', $pe['full_name'],
+                ['Active' => (int)$pe['active'] ? 'Yes' : 'No'], ['Active' => $active ? 'Yes' : 'No']);
             return ['message' => $pe['full_name'] . ($active ? ' reactivated.' : ' deactivated. Past trips keep the name.')];
         });
     }
