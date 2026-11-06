@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-06 (Checklist #20: client routes, provisional policy)
+- **Client Routes** (Masterlists): approved routes per client and truck type, with contractual rates. Operations Head
+  requests a route (origin to destination is one direction; same route can have another rate for another truck type),
+  Billing enters the rate, Admin approves or rejects. Only Approved routes will be selectable in planning.
+- **Rate revisions** create a new version; the old approved rate stays in use until the Admin approves the new one, and
+  is then kept as Superseded. A rejected revision does not affect the route or its current rate. Approved rates are
+  never edited. The person who entered a rate cannot approve it.
+- **Client Masterlist**: client details show a read-only "Approved routes" section.
+- Duplicate routes (same client, truck type, origin and destination, ignoring case, spaces and punctuation) are refused
+  by the database, also when two users submit at the same time.
+- Not connected yet to Trip Management or billing: billing still uses the client billing rate per km (`client_rates`).
+- Database: `database/migrations/2026-11-06_02_client_routes.sql` (new tables `client_routes`, `client_route_rates`,
+  `client_route_events`; nothing existing is changed). Tests: `tests/run_route_tests.php`.
+  Details, install, rollback: `docs/CLAUDE_20_CLIENT_ROUTES.md`.
+
 ## 2026-11-06 (Phase 1: validation and purchasing)
 - **Supplier typed in the purchase order.** The PO form has Supplier name (required), address, contact person,
   contact number and email (optional) instead of the supplier dropdown. The details are saved IN the purchase order
