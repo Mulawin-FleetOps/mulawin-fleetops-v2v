@@ -34,6 +34,9 @@ final class Access {
                               array_merge(['admin', 'operations_head', 'audit'], $D)],
             'clients'     => ['Client Masterlist', 'bi-building', 'Masterlists', 'Clients', 'operations/clients',
                               array_merge(['admin', 'operations_head', 'billing', 'finance', 'audit'], $D)],
+            // Approved routes per client (Checklist #20). Roles follow Routes::POLICY['view'].
+            'routes'      => ['Client Routes', 'bi-signpost-2', 'Masterlists', 'Routes', 'operations/routes',
+                              ['admin', 'operations_head', 'billing', 'finance', 'audit']],
             'mechanics'   => ['Mechanic Masterlist', 'bi-person-gear', 'Masterlists', 'Mechanics', 'maintenance/mechanics',
                               ['admin', 'operations_head', 'motorpool', 'audit']],
 
