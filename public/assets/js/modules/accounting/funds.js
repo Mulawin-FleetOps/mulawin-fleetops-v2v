@@ -40,12 +40,16 @@ App.page('funds', {
     }
     const n = (s) => d.funds.filter(f => f.status === s).length;
     const toLiq = d.funds.filter(f => f.status === 'Released' && f.liquidation_status === 'Not Liquidated' && ['Completed', 'Cancelled'].includes(f.trip_status));
+    // Keep rejected requests actionable after retiring the All requests tab.
+    const needsRevision = d.funds.filter(f => f.status === 'Rejected' && !['Completed', 'Cancelled', 'Rejected'].includes(f.trip_status));
+    // Read-only/archive records: every request belongs to exactly one tab.
+    const history = d.funds.filter(f => !['Pending Approval', 'Ready for Release'].includes(f.status) && !toLiq.includes(f) && !needsRevision.includes(f));
     ctx.el.innerHTML = UI.cards([
       { label: 'Pending approval', value: n('Pending Approval'), icon: 'bi-hourglass-split', color: 'amber' },
       { label: 'Ready for release', value: n('Ready for Release'), icon: 'bi-cash-coin', color: 'blue' },
       { label: 'Rejected (to revise)', value: n('Rejected'), icon: 'bi-arrow-counterclockwise', color: 'red' },
       { label: 'Released', value: n('Released'), icon: 'bi-check-circle', color: 'green' },
-      { label: 'To liquidate', value: toLiq.length, icon: 'bi-receipt', color: 'gray' },
+      { label: 'For liquidation', value: toLiq.length, icon: 'bi-receipt', color: 'gray' },
     ]);
     const cols = [['Fund', 'fund_ref'], ['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Breakdown', 'breakdown'], ['Amount', 'amount', 'money'],
       ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Date', 'created_at', 'date']];
@@ -73,12 +77,13 @@ App.page('funds', {
           extra: old.lines.filter(l => !+l.is_preset).map(l => ({ name: l.category_name, amount: l.amount })), intro: 'Rejected because: ' + UI.esc(f.rejected_reason || '') }); }
     };
     const box = document.createElement('div'); ctx.el.append(box);
-    const def = UI.role('operations_head') ? 'pending' : UI.role('finance') ? 'release' : null;
+    const def = UI.role('operations_head') ? 'pending' : UI.role('finance') ? 'release' : d.can.submit ? 'revision' : 'history';
     UI.tabs(box, [
       ['pending', `Pending approval (${n('Pending Approval')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Pending Approval'), { actions, onAction, empty: 'Nothing waiting for approval.' })],
       ['release', `Ready for release (${n('Ready for Release')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Ready for Release'), { actions, onAction, empty: 'Nothing to release.' })],
-      ['liquidate', `To liquidate (${toLiq.length})`, () => UI.table([...cols, ['Released', 'released_at', 'date'], ['Voucher', 'voucher_number']], toLiq, { actions, onAction, empty: 'Nothing to liquidate.' })],
-      ['all', 'All requests', () => UI.table([...cols, ['Liquidation', 'liquidation_status', 'badge'], ['Voucher', 'voucher_number']], d.funds, { title: 'All fund requests', actions, onAction })],
+      ['liquidate', `For liquidation (${toLiq.length})`, () => UI.table([...cols, ['Released', 'released_at', 'date'], ['Voucher', 'voucher_number']], toLiq, { actions, onAction, empty: 'Nothing for liquidation.' })],
+      ['revision', `Needs revision (${needsRevision.length})`, () => UI.table(cols, needsRevision, { actions, onAction, empty: 'No fund requests need revision.' })],
+      ['history', `History (${history.length})`, () => UI.table([...cols, ['Liquidation', 'liquidation_status', 'badge'], ['Voucher', 'voucher_number']], history, { title: 'Fund request history', actions, onAction, empty: 'No historical fund requests.' })],
     ], def);
   },
 });
