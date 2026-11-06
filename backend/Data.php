@@ -22,10 +22,26 @@ final class Data {
             'ok' => true, 'user' => $u, 'csrf' => $_SESSION['csrf'] ?? '',
             'nav' => Access::navFor($u), 'sections' => Access::SECTIONS,
             'notifications' => $bell['items'], 'unread' => $bell['unread'], 'activeNotifications' => $bell['active'],
-            'mapKey' => envValue('MAPTILER_API_KEY'), 'mapStyle' => envValue('MAPTILER_STYLE', 'streets-v4') ?: 'streets-v4',
+            'map' => self::mapConfig(),
             'company' => ['name' => envValue('COMPANY_NAME', 'R P MULAWIN TRUCKING SERVICE'),
                           'address' => envValue('COMPANY_ADDRESS', '#086-A Purok 2 Brgy. Luyos Tanauan City, Batangas')],
             'truckTypes' => TRUCK_TYPES, 'passwordMin' => PASSWORD_MIN_LENGTH, 'roles' => ROLE_LABELS,
         ];
+    }
+
+    /**
+     * Map settings for the screen (Checklist #5). Map tiles: OpenStreetMap (MAP_TILE_URL in .env).
+     * Road distance and address search go through the server (backend/Core/Routing.php):
+     * the ORS API key is NEVER included here.
+     */
+    private static function mapConfig(): array {
+        $osm = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        $tile = envValue('MAP_TILE_URL', $osm) ?: $osm;
+        if (!preg_match('#^https://[A-Za-z0-9.-]+(:\d+)?/[^\s"\'<>]*\{z\}[^\s"\'<>]*\{x\}[^\s"\'<>]*\{y\}[^\s"\'<>]*$#', $tile)) $tile = $osm;
+        $attr = envValue('MAP_TILE_ATTRIBUTION', '') ?: '© OpenStreetMap contributors';
+        try { core('Routing'); $routing = Routing::configured(); $options = array_map(fn($o) => $o['label'], Routing::OPTIONS); }
+        catch (Throwable $e) { $routing = false; $options = []; }
+        return ['tileUrl' => $tile, 'tileAttribution' => cut($attr, 200), 'routing' => $routing, 'routeOptions' => $options,
+                'routeAttribution' => '© openrouteservice.org by HeiGIT'];
     }
 }

@@ -24,14 +24,14 @@ final class Actions {
      *   Operations     : Fleet (trucks, drivers & helpers), Clients, Trips (with Inspections/Checklist.php), Routes (approved client routes)
      *   Maintenance    : Maintenance (corrective), Mechanics (masterlist), Purchasing (truck parts, inventory, purchase orders)
      *   Accounting     : Funds (trip funds), Billing, Finance
-     *   General        : Analytics (dashboard and reports), Documents
+     *   General        : Analytics (dashboard and reports), Documents, Maps (road km and address search, server-side)
      *   Administration : Admin (users, settings, activity log, backup)
      */
     public const MODULES = [
         'Fleet' => 'Operations', 'Clients' => 'Operations', 'Trips' => 'Operations', 'Routes' => 'Operations',
         'Maintenance' => 'Maintenance', 'Mechanics' => 'Maintenance', 'Purchasing' => 'Maintenance',
         'Funds' => 'Accounting', 'Billing' => 'Accounting', 'Finance' => 'Accounting',
-        'Analytics' => 'General', 'Documents' => 'General',
+        'Analytics' => 'General', 'Documents' => 'General', 'Maps' => 'General',
         'Admin' => 'Administration',
     ];
 
