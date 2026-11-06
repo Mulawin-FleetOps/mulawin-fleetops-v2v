@@ -164,6 +164,35 @@ const App = {
     };
   },
 
+  /** Password visibility is temporary and local to these two account-security forms. */
+  securityPasswordEyes(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    form.querySelectorAll('input[type="password"]').forEach(input => {
+      if (input.parentElement?.classList.contains('input-group')) return;
+      const group = document.createElement('div');
+      group.className = 'input-group';
+      input.parentNode.insertBefore(group, input);
+      group.appendChild(input);
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'btn btn-outline-secondary';
+      toggle.setAttribute('aria-label', 'Show password');
+      toggle.setAttribute('aria-pressed', 'false');
+      toggle.innerHTML = '<i class="bi bi-eye" aria-hidden="true"></i>';
+      toggle.addEventListener('click', () => {
+        const visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        toggle.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+        toggle.setAttribute('aria-pressed', visible ? 'true' : 'false');
+        toggle.innerHTML = visible
+          ? '<i class="bi bi-eye-slash" aria-hidden="true"></i>'
+          : '<i class="bi bi-eye" aria-hidden="true"></i>';
+      });
+      group.appendChild(toggle);
+    });
+  },
+
   /** Security S2: users prove ownership of a replacement email before it becomes active. */
   emailScreen(message = '', stage = 'request') {
     const fields = stage === 'request' ? UI.fields([
@@ -174,6 +203,7 @@ const App = {
       ${this.authAlert(message, stage === 'confirm')}
       <form id="emailChangeForm" novalidate>${fields}<button class="btn btn-primary w-100 mt-3" type="submit">${stage === 'request' ? 'Send verification code' : 'Verify email'}</button>
       <button class="btn btn-link w-100 mt-2" type="button" id="emailCancel">Back to dashboard</button></form>`);
+    this.securityPasswordEyes('emailChangeForm');
     document.getElementById('emailCancel').onclick = () => this.loadMe();
     document.getElementById('emailChangeForm').onsubmit = async (e) => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
@@ -201,6 +231,7 @@ const App = {
         <button class="btn btn-primary w-100 mt-3" type="submit">${stage === 'request' ? 'Send verification code' : 'Verify and save password'}</button>
         ${firstSetup ? '' : '<button class="btn btn-link w-100 mt-2" type="button" id="pwCancel">Back to dashboard</button>'}
       </form>`);
+    this.securityPasswordEyes('securePwForm');
     document.getElementById('pwCancel')?.addEventListener('click', () => this.loadMe());
     document.getElementById('securePwForm').onsubmit = async (e) => {
       e.preventDefault();
