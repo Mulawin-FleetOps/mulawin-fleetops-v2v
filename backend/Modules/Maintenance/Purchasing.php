@@ -98,7 +98,7 @@ final class Purchasing {
     public static function action(array $u, string $action, array $d): array {
         return match ($action) {
             'part_save' => self::partSave($u, $d),
-            'supplier_save' => self::supplierSave($u, $d),
+            // Legacy supplier masterlist writes are disabled: suppliers are entered on Purchase Orders.
             'adjust' => self::adjust($u, $d),
             'request_create' => self::requestCreate($u, $d),
             'request_process' => self::requestProcess($u, $d),
