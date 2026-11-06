@@ -14,7 +14,7 @@ const RouteUI = {
   norm: (v) => String(v ?? '').toUpperCase().replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/gu, ' ').trim(),
   rateText(type, amount, min) {
     if (!type) return '—';
-    return type === 'Flat' ? `Flat ${UI.money(amount)}` : `${UI.money(amount)} per km${+min > 0 ? ` (minimum ${UI.money(min)})` : ''}`;
+    return type === 'Flat' ? UI.money(amount) : `${UI.money(amount)}/km${+min > 0 ? ` (minimum ${UI.money(min)})` : ''}`;
   },
   name: (r) => `${r.origin_label} → ${r.destination_label}`,
   waiting: (r) => ['Pending Rate', 'Pending Approval'].includes(r.status) || (r.status === 'Approved' && r.pending_rate_id),
@@ -46,23 +46,15 @@ const RouteUI = {
 
   rate(route, d) {
     const revision = route.status === 'Approved';
-    const types = d.rateTypes || ['Flat'];
     const fields = [
-      { name: 'rate_type', label: 'Rate type', type: 'select', required: true, col: 4, options: UI.list(types), value: types[0], placeholder: false,
-        help: types.length === 1 ? 'Only ' + types[0] + ' is enabled for now.' : '' },
-      { name: 'rate_amount', label: 'Rate (PHP)', type: 'money', required: true, col: 4, help: 'Flat: amount for the whole trip. Per km: amount per km.' },
-      { name: 'minimum_charge', label: 'Minimum charge (Per km only)', type: 'money', col: 4 },
+      { name: 'rate_amount', label: 'Rate (PHP)', type: 'money', required: true, col: 6 },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="300"' },
     ];
     const intro = `<p class="modal-intro"><b>${UI.esc(route.route_ref)}</b> · ${UI.esc(route.client)} · ${UI.esc(RouteUI.name(route))} · ${UI.esc(route.truck_type)} · ${UI.num(route.distance_km, 2)} km</p>`
       + (revision ? `<div class="alert alert-info py-2 small">Current approved rate: <b>${RouteUI.rateText(route.rate_type, route.rate_amount, route.minimum_charge)}</b>. It stays in use until the Admin approves this revision.</div>` : '');
     UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), intro + UI.fields(fields), async (f) => {
-      const r = await App.api('Routes.rate_enter', { route_id: route.id, ...f }); UI.result(r); UI.closeDrawer(); App.route();
-    }, { submit: 'Send for approval', size: '', onShow: (wrap) => {
-      const sel = wrap.querySelector('[name=rate_type]'), min = wrap.querySelector('[name=minimum_charge]');
-      const sync = () => { const on = sel.value === 'Per Km'; min.disabled = !on; if (!on) min.value = ''; };
-      sel.onchange = sync; sync();
-    } });
+      const r = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' }); UI.result(r); UI.closeDrawer(); App.route();
+    }, { submit: 'Send for approval', size: '' });
   },
 
   decide(route, decision) {

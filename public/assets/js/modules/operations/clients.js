@@ -58,7 +58,7 @@ const ClientUI = {
   async routes(el, clientId) {
     const box = el.querySelector('[data-client-routes]'); if (!box) return;
     let r; try { r = await App.api('Routes.for_client', { client_id: clientId }); } catch (e) { box.innerHTML = '<div class="text-muted small">Approved routes are not available right now.</div>'; return; }
-    const rate = (x) => x.rate_type === 'Flat' ? 'Flat ' + UI.money(x.rate_amount) : UI.money(x.rate_amount) + ' per km' + (+x.minimum_charge > 0 ? ' (minimum ' + UI.money(x.minimum_charge) + ')' : '');
+    const rate = (x) => x.rate_type === 'Flat' ? UI.money(x.rate_amount) : UI.money(x.rate_amount) + '/km' + (+x.minimum_charge > 0 ? ' (minimum ' + UI.money(x.minimum_charge) + ')' : '');
     box.innerHTML = UI.table([['Origin → destination', 'origin_label', (v, x) => UI.esc(x.origin_label + ' → ' + x.destination_label)], ['Truck type', 'truck_type'], ['Km', 'distance_km', 'num'],
       ['Rate', 'rate_amount', (v, x) => rate(x)], ['Since', 'effective_from', 'date']], r.routes, { plain: true, empty: 'No approved route yet.' })
       + (r.can_open_routes ? `<a class="small" href="#routes?client_id=${encodeURIComponent(clientId)}">Open all routes of this client</a>` : '');
