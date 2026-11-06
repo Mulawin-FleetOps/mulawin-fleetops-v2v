@@ -202,6 +202,7 @@ final class Purchasing {
         });
     }
 
+    // Audit #5E: purchasing workflow changes
     // ---------------------------------------------------------------- parts requests (stock-out)
     private static function lines(array $d, string $qtyKey = 'quantity'): array {
         $out = [];
@@ -231,7 +232,8 @@ final class Purchasing {
             $ref = refNumber('RF', $rid);
             run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
             foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
-            audit($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number']);
+            auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
+                [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
             Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'purchasing', 'parts-req-' . $rid);
             return ['message' => "Request $ref sent to the Purchasing Officer."];
         });
@@ -266,7 +268,8 @@ final class Purchasing {
             $any = (int)one($p, 'SELECT COALESCE(SUM(released_qty),0) AS n FROM part_request_lines WHERE part_request_id=?', [$id])['n'];
             $status = $left === 0 ? 'Released' : ($any > 0 ? 'Partially Released' : 'Not Available');
             run($p, 'UPDATE part_requests SET status=?, processed_by=?, processed_at=NOW(), notes=COALESCE(?, notes) WHERE id=?', [$status, $u['id'], $notes, $id]);
-            audit($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request processed', $r['request_ref'] . ' -> ' . $status);
+            auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request processed', $r['request_ref'] . ' -> ' . $status,
+                ['Request status' => $r['status'], 'Units released in this action' => 0], ['Request status' => $status, 'Units released in this action' => $released]);
             Notify::user($p, (int)$r['requested_by'], 'Parts request', $r['request_ref'] . ' is ' . $status . '.', 'purchasing');
             Notify::resolve($p, 'parts-req-' . $id);
             return ['message' => 'Request is now ' . $status . '.' . ($status !== 'Released' ? ' Create a purchase order for the missing items if needed.' : '')];
@@ -281,7 +284,8 @@ final class Purchasing {
             must($r && $r['status'] === 'Requested', 'Only a request that is still Requested can be cancelled.', 409);
             run($p, "UPDATE part_requests SET status='Cancelled' WHERE id=?", [$id]);
             Notify::resolve($p, 'parts-req-' . $id);
-            audit($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request cancelled', $r['request_ref']);
+            auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request cancelled', $r['request_ref'],
+                ['Request status' => $r['status']], ['Request status' => 'Cancelled']);
             return ['message' => 'Request cancelled.'];
         });
     }
@@ -306,7 +310,8 @@ final class Purchasing {
             run($p, 'UPDATE purchase_orders SET po_ref=? WHERE id=?', [$ref, $id]);
             foreach ($lines as $l) insert($p, 'purchase_order_lines', ['purchase_order_id' => $id, 'part_id' => $l['part_id'], 'quantity' => $l['quantity'],
                 'unit_price' => $l['unit_price'], 'line_total' => number_format($l['quantity'] * (float)$l['unit_price'], 2, '.', '')]);
-            audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order request created', "$ref " . $supplier['supplier_name'] . ' PHP ' . number_format($total, 2) . ' -> ' . ($approver === 'finance' ? 'Finance' : 'Admin'));
+            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order request created', "$ref " . $supplier['supplier_name'] . ' PHP ' . number_format($total, 2) . ' -> ' . ($approver === 'finance' ? 'Finance' : 'Admin'),
+                [], ['PO status' => 'Pending Approval', 'Supplier' => $supplier['supplier_name'], 'Total amount' => number_format($total, 2, '.', ''), 'Approval role' => $approver]);
             Notify::roles($p, [$approver], 'PO approval', "Purchase order $ref (PHP " . number_format($total, 2) . ') is waiting for your approval.', 'purchasing', 'po-approve-' . $id);
             return ['message' => "Purchase order $ref (PHP " . number_format($total, 2) . ') sent to ' . ($approver === 'finance' ? 'Finance (PHP ' . number_format($threshold) . ' and below)' : 'the Admin (above PHP ' . number_format($threshold) . ')') . ' for approval.'];
         });
@@ -330,7 +335,8 @@ final class Purchasing {
             must($u['role'] === $o['approver_role'], 'This purchase order is routed to ' . ($o['approver_role'] === 'finance' ? 'Finance' : 'the Admin') . ' (approval limit rule).', 403);
             if ($decision === 'reject') {
                 run($p, "UPDATE purchase_orders SET status='Rejected', decided_by=?, decided_at=NOW(), decision_notes=? WHERE id=?", [$u['id'], $notes, $id]);
-                audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order rejected', $o['po_ref'] . ': ' . $notes);
+                auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order rejected', $o['po_ref'] . ': ' . $notes,
+                    ['PO status' => $o['status']], ['PO status' => 'Rejected']);
                 Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was rejected: ' . $notes, 'purchasing');
                 return ['message' => 'Purchase order rejected.'];
             }
@@ -339,14 +345,16 @@ final class Purchasing {
             if (!$b || $available < (float)$o['total_amount']) {
                 $why = !$b ? 'no active purchasing budget for today' : 'available budget PHP ' . number_format($available, 2) . ' is less than PHP ' . number_format((float)$o['total_amount'], 2);
                 run($p, "UPDATE purchase_orders SET status='Rejected - Insufficient Budget', decided_by=?, decided_at=NOW(), decision_notes=? WHERE id=?", [$u['id'], cut('System: ' . $why, 255), $id]);
-                audit($p, null, 'Purchasing', 'po ' . $id, 'purchase order rejected - insufficient budget', $o['po_ref'] . ': ' . $why);
+                auditWithChanges($p, null, 'Purchasing', 'po ' . $id, 'purchase order rejected - insufficient budget', $o['po_ref'] . ': ' . $why,
+                    ['PO status' => $o['status']], ['PO status' => 'Rejected - Insufficient Budget']);
                 Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was automatically rejected: insufficient budget (' . $why . ').', 'purchasing');
                 return ['warning' => 'Rejected - Insufficient Budget: ' . $why . '. No PO document was made.'];
             }
             run($p, 'UPDATE budgets SET reserved_amount=reserved_amount+? WHERE id=?', [$o['total_amount'], $b['id']]);
             run($p, "UPDATE purchase_orders SET status='Approved', payment_status='Pending Payment', budget_id=?, reserved_amount=total_amount, decided_by=?, decided_at=NOW(), decision_notes=? WHERE id=?",
                 [$b['id'], $u['id'], $notes, $id]);
-            audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order approved', $o['po_ref'] . ': PHP ' . $o['total_amount'] . ' reserved from the budget');
+            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order approved', $o['po_ref'] . ': PHP ' . $o['total_amount'] . ' reserved from the budget',
+                ['PO status' => $o['status'], 'Reserved amount' => $o['reserved_amount']], ['PO status' => 'Approved', 'Reserved amount' => $o['total_amount']]);
             Notify::user($p, (int)$o['requested_by'], 'PO approved', $o['po_ref'] . ' is approved. Print the PO and proceed with the purchase.', 'purchasing');
             Notify::roles($p, ['finance'], 'PO pending payment', $o['po_ref'] . ' (PHP ' . number_format((float)$o['total_amount'], 2) . ') was approved and is Pending Payment.', 'finance', 'po-pay-' . $id);
             return ['message' => 'Approved. PHP ' . number_format((float)$o['total_amount'], 2) . ' is reserved from the purchasing budget. The PO document is ready to print.'];
@@ -380,7 +388,8 @@ final class Purchasing {
             $status = $left === 0 ? 'Received' : 'Partially Received';
             run($p, 'UPDATE purchase_orders SET status=?, supplier_invoice_no=COALESCE(?, supplier_invoice_no) WHERE id=?', [$status, $invoice, $id]);
             self::refreshPayment($p, $id);
-            audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'parts received', $o['po_ref'] . ': ' . $total . ' unit(s), ' . $status);
+            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'parts received', $o['po_ref'] . ': ' . $total . ' unit(s), ' . $status,
+                ['PO status' => $o['status'], 'Units received in this action' => 0], ['PO status' => $status, 'Units received in this action' => $total]);
             Notify::roles($p, ['finance'], 'Parts received', $o['po_ref'] . ' is ' . $status . '. Check the supplier invoice before payment.', 'finance');
             return ['message' => "Received $total unit(s). PO is $status; inventory updated."];
         });
@@ -398,7 +407,8 @@ final class Purchasing {
             if ($o['budget_id'] && $free > 0) run($p, 'UPDATE budgets SET reserved_amount=GREATEST(reserved_amount-?,0) WHERE id=?', [$free, $o['budget_id']]);
             run($p, "UPDATE purchase_orders SET status='Closed', reserved_amount=GREATEST(reserved_amount-?,0), decision_notes=? WHERE id=?", [$free, cut('Closed: ' . $reason, 255), $id]);
             self::refreshPayment($p, $id);
-            audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order closed', $o['po_ref'] . ': PHP ' . number_format($free, 2) . ' returned to the budget. ' . $reason);
+            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order closed', $o['po_ref'] . ': PHP ' . number_format($free, 2) . ' returned to the budget. ' . $reason,
+                ['PO status' => $o['status'], 'Reserved amount' => $o['reserved_amount']], ['PO status' => 'Closed', 'Reserved amount' => max(0, (float)$o['reserved_amount'] - $free)]);
             return ['message' => 'PO closed. PHP ' . number_format($free, 2) . ' of reserved budget was released.'];
         });
     }
