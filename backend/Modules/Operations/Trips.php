@@ -16,7 +16,7 @@
  *    Dispatcher fund request -> Ops Head approves -> Finance releases (Funds.php)
  *    Dispatcher pre-dispatch checklist (all OK) -> "Ready for Dispatch"
  *    Confirm Dispatch is allowed only when fund = Released AND trip = Ready for Dispatch
- *    -> "Dispatched" (billing draft generated) -> progress / delays
+ *    -> "Dispatched" (billing draft generated) -> incident / completion actions
  *    -> Complete Trip (completion date/time + waybill + acknowledgement receipt)
  *    -> "Completed" (billing draft moves to For Billing; driver and helper are free)
  *    -> truck drives back: it stays held ("On Trip") until the dispatcher submits the
@@ -176,7 +176,6 @@ final class Trips {
             'checklist_start' => self::checklistStart($u, $d),
             'checklist' => self::checklist($u, $d),
             'dispatch' => self::dispatch($u, $d),
-            'progress' => self::progress($u, $d),
             'incident' => self::incident($u, $d),
             'resume' => self::resume($u, $d),
             'reschedule' => self::reschedule($u, $d),
@@ -637,23 +636,6 @@ final class Trips {
             Notify::resolve($p, 'trip-prep-' . $id . '-*');
             Notify::roles($p, ['operations_head', 'finance', 'billing'], $redispatch ? 'Trip redispatched' : 'Trip dispatched', $t['trip_ref'] . ' left with truck ' . $v['plate_number'] . '.', 'trips');
             return ['message' => ($redispatch ? 'Redispatch confirmed (Second Attempt).' : 'Dispatch confirmed.') . ' The billing draft was generated.'];
-        });
-    }
-
-    /** Progress, delivery and delay updates (Objective 1.5). */
-    private static function progress(array $u, array $d): array {
-        $id = idField($d, 'trip_id');
-        $type = choiceField($d, 'update_type', self::UPDATE_TYPES);
-        $cause = $type === 'Delay' ? choiceField($d, 'delay_cause', self::DELAY_CAUSES) : null;
-        $note = field($d, 'note', 500);
-        return transaction(function (PDO $p) use ($u, $id, $type, $cause, $note) {
-            $t = self::lockTrip($p, $id);
-            self::mustBeTripDispatcher($u, $t);
-            self::mustBeStatus($t, ['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule'], 'add an update');
-            insert($p, 'trip_updates', ['trip_id' => $id, 'actor_id' => $u['id'], 'update_type' => $type, 'delay_cause' => $cause, 'note' => $note]);
-            self::event($p, $u['id'], $id, 'trip update: ' . strtolower($type), $t['status'], $t['status'], ($cause ? "[$cause] " : '') . $note);
-            if ($type === 'Delay') Notify::roles($p, ['operations_head'], 'Trip delay', $t['trip_ref'] . " delay ($cause): $note", 'trips');
-            return ['message' => 'Update recorded.'];
         });
     }
 

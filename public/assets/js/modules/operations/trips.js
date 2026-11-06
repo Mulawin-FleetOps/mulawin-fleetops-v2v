@@ -1,4 +1,4 @@
-/* assets/js/modules/operations/trips.js — TRIPS (create, assign, fund, checklist, dispatch, progress, incident, complete, arrival checklist)
+/* assets/js/modules/operations/trips.js — TRIPS (create, assign, fund, checklist, dispatch, incident, complete, arrival checklist)
    One page for the whole trip workflow of PDF #12 (Scenarios A, B and C).
    - Active tab: every open trip as a card with a progress bar and the next step (who does what).
    - History tab: closed trips with ONE filter modal.
@@ -56,7 +56,7 @@ const TripUI = {
         if (!t.fund_status && +t.attempt_number > 1) return 'Checklist done. Dispatcher can Confirm Redispatch.';
         if (t.fund_status === 'Released') return 'Checklist done and fund released. Dispatcher can Confirm Dispatch.';
         return 'Checklist done. Waiting for the fund (' + (t.fund_status || 'not requested') + ').';
-      case 'Dispatched': case 'In Transit': return 'On the road. Dispatcher records updates and completes the trip with the waybill and acknowledgement receipt.';
+      case 'Dispatched': case 'In Transit': return 'On the road. Dispatcher monitors the trip and completes it with the waybill and acknowledgement receipt.';
       case 'On Hold - Incident Reported':
         if (t.incident_status === 'Reported') return 'Maintenance assesses the damage (minor or major).';
         if (t.incident_status === 'Repaired - Cleared to Continue') return 'Repaired on site. Dispatcher resumes the trip.';
@@ -403,13 +403,6 @@ const TripUI = {
       'Trips.incident', { extra: { trip_id: t.id }, intro: 'The driver called in the breakdown. This puts the trip On Hold and sends the report to Maintenance.', submit: 'Submit incident report',
         after: () => { TripUI.open(t.id); App.route(); } });
   },
-  progress(t) {
-    UI.formModal('Trip update ' + UI.esc(t.trip_ref), [
-      { name: 'update_type', label: 'Type', type: 'select', options: UI.list(TripUI.data.updateTypes), required: true, col: 6, value: 'Progress' },
-      { name: 'delay_cause', label: 'Delay cause (for Delay)', type: 'select', options: UI.list(TripUI.data.delayCauses), col: 6 },
-      { name: 'note', label: 'Note', type: 'textarea', required: true, col: 12 }], 'Trips.progress', { extra: { trip_id: t.id }, after: () => { TripUI.open(t.id); App.route(); } });
-  },
-
   /** " (17 min)" — how long the checklist took, from opening to submission. */
   duration(i) {
     if (!i.started_at) return '';
@@ -485,7 +478,7 @@ const TripUI = {
       }
       if (t.status === 'Awaiting Resources') acts.push(btn('auto', 'Try auto-assign now', 'outline-primary', 'bi-magic'));
       if (t.status === 'Completed' && +t.awaiting_arrival) acts.push(btn('arrival', 'Arrival checklist', 'primary', 'bi-clipboard-check'));
-      if (!['Completed', 'Cancelled', 'Rejected', 'Pending Review'].includes(t.status)) acts.push(btn('progress', 'Add update / delay', 'outline-secondary', 'bi-chat-left-text'), btn('edit', 'Booking / container details', 'outline-secondary', 'bi-pencil'));
+      if (!['Completed', 'Cancelled', 'Rejected', 'Pending Review'].includes(t.status)) acts.push(btn('edit', 'Booking / container details', 'outline-secondary', 'bi-pencil'));
     }
     const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
@@ -549,7 +542,6 @@ const TripUI = {
       if (a === 'resume') UI.confirmAction('Resume ' + UI.esc(t.trip_ref), 'The trip continues (In Transit). This is not a second attempt.', 'Trips.resume', { trip_id: t.id }, { submit: 'Resume trip' });
       if (a === 'reschedule') UI.formModal('Reschedule ' + UI.esc(t.trip_ref), [{ name: 'scheduled_at', label: 'New dispatch schedule', type: 'datetime', required: true, col: 12, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`, help: 'Present or future date and time (Philippine time).' }], 'Trips.reschedule',
         { extra: { trip_id: t.id }, intro: 'After rescheduling, do the pre-dispatch checklist again. Confirm Redispatch records the Second Attempt.', after: () => { TripUI.open(t.id); App.route(); } });
-      if (a === 'progress') TripUI.progress(t);
       if (a === 'printfund') FundUI.print(fund.id);
     });
   },
