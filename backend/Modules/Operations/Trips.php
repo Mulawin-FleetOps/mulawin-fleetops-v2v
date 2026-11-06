@@ -215,29 +215,64 @@ final class Trips {
         return $type !== null && (bool)one($p, 'SELECT id FROM client_rates WHERE client_id=? AND truck_type=?', [$clientId, $type]);
     }
 
-    /** Common delivery fields of the trip form. */
-    private static function deliveryFields(array $d, bool $needsKm): array {
+    /** Longest billable distance accepted (km). Luzon to Mindanao by road is well below this. */
+    public const MAX_DISTANCE_KM = 3000;
+    /** Philippine bounding box for map pins (keeps a mistyped or swapped coordinate out). */
+    private const PH_LAT = [4.0, 21.5];
+    private const PH_LNG = [116.0, 127.5];
+    /** Set by deliveryFields() when an unchanged schedule is already in the past (shown with the result). */
+    private static string $scheduleWarning = '';
+
+    /**
+     * Schedule rule (one place for create, review, edit and reschedule):
+     *   - a NEW or CHANGED schedule must be the current date and time or later (Asia/Manila,
+     *     5-minute grace) and at most 365 days ahead: futureDateTimeField() in bootstrap.php;
+     *   - an UNCHANGED schedule of a trip that is not dispatched yet is kept even if its time
+     *     has passed, so other details can still be corrected; a warning is returned instead.
+     */
+    private static function scheduleField(array $d, ?string $current): string {
+        $typed = dateTimeField($d, 'scheduled_at');
+        if ($current !== null && substr($typed, 0, 16) === substr($current, 0, 16)) {
+            self::$scheduleWarning = strtotime($current) < time()
+                ? ' Note: the schedule (' . substr($current, 0, 16) . ') has already passed; set a new date and time if the trip will leave later.' : '';
+            return $current;
+        }
+        return futureDateTimeField($d, 'scheduled_at');
+    }
+
+    /** Pickup and delivery coordinates: both or neither for each point, inside the Philippines. */
+    private static function coordinates(array $d): array {
+        $out = [];
+        foreach (['pickup' => 'pickup point', 'delivery' => 'delivery point'] as $k => $label) {
+            $lat = trim((string)($d[$k . '_lat'] ?? '')); $lng = trim((string)($d[$k . '_lng'] ?? ''));
+            if ($lat === '' && $lng === '') { $out[$k . '_lat'] = null; $out[$k . '_lng'] = null; continue; }
+            must(is_numeric($lat) && is_numeric($lng), "The map pin of the $label is incomplete. Pin it again or remove it.");
+            must((float)$lat >= self::PH_LAT[0] && (float)$lat <= self::PH_LAT[1] && (float)$lng >= self::PH_LNG[0] && (float)$lng <= self::PH_LNG[1],
+                "The map pin of the $label is outside the Philippines. Pin it again.");
+            $out[$k . '_lat'] = round((float)$lat, 7); $out[$k . '_lng'] = round((float)$lng, 7);
+        }
+        return $out;
+    }
+
+    /** Common delivery fields of the trip form. $currentSchedule = the saved schedule when editing. */
+    private static function deliveryFields(array $d, bool $needsKm, ?string $currentSchedule = null): array {
+        self::$scheduleWarning = '';
         $row = [
             'consignee' => ($c = optField($d, 'consignee', 120)) !== null ? strtoupper($c) : null,
             'pickup_point' => strtoupper(field($d, 'pickup_point', 200)),
             'delivery_point' => strtoupper(field($d, 'delivery_point', 200)),
-            'scheduled_at' => dateTimeField($d, 'scheduled_at'),
+            'scheduled_at' => self::scheduleField($d, $currentSchedule),
             'delivery_details' => optField($d, 'delivery_details', 500),
             'booking_reference' => optField($d, 'booking_reference', 150),
-            'units_planned' => intField($d, 'units_planned', 1, false),
+            'units_planned' => intField($d, 'units_planned', 1, false, 100),
             'container_number' => ($x = optField($d, 'container_number', 60)) !== null ? strtoupper($x) : null,
             'container_size' => optField($d, 'container_size', 20),
             'seal_number' => optField($d, 'seal_number', 60),
             'shipment_number' => optField($d, 'shipment_number', 60),
-            'distance_km' => numberField($d, 'distance_km', $needsKm),
-        ];
-        foreach (['pickup_lat', 'pickup_lng', 'delivery_lat', 'delivery_lng'] as $k) {
-            $v = trim((string)($d[$k] ?? ''));
-            $row[$k] = $v === '' ? null : (is_numeric($v) && abs((float)$v) <= 180 ? round((float)$v, 7) : null);
-        }
+            'distance_km' => numberField($d, 'distance_km', $needsKm, self::MAX_DISTANCE_KM),
+        ] + self::coordinates($d);
         must($row['pickup_point'] !== $row['delivery_point'], 'Pickup point and delivery point must be different.');
         if ($needsKm) must($row['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
-        must(strtotime($row['scheduled_at']) >= strtotime('-1 day'), 'The schedule cannot be more than one day in the past.');
         return $row;
     }
 
@@ -247,11 +282,20 @@ final class Trips {
         $isOps = hasRole($u, 'operations_head');
         $row = self::deliveryFields($d, $isOps);
         $row['client_id'] = idField($d, 'client_id');
+        // One key per opened New Trip form: the same form sent twice creates the trip once.
+        $key = trim((string)($d['request_key'] ?? ''));
+        must($key === '' || (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $key), 'Invalid form key. Reload the page.');
+        $row['request_key'] = $key === '' ? null : strtolower($key);
         $type = choiceField($d, 'truck_type', TRUCK_TYPES, $isOps);
         if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.');
         $row['truck_type'] = $type;
         if ($type === 'Car Carrier' && !$row['units_planned']) $row['units_planned'] = (int)Settings::value('units_per_trip');
         return transaction(function (PDO $p) use ($u, $row, $isOps) {
+            if ($row['request_key'] !== null && ($dup = one($p, 'SELECT id, trip_ref, created_by FROM trips WHERE request_key=?', [$row['request_key']]))) {
+                must((int)$dup['created_by'] === $u['id'], 'Invalid form key. Reload the page.', 409);
+                return ['trip_id' => (int)$dup['id'], 'trip_ref' => $dup['trip_ref'], 'duplicate' => true,
+                        'message' => 'Trip ' . $dup['trip_ref'] . ' was already created from this form (sent twice). No second trip was made.'];
+            }
             $c = one($p, 'SELECT company_name, status FROM clients WHERE id=?', [$row['client_id']]);
             must($c && $c['status'] === 'Active', 'Choose an Active client from the client masterlist (clients waiting for documents or rates cannot be used yet).');
             if ($row['truck_type']) must(self::hasRate($p, $row['client_id'], $row['truck_type']), $c['company_name'] . ' has no billing rate for ' . $row['truck_type'] . ' yet.');
@@ -268,7 +312,7 @@ final class Trips {
             if ($isOps) {
                 run($p, 'UPDATE trips SET approved_by=?, approved_at=NOW() WHERE id=?', [$u['id'], $id]);
                 $res = self::approveAndAssign($p, $u, self::lockTrip($p, $id));
-                return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Trip $ref created. " . $res];
+                return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Trip $ref created. " . $res . self::$scheduleWarning];
             }
             Notify::roles($p, ['operations_head'], 'Trip request', "New delivery request $ref from " . $u['full_name'] . ' is Pending Review.', 'trips', 'trip-review-' . $id);
             return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Request $ref sent to the Operations Head (Pending Review)."];
@@ -291,7 +335,7 @@ final class Trips {
                 Notify::user($p, (int)$t['created_by'], 'Trip request', $t['trip_ref'] . ' was rejected: ' . $reason, 'trips');
                 return ['message' => 'Request rejected.'];
             }
-            $row = self::deliveryFields($d, true);
+            $row = self::deliveryFields($d, true, (string)$t['scheduled_at']);
             $row['truck_type'] = choiceField($d, 'truck_type', TRUCK_TYPES);
             if ($row['truck_type'] === 'Car Carrier' && !$row['units_planned']) $row['units_planned'] = (int)Settings::value('units_per_trip');
             must(self::hasRate($p, (int)$t['client_id'], $row['truck_type']), 'This client has no billing rate for ' . $row['truck_type'] . ' yet.');
@@ -300,7 +344,7 @@ final class Trips {
             run($p, "UPDATE trips SET $cols, approved_by=?, approved_at=NOW() WHERE id=?", array_merge(array_values($row), [$u['id'], $id]));
             Notify::resolve($p, 'trip-review-' . $id);
             self::event($p, $u['id'], $id, 'trip details confirmed by Operations Head', 'Pending Review', 'Pending Review', $row['truck_type'] . ', ' . $row['distance_km'] . ' km');
-            return ['message' => self::approveAndAssign($p, $u, self::lockTrip($p, $id))];
+            return ['message' => self::approveAndAssign($p, $u, self::lockTrip($p, $id)) . self::$scheduleWarning];
         });
     }
 
@@ -312,10 +356,10 @@ final class Trips {
             must(!in_array($t['status'], self::CLOSED, true), 'The trip is already closed.', 409);
             if (hasRole($u, 'operations_head')) {
                 self::mustBeStatus($t, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery details');
-                $row = self::deliveryFields($d, true);
+                $row = self::deliveryFields($d, true, (string)$t['scheduled_at']);
             } else {
                 self::mustBeTripDispatcher($u, $t);
-                $row = ['booking_reference' => optField($d, 'booking_reference', 150), 'units_planned' => intField($d, 'units_planned', 1, false),
+                $row = ['booking_reference' => optField($d, 'booking_reference', 150), 'units_planned' => intField($d, 'units_planned', 1, false, 100),
                         'container_number' => ($x = optField($d, 'container_number', 60)) !== null ? strtoupper($x) : null,
                         'container_size' => optField($d, 'container_size', 20), 'seal_number' => optField($d, 'seal_number', 60),
                         'shipment_number' => optField($d, 'shipment_number', 60), 'delivery_details' => optField($d, 'delivery_details', 500)];
@@ -323,7 +367,7 @@ final class Trips {
             $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
             run($p, "UPDATE trips SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
             self::event($p, $u['id'], $id, 'trip details updated', $t['status'], $t['status']);
-            return ['message' => 'Trip details updated.'];
+            return ['message' => 'Trip details updated.' . self::$scheduleWarning];
         });
     }
 
@@ -528,7 +572,7 @@ final class Trips {
         $id = idField($d, 'trip_id');
         require_once __DIR__ . '/Inspections/Checklist.php';
         $check = Checklist::validate($d);
-        $km = intField($d, 'odometer_km', 0, false);
+        $km = intField($d, 'odometer_km', 0, false, 9999999);
         $fuel = optField($d, 'fuel_level', 20);
         $remarks = optField($d, 'remarks', 500);
         return transaction(function (PDO $p) use ($u, $id, $check, $km, $fuel, $remarks) {
@@ -674,8 +718,7 @@ final class Trips {
      */
     private static function reschedule(array $u, array $d): array {
         $id = idField($d, 'trip_id');
-        $when = dateTimeField($d, 'scheduled_at');
-        must(strtotime($when) >= strtotime('-1 hour'), 'The new schedule cannot be in the past.');
+        $when = futureDateTimeField($d, 'scheduled_at');
         return transaction(function (PDO $p) use ($u, $id, $when) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
@@ -706,7 +749,7 @@ final class Trips {
         $id = idField($d, 'trip_id');
         $when = dateTimeField($d, 'completed_at');
         $waybill = strtoupper(field($d, 'waybill_number', 100));
-        $units = intField($d, 'units_delivered', 0, false);
+        $units = intField($d, 'units_delivered', 0, false, 100);
         $notes = optField($d, 'delivery_notes', 500);
         return transaction(function (PDO $p) use ($u, $id, $when, $waybill, $units, $notes) {
             $t = self::lockTrip($p, $id);
@@ -751,7 +794,7 @@ final class Trips {
         $id = idField($d, 'trip_id');
         require_once __DIR__ . '/Inspections/Checklist.php';
         $check = Checklist::validate($d);
-        $km = intField($d, 'odometer_km', 0, false);
+        $km = intField($d, 'odometer_km', 0, false, 9999999);
         $fuel = choiceField($d, 'fuel_level', self::FUEL_LEVELS);
         $remarks = optField($d, 'remarks', 500);
         $damage = optField($d, 'damage_notes', 1000);

@@ -6,6 +6,16 @@
 -- =====================================================================
 SET NAMES utf8mb4;
 
+-- Record of applied database migrations (see database/migrations/). A fresh install
+-- already contains every change, so every migration is marked as applied.
+CREATE TABLE schema_migrations (
+  id VARCHAR(80) PRIMARY KEY,
+  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_migrations (id) VALUES
+  ('2026-11-04_account_security'), ('2026-11-05_arrival_checklist'), ('2026-11-05_checklist_timer'),
+  ('2026-11-06_00_schema_migrations'), ('2026-11-06_01_phase1_supplier_snapshot_and_trip_key');
+
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
 -- =====================================================================
@@ -24,6 +34,7 @@ SET NAMES utf8mb4;
 CREATE TABLE trips (
   id INT AUTO_INCREMENT PRIMARY KEY,
   trip_ref VARCHAR(32) NOT NULL UNIQUE,
+  request_key CHAR(36) NULL UNIQUE COMMENT 'one per New Trip form; blocks duplicate submissions',
   intake_source VARCHAR(20) NOT NULL COMMENT 'Operations Head (Scenario A) or Dispatcher (Scenario B)',
   created_by INT NOT NULL,
   client_id INT NOT NULL,
@@ -444,7 +455,12 @@ CREATE TABLE budgets (
 CREATE TABLE purchase_orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
   po_ref VARCHAR(32) NOT NULL UNIQUE,
-  supplier_id INT NOT NULL,
+  supplier_id INT NULL COMMENT 'old supplier masterlist link (purchase orders made before the snapshot)',
+  supplier_name VARCHAR(150) NULL COMMENT 'supplier details saved with the PO (snapshot)',
+  supplier_address VARCHAR(255) NULL,
+  supplier_contact VARCHAR(120) NULL COMMENT 'contact person',
+  supplier_phone VARCHAR(60) NULL,
+  supplier_email VARCHAR(120) NULL,
   part_request_id INT NULL COMMENT 'parts request that started this purchase, if any',
   purpose VARCHAR(255) NOT NULL,
   total_amount DECIMAL(14,2) NOT NULL,
@@ -466,6 +482,7 @@ CREATE TABLE purchase_orders (
   FOREIGN KEY (requested_by) REFERENCES users(id),
   FOREIGN KEY (decided_by) REFERENCES users(id),
   INDEX idx_po_status (status, payment_status),
+  INDEX idx_po_supplier_name (supplier_name),
   CONSTRAINT chk_po_status CHECK (status IN ('Pending Approval','Approved','Rejected','Rejected - Insufficient Budget','Partially Received','Received','Closed')),
   CONSTRAINT chk_po_pay CHECK (payment_status IS NULL OR payment_status IN ('Pending Payment','Partially Paid','Paid')),
   CONSTRAINT chk_po_amounts CHECK (total_amount > 0 AND reserved_amount >= 0 AND paid_amount >= 0 AND paid_amount <= total_amount),

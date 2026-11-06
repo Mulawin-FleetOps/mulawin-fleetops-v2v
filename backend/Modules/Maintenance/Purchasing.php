@@ -17,6 +17,14 @@
  *      two POs can never use the same remaining money) -> approved PO document with
  *      the approver's e-signature -> Finance sees it as Pending Payment ->
  *      receiving (partial allowed: "Partially Received") adds stock -> Finance pays.
+ *
+ *  SUPPLIER DETAILS (Nov 2026): the Purchasing Officer types the supplier in the PO form.
+ *  Name, address, contact person, phone and email are saved IN the purchase order
+ *  (supplier_name ... supplier_email = snapshot), so a PO always prints and pays with the
+ *  details it was approved with. Suppliers used before are offered as suggestions; no
+ *  supplier record is created. The old suppliers table is kept for purchase orders made
+ *  before this change (supplier_id), and every query reads the snapshot first:
+ *  COALESCE(o.supplier_name, s.name) with LEFT JOIN suppliers.
  * =====================================================================
  */
 declare(strict_types=1);
@@ -30,17 +38,17 @@ final class Purchasing {
         $data = readSections([
             'parts' => fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
                     (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock FROM parts pt ORDER BY pt.active DESC, pt.part_number"),
-            'suppliers' => fn() => many($p, 'SELECT * FROM suppliers ORDER BY active DESC, name'),
+            'supplierSuggestions' => fn() => self::supplierSuggestions($p),
             'requests' => fn() => many($p, "SELECT r.*, v.plate_number, m.job_ref, ru.full_name AS requested_by_name, pu.full_name AS processed_by_name,
                     (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
                        FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
                 FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
                 JOIN users ru ON ru.id=r.requested_by LEFT JOIN users pu ON pu.id=r.processed_by
                 ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available','Released','Cancelled'), r.id DESC LIMIT 500"),
-            'orders' => fn() => many($p, "SELECT o.*, s.name AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
+            'orders' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
                     (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value,
                     (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' ', l.received_qty, '/', l.quantity) SEPARATOR '; ') FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=o.id) AS items
-                FROM purchase_orders o JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
+                FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
                 ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500"),
             'movements' => fn() => many($p, "SELECT sm.*, pt.part_number, pt.description, v.plate_number, u.full_name AS actor FROM stock_movements sm JOIN parts pt ON pt.id=sm.part_id
                 LEFT JOIN vehicles v ON v.id=sm.vehicle_id JOIN users u ON u.id=sm.actor_id ORDER BY sm.id DESC LIMIT 500"),
@@ -54,6 +62,37 @@ final class Purchasing {
             'approveSmall' => hasRole($u, 'finance'), 'approveBig' => hasRole($u, 'admin'),
         ];
         return $data;
+    }
+
+    /**
+     * Suppliers used before, for the suggestions of the PO form. Per supplier name and per field,
+     * the newest non-empty value wins: purchase orders newest first, then the old masterlist.
+     */
+    private static function supplierSuggestions(PDO $p): array {
+        $out = [];
+        $add = function (array $r) use (&$out) {
+            $k = strtoupper(trim((string)$r['name']));
+            if ($k === '') return;
+            $out[$k] ??= ['name' => $k, 'address' => null, 'contact_person' => null, 'contact_number' => null, 'email' => null];
+            foreach (['address', 'contact_person', 'contact_number', 'email'] as $f) {
+                if (($out[$k][$f] ?? '') === '' && trim((string)($r[$f] ?? '')) !== '') $out[$k][$f] = $r[$f];
+            }
+        };
+        foreach (many($p, "SELECT supplier_name AS name, supplier_address AS address, supplier_contact AS contact_person, supplier_phone AS contact_number,
+                    supplier_email AS email FROM purchase_orders WHERE supplier_name IS NOT NULL ORDER BY id DESC LIMIT 2000") as $r) $add($r);
+        foreach (many($p, 'SELECT name, address, contact_person, contact_number, email FROM suppliers WHERE active=1') as $r) $add($r);
+        ksort($out);
+        return array_values($out);
+    }
+
+    /** Supplier details typed in the PO form (saved with the PO). */
+    private static function supplierSnapshot(array $d): array {
+        $name = strtoupper(preg_replace('/\s+/', ' ', field($d, 'supplier_name', 150)));
+        $row = ['supplier_name' => $name, 'supplier_address' => optField($d, 'supplier_address', 255),
+                'supplier_contact' => optField($d, 'supplier_contact', 120), 'supplier_phone' => phoneField($d, 'supplier_phone', 60),
+                'supplier_email' => ($e = optField($d, 'supplier_email', 120)) !== null ? strtolower($e) : null];
+        if ($row['supplier_email'] !== null) must((bool)filter_var($row['supplier_email'], FILTER_VALIDATE_EMAIL), 'Enter a valid supplier email address.');
+        return $row;
     }
 
     public static function action(array $u, string $action, array $d): array {
@@ -111,7 +150,7 @@ final class Purchasing {
     private static function supplierSave(array $u, array $d): array {
         requireRole($u, 'purchasing');
         $id = optId($d, 'id');
-        $row = ['name' => strtoupper(field($d, 'name', 150)), 'contact_person' => optField($d, 'contact_person', 120), 'contact_number' => optField($d, 'contact_number', 60),
+        $row = ['name' => strtoupper(field($d, 'name', 150)), 'contact_person' => optField($d, 'contact_person', 120), 'contact_number' => phoneField($d, 'contact_number', 60),
                 'email' => optField($d, 'email', 120), 'address' => optField($d, 'address', 255), 'active' => isset($d['active']) ? (!empty($d['active']) ? 1 : 0) : 1];
         if ($row['email']) must((bool)filter_var($row['email'], FILTER_VALIDATE_EMAIL), 'Enter a valid email.');
         return transaction(function (PDO $p) use ($u, $id, $row) {
@@ -131,6 +170,7 @@ final class Purchasing {
         $partId = idField($d, 'part_id');
         $delta = filter_var($d['quantity_delta'] ?? null, FILTER_VALIDATE_INT);
         must($delta !== false && $delta !== 0, 'Enter the quantity to add (e.g. 5) or remove (e.g. -2).');
+        must(abs((int)$delta) <= MAX_QUANTITY, 'The adjustment cannot be more than ' . number_format(MAX_QUANTITY) . ' at a time.');
         $reason = field($d, 'reason', 150);
         return transaction(function (PDO $p) use ($u, $partId, $delta, $reason) {
             $pt = one($p, 'SELECT * FROM parts WHERE id=?', [$partId]);
@@ -148,7 +188,7 @@ final class Purchasing {
             if (!is_array($l) || empty($l['part_id'])) continue;
             $pid = idField($l, 'part_id');
             must(!isset($out[$pid]), 'The same part was entered twice; combine the quantity in one line.');
-            $out[$pid] = ['part_id' => $pid, 'quantity' => intField($l, $qtyKey, 1)] + (isset($l['unit_price']) ? ['unit_price' => moneyField($l, 'unit_price')] : []);
+            $out[$pid] = ['part_id' => $pid, 'quantity' => intField($l, $qtyKey, 1, true, MAX_QUANTITY)] + (isset($l['unit_price']) ? ['unit_price' => moneyField($l, 'unit_price')] : []);
         }
         must((bool)$out, 'Add at least one item.');
         must(count($out) <= 30, 'At most 30 items per form.');
@@ -228,7 +268,7 @@ final class Purchasing {
     // ---------------------------------------------------------------- purchase orders (stock-in)
     private static function poCreate(array $u, array $d): array {
         requireRole($u, 'purchasing');
-        $supplier = idField($d, 'supplier_id');
+        $supplier = self::supplierSnapshot($d);
         $purpose = field($d, 'purpose', 255);
         $reqId = optId($d, 'part_request_id');
         $lines = self::lines($d);
@@ -237,16 +277,15 @@ final class Purchasing {
         $threshold = Settings::value('purchase_approval_threshold');
         $approver = $total <= $threshold ? 'finance' : 'admin';
         return transaction(function (PDO $p) use ($u, $supplier, $purpose, $reqId, $lines, $total, $approver, $threshold) {
-            must((bool)one($p, 'SELECT id FROM suppliers WHERE id=? AND active=1', [$supplier]), 'Choose an active supplier.');
             if ($reqId) must((bool)one($p, 'SELECT id FROM part_requests WHERE id=?', [$reqId]), 'Parts request not found.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'supplier_id' => $supplier, 'part_request_id' => $reqId, 'purpose' => $purpose,
+            $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'part_request_id' => $reqId, 'purpose' => $purpose] + $supplier + [
                 'total_amount' => number_format($total, 2, '.', ''), 'approver_role' => $approver, 'status' => 'Pending Approval', 'requested_by' => $u['id']]);
             $ref = refNumber('PO', $id);
             run($p, 'UPDATE purchase_orders SET po_ref=? WHERE id=?', [$ref, $id]);
             foreach ($lines as $l) insert($p, 'purchase_order_lines', ['purchase_order_id' => $id, 'part_id' => $l['part_id'], 'quantity' => $l['quantity'],
                 'unit_price' => $l['unit_price'], 'line_total' => number_format($l['quantity'] * (float)$l['unit_price'], 2, '.', '')]);
-            audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order request created', "$ref PHP " . number_format($total, 2) . ' -> ' . ($approver === 'finance' ? 'Finance' : 'Admin'));
+            audit($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order request created', "$ref " . $supplier['supplier_name'] . ' PHP ' . number_format($total, 2) . ' -> ' . ($approver === 'finance' ? 'Finance' : 'Admin'));
             Notify::roles($p, [$approver], 'PO approval', "Purchase order $ref (PHP " . number_format($total, 2) . ') is waiting for your approval.', 'purchasing', 'po-approve-' . $id);
             return ['message' => "Purchase order $ref (PHP " . number_format($total, 2) . ') sent to ' . ($approver === 'finance' ? 'Finance (PHP ' . number_format($threshold) . ' and below)' : 'the Admin (above PHP ' . number_format($threshold) . ')') . ' for approval.'];
         });
@@ -357,9 +396,11 @@ final class Purchasing {
     private static function poDetails(array $u, array $d): array {
         must(Access::canOpen($u, 'purchasing') || Access::canOpen($u, 'finance'), 'Not allowed.', 403);
         $id = idField($d, 'po_id'); $p = db();
-        $o = one($p, 'SELECT o.*, s.name AS supplier, s.address AS supplier_address, s.contact_person AS supplier_contact, s.contact_number AS supplier_phone,
+        $o = one($p, 'SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, COALESCE(o.supplier_address, s.address) AS supplier_address,
+                COALESCE(o.supplier_contact, s.contact_person) AS supplier_contact, COALESCE(o.supplier_phone, s.contact_number) AS supplier_phone,
+                COALESCE(o.supplier_email, s.email) AS supplier_email,
                 ru.full_name AS requested_by_name, du.full_name AS decided_by_name, du.signature_document_id AS approver_signature, r.request_ref
-            FROM purchase_orders o JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
+            FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
             LEFT JOIN part_requests r ON r.id=o.part_request_id WHERE o.id=?', [$id]);
         must((bool)$o, 'Purchase order not found.', 404);
         return ['po' => $o,

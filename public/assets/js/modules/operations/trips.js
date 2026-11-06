@@ -122,8 +122,11 @@ const TripUI = {
       { name: 'consignee', label: 'Consignee / brand', col: 4, value: t.consignee, attrs: 'list="dlConsignee"', placeholder: 'e.g. JETOUR, COCA COLA' },
       { name: 'truck_type', label: 'Truck type', type: 'select', options: UI.list(types), value: t.truck_type || (types.length === 1 ? types[0] : ''), required: opts.needsKm, col: 4,
         help: 'Decides the dispatcher team: Car Carrier, or Container / Wing Van.' },
-      { name: 'scheduled_at', label: 'Scheduled date and time', type: 'datetime', required: true, col: 4, value: t.scheduled_at ? String(t.scheduled_at).slice(0, 16).replace(' ', 'T') : '' },
-      { name: 'distance_km', label: 'Billable distance (km)', type: 'number', step: '0.01', required: opts.needsKm, col: 4, value: t.distance_km,
+      { name: 'scheduled_at', label: 'Scheduled date and time', type: 'datetime', required: true, col: 4, value: t.scheduled_at ? String(t.scheduled_at).slice(0, 16).replace(' ', 'T') : '',
+        // New schedule: now or later (Philippine time), at most 365 days ahead. An unchanged past schedule of an existing trip may stay.
+        attrs: `min="${t.scheduled_at && String(t.scheduled_at).slice(0, 16).replace(' ', 'T') < UI.nowManila() ? String(t.scheduled_at).slice(0, 16).replace(' ', 'T') : UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`,
+        help: 'Present or future date and time (Philippine time).' },
+      { name: 'distance_km', label: 'Billable distance (km)', type: 'number', step: '0.01', min: 0, attrs: 'max="3000"', required: opts.needsKm, col: 4, value: t.distance_km,
         help: 'Pickup point to delivery point. Billing = km x client rate.' },
       { name: 'pickup_point', label: 'Pickup point', required: true, col: 6, value: t.pickup_point, attrs: 'list="dlPlaces"' },
       { name: 'delivery_point', label: 'Delivery point', required: true, col: 6, value: t.delivery_point, attrs: 'list="dlPlaces"' },
@@ -193,7 +196,7 @@ const TripUI = {
     const section = (n, title, desc, body) => `<section class="form-section"><div class="form-section-head"><span class="form-section-num">${n}</span><div>
       <h2 class="form-section-title">${title}</h2><p class="form-section-desc">${desc}</p></div></div><div class="form-section-body">${body}</div></section>`;
     const clients = (d.clients || []);
-    ctx.el.innerHTML = `<form class="form-page" id="ntForm" novalidate>${TripUI.datalists()}
+    ctx.el.innerHTML = `<form class="form-page" id="ntForm" novalidate>${TripUI.datalists()}<input type="hidden" name="request_key" value="${UI.uuid()}">
       <div>
         <div class="alert alert-danger form-error" role="alert"></div>
         ${clients.length ? '' : '<div class="alert alert-warning">No Active client with a billing rate yet. Billing must set the client\'s rate first (Client Masterlist).</div>'}
@@ -242,6 +245,9 @@ const TripUI = {
       const missing = [...form.querySelectorAll('[required]')].filter(x => x.offsetParent !== null).find(x => !String(x.value).trim());
       if (missing) return fail('Please fill in: ' + (form.querySelector(`label[for="${missing.id}"]`)?.textContent || missing.name).replace(/\s*\*$/, ''), missing);
       const big = [...files.files].find(f => f.size > 10000000); if (big) return fail(big.name + ' is larger than 10 MB.', files);
+      const when = form.querySelector('[name=scheduled_at]');
+      if (when.value && when.value < UI.nowManila(-5)) return fail('The schedule cannot be earlier than the current date and time (' + UI.nowManila().replace('T', ' ') + ', Philippine time).', when);
+      if (when.value && when.value > UI.nowManila(365 * 1440)) return fail('The schedule cannot be more than 365 days ahead. Check the year.', when);
       if (!form.querySelector('#ntConfirm').checked) return fail('Please check the pickup and destination addresses, then tick the confirmation box.', form.querySelector('#ntConfirm'));
       const btn = form.querySelector('button[type=submit]'), label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving…';
       try {
@@ -541,7 +547,7 @@ const TripUI = {
       if (a === 'complete') TripUI.complete(t);
       if (a === 'incident') TripUI.incident(t);
       if (a === 'resume') UI.confirmAction('Resume ' + UI.esc(t.trip_ref), 'The trip continues (In Transit). This is not a second attempt.', 'Trips.resume', { trip_id: t.id }, { submit: 'Resume trip' });
-      if (a === 'reschedule') UI.formModal('Reschedule ' + UI.esc(t.trip_ref), [{ name: 'scheduled_at', label: 'New dispatch schedule', type: 'datetime', required: true, col: 12 }], 'Trips.reschedule',
+      if (a === 'reschedule') UI.formModal('Reschedule ' + UI.esc(t.trip_ref), [{ name: 'scheduled_at', label: 'New dispatch schedule', type: 'datetime', required: true, col: 12, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`, help: 'Present or future date and time (Philippine time).' }], 'Trips.reschedule',
         { extra: { trip_id: t.id }, intro: 'After rescheduling, do the pre-dispatch checklist again. Confirm Redispatch records the Second Attempt.', after: () => { TripUI.open(t.id); App.route(); } });
       if (a === 'progress') TripUI.progress(t);
       if (a === 'printfund') FundUI.print(fund.id);

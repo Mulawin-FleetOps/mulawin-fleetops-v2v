@@ -66,8 +66,11 @@ final class Admin {
         };
     }
 
-    private static function strongPassword(string $pw): void {
+    /** Password policy. $confirm = the "type it again" field; checked here on the server, never stored. */
+    public static function strongPassword(string $pw, ?string $confirm = null): void {
         must(strlen($pw) >= PASSWORD_MIN_LENGTH, 'Password must have at least ' . PASSWORD_MIN_LENGTH . ' characters.');
+        must(strlen($pw) <= PASSWORD_MAX_BYTES, 'Password is too long (max ' . PASSWORD_MAX_BYTES . ' characters).');
+        if ($confirm !== null) must(hash_equals($pw, $confirm), 'The password and the confirmation do not match.');
         must(preg_match('/[A-Za-z]/', $pw) && preg_match('/\d/', $pw), 'Password must have letters and numbers.');
     }
 
@@ -97,7 +100,7 @@ final class Admin {
             }
             $username = field($d, 'username', 70);
             must((bool)preg_match('/^[a-zA-Z0-9_.-]{3,70}$/', $username), 'Username: 3-70 letters, numbers, dot, dash or underscore.');
-            $pw = field($d, 'password', 255); self::strongPassword($pw);
+            $pw = field($d, 'password', 255); self::strongPassword($pw, field($d, 'password_confirm', 255, false));
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
                 'full_name' => $name, 'role' => $role, 'shift' => $shift]);
@@ -122,7 +125,7 @@ final class Admin {
 
     private static function userPassword(array $u, array $d): array {
         requireRole($u, 'admin');
-        $id = idField($d, 'user_id'); $pw = field($d, 'password', 255); self::strongPassword($pw);
+        $id = idField($d, 'user_id'); $pw = field($d, 'password', 255); self::strongPassword($pw, field($d, 'password_confirm', 255, false));
         return transaction(function (PDO $p) use ($u, $id, $pw) {
             must((bool)one($p, 'SELECT id FROM users WHERE id=?', [$id]), 'User not found.', 404);
             run($p, 'UPDATE users SET password_hash=? WHERE id=?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
@@ -134,7 +137,7 @@ final class Admin {
 
     private static function changePassword(array $u, array $d): array {
         $current = field($d, 'current_password', 255); $new = field($d, 'new_password', 255);
-        self::strongPassword($new);
+        self::strongPassword($new, field($d, 'confirm', 255, false));
         must($new !== $current, 'Choose a different password.');
         return transaction(function (PDO $p) use ($u, $current, $new) {
             $row = one($p, 'SELECT password_hash FROM users WHERE id=?', [$u['id']]);

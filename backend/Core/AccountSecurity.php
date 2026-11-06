@@ -3,7 +3,7 @@
  * =====================================================================
  *  backend/Core/AccountSecurity.php  —  simpleng proteksyon ng accounts
  * =====================================================================
- *  Walang email o SMS ang system, kaya ganito ang proteksyon (walang dagdag na setup):
+ *  Dagdag sa email login code (Core/Otp.php), ganito pa ang proteksyon ng accounts:
  *  1. Lock ng account: 5 maling password (kahit saang computer) = naka-lock nang 15 minuto.
  *  2. Recovery code ng Admin: isang code na ipi-print at itatago. Kapag nakalimutan o na-hack ang
  *     Admin password, gamitin ito sa login page ("Forgot the Admin password?"). Isang beses lang gumagana.

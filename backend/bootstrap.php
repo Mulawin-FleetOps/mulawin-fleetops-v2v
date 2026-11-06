@@ -156,20 +156,54 @@ function optMoney(array $d, string $key): ?string {
     $v = trim((string)($d[$key] ?? ''));
     return $v === '' ? null : moneyField($d, $key, true);
 }
-/** Whole number >= $min. */
-function intField(array $d, string $key, int $min = 0, bool $required = true): ?int {
+/** Largest whole number accepted in quantity fields (keeps values inside the INT columns). */
+const MAX_QUANTITY = 100000;
+
+/** Whole number >= $min (and <= $max when given). */
+function intField(array $d, string $key, int $min = 0, bool $required = true, ?int $max = null): ?int {
     $raw = $d[$key] ?? '';
     if (!$required && ($raw === '' || $raw === null)) return null;
     $v = filter_var($raw, FILTER_VALIDATE_INT);
-    must($v !== false && $v >= $min, ucfirst(str_replace('_', ' ', $key)) . " must be a whole number of at least $min.");
+    $label = ucfirst(str_replace('_', ' ', $key));
+    must($v !== false && $v >= $min, "$label must be a whole number of at least $min.");
+    if ($max !== null) must($v <= $max, "$label cannot be more than " . number_format($max) . '.');
     return (int)$v;
 }
-/** Decimal number >= 0. */
-function numberField(array $d, string $key, bool $required = true): ?float {
+/** Decimal number >= 0 with up to 2 decimals (no "1e3" style input). $max = optional upper limit. */
+function numberField(array $d, string $key, bool $required = true, ?float $max = null): ?float {
     $raw = trim(str_replace(',', '', (string)($d[$key] ?? '')));
+    $label = ucfirst(str_replace('_', ' ', $key));
     if (!$required && $raw === '') return null;
-    must(is_numeric($raw) && (float)$raw >= 0, ucfirst(str_replace('_', ' ', $key)) . ' must be a number.');
+    must((bool)preg_match('/^\d{1,9}(?:\.\d{1,2})?$/', $raw), "$label must be a number (up to 2 decimals).");
+    if ($max !== null) must((float)$raw <= $max, "$label cannot be more than " . number_format($max) . '.');
     return (float)$raw;
+}
+/**
+ * Optional phone number: digits, spaces and + ( ) - only, with 7 to 15 digits
+ * (e.g. 0917 123 4567, +63 917 123 4567, (043) 723-8890). Returns null when empty.
+ */
+function phoneField(array $d, string $key, int $maxLength = 60, bool $required = false): ?string {
+    $v = field($d, $key, $maxLength, $required);
+    if ($v === '') return null;
+    $digits = strlen(preg_replace('/\D/', '', $v));
+    must((bool)preg_match('/^[0-9+()\-\s]+$/', $v) && $digits >= 7 && $digits <= 15,
+        ucfirst(str_replace('_', ' ', $key)) . ' must be a phone number: 7 to 15 digits; only + ( ) - and spaces are allowed (example: 0917 123 4567).');
+    return $v;
+}
+/**
+ * Trip schedule from <input type="datetime-local">, checked against the current time in
+ * APP_TIMEZONE (Asia/Manila), never the browser clock.
+ *   - must not be earlier than now minus SCHEDULE_GRACE_MINUTES (time spent filling in the form)
+ *   - must not be more than SCHEDULE_MAX_DAYS ahead (catches typing mistakes such as year 2062)
+ */
+const SCHEDULE_GRACE_MINUTES = 5;
+const SCHEDULE_MAX_DAYS = 365;
+function futureDateTimeField(array $d, string $key, string $label = 'The schedule'): string {
+    $v = dateTimeField($d, $key);
+    must(strtotime($v) >= time() - SCHEDULE_GRACE_MINUTES * 60,
+        "$label cannot be earlier than the current date and time (" . date('Y-m-d H:i') . ', Philippine time).');
+    must(strtotime($v) <= time() + SCHEDULE_MAX_DAYS * 86400, "$label cannot be more than " . SCHEDULE_MAX_DAYS . ' days ahead. Check the year.');
+    return $v;
 }
 /** Date YYYY-MM-DD. */
 function dateField(array $d, string $key, bool $required = true): ?string {
@@ -239,6 +273,8 @@ const TRUCK_TYPES = ['Car Carrier', 'Container', 'Wing Van'];
 // Minimum password length. Palitan ang numero kung gusto ng mas mahaba o mas maikli.
 // Kailangan din may letra at numero ang password (halimbawa: test1234).
 const PASSWORD_MIN_LENGTH = 8;
+// The password hash (bcrypt) ignores everything after 72 bytes, so longer passwords are refused.
+const PASSWORD_MAX_BYTES = 72;
 
 function allowedRoles(): array { return array_keys(ROLE_LABELS); }
 function roleIsDispatcher(string $role): bool {

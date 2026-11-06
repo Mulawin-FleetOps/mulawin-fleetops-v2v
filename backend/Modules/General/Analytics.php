@@ -395,7 +395,7 @@ final class Analytics {
             FROM parts pt LEFT JOIN stock_movements sm ON sm.part_id=pt.id AND DATE(sm.created_at) BETWEEN ? AND ? GROUP BY pt.id ORDER BY stock_out DESC, pt.part_number", [$from, $to]);
         $perTruck = many($p, "SELECT v.plate_number AS name, SUM(-sm.quantity_delta) AS qty, SUM(-sm.quantity_delta*sm.unit_cost) AS value FROM stock_movements sm JOIN vehicles v ON v.id=sm.vehicle_id
             WHERE sm.movement_type='Stock Out' AND DATE(sm.created_at) BETWEEN ? AND ? GROUP BY v.plate_number ORDER BY value DESC", [$from, $to]);
-        $partial = many($p, "SELECT o.po_ref, s.name AS supplier, o.total_amount, o.status, o.payment_status FROM purchase_orders o JOIN suppliers s ON s.id=o.supplier_id WHERE o.status='Partially Received' ORDER BY o.id");
+        $partial = many($p, "SELECT o.po_ref, COALESCE(o.supplier_name, s.name) AS supplier, o.total_amount, o.status, o.payment_status FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id WHERE o.status='Partially Received' ORDER BY o.id");
         return [
             'title' => 'Inventory',
             'cards' => [

@@ -188,7 +188,7 @@ const App = {
       if (f.new_password !== f.confirm) return this.recoverScreen('The new passwords do not match.');
       try {
         const w = await this.request('index.php?api=whoami'); this.csrf = w.csrf;
-        const r = await this.request('index.php?api=recover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: f.username, code: f.code, new_password: f.new_password, csrf: this.csrf }) });
+        const r = await this.request('index.php?api=recover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: f.username, code: f.code, new_password: f.new_password, confirm: f.confirm, csrf: this.csrf }) });
         this.loginScreen(r.data?.message || 'Password reset.', f.username, true);
       } catch (err) { this.recoverScreen(err.message); }
     };
@@ -389,6 +389,16 @@ UI.money = (v) => (v === null || v === undefined || v === '') ? '—' : '₱' + 
 UI.num = (v, d = 0) => (v === null || v === undefined || v === '') ? '—' : Number(v).toLocaleString('en-PH', { maximumFractionDigits: d });
 UI.date = (v) => v ? new Date(String(v).replace(' ', 'T')).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 UI.datetime = (v) => v ? new Date(String(v).replace(' ', 'T')).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+/** Current date and time in the Philippines as YYYY-MM-DDTHH:MM (for datetime-local min/max), whatever the PC timezone. */
+UI.nowManila = (addMinutes = 0) => {
+  const d = new Date(Date.now() + addMinutes * 60000);
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+};
+/** Random id for one form (duplicate-submit protection). Works on http:// too, where crypto.randomUUID is missing. */
+UI.uuid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = crypto.getRandomValues(new Uint8Array(1))[0] & 15; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
 UI.today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 UI.label = (role) => (App.me && App.me.roles[role]) || role;
 UI.role = (...roles) => App.me && roles.includes(App.me.user.role);

@@ -30,9 +30,9 @@ final class Finance {
         if (!DateTimeImmutable::createFromFormat('!Y-m-d', $from)) $from = date('Y-m-01');
         if (!DateTimeImmutable::createFromFormat('!Y-m-d', $to)) $to = date('Y-m-d');
         $data = readSections([
-            'poPayables' => fn() => many($p, "SELECT o.*, s.name AS supplier, du.full_name AS approved_by_name,
+            'poPayables' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, du.full_name AS approved_by_name,
                     (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value
-                FROM purchase_orders o JOIN suppliers s ON s.id=o.supplier_id LEFT JOIN users du ON du.id=o.decided_by
+                FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id LEFT JOIN users du ON du.id=o.decided_by
                 WHERE o.payment_status IN ('Pending Payment','Partially Paid') ORDER BY o.id"),
             'payables' => fn() => many($p, "SELECT pa.*, (pa.amount-pa.paid_amount) AS balance, v.plate_number, s.name AS supplier FROM payables pa
                 LEFT JOIN vehicles v ON v.id=pa.vehicle_id LEFT JOIN suppliers s ON s.id=pa.supplier_id ORDER BY FIELD(pa.status,'Unpaid','Partially Paid','Paid'), pa.due_on, pa.id DESC LIMIT 500"),
@@ -74,7 +74,7 @@ final class Finance {
         $pay = Money::paymentFields($d);
         must(Files::has('or_doc'), 'Attach the official receipt or payment confirmation.', 422);
         return transaction(function (PDO $p) use ($u, $id, $amount, $invoice, $pay) {
-            $o = one($p, 'SELECT o.*, s.name AS supplier FROM purchase_orders o JOIN suppliers s ON s.id=o.supplier_id WHERE o.id=? FOR UPDATE', [$id]);
+            $o = one($p, 'SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id WHERE o.id=? FOR UPDATE', [$id]);
             must((bool)$o, 'Purchase order not found.', 404);
             must(in_array($o['payment_status'], ['Pending Payment', 'Partially Paid'], true), 'This purchase order is not waiting for payment.', 409);
             $received = (float)one($p, 'SELECT COALESCE(SUM(received_qty*unit_price),0) AS v FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['v'];

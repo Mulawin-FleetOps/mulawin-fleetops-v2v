@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-06 (Phase 1: validation and purchasing)
+- **Supplier typed in the purchase order.** The PO form has Supplier name (required), address, contact person,
+  contact number and email (optional) instead of the supplier dropdown. The details are saved IN the purchase order
+  (snapshot), so the PO prints and is paid with the details it was approved with. Suppliers used before are suggested
+  and fill in their details; no supplier record is created. The Suppliers tab is hidden; the `suppliers` table is kept
+  for old purchase orders. Finance payables, PO payment (voucher and expense payee), PO printing and the
+  partially-received report read the snapshot first. Finance "Add payable": the supplier dropdown is removed (Payee is typed).
+- **Trip schedule.** New trips, new dispatcher requests, changed schedules and reschedules must be the current date
+  and time or later (Philippine time, 5-minute grace for filling in the form) and at most 365 days ahead. Before,
+  up to one day in the past was accepted. Editing a trip that is not dispatched yet without changing its schedule
+  still saves, with a warning that the schedule has passed. The date picker uses Philippine time, not the PC clock.
+- **Duplicate trips blocked.** Each New Trip form has a key; sending the same form twice creates one trip.
+- **Validation fixes:** a driver always needs the license number and expiry (also on edit, and when a helper is changed
+  to driver); map pins must be complete and inside the Philippines; billable distance up to 3,000 km with at most
+  2 decimals; quantities up to 100,000 (no more database errors on huge numbers); phone numbers checked for clients,
+  drivers/helpers and suppliers (7 to 15 digits); passwords at most 72 characters (the hash ignores the rest).
+- **Confirm password checked on the server:** new account, Admin "Set new password" (new confirmation field),
+  own password change and Admin recovery. The confirmation is never stored.
+- Database: `database/migrations/2026-11-06_00_schema_migrations.sql` (record of applied migrations; a migration
+  imported twice now stops before changing anything) and `2026-11-06_01_phase1_supplier_snapshot_and_trip_key.sql`.
+
 ## 2026-11-05 (checklist timer)
 - **Minimum checklist duration** (PDF #11 section G, "such as 15 minutes"), for both the pre-dispatch and the arrival
   checklist. The timer starts on the server when the dispatcher opens the checklist (closing and reopening does not

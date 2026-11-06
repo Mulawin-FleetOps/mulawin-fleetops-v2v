@@ -74,7 +74,7 @@ final class Clients {
             'business_address' => field($d, 'business_address', 255),
             'contact_person' => field($d, 'contact_person', 120),
             'contact_position' => optField($d, 'contact_position', 80),
-            'contact_number' => field($d, 'contact_number', 60),
+            'contact_number' => phoneField($d, 'contact_number', 60, true),
             'email' => optField($d, 'email', 120),
             'notes' => optField($d, 'notes', 255),
         ];

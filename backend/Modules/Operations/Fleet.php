@@ -209,14 +209,16 @@ final class Fleet {
             'full_name' => $name,
             'person_type' => choiceField($d, 'person_type', ['Driver', 'Helper']),
             'employee_no' => optField($d, 'employee_no', 40),
-            'contact_number' => optField($d, 'contact_number', 60),
+            'contact_number' => phoneField($d, 'contact_number', 60),
             'address' => optField($d, 'address', 255),
             'license_number' => ($l = optField($d, 'license_number', 60)) !== null ? strtoupper($l) : null,
             'license_expiry' => dateField($d, 'license_expiry', false),
             'date_hired' => dateField($d, 'date_hired', false),
             'notes' => optField($d, 'notes', 255),
         ];
-        if ($row['person_type'] === 'Driver') must($row['license_number'] !== null && $row['license_expiry'] !== null || $id !== null, "A driver needs the driver's license number and expiry date.");
+        // Every save of a DRIVER needs the license (new records, edits, and a helper changed to driver).
+        // Old records without a license are not touched until someone edits them.
+        if ($row['person_type'] === 'Driver') must($row['license_number'] !== null && $row['license_expiry'] !== null, "A driver needs the driver's license number and expiry date.");
         return transaction(function (PDO $p) use ($u, $id, $row) {
             must(!one($p, 'SELECT id FROM personnel WHERE full_name=? AND person_type=? AND id<>?', [$row['full_name'], $row['person_type'], $id ?? 0]), $row['full_name'] . ' is already in the ' . $row['person_type'] . ' masterlist.', 409);
             if ($row['license_number']) must(!one($p, 'SELECT id FROM personnel WHERE license_number=? AND id<>?', [$row['license_number'], $id ?? 0]), 'License number ' . $row['license_number'] . ' belongs to another person.', 409);

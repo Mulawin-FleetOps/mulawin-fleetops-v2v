@@ -134,6 +134,8 @@ if (isset($_GET['api'])) {
                     fail('Wrong Admin username or recovery code.', 401);
                 }
                 must(strlen($new) >= PASSWORD_MIN_LENGTH && preg_match('/[A-Za-z]/', $new) && preg_match('/\d/', $new), 'Password must have at least ' . PASSWORD_MIN_LENGTH . ' characters with letters and numbers.');
+                must(strlen($new) <= PASSWORD_MAX_BYTES, 'Password is too long (max ' . PASSWORD_MAX_BYTES . ' characters).');
+                must(hash_equals($new, field($d, 'confirm', 255, false)), 'The new password and the confirmation do not match.');
                 run(db(), 'UPDATE users SET password_hash=?, recovery_hash=NULL WHERE id=?', [password_hash($new, PASSWORD_DEFAULT), $row['id']]);
                 AccountSecurity::passwordChanged((int)$row['id']); // lahat ng lumang session ng account ay mala-log out
                 audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'password reset with recovery code', 'old sessions signed out; recovery code used up');

@@ -13,9 +13,11 @@ App.page('admin', {
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
         { name: 'email', label: 'Email (login codes are sent here)', type: 'email', required: true, col: 6, value: u.email },
-        ...(u.id ? [] : [{ name: 'password', label: 'Password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password"', help: (App.me.passwordMin || 8) + '+ characters with letters and numbers. Give it to the user privately.' }]),
+        ...(u.id ? [] : [{ name: 'password', label: 'Password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password" maxlength="72"', help: (App.me.passwordMin || 8) + '+ characters with letters and numbers. Give it to the user privately.' },
+          { name: 'password_confirm', label: 'Confirm password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Type the same password again.' }]),
         { name: 'role', label: 'Role', type: 'select', options: roles, required: true, col: 6, value: u.role },
-        { name: 'shift', label: 'Shift (dispatchers)', type: 'select', options: UI.list(['Day', 'Night']), col: 6, value: u.shift }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {} });
+        { name: 'shift', label: 'Shift (dispatchers)', type: 'select', options: UI.list(['Day', 'Night']), col: 6, value: u.shift }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
+          transform: (x) => { if (!u.id && x.password !== x.password_confirm) throw new Error('The password and the confirmation do not match.'); return x; } });
       const role = wrap.querySelector('[name=role]'), shift = wrap.querySelector('[name=shift]').closest('[class*=col-]');
       const t = () => { shift.style.display = /dispatcher/.test(role.value) ? '' : 'none'; }; role.onchange = t; t();
     };
@@ -28,7 +30,9 @@ App.page('admin', {
             actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Set new password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
             onAction: (a, u) => {
               if (a === 'edit') userForm(u);
-              if (a === 'pw') UI.formModal('Set a new password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"', help: 'Give it to the user privately. Their open sessions are signed out; logging in still needs the email code.' }], 'Admin.user_password', { extra: { user_id: u.id }, size: '' });
+              if (a === 'pw') UI.formModal('Set a new password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Give it to the user privately. Their open sessions are signed out; logging in still needs the email code.' },
+                { name: 'password_confirm', label: 'Confirm new password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"' }], 'Admin.user_password',
+                { extra: { user_id: u.id }, size: '', transform: (x) => { if (x.password !== x.password_confirm) throw new Error('The passwords do not match.'); return x; } });
               if (a === 'toggle') UI.confirmAction((+u.active ? 'Deactivate ' : 'Activate ') + UI.esc(u.full_name), +u.active ? 'The user can no longer log in. Records made by this user are kept.' : 'The user can log in again.', 'Admin.user_toggle', { user_id: u.id, active: +u.active ? 0 : 1 }, { danger: +u.active });
             } });
         setTimeout(() => body.querySelector('[data-adduser]')?.addEventListener('click', () => userForm()), 0);

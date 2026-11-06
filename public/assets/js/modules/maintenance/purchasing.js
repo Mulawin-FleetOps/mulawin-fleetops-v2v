@@ -3,6 +3,8 @@
    B. Purchase order (stock-in): Purchasing creates -> routed to Finance (<= limit) or Admin
       (> limit) -> budget check -> approved PO (with e-signature) -> receiving (partial allowed).
    Printable REQUEST FORM (PDF #13) and PURCHASE ORDER.
+   Supplier details are typed in the PO form and saved with the PO (no supplier masterlist tab);
+   suppliers used before are suggested and fill in their address and contact.
    Backend: backend/Modules/Maintenance/Purchasing.php (payment: Accounting/Finance.php) */
 'use strict';
 const PurUI = {
@@ -11,7 +13,7 @@ const PurUI = {
     const parts = PurUI.data.parts.filter(p => +p.active);
     const row = (l = {}) => `<div class="row g-2 mb-1 pl-row"><div class="col-${withPrice ? 6 : 9}"><select class="form-select form-select-sm" data-part><option value="">Choose part…</option>
         ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.part_number)} · ${UI.esc(p.description)} (on hand ${p.quantity_on_hand} ${UI.esc(p.unit)})</option>`).join('')}</select></div>
-      <div class="col-${withPrice ? 2 : 3}"><input class="form-control form-control-sm" type="number" min="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
+      <div class="col-${withPrice ? 2 : 3}"><input class="form-control form-control-sm" type="number" min="1" max="100000" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
       ${withPrice ? `<div class="col-2"><input class="form-control form-control-sm" type="number" min="0" step="0.01" placeholder="Unit price" data-price value="${UI.esc(l.unit_price || '')}"></div><div class="col-2 small text-end pt-1" data-lt></div>` : ''}</div>`;
     const rows = (lines.length ? lines : [{}, {}, {}]).map(row).join('');
     return `<div class="small text-muted mb-1">${withPrice ? 'Part · Qty · Unit price · Amount' : 'Part · Qty'} ${parts.length ? '' : '<b class="text-danger">No parts yet: Purchasing adds them in the Inventory tab.</b>'}</div><div data-lines>${rows}</div>
@@ -46,15 +48,35 @@ const PurUI = {
       async (x, form, w) => { const r = await App.api('Purchasing.request_create', { ...x, lines: PurUI.readLines(w, false) }); UI.result(r); App.go('purchasing'); },
       { submit: 'Send to Purchasing', onShow: (w) => PurUI.wireLines(w, false) });
   },
+  /** Supplier fields of the PO form; picking a suggested supplier fills the empty fields. */
+  supplierFields() {
+    return [
+      { name: 'supplier_name', label: 'Supplier name', required: true, col: 6, attrs: 'list="poSupList" autocomplete="off" maxlength="150"', help: 'Type the name. Suppliers used before are suggested.' },
+      { name: 'supplier_contact', label: 'Contact person (optional)', col: 6, attrs: 'maxlength="120"' },
+      { name: 'supplier_address', label: 'Supplier address (optional)', col: 12, attrs: 'maxlength="255"' },
+      { name: 'supplier_phone', label: 'Contact number (optional)', col: 6, attrs: 'maxlength="60" inputmode="tel"', placeholder: '0917 123 4567' },
+      { name: 'supplier_email', label: 'Supplier email (optional)', type: 'email', col: 6, attrs: 'maxlength="120"' },
+    ];
+  },
+  wireSupplier(w) {
+    const list = PurUI.data.supplierSuggestions || [];
+    w.querySelector('form').insertAdjacentHTML('beforeend', `<datalist id="poSupList">${list.map(x => `<option value="${UI.esc(x.name)}"></option>`).join('')}</datalist>`);
+    const f = (n) => w.querySelector(`[name="${n}"]`);
+    f('supplier_name').addEventListener('change', () => {
+      const hit = list.find(x => x.name.toUpperCase() === f('supplier_name').value.trim().toUpperCase()); if (!hit) return;
+      [['supplier_address', 'address'], ['supplier_contact', 'contact_person'], ['supplier_phone', 'contact_number'], ['supplier_email', 'email']]
+        .forEach(([field, key]) => { if (!f(field).value.trim() && hit[key]) f(field).value = hit[key]; });
+    });
+  },
   newPO(prefill = {}) {
     const d = PurUI.data;
     UI.modal('Purchase Order Request', UI.fields([
-      { name: 'supplier_id', label: 'Supplier', type: 'select', required: true, col: 6, options: UI.opts(d.suppliers.filter(s => +s.active), s => s.name) },
+      ...PurUI.supplierFields(),
       { name: 'part_request_id', label: 'Related parts request (optional)', type: 'select', col: 6, value: prefill.part_request_id, options: d.requests.filter(r => ['Not Available', 'Partially Released', 'Requested'].includes(r.status)).map(r => [r.id, r.request_ref + ' · ' + r.plate_number]) },
       { name: 'purpose', label: 'Purpose', required: true, col: 12, value: prefill.purpose }]) + '<div class="mt-2">' + PurUI.lineEditor(true, prefill.lines || []) + '</div>'
       + (d.budget && d.budget.id ? `<div class="small text-muted mt-2">Purchasing budget available now: <b>${UI.money(d.budget.available)}</b> (checked again at approval).</div>` : '<div class="small text-danger mt-2">No active purchasing budget: approval will be rejected until Finance sets one.</div>'),
       async (x, form, w) => { const r = await App.api('Purchasing.po_create', { ...x, lines: PurUI.readLines(w, true) }); UI.result(r); App.route(); },
-      { submit: 'Submit for approval', onShow: (w) => PurUI.wireLines(w, true) });
+      { submit: 'Submit for approval', onShow: (w) => { PurUI.wireLines(w, true); PurUI.wireSupplier(w); } });
   },
   async processRequest(rq) {
     const r = await App.api('Purchasing.request_details', { request_id: rq.id });
@@ -83,7 +105,7 @@ const PurUI = {
     const r = await App.api('Purchasing.po_details', { po_id: o.id }); const p = r.po;
     const approved = ['Approved', 'Partially Received', 'Received', 'Closed'].includes(p.status);
     UI.printForm('PURCHASE ORDER', `<div class="pf-grid"><div><b>SUPPLIER:</b> ${UI.esc(p.supplier)}</div><div><b>DATE:</b> ${UI.date(p.created_at)}</div>
-      <div><b>ADDRESS:</b> ${UI.esc(p.supplier_address || '')}</div><div><b>CONTACT:</b> ${UI.esc([p.supplier_contact, p.supplier_phone].filter(Boolean).join(' · '))}</div>
+      <div><b>ADDRESS:</b> ${UI.esc(p.supplier_address || '')}</div><div><b>CONTACT:</b> ${UI.esc([p.supplier_contact, p.supplier_phone, p.supplier_email].filter(Boolean).join(' · '))}</div>
       <div style="grid-column:1/3"><b>PURPOSE:</b> ${UI.esc(p.purpose)}${p.request_ref ? ' (from ' + UI.esc(p.request_ref) + ')' : ''}</div></div>
       <table><thead><tr><th>Part no.</th><th>Description</th><th class="num">Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead>
       <tbody>${r.lines.map(l => `<tr><td>${UI.esc(l.part_number)}</td><td>${UI.esc(l.description)}</td><td class="num">${l.quantity}</td><td>${UI.esc(l.unit)}</td><td class="num">${UI.money(l.unit_price)}</td><td class="num">${UI.money(l.line_total)}</td></tr>`).join('')}${UI.pfBlank(6, r.lines.length, 8)}
@@ -106,7 +128,7 @@ const PurUI = {
 
 App.page('purchasing', {
   title: 'Parts & Purchasing',
-  subtitle: 'Parts requests (stock-out), purchase orders (stock-in), inventory and suppliers.',
+  subtitle: 'Parts requests (stock-out), purchase orders (stock-in) and inventory.',
   render(ctx) {
     const d = PurUI.data = ctx.data, can = d.can;
     const add = (label, icon, fn, cls = 'btn-primary') => { const b = document.createElement('button'); b.className = 'btn btn-sm ' + cls; b.innerHTML = `<i class="bi ${icon}"></i> ${label}`; b.onclick = fn; ctx.tools.append(b); };
@@ -155,10 +177,6 @@ App.page('purchasing', {
     const partAct = (a, p) => a === 'edit' ? partForm(p) : UI.formModal('Adjust stock of ' + UI.esc(p.part_number), [
       { name: 'quantity_delta', label: 'Quantity to add (+) or remove (-)', type: 'number', min: -100000, required: true, col: 6 }, { name: 'reason', label: 'Reason (count correction, damaged, ...)', required: true, col: 6 }],
       'Purchasing.adjust', { extra: { part_id: p.id }, intro: 'On hand now: ' + p.quantity_on_hand + ' ' + UI.esc(p.unit) + '.' });
-    const supForm = (s = {}) => UI.formModal(s.id ? 'Edit supplier' : 'Add supplier', [
-      { name: 'name', label: 'Supplier name', required: true, col: 12, value: s.name }, { name: 'contact_person', label: 'Contact person', col: 6, value: s.contact_person },
-      { name: 'contact_number', label: 'Contact number', col: 6, value: s.contact_number }, { name: 'email', label: 'Email', col: 6, value: s.email }, { name: 'address', label: 'Address', col: 6, value: s.address },
-      ...(s.id ? [{ name: 'active', label: 'Active', type: 'checkbox', value: s.active, col: 12 }] : [])], 'Purchasing.supplier_save', { extra: s.id ? { id: s.id } : {} });
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
       ['requests', 'Parts requests', () => UI.table([['Request', 'request_ref'], ['Date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Maintenance', 'job_ref'], ['Items', 'items'], ['Purpose', 'purpose'],
@@ -175,12 +193,6 @@ App.page('purchasing', {
       }],
       ['movements', 'Stock movements', () => UI.table([['When', 'created_at', 'datetime'], ['Part', 'part_number'], ['Description', 'description'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', 'num'],
         ['Unit cost', 'unit_cost', 'money'], ['Reason', 'reason'], ['Truck', 'plate_number'], ['By', 'actor']], d.movements, { title: 'Stock-in, stock-out and adjustments (latest 500)' })],
-      ['suppliers', 'Suppliers', (body) => {
-        const h = UI.table([['Supplier', 'name'], ['Contact', 'contact_person'], ['Phone', 'contact_number'], ['Email', 'email'], ['Address', 'address'], ['Active', 'active', 'yes']], d.suppliers,
-          { title: 'Supplier database', actions: () => can.stock ? UI.btn('edit', 'Edit') : '', onAction: (a, s) => supForm(s), tools: can.stock ? '<button class="btn btn-sm btn-primary" data-addsup><i class="bi bi-plus"></i> Add supplier</button>' : '' });
-        setTimeout(() => body.querySelector('[data-addsup]')?.addEventListener('click', () => supForm()), 0);
-        return h;
-      }],
     ], can.approveSmall || can.approveBig ? 'orders' : null);
     const once = UI.takeQuery(ctx, 'request_for', 'job');
     if (once.request_for && can.request) PurUI.newRequest(once.request_for, once.job);
