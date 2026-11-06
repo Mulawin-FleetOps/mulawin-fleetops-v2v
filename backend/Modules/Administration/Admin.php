@@ -99,9 +99,9 @@ final class Admin {
                 $oldUser = one($p, 'SELECT full_name, email, role, shift FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=? WHERE id=?', [$name, $email, $role, $shift, $id]);
-                auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . Mailer::mask($email),
-                    ['Full name' => $oldUser['full_name'], 'Email' => Mailer::mask($oldUser['email']), 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift']],
-                    ['Full name' => $name, 'Email' => Mailer::mask($email), 'Role' => $role, 'Shift' => $shift]);
+                auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
+                    ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift']],
+                    ['Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift]);
                 return ['message' => 'Account updated.'];
             }
             $username = field($d, 'username', 70);
@@ -110,8 +110,8 @@ final class Admin {
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
                 'full_name' => $name, 'role' => $role, 'shift' => $shift]);
-            auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . Mailer::mask($email), [],
-                ['Username' => $username, 'Full name' => $name, 'Email' => Mailer::mask($email), 'Role' => $role, 'Shift' => $shift, 'Active' => 'Yes']);
+            auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
+                ['Username' => $username, 'Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Active' => 'Yes']);
             return ['id' => $id, 'message' => "Account $username created. Give the password to the user privately; each login also needs the code sent to " . Mailer::mask($email) . '.'];
         });
     }
