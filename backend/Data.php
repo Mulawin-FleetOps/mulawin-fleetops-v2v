@@ -12,11 +12,11 @@ final class Data {
     public static function me(): array {
         core('Access');
         $u = currentUser();
+        core('SecurityPasswordChange');
+        $u['setup_required'] = SecurityPasswordChange::required((int)$u['id']);
         $bell = ['items' => [], 'unread' => 0, 'active' => 0];
         try { core('Notify'); $bell = Notify::forUser(db(), $u['id']); }
         catch (Throwable $e) { error_log('Notifications unavailable: ' . $e->getMessage()); }
-        // Admin: is there a recovery code already?
-        if ($u['role'] === 'admin') { core('AccountSecurity'); $u['recovery_ready'] = AccountSecurity::hasRecovery($u['id']); }
         $u['has_signature'] = (bool)(one(db(), 'SELECT signature_document_id FROM users WHERE id=?', [$u['id']])['signature_document_id'] ?? null);
         return [
             'ok' => true, 'user' => $u, 'csrf' => $_SESSION['csrf'] ?? '',

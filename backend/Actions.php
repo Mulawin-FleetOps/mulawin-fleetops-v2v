@@ -54,6 +54,18 @@ final class Actions {
         must((bool)preg_match('/^([A-Z][A-Za-z]+)\.([a-z_]+)$/', $api, $m), 'Unknown action.', 404);
         core('Access');
         $u = currentUser();
+        // Security S1: only password setup is permitted until employee owns the credential.
+        if (in_array($api, ['Admin.password_change_request','Admin.password_change_confirm','Admin.email_change_request','Admin.email_change_confirm'], true)) {
+            core('SecurityPasswordChange');
+            return match ($api) {
+                'Admin.password_change_request' => SecurityPasswordChange::request($u, $data),
+                'Admin.password_change_confirm' => SecurityPasswordChange::confirm($u, $data),
+                'Admin.email_change_request' => SecurityPasswordChange::emailRequest($u, $data),
+                'Admin.email_change_confirm' => SecurityPasswordChange::emailConfirm($u, $data),
+            };
+        }
+        core('SecurityPasswordChange');
+        must(!SecurityPasswordChange::required((int)$u['id']), 'Complete your first-login password setup first.', 403);
         $class = self::load($m[1]);
         return $class::action($u, $m[2], $data);
     }
@@ -62,6 +74,8 @@ final class Actions {
     public static function pageData(string $page, array $query): array {
         core('Access');
         $u = currentUser();
+        core('SecurityPasswordChange');
+        must(!SecurityPasswordChange::required((int)$u['id']), 'Complete your first-login password setup first.', 403);
         must(Access::canOpen($u, $page), 'You do not have access to this page.', 403);
         $class = self::load(Access::moduleOf($page));
         return $class::read($u, $page, $query);

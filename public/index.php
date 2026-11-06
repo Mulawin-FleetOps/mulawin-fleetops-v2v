@@ -40,6 +40,14 @@ function checkCsrf(?string $given): void {
 if (isset($_GET['api'])) {
     $api = (string)$_GET['api'];
     try {
+        // Security S1: login, OTP, logout, and account setup remain reachable;
+        // blocked users cannot call document, backup, map, or other APIs directly.
+        if (!in_array($api, ['whoami','login','otp_verify','otp_resend','otp_cancel','logout','me','Admin.password_change_request','Admin.password_change_confirm','Admin.email_change_request','Admin.email_change_confirm'], true)
+            && !empty($_SESSION['uid'])) {
+            $setupUser = currentUser();
+            core('SecurityPasswordChange');
+            must(!SecurityPasswordChange::required((int)$setupUser['id']), 'Complete your first-login password setup first.', 403);
+        }
         switch ($api) {
             case 'whoami':
                 $pending = pendingLogin();
@@ -63,6 +71,21 @@ if (isset($_GET['api'])) {
                     fail('Wrong username or password.' . (count($fails) >= 3 ? ' (' . (5 - count($fails)) . ' tries left)' : ''), 401);
                 }
                 must(in_array($row['role'], allowedRoles(), true), 'Account role is not allowed.', 403);
+                // Security S2: a verified browser token removes the need for repeat email OTP.
+                // The password is still required on every sign-in.
+                core('TrustedDevices');
+                $_SESSION['remember_device_requested'] = !empty($d['remember_device']);
+                if (TrustedDevices::isTrusted((int)$row['id'])) {
+                    AccountSecurity::success((int)$row['id']);
+                    unset($_SESSION['login_failures'], $_SESSION['pending_uid'], $_SESSION['pending_at']);
+                    session_regenerate_id(true);
+                    $_SESSION['uid'] = (int)$row['id']; $_SESSION['last_seen'] = time(); $_SESSION['login_at'] = time();
+                    $_SESSION['csrf'] = bin2hex(random_bytes(24));
+                    run(db(), 'UPDATE users SET last_login_at=NOW() WHERE id=?', [$row['id']]);
+                    audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'signed in', 'password + trusted device');
+                    unset($_SESSION['remember_device_requested']);
+                    jsonOut(['ok' => true]);
+                }
                 must(trim((string)$row['email']) !== '', 'This account has no email address for the login code. Ask the Admin to add one.', 409);
                 unset($_SESSION['login_failures'], $_SESSION['uid']);
                 session_regenerate_id(true);
@@ -96,6 +119,11 @@ if (isset($_GET['api'])) {
                 unset($_SESSION['pending_uid'], $_SESSION['pending_at']);
                 $_SESSION['uid'] = (int)$row['id']; $_SESSION['last_seen'] = time(); $_SESSION['login_at'] = time();
                 $_SESSION['csrf'] = bin2hex(random_bytes(24));
+                if (!empty($_SESSION['remember_device_requested'])) {
+                    core('TrustedDevices');
+                    TrustedDevices::remember((int)$row['id']);
+                }
+                unset($_SESSION['remember_device_requested']);
                 run(db(), 'UPDATE users SET last_login_at=NOW() WHERE id=?', [$row['id']]);
                 audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'signed in', 'password + email code');
                 jsonOut(['ok' => true]);
@@ -116,31 +144,6 @@ if (isset($_GET['api'])) {
                 checkCsrf($d['csrf'] ?? '');
                 unset($_SESSION['pending_uid'], $_SESSION['pending_at']);
                 jsonOut(['ok' => true]);
-            case 'recover':
-                // Nakalimutan / na-hack ang Admin password: recovery code (naka-print at nakatago) + bagong password.
-                must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
-                $d = inputData();
-                checkCsrf($d['csrf'] ?? '');
-                $username = field($d, 'username', 70); $code = AccountSecurity::normalizeCode(field($d, 'code', 40)); $new = field($d, 'new_password', 255);
-                $now = time();
-                $fails = array_values(array_filter($_SESSION['login_failures'] ?? [], fn($t) => $now - (int)$t < 900));
-                must(count($fails) < 5, 'Too many wrong tries. Please wait 15 minutes.', 429);
-                $row = one(db(), "SELECT * FROM users WHERE username=? AND active=1 AND role='admin'", [$username]);
-                must(!$row || array_key_exists('recovery_hash', $row), 'Recovery is not ready yet. Ask IT to import database/migrations/2026-11-04_account_security.sql.', 409);
-                must(!$row || !AccountSecurity::isLocked($row), LOCKED_MSG, 429);
-                if (!$row || empty($row['recovery_hash']) || !password_verify($code, (string)$row['recovery_hash'])) {
-                    $fails[] = $now; $_SESSION['login_failures'] = $fails;
-                    if ($row && AccountSecurity::failure($row)) fail(LOCKED_MSG, 429);
-                    fail('Wrong Admin username or recovery code.', 401);
-                }
-                must(strlen($new) >= PASSWORD_MIN_LENGTH && preg_match('/[A-Za-z]/', $new) && preg_match('/\d/', $new), 'Password must have at least ' . PASSWORD_MIN_LENGTH . ' characters with letters and numbers.');
-                must(strlen($new) <= PASSWORD_MAX_BYTES, 'Password is too long (max ' . PASSWORD_MAX_BYTES . ' characters).');
-                must(hash_equals($new, field($d, 'confirm', 255, false)), 'The new password and the confirmation do not match.');
-                run(db(), 'UPDATE users SET password_hash=?, recovery_hash=NULL WHERE id=?', [password_hash($new, PASSWORD_DEFAULT), $row['id']]);
-                AccountSecurity::passwordChanged((int)$row['id']); // lahat ng lumang session ng account ay mala-log out
-                audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'password reset with recovery code', 'old sessions signed out; recovery code used up');
-                unset($_SESSION['login_failures']);
-                jsonOut(['ok' => true, 'data' => ['message' => 'Password reset. Log in with the new password and the code sent to your email, then make a new recovery code (the old one no longer works).']]);
             case 'logout':
                 must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
                 checkCsrf($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');

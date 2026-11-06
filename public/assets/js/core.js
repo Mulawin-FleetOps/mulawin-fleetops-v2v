@@ -65,6 +65,7 @@ const App = {
   async loadMe() {
     const me = await this.request('index.php?api=me');
     this.me = me; this.csrf = me.csrf;
+    if (me.user?.setup_required) return this.passwordScreen(true);
     this.shell();
     window.onhashchange = () => this.route();
     this.route();
@@ -98,7 +99,7 @@ const App = {
 
   loginScreen(message = '', username = '', ok = false) {
     this.authFrame(`
-      <div class="auth-head"><h1>Sign in</h1><p>Step 1 of 2 · Enter your username (or email) and password.</p></div>
+      <div class="auth-head"><h1>Sign in</h1><p>Enter your username or email and password.</p></div>
       ${this.authAlert(message, ok)}
       <form id="loginForm" novalidate>
         <div class="mb-3"><label class="form-label" for="lgU">Username or email</label>
@@ -106,20 +107,20 @@ const App = {
         <div class="mb-4"><label class="form-label" for="lgP">Password</label>
           <div class="input-group"><input class="form-control" type="password" id="lgP" name="password" autocomplete="current-password" required>
           <button class="btn btn-outline-secondary" type="button" id="lgEye" aria-label="Show password"><i class="bi bi-eye"></i></button></div></div>
-        <button class="btn btn-primary w-100 auth-btn" type="submit">Continue</button>
-        <p class="auth-note">A 6-digit code will be sent to your registered email.</p>
-        <div class="auth-links"><span>Forgot your password? Ask the Admin to set a new one.</span>
-          <button type="button" class="btn btn-link btn-sm p-0" id="lgRecover">Admin recovery code</button></div>
+        <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="remember_device" value="1" id="rememberDevice">
+          <label class="form-check-label small" for="rememberDevice">Trust this device for 30 days (private computer only)</label></div>
+        <button class="btn btn-primary w-100 auth-btn" type="submit">Sign in</button>
+        <p class="auth-note">A verification code is required on new or untrusted devices. Do not trust shared computers.</p>
+        <div class="auth-links"><span>Forgot your password? Contact the Admin or authorized IT support.</span></div>
       </form>`);
     document.getElementById(username ? 'lgP' : 'lgU').focus();
     document.getElementById('lgEye').onclick = (e) => { const p = document.getElementById('lgP'); p.type = p.type === 'password' ? 'text' : 'password'; e.currentTarget.innerHTML = `<i class="bi bi-eye${p.type === 'password' ? '' : '-slash'}"></i>`; };
-    document.getElementById('lgRecover').onclick = () => this.recoverScreen();
     document.getElementById('loginForm').onsubmit = async (e) => {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target));
       if (!f.username || !f.password) return this.loginScreen('Enter your username and password.', f.username || '');
-      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking and sending the code…';
-      try { const r = await this.postAuth('login', f); this.otpScreen(r.otp, r.notice || '', !!r.notice); }
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking credentials…';
+      try { const r = await this.postAuth('login', f); if (r.otp) this.otpScreen(r.otp, r.notice || '', !!r.notice); else await this.loadMe(); }
       catch (err) { this.loginScreen(err.message, f.username || ''); }
     };
   },
@@ -163,65 +164,60 @@ const App = {
     };
   },
 
-  /**
-   * Forgotten Admin password: the printed one-time recovery code (made by the Admin in the
-   * name menu > Recovery code) + a new password. Logging in afterwards still needs the email code.
-   */
-  recoverScreen(message = '') {
-    this.authFrame(`<div class="auth-head"><h1>Admin recovery</h1><p>Use the printed recovery code of the Admin account to set a new password.</p></div>
-      ${this.authAlert(message)}
-      <form id="recForm" novalidate>
-        <div class="mb-2"><label class="form-label" for="rcU">Admin username</label><input class="form-control" id="rcU" name="username" autocomplete="username" required></div>
-        <div class="mb-2"><label class="form-label" for="rcC">Recovery code</label><input class="form-control text-uppercase" id="rcC" name="code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" required></div>
-        <div class="mb-2"><label class="form-label" for="rcP">New password</label><input class="form-control" type="password" id="rcP" name="new_password" autocomplete="new-password" required>
-          <div class="form-text">${App.passwordMin || 8}+ characters with letters and numbers.</div></div>
-        <div class="mb-3"><label class="form-label" for="rcP2">Type the new password again</label><input class="form-control" type="password" id="rcP2" name="confirm" autocomplete="new-password" required></div>
-        <button class="btn btn-primary w-100" type="submit"><i class="bi bi-key me-1"></i> Reset the password</button>
-        <div class="text-center mt-3"><button type="button" class="btn btn-link btn-sm p-0" id="rcBack">Back to sign in</button></div>
-        <p class="auth-note">No recovery code? Ask IT to run <code>scripts/reset_password.php</code> on the server.</p>
-      </form>`);
-    document.getElementById('rcBack').onclick = () => this.loginScreen();
-    document.getElementById('recForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const f = Object.fromEntries(new FormData(e.target));
-      if (!f.username || !f.code || !f.new_password) return this.recoverScreen('Fill in all the fields.');
-      if (f.new_password !== f.confirm) return this.recoverScreen('The new passwords do not match.');
+  /** Security S2: users prove ownership of a replacement email before it becomes active. */
+  emailScreen(message = '', stage = 'request') {
+    const fields = stage === 'request' ? UI.fields([
+      { name: 'current_password', label: 'Current password', type: 'password', required: true, col: 12 },
+      { name: 'new_email', label: 'New email address', type: 'email', required: true, col: 12 }
+    ]) : UI.fields([{ name: 'code', label: '6-digit code sent to the NEW email', required: true, col: 12, attrs: 'inputmode="numeric" maxlength="6" pattern="[0-9]{6}"' }]);
+    this.authFrame(`<div class="auth-head"><h1>Change email address</h1><p>Verify that you own the new email before using it for account security.</p></div>
+      ${this.authAlert(message, stage === 'confirm')}
+      <form id="emailChangeForm" novalidate>${fields}<button class="btn btn-primary w-100 mt-3" type="submit">${stage === 'request' ? 'Send verification code' : 'Verify email'}</button>
+      <button class="btn btn-link w-100 mt-2" type="button" id="emailCancel">Back to dashboard</button></form>`);
+    document.getElementById('emailCancel').onclick = () => this.loadMe();
+    document.getElementById('emailChangeForm').onsubmit = async (e) => {
+      e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
       try {
-        const w = await this.request('index.php?api=whoami'); this.csrf = w.csrf;
-        const r = await this.request('index.php?api=recover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: f.username, code: f.code, new_password: f.new_password, confirm: f.confirm, csrf: this.csrf }) });
-        this.loginScreen(r.data?.message || 'Password reset.', f.username, true);
-      } catch (err) { this.recoverScreen(err.message); }
+        if (stage === 'request') {
+          const r = await this.api('Admin.email_change_request', f);
+          this.emailScreen(r.message || 'Enter the code.', 'confirm');
+        } else { await this.api('Admin.email_change_confirm', { code: f.code }); await this.loadMe(); UI.toast('Email verified and updated.'); }
+      } catch(err) { this.emailScreen(err.message, stage); }
     };
   },
 
-  /** Admin: make a new recovery code (needs the current password). Shown once. */
-  recoveryCode() {
-    UI.modal('Admin recovery code', `<p class="small">If the Admin password is forgotten, this code lets you set a new password from the sign-in page
-      (<b>Admin recovery code</b>). It works <b>one time</b>. Making a new code cancels the old one. Logging in still needs the email code.</p>
-      ${UI.fields([{ name: 'current_password', label: 'Your current password', type: 'password', required: true, col: 12 }])}`, async (d) => {
-      const r = await App.api('Admin.recovery_code_create', d);
-      App.me.user.recovery_ready = true;
-      const code = r.code;
-      const sheet = `<div class="pf"><div class="pf-head">${UI.logoTag('pf-logo-img')}<div><div class="pf-co">${UI.esc((App.me.company || {}).name || '')}</div></div></div>
-        <div class="pf-title">ADMIN RECOVERY CODE</div><p>Admin username: <b>${UI.esc(App.me.user.username)}</b></p>
-        <p style="font-size:26px;font-weight:bold;letter-spacing:3px;border:1px dashed #333;padding:12px;text-align:center">${UI.esc(code)}</p>
-        <p>Use it on the sign-in page (Admin recovery code). It works one time only. Keep this paper in a safe place.</p>
-        <p style="font-size:11px;color:#555">Made on ${UI.esc(new Date().toLocaleString('en-PH'))}</p></div>`;
-      UI.modal('Save this recovery code now', `<div class="alert alert-warning small">This code is shown only once. Print it or write it down, then keep it in a safe place.</div>
-        <div class="text-center fs-3 fw-bold py-3" style="letter-spacing:3px">${UI.esc(code)}</div>`, null,
-        { size: '', extraFooter: '<button type="button" class="btn btn-primary btn-sm" id="rcPrint"><i class="bi bi-printer"></i> Print</button>',
-          onShow: (w) => { w.querySelector('#rcPrint').onclick = () => UI.print(sheet); } });
-    }, { size: '', submit: 'Make a new code' });
-  },
-
-  passwordScreen() {
-    const body = UI.fields([{ name: 'current_password', label: 'Current password', type: 'password', required: true, col: 12, attrs: 'autocomplete="current-password"' },
-      { name: 'new_password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"', help: (App.me?.passwordMin || 8) + '+ characters with letters and numbers.' },
-      { name: 'confirm', label: 'Type the new password again', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"' }]);
-    UI.modal('Change password', body, async (d) => {
-      if (d.new_password !== d.confirm) throw new Error('The new passwords do not match.');
-      await this.api('Admin.change_password', d); UI.toast('Password changed.');
-    }, { submit: 'Save password', size: '' });
+  /** Security S1: email-verified password ownership; first setup cannot be skipped. */
+  passwordScreen(firstSetup = false, message = '', stage = 'request') {
+    const intro = firstSetup ? 'Your temporary password must be replaced before accessing FleetOps.' : 'Confirm your current password, then verify the code sent to your registered email.';
+    const fields = stage === 'request' ? UI.fields([
+      { name: 'current_password', label: 'Current / temporary password', type: 'password', required: true, col: 12, attrs: 'autocomplete="current-password"' },
+      { name: 'new_password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"', help: (this.me?.passwordMin || 8) + '+ characters with letters and numbers.' },
+      { name: 'confirm', label: 'Confirm new password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"' }
+    ]) : UI.fields([{ name: 'code', label: '6-digit email verification code', required: true, col: 12, attrs: 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"' }]);
+    this.authFrame(`<div class="auth-head"><h1>${firstSetup ? 'Set up your account' : 'Change password'}</h1><p>${UI.esc(intro)}</p></div>
+      ${this.authAlert(message, stage === 'confirm')}
+      <form id="securePwForm" novalidate>${fields}
+        <button class="btn btn-primary w-100 mt-3" type="submit">${stage === 'request' ? 'Send verification code' : 'Verify and save password'}</button>
+        ${firstSetup ? '' : '<button class="btn btn-link w-100 mt-2" type="button" id="pwCancel">Back to dashboard</button>'}
+      </form>`);
+    document.getElementById('pwCancel')?.addEventListener('click', () => this.loadMe());
+    document.getElementById('securePwForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      if (stage === 'request' && f.new_password !== f.confirm) return this.passwordScreen(firstSetup, 'New passwords do not match.', 'request');
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+      try {
+        if (stage === 'request') {
+          const r = await this.api('Admin.password_change_request', f);
+          this.passwordScreen(firstSetup, r.message || 'Enter the code from your email.', 'confirm');
+        } else {
+          await this.api('Admin.password_change_confirm', { code: f.code });
+          await this.loadMe();
+          UI.toast('Your password was updated.');
+        }
+      } catch (err) { this.passwordScreen(firstSetup, err.message, stage); }
+    };
   },
 
   async logout() {
@@ -267,7 +263,7 @@ const App = {
                 <div class="dropdown-header">${UI.esc(u.username)} · ${UI.esc(u.email || '')}</div>
                 <button class="dropdown-item" id="mySig"><i class="bi bi-pen"></i> My e-signature${u.has_signature ? '' : ' <span class="badge-s amber">not set</span>'}</button>
                 <button class="dropdown-item" id="chgPw"><i class="bi bi-key"></i> Change password</button>
-                ${u.role === 'admin' ? '<button class="dropdown-item" id="recCode"><i class="bi bi-shield-lock"></i> Recovery code</button>' : ''}
+                <button class="dropdown-item" id="chgEmail"><i class="bi bi-envelope-check"></i> Change email</button>
                 <div class="dropdown-divider"></div>
                 <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>
               </div>
@@ -282,7 +278,7 @@ const App = {
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
     document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
     document.getElementById('chgPw').onclick = () => this.passwordScreen();
-    document.getElementById('recCode')?.addEventListener('click', () => this.recoveryCode());
+    document.getElementById('chgEmail').onclick = () => this.emailScreen();
     document.getElementById('mySig').onclick = () => UI.signatureModal();
     document.getElementById('bellReadAll').onclick = async () => { try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();

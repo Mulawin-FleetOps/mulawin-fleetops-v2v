@@ -58,8 +58,8 @@ final class Admin {
             'user_save' => self::withRoleSlotLock(fn() => self::userSave($u, $d)),
             'user_toggle' => self::withRoleSlotLock(fn() => self::userToggle($u, $d)),
             'user_password' => self::userPassword($u, $d),
-            'change_password' => self::changePassword($u, $d),
-            'recovery_code_create' => self::recoveryCodeCreate($u, $d),
+            'change_password' => throw new BusinessRuleException('Use the verified password change screen.', 409),
+            'recovery_code_create' => throw new BusinessRuleException('Recovery code issuance is disabled; contact authorized IT for emergency recovery.', 404),
             'signature_upload' => self::signatureUpload($u, $d),
             'setting_save' => self::settingSave($u, $d),
             'fund_category_save' => self::fundCategorySave($u, $d),
@@ -139,7 +139,7 @@ final class Admin {
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
             self::assertRoleShiftVacancy($p, $role, $shift);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
-                'full_name' => $name, 'role' => $role, 'shift' => $shift]);
+                'full_name' => $name, 'role' => $role, 'shift' => $shift, 'must_change_password' => 1]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
                 ['Username' => $username, 'Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Active' => 'Yes']);
             return ['id' => $id, 'message' => "Account $username created. Give the password to the user privately; each login also needs the code sent to " . Mailer::mask($email) . '.'];
@@ -167,10 +167,10 @@ final class Admin {
         $id = idField($d, 'user_id'); $pw = field($d, 'password', 255); self::strongPassword($pw, field($d, 'password_confirm', 255, false));
         return transaction(function (PDO $p) use ($u, $id, $pw) {
             must((bool)one($p, 'SELECT id FROM users WHERE id=?', [$id]), 'User not found.', 404);
-            run($p, 'UPDATE users SET password_hash=? WHERE id=?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
+            run($p, 'UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
             AccountSecurity::passwordChanged($id);
             audit($p, $u['id'], 'Access', 'user ' . $id, 'password set by Admin', 'old sessions signed out');
-            return ['message' => 'New password saved. Give it to the user privately; their old sessions were signed out.'];
+            return ['message' => 'Temporary password saved. User must replace it on the next login; old sessions were signed out.'];
         });
     }
 

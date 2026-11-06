@@ -42,8 +42,9 @@ final class AccountSecurity {
     /** Itala kung kailan napalitan ang password (para ma-log out ang lumang sessions). */
     public static function passwordChanged(int $id): string {
         $now = self::now();
-        try { run(db(), 'UPDATE users SET password_changed_at=?, failed_logins=0, locked_until=NULL WHERE id=?', [$now, $id]); }
-        catch (Throwable $e) { error_log('password_changed_at unavailable: ' . $e->getMessage()); }
+        // Fail closed: password/session revocation must not silently skip security updates.
+        run(db(), 'UPDATE users SET password_changed_at=?, failed_logins=0, locked_until=NULL WHERE id=?', [$now, $id]);
+        core('TrustedDevices'); TrustedDevices::revokeAll($id);
         return $now;
     }
 

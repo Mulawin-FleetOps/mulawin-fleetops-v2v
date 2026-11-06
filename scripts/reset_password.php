@@ -19,8 +19,8 @@ try {
     $u = one($p, 'SELECT id, role, email FROM users WHERE username=?', [$username]);
     if (!$u) throw new RuntimeException('Username not found.');
     $pass = askNewPassword();
-    run($p, 'UPDATE users SET password_hash=?, active=1 WHERE id=?', [password_hash($pass, PASSWORD_DEFAULT), $u['id']]);
+    run($p, 'UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?', [password_hash($pass, PASSWORD_DEFAULT), $u['id']]);
     AccountSecurity::passwordChanged((int)$u['id']);
     audit($p, null, 'Access', 'user ' . $u['id'], 'password reset from the server (scripts/reset_password.php)');
-    echo "New password saved for $username ({$u['role']}). Login codes go to {$u['email']}.\n";
+    echo "New password saved for $username ({$u['role']}). User must replace the temporary password after next sign-in.\n";
 } catch (Throwable $e) { fwrite(STDERR, $e->getMessage() . "\n"); exit(1); }
