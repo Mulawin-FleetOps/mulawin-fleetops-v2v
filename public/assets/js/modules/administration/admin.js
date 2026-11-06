@@ -57,11 +57,25 @@ App.page('admin', {
     }
     const catForm = (c = {}) => UI.formModal(c.id ? 'Edit category' : 'Add category', [{ name: 'name', label: 'Category', required: true, col: 6, value: c.name }, { name: 'amount', label: 'Preset amount', type: 'money', required: true, col: 3, value: c.amount },
       { name: 'sort_order', label: 'Order', type: 'number', col: 3, value: c.sort_order ?? 0 }, { name: 'active', label: 'Active (shown to dispatchers)', type: 'checkbox', value: c.id ? c.active : 1, col: 12 }], 'Admin.fund_category_save', { extra: c.id ? { id: c.id } : {} });
+    // Adjustment #5: summary first, full audit metadata in the View drawer.
+    const activityDetails = (e) => {
+      const fields = [
+        ['Date and time', UI.datetime(e.created_at)],
+        ['Performed by', UI.e(e.actor)],
+        ['Email address', UI.e(e.actor_email || '—')],
+        ['User role', UI.esc(d.roles[e.role] || e.role || 'System')],
+        ['Activity', UI.e(e.action)],
+        ['Description', UI.e(e.details)],
+        ['Related record', UI.e(e.record_ref)],
+        ['Module / area', UI.e(e.area)],
+      ];
+      UI.drawer('Activity details', UI.kv(fields), { subtitle: 'Read-only audit record' });
+    };
     tabs.push(['log', 'Activity log', () => UI.filterModal(ctx, [{ name: 'from', label: 'From', type: 'date', col: 6 }, { name: 'to', label: 'To', type: 'date', col: 6 },
-        { name: 'area', label: 'Area', type: 'select', options: UI.list(d.areas), col: 6 }, { name: 'actor_id', label: 'User', type: 'select', options: UI.opts(d.actors, u => u.full_name), col: 6 }],
+        { name: 'actor_id', label: 'User', type: 'select', options: UI.opts(d.actors, u => u.full_name), col: 12 }],
         { hint: `Showing ${UI.date(d.range.from)} – ${UI.date(d.range.to)}.` })
-      + UI.table([['When', 'created_at', 'datetime'], ['Who', 'actor'], ['Role', 'role', (v) => UI.esc(d.roles[v] || (v ? v : 'System'))], ['Area', 'area'], ['Record', 'record_ref'], ['Action', 'action'], ['Details', 'details']], d.events,
-        { title: 'Who created, changed, approved or processed what (with date and time)' })]);
+      + UI.table([['Date & time', 'created_at', 'datetime'], ['User', 'actor'], ['Activity', 'action']], d.events,
+        { title: 'Activity log', actions: () => UI.btn('view', 'View'), onAction: (a, e) => { if (a === 'view') activityDetails(e); }, rowClick: activityDetails })]);
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, tabs, ctx.query.from || ctx.query.area ? 'log' : null);
     box.addEventListener('click', async (e) => {
