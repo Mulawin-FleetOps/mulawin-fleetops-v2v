@@ -483,7 +483,8 @@ const TripUI = {
       }
       if (t.status === 'Awaiting Resources') acts.push(btn('auto', 'Try auto-assign now', 'outline-primary', 'bi-magic'));
       if (t.status === 'Completed' && +t.awaiting_arrival) acts.push(btn('arrival', 'Arrival checklist', 'primary', 'bi-clipboard-check'));
-      if (!['Completed', 'Cancelled', 'Rejected', 'Pending Review'].includes(t.status)) acts.push(btn('edit', 'Booking / container details', 'outline-secondary', 'bi-pencil'));
+      // CHECKLIST_27_TRIP_DETAILS_LOCK_V1: match backend pre-dispatch edit rule.
+      if (pre.includes(t.status)) acts.push(btn('edit', 'Booking / container details', 'outline-secondary', 'bi-pencil'));
     }
     const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');

@@ -360,7 +360,11 @@ final class Trips {
         $id = idField($d, 'trip_id');
         return transaction(function (PDO $p) use ($u, $d, $id) {
             $t = self::lockTrip($p, $id);
-            must(!in_array($t['status'], self::CLOSED, true), 'The trip is already closed.', 409);
+            // CHECKLIST_27_TRIP_DETAILS_LOCK_V1: booking and delivery fields are
+            // immutable once a truck is dispatched. A rescheduled attempt gets a
+            // new editable pre-dispatch phase; completion/incident/arrival use
+            // their separate workflow actions and remain available.
+            self::mustBeStatus($t, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery / booking details');
             if (hasRole($u, 'operations_head')) {
                 self::mustBeStatus($t, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery details');
                 $row = self::deliveryFields($d, true, (string)$t['scheduled_at']);
