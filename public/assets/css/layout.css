@@ -273,99 +273,160 @@ textarea.form-control { min-height: 64px; }
   .page-head { gap: 10px; }
 }
 /* MULAWIN UIUX BATCH 6 END */
-
-/* RPM SYSTEMWIDE DESIGN V1 — branding and consistent shared controls */
-:root {
-  --rpm-brand: #247a43;
-  --rpm-brand-strong: #185d34;
-  --rpm-brand-light: #e8f5e9;
-  --rpm-border: #d9e8dd;
-  --bg: #f5f9f5;
-  --surface-2: #f8fbf8;
-  --surface-3: #eef5ef;
-  --border: #e0eae2;
-  --border-strong: #c8d9cc;
-  --text: #21362a;
-  --text-2: #475b4d;
-  --text-3: #62776a;
-  --r-lg: 11px;
-  --r-xl: 13px;
-  --bs-link-color: #247a43;
-  --bs-link-color-rgb: 36, 122, 67;
-  --bs-link-hover-color: #185d34;
-  --focus: 0 0 0 3px rgba(50, 146, 80, .22);
-}
-body { background: var(--bg); }
-a { color: var(--rpm-brand); }
-a:hover { color: var(--rpm-brand-strong); }
-::selection { background: #cdeecf; }
-.content { max-width: 1500px; min-width: 0; padding: 18px clamp(14px, 2vw, 28px) 40px; }
-.page-head { gap: 10px 16px; margin-bottom: 14px; }
-.page-title { color: #174b2e; font-size: 19px; }
-.page-subtitle { line-height: 1.4; }
-.page-actions { min-width: 0; align-items: center; }
-.page-actions .btn { max-width: 100%; }
-.topbar { border-bottom-color: var(--rpm-border); background: rgba(255,255,255,.97); }
-.crumb-page { color: #1b5c37; }
-.profile-btn:hover, .icon-btn:hover { background: #edf7ee; }
-.avatar { background: #e4f3e6; color: #1b6539; }
-.btn-primary {
-  --bs-btn-bg: #247a43; --bs-btn-border-color: #247a43;
-  --bs-btn-hover-bg: #195e34; --bs-btn-hover-border-color: #195e34;
-  --bs-btn-active-bg: #15502c; --bs-btn-active-border-color: #15502c;
-  --bs-btn-disabled-bg: #81b494; --bs-btn-disabled-border-color: #81b494;
-}
-.btn-outline-primary {
-  --bs-btn-color: #206f3d; --bs-btn-border-color: #b7d8bf;
-  --bs-btn-hover-bg: #e7f5e9; --bs-btn-hover-color: #185d34; --bs-btn-hover-border-color: #70b184;
-  --bs-btn-active-bg: #d9efde; --bs-btn-active-color: #185d34; --bs-btn-active-border-color: #70b184;
-}
-.btn-link { --bs-btn-color: #247a43; --bs-btn-hover-color: #15572e; }
-.form-control:focus, .form-select:focus { border-color: #64aa78; box-shadow: var(--focus); }
-.form-check-input:checked { background-color: #247a43; border-color: #247a43; }
-.form-check-input:focus { border-color: #64aa78; box-shadow: var(--focus); }
-.modal-content { border: 1px solid var(--rpm-border); border-radius: 13px; }
-.modal-header { background: #f9fcf9; border-color: var(--rpm-border); }
-.modal-footer { background: #f6faf6; border-color: var(--rpm-border); }
-.modal-title { color: #1c5734; }
-.modal-body { min-width: 0; }
-.modal-body .row > [class*="col-"] { min-width: 0; }
-.modal-body .form-control, .modal-body .form-select { width: 100%; }
-.dropdown-menu { border-color: var(--rpm-border); }
-.dropdown-item:hover, .dropdown-item:focus { background: #eaf5ed; color: #1d6337; }
-.dropdown-item.active { background: #247a43; color: #fff; }
-.app-drawer { border-left-color: var(--rpm-border) !important; }
-.app-drawer .offcanvas-header { background: #f9fcf9; border-color: var(--rpm-border); }
-.app-drawer .offcanvas-body { min-width: 0; }
-.app-drawer .offcanvas-title { color: #1c5734; }
-@media (max-width: 991.98px) {
-  .content { padding: 14px 12px 32px; }
-}
-@media (max-width: 575.98px) {
-  .page-head { gap: 8px; }
-  .page-actions { gap: 6px; }
-  .page-actions .btn { flex: 0 1 auto; min-width: 0; }
-  .modal-dialog { max-width: calc(100vw - 16px); }
-  .app-drawer .offcanvas-body { padding: 12px; }
-}
-/* END RPM SYSTEMWIDE DESIGN V1 */
-
-/* RPM SIDEBAR WORKSPACE V1 START */
-/* Only the role's primary workflow is shown by default. Extra permitted
-   reference pages are collapsed; notifications remain in the top bell. */
-.sidebar-nav { padding: 10px 10px 16px; }
-.sidebar-nav > .nav-section { padding-top: 8px; }
-.sidebar .nav-item-link { min-height: 39px; height: auto; padding: 9px 11px; gap: 10px; line-height: 1.25; }
-.sidebar .nav-item-link span { min-width: 0; overflow-wrap: anywhere; }
-.sidebar-more { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.16); }
-.sidebar-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 9px 11px; color: #e8f4ec; font-size: 13px; font-weight: 600; border-radius: var(--r); }
-.sidebar-more > summary::-webkit-details-marker { display: none; }
-.sidebar-more > summary:hover { background: rgba(255,255,255,.12); }
-.sidebar-more > summary:focus-visible { outline: 2px solid #d5efb8; outline-offset: 2px; }
-.sidebar-more > summary > .bi:first-child { font-size: 16px; width: 18px; text-align: center; }
-.sidebar-more-chevron { margin-left: auto; font-size: 12px; transition: transform .15s ease; }
-.sidebar-more[open] .sidebar-more-chevron { transform: rotate(180deg); }
-.sidebar-more-items { padding: 4px 0 0 6px; }
-.sidebar-more-items .nav-item-link { font-size: 12.5px; }
-@media (max-width: 575.98px) { .sidebar .nav-item-link { min-height: 42px; } }
-/* RPM SIDEBAR WORKSPACE V1 END */
+
+/* RPM SYSTEMWIDE DESIGN V1 — branding and consistent shared controls */
+:root {
+  --rpm-brand: #247a43;
+  --rpm-brand-strong: #185d34;
+  --rpm-brand-light: #e8f5e9;
+  --rpm-border: #d9e8dd;
+  --bg: #f5f9f5;
+  --surface-2: #f8fbf8;
+  --surface-3: #eef5ef;
+  --border: #e0eae2;
+  --border-strong: #c8d9cc;
+  --text: #21362a;
+  --text-2: #475b4d;
+  --text-3: #62776a;
+  --r-lg: 11px;
+  --r-xl: 13px;
+  --bs-link-color: #247a43;
+  --bs-link-color-rgb: 36, 122, 67;
+  --bs-link-hover-color: #185d34;
+  --focus: 0 0 0 3px rgba(50, 146, 80, .22);
+}
+body { background: var(--bg); }
+a { color: var(--rpm-brand); }
+a:hover { color: var(--rpm-brand-strong); }
+::selection { background: #cdeecf; }
+.content { max-width: 1500px; min-width: 0; padding: 18px clamp(14px, 2vw, 28px) 40px; }
+.page-head { gap: 10px 16px; margin-bottom: 14px; }
+.page-title { color: #174b2e; font-size: 19px; }
+.page-subtitle { line-height: 1.4; }
+.page-actions { min-width: 0; align-items: center; }
+.page-actions .btn { max-width: 100%; }
+.topbar { border-bottom-color: var(--rpm-border); background: rgba(255,255,255,.97); }
+.crumb-page { color: #1b5c37; }
+.profile-btn:hover, .icon-btn:hover { background: #edf7ee; }
+.avatar { background: #e4f3e6; color: #1b6539; }
+.btn-primary {
+  --bs-btn-bg: #247a43; --bs-btn-border-color: #247a43;
+  --bs-btn-hover-bg: #195e34; --bs-btn-hover-border-color: #195e34;
+  --bs-btn-active-bg: #15502c; --bs-btn-active-border-color: #15502c;
+  --bs-btn-disabled-bg: #81b494; --bs-btn-disabled-border-color: #81b494;
+}
+.btn-outline-primary {
+  --bs-btn-color: #206f3d; --bs-btn-border-color: #b7d8bf;
+  --bs-btn-hover-bg: #e7f5e9; --bs-btn-hover-color: #185d34; --bs-btn-hover-border-color: #70b184;
+  --bs-btn-active-bg: #d9efde; --bs-btn-active-color: #185d34; --bs-btn-active-border-color: #70b184;
+}
+.btn-link { --bs-btn-color: #247a43; --bs-btn-hover-color: #15572e; }
+.form-control:focus, .form-select:focus { border-color: #64aa78; box-shadow: var(--focus); }
+.form-check-input:checked { background-color: #247a43; border-color: #247a43; }
+.form-check-input:focus { border-color: #64aa78; box-shadow: var(--focus); }
+.modal-content { border: 1px solid var(--rpm-border); border-radius: 13px; }
+.modal-header { background: #f9fcf9; border-color: var(--rpm-border); }
+.modal-footer { background: #f6faf6; border-color: var(--rpm-border); }
+.modal-title { color: #1c5734; }
+.modal-body { min-width: 0; }
+.modal-body .row > [class*="col-"] { min-width: 0; }
+.modal-body .form-control, .modal-body .form-select { width: 100%; }
+.dropdown-menu { border-color: var(--rpm-border); }
+.dropdown-item:hover, .dropdown-item:focus { background: #eaf5ed; color: #1d6337; }
+.dropdown-item.active { background: #247a43; color: #fff; }
+.app-drawer { border-left-color: var(--rpm-border) !important; }
+.app-drawer .offcanvas-header { background: #f9fcf9; border-color: var(--rpm-border); }
+.app-drawer .offcanvas-body { min-width: 0; }
+.app-drawer .offcanvas-title { color: #1c5734; }
+@media (max-width: 991.98px) {
+  .content { padding: 14px 12px 32px; }
+}
+@media (max-width: 575.98px) {
+  .page-head { gap: 8px; }
+  .page-actions { gap: 6px; }
+  .page-actions .btn { flex: 0 1 auto; min-width: 0; }
+  .modal-dialog { max-width: calc(100vw - 16px); }
+  .app-drawer .offcanvas-body { padding: 12px; }
+}
+/* END RPM SYSTEMWIDE DESIGN V1 */
+
+/* RPM SIDEBAR WORKSPACE V1 START */
+/* Only the role's primary workflow is shown by default. Extra permitted
+   reference pages are collapsed; notifications remain in the top bell. */
+.sidebar-nav { padding: 10px 10px 16px; }
+.sidebar-nav > .nav-section { padding-top: 8px; }
+.sidebar .nav-item-link { min-height: 39px; height: auto; padding: 9px 11px; gap: 10px; line-height: 1.25; }
+.sidebar .nav-item-link span { min-width: 0; overflow-wrap: anywhere; }
+.sidebar-more { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.16); }
+.sidebar-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 9px 11px; color: #e8f4ec; font-size: 13px; font-weight: 600; border-radius: var(--r); }
+.sidebar-more > summary::-webkit-details-marker { display: none; }
+.sidebar-more > summary:hover { background: rgba(255,255,255,.12); }
+.sidebar-more > summary:focus-visible { outline: 2px solid #d5efb8; outline-offset: 2px; }
+.sidebar-more > summary > .bi:first-child { font-size: 16px; width: 18px; text-align: center; }
+.sidebar-more-chevron { margin-left: auto; font-size: 12px; transition: transform .15s ease; }
+.sidebar-more[open] .sidebar-more-chevron { transform: rotate(180deg); }
+.sidebar-more-items { padding: 4px 0 0 6px; }
+.sidebar-more-items .nav-item-link { font-size: 12.5px; }
+@media (max-width: 575.98px) { .sidebar .nav-item-link { min-height: 42px; } }
+/* RPM SIDEBAR WORKSPACE V1 END */
+
+/* RPM STICKY PAGE NAV V1 START */
+/* The topbar already sticks at 0; the page title follows directly below it. */
+#pageContent .page-head {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 1005;
+  background: rgba(250, 253, 250, .97);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: -8px -10px 12px;
+  min-width: 0;
+  transition: box-shadow .15s ease, background .15s ease;
+}
+#pageContent .page-head.rpm-page-head-scrolled {
+  background: rgba(250, 253, 250, .99);
+  border-color: #dae9dd;
+  box-shadow: 0 3px 12px rgba(16, 82, 43, .075);
+}
+#pageContent .page-head.rpm-page-head-scrolled .page-subtitle { display: none; }
+#pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 17px; }
+#pageContent .page-head .page-head-text { flex: 1 1 190px; min-width: 0; }
+#pageContent .page-head .page-actions { align-items: center; min-width: 0; }
+#pageContent .page-head .page-actions .btn { max-width: 100%; }
+.rpm-back-to-top {
+  position: fixed;
+  right: clamp(14px, 2.4vw, 30px);
+  bottom: 22px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 72px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid #b7ddbf;
+  color: #155b30;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(14, 68, 35, .14);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.rpm-back-to-top[hidden] { display: none !important; }
+.rpm-back-to-top:hover { background: #eaf7ed; border-color: #65ad78; }
+.rpm-back-to-top:focus-visible { outline: 2px solid #218b48; outline-offset: 2px; }
+@media (max-width: 767.98px) {
+  #pageContent .page-head { padding: 7px 8px; margin: -7px -8px 10px; }
+  #pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 15px; }
+  #pageContent .page-head.rpm-page-head-scrolled .page-actions .btn { font-size: 11px; }
+  .rpm-back-to-top { right: 12px; bottom: 14px; min-width: 58px; height: 36px; }
+}
+@media print {
+  #pageContent .page-head { position: static; background: transparent; border: 0; box-shadow: none; }
+  .rpm-back-to-top { display: none !important; }
+}
+/* RPM STICKY PAGE NAV V1 END */

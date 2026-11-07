@@ -359,8 +359,24 @@ const App = {
           </div>
         </header>
         <main class="content" id="pageContent"></main>
+        <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><i class="bi bi-arrow-up" aria-hidden="true"></i><span>Top</span></button>
       </div>
     </div><div id="printArea"></div>`;
+    // RPM STICKY PAGE NAV V1 START: keep the page heading visible and offer an accessible way back.
+    if (this._rpmScrollNavigation) window.removeEventListener('scroll', this._rpmScrollNavigation);
+    this._rpmScrollNavigation = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      document.querySelector('#pageContent .page-head')?.classList.toggle('rpm-page-head-scrolled', y > 90);
+      const topButton = document.getElementById('rpmBackToTop');
+      if (topButton) topButton.hidden = y <= 320;
+    };
+    window.addEventListener('scroll', this._rpmScrollNavigation, { passive: true });
+    document.getElementById('rpmBackToTop').onclick = () => {
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
+    };
+    this._rpmScrollNavigation();
+    // RPM STICKY PAGE NAV V1 END
     const sb = document.getElementById('appSidebar'), bd = document.getElementById('sidebarBackdrop');
     document.getElementById('menuBtn').onclick = () => { sb.classList.add('open'); bd.classList.add('show'); };
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
@@ -429,6 +445,7 @@ const App = {
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
     if (secondary) document.getElementById('sidebarMore').open = true;
     document.getElementById('appSidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('show');
+    if (this._rpmScrollNavigation) requestAnimationFrame(this._rpmScrollNavigation);
     document.getElementById('crumbs').innerHTML = `${nav.section ? `<span class="crumb-sec">${UI.esc(nav.section)}</span><i class="bi bi-chevron-right"></i>` : ''}<span class="crumb-page">${UI.esc(nav.label)}</span>`;
     document.title = nav.label + ' · Mulawin FleetOps';
     const el = document.getElementById('pageContent');
