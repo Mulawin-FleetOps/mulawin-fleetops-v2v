@@ -335,6 +335,7 @@ const App = {
           <button class="icon-btn d-lg-none" id="menuBtn" type="button" aria-label="Open the menu"><i class="bi bi-list"></i></button>
           <div class="crumbs" id="crumbs"></div>
           <div class="topbar-actions">
+            <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top"><i class="bi bi-arrow-up" aria-hidden="true"></i><span>Top</span></button>
             <div class="dropdown">
               <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
               <div class="dropdown-menu dropdown-menu-end bell-menu">
@@ -359,7 +360,6 @@ const App = {
           </div>
         </header>
         <main class="content" id="pageContent"></main>
-        <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><i class="bi bi-arrow-up" aria-hidden="true"></i><span>Top</span></button>
       </div>
     </div><div id="printArea"></div>`;
     // RPM STICKY PAGE NAV V1 START: keep the page heading visible and offer an accessible way back.
@@ -368,7 +368,7 @@ const App = {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
       document.querySelector('#pageContent .page-head')?.classList.toggle('rpm-page-head-scrolled', y > 90);
       const topButton = document.getElementById('rpmBackToTop');
-      if (topButton) topButton.hidden = y <= 320;
+      if (topButton) topButton.setAttribute('aria-label', y > 0 ? 'Back to top' : 'Already at top');
     };
     window.addEventListener('scroll', this._rpmScrollNavigation, { passive: true });
     document.getElementById('rpmBackToTop').onclick = () => {

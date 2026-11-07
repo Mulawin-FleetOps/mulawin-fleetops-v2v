@@ -370,7 +370,7 @@ a:hover { color: var(--rpm-brand-strong); }
 @media (max-width: 575.98px) { .sidebar .nav-item-link { min-height: 42px; } }
 /* RPM SIDEBAR WORKSPACE V1 END */
 
-/* RPM STICKY PAGE NAV V1 START */
+/* RPM STICKY PAGE NAV V2 START */
 /* The topbar already sticks at 0; the page title follows directly below it. */
 #pageContent .page-head {
   position: sticky;
@@ -395,38 +395,40 @@ a:hover { color: var(--rpm-brand-strong); }
 #pageContent .page-head .page-actions { align-items: center; min-width: 0; }
 #pageContent .page-head .page-actions .btn { max-width: 100%; }
 .rpm-back-to-top {
-  position: fixed;
-  right: clamp(14px, 2.4vw, 30px);
-  bottom: 22px;
-  z-index: 1000;
+  position: static;
+  flex: 0 0 auto;
+  min-width: 62px;
+  height: 34px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 72px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 9px;
+  border-radius: 8px;
   border: 1px solid #b7ddbf;
   color: #155b30;
   background: #fff;
-  box-shadow: 0 4px 16px rgba(14, 68, 35, .14);
+  box-shadow: none;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 650;
+  white-space: nowrap;
   cursor: pointer;
 }
-.rpm-back-to-top[hidden] { display: none !important; }
+@media (max-width: 575.98px) {
+  .topbar-actions { gap: 3px; }
+  .rpm-back-to-top { min-width: 34px; width: 34px; height: 34px; padding: 0; }
+  .rpm-back-to-top span { display: none; }
+}
 .rpm-back-to-top:hover { background: #eaf7ed; border-color: #65ad78; }
 .rpm-back-to-top:focus-visible { outline: 2px solid #218b48; outline-offset: 2px; }
 @media (max-width: 767.98px) {
   #pageContent .page-head { padding: 7px 8px; margin: -7px -8px 10px; }
   #pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 15px; }
   #pageContent .page-head.rpm-page-head-scrolled .page-actions .btn { font-size: 11px; }
-  .rpm-back-to-top { right: 12px; bottom: 14px; min-width: 58px; height: 36px; }
 }
 @media print {
   #pageContent .page-head { position: static; background: transparent; border: 0; box-shadow: none; }
   .rpm-back-to-top { display: none !important; }
 }
-/* RPM STICKY PAGE NAV V1 END */
+/* RPM STICKY PAGE NAV V2 END */
