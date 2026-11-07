@@ -89,7 +89,7 @@ const PurUI = {
       async (x, form) => { const release = [...form.querySelectorAll('[data-rel]')].map(i => ({ line_id: i.dataset.rel, qty: +i.value || 0 }));
         const res = await App.api('Purchasing.request_process', { request_id: rq.id, release, notes: x.notes }); UI.result(res); App.route(); },
       { submit: 'Release parts', extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-na>Not available (no stock)</button>' });
-    wrap.querySelector('[data-na]').onclick = async () => { try { const res = await App.api('Purchasing.request_process', { request_id: rq.id, not_available: 1 }); UI.result(res); bootstrap.Modal.getInstance(wrap).hide(); App.route(); } catch (e) { UI.toast(e.message, 'error'); } };
+    wrap.querySelector('[data-na]').onclick = async () => { if (!await UI.confirmProceed('Confirm no stock', 'Mark this parts request as not available because the required stock is unavailable?', 'Confirm not available')) return; try { const res = await App.api('Purchasing.request_process', { request_id: rq.id, not_available: 1 }); UI.result(res); bootstrap.Modal.getInstance(wrap).hide(); App.route(); } catch (e) { UI.toast(e.message, 'error'); } };
   },
   async printRequest(rq) {
     const r = await App.api('Purchasing.request_details', { request_id: rq.id }); const q = r.request;

@@ -232,7 +232,14 @@ const TripUI = {
     // Map pins set the hidden lat/lng fields from code (no input event), so refresh the summary briefly while the page is open.
     const tick = setInterval(() => { if (document.body.contains(form)) summary(); else clearInterval(tick); }, 1500);
     summary();
-    form.querySelector('[data-cancel]').onclick = () => App.go('trips');
+    const tripStart = UI.modalEditSnapshot(form);
+    const exitNewTrip = async () => {
+      if (UI.modalEditSnapshot(form) !== tripStart &&
+          !await UI.confirmProceed('Discard trip request?', 'You have unsaved trip information. Discard your changes?', 'Discard changes')) return;
+      App.go('trips');
+    };
+    back.onclick = exitNewTrip;
+    form.querySelector('[data-cancel]').onclick = exitNewTrip;
     const fail = (msg, el) => { err.textContent = msg; err.style.display = 'block'; if (el) { el.classList.add('is-invalid'); el.focus(); } else window.scrollTo({ top: 0, behavior: 'smooth' }); };
     form.onsubmit = async (e) => {
       e.preventDefault(); err.style.display = 'none';
@@ -243,6 +250,7 @@ const TripUI = {
       if (when.value && when.value < UI.nowManila(-5)) return fail('The schedule cannot be earlier than the current date and time (' + UI.nowManila().replace('T', ' ') + ', Philippine time).', when);
       if (when.value && when.value > UI.nowManila(365 * 1440)) return fail('The schedule cannot be more than 365 days ahead. Check the year.', when);
       if (!form.querySelector('#ntConfirm').checked) return fail('Please check the pickup and destination addresses, then tick the confirmation box.', form.querySelector('#ntConfirm'));
+      if (!await UI.confirmProceed('Confirm new trip', 'Are you sure you want to create or submit this trip request?', 'Confirm trip')) return;
       const btn = form.querySelector('button[type=submit]'), label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving…';
       try {
         const r = await App.apiForm('Trips.create', UI.formData(form), form);
@@ -293,6 +301,7 @@ const TripUI = {
   async checklist(t, kind = 'Pre-Dispatch', before = null) {
     // Starts (or continues) the server-side inspection timer; reopening does not restart it.
     let timer;
+    if (!await UI.confirmProceed('Begin truck checklist', 'Start or resume the ' + kind + ' checklist for ' + t.trip_ref + '?', 'Continue to checklist')) return;
     try { timer = await App.api('Trips.checklist_start', { trip_id: t.id, kind }); } catch (e) { return UI.toast(e.message, 'error'); }
     const secs = TripUI.data.checklist || [];
     const arrival = kind === 'Arrival';
@@ -519,7 +528,7 @@ const TripUI = {
     el.querySelectorAll('[data-tact]').forEach(b => b.onclick = () => {
       const a = b.dataset.tact;
       if (a === 'review') TripUI.review(t);
-      if (a === 'auto') App.api('Trips.auto_assign', { trip_id: t.id }).then(x => { UI.result(x); TripUI.open(t.id); App.route(); }).catch(e => UI.toast(e.message, 'error'));
+      if (a === 'auto') UI.confirmProceed('Auto-assign trip', 'Automatically assign an available truck and crew to ' + t.trip_ref + '?', 'Auto-assign').then(ok => { if (ok) return App.api('Trips.auto_assign', { trip_id: t.id }).then(x => { UI.result(x); TripUI.open(t.id); App.route(); }).catch(e => UI.toast(e.message, 'error')); }); 
       if (a === 'reassign') TripUI.reassign(t);
       if (a === 'edit') TripUI.edit(t);
       if (a === 'cancel') UI.confirmAction('Cancel ' + UI.esc(t.trip_ref), 'The truck and crew are freed. A released fund must be liquidated by Finance.', 'Trips.cancel', { trip_id: t.id }, { danger: true, submit: 'Cancel trip', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });

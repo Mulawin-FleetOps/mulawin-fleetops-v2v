@@ -206,6 +206,10 @@ const App = {
     document.getElementById('emailCancel').onclick = () => this.loadMe();
     document.getElementById('emailChangeForm').onsubmit = async (e) => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+      if (!await UI.confirmProceed('Confirm email change', stage === 'request' ?
+          'Send a verification code to the new email address?' :
+          'Verify the code and change your account email address?',
+          stage === 'request' ? 'Send code' : 'Change email')) return;
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
       try {
         if (stage === 'request') {
@@ -236,6 +240,10 @@ const App = {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target));
       if (stage === 'request' && f.new_password !== f.confirm) return this.passwordScreen(firstSetup, 'New passwords do not match.', 'request');
+      if (!await UI.confirmProceed('Confirm password change', stage === 'request' ?
+          'Send a verification code before changing your password?' :
+          'Verify the code and save your new password?',
+          stage === 'request' ? 'Send code' : 'Change password')) return;
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
       try {
         if (stage === 'request') {
@@ -273,6 +281,7 @@ const App = {
       };
       const revoke = async (action, payload) => {
         if (!inp.value) { UI.toast('Enter your current password first.', 'error'); inp.focus(); return; }
+        if (!await UI.confirmProceed('Revoke trusted device', 'This remembered device will no longer bypass email verification on its next sign-in.', 'Revoke device')) return;
         const btns = wrap.querySelectorAll('[data-revoke-device], #tdRevokeAll');
         btns.forEach(b => b.disabled = true);
         try {
@@ -386,7 +395,7 @@ const App = {
     document.getElementById('chgEmail').onclick = () => this.emailScreen();
     document.getElementById('trustDevices').onclick = () => this.trustedDevicesScreen();
     document.getElementById('mySig').onclick = () => UI.signatureModal();
-    document.getElementById('bellReadAll').onclick = async () => { try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
+    document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
     this.renderBell();
   },
@@ -408,11 +417,11 @@ const App = {
       UI.modal(UI.esc(n.category), `<p class="mb-2">${UI.esc(n.message)}</p><div class="small text-muted">Received ${UI.datetime(n.created_at)}</div>`, null, { size: '',
         extraFooter: `<button type="button" class="btn btn-outline-success btn-sm" data-r>Mark as resolved</button>${n.page && UI.canGo(n.page) ? '<button type="button" class="btn btn-primary btn-sm" data-o>Open</button>' : ''}`,
         onShow: (w) => {
-          w.querySelector('[data-r]').onclick = async () => { const r = await this.notificationState(n.id, 'Resolved'); if (r) UI.toast(r.message); bootstrap.Modal.getInstance(w).hide(); };
+          w.querySelector('[data-r]').onclick = async () => { if (!await UI.confirmProceed('Resolve notification', 'Mark this notification as resolved?', 'Resolve')) return; const r = await this.notificationState(n.id, 'Resolved'); if (r) UI.toast(r.message); bootstrap.Modal.getInstance(w).hide(); };
           w.querySelector('[data-o]')?.addEventListener('click', () => { bootstrap.Modal.getInstance(w).hide(); this.go(n.page); });
         } });
     });
-    list.querySelectorAll('[data-nresolve]').forEach(b => b.onclick = async (e) => { e.stopPropagation(); const r = await this.notificationState(b.dataset.nresolve, 'Resolved'); if (r) UI.toast(r.message); });
+    list.querySelectorAll('[data-nresolve]').forEach(b => b.onclick = async (e) => { e.stopPropagation(); if (!await UI.confirmProceed('Resolve notification', 'Mark this notification as resolved?', 'Resolve')) return; const r = await this.notificationState(b.dataset.nresolve, 'Resolved'); if (r) UI.toast(r.message); });
   },
   /** Applies bell data returned by a notification action (keeps the bell in step at once). */
   applyBell(r) {
@@ -839,6 +848,24 @@ UI.askWithinModal = (wrap, title, message, confirmLabel = 'Confirm changes') => 
   wrap.append(layer);
   layer.querySelector('[data-app-confirm-no]').focus();
 });
+
+
+/* FLEETOPS_ACTION_CONFIRMATIONS_V3 */
+/** Ask before any deliberate data-changing operation, using the app's own UI. */
+UI.confirmProceed = (title, message, label = 'Yes, proceed') => {
+  const activeModal = [...document.querySelectorAll('.modal.show')].at(-1);
+  if (activeModal) return UI.askWithinModal(activeModal, title, message, label);
+  return new Promise(resolve => {
+    let accepted = false;
+    let settled = false;
+    const done = value => { if (!settled) { settled = true; resolve(value); } };
+    const wrap = UI.modal(UI.esc(title), `<p class="mb-0">${UI.esc(message)}</p>`,
+      async () => { accepted = true; }, {
+        size: '', submit: label, confirmBeforeSubmit: false, guardUnsaved: false
+      });
+    wrap.addEventListener('hidden.bs.modal', () => done(accepted), { once: true });
+  });
+};
 
 UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
   const wrap = document.createElement('div');

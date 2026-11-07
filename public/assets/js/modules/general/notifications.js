@@ -9,7 +9,7 @@ App.page('notifications', {
   subtitle: 'Tasks and updates sent to you. Resolved notifications stay here as history.',
   render(ctx) {
     const d = ctx.data, c = d.counts || {};
-    UI.tool(ctx, 'Mark all as read', async () => { const r = await App.api('Admin.notifications_read', {}); UI.result(r); App.applyBell(r); App.route(); }, 'bi-check2-all', 'outline-secondary');
+    UI.tool(ctx, 'Mark all as read', async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; const r = await App.api('Admin.notifications_read', {}); UI.result(r); App.applyBell(r); App.route(); }, 'bi-check2-all', 'outline-secondary');
     ctx.el.innerHTML = UI.statusStrip(d.states.map(s => ({ label: s, value: +c[s] || 0, color: s === 'Unread' && +c[s] ? 'amber' : '' })))
       + UI.filterModal(ctx, [{ name: 'state', label: 'State', type: 'select', options: UI.list(d.states), col: 12 }], { hint: 'Showing unread, read and resolved notifications.' })
       + UI.table([

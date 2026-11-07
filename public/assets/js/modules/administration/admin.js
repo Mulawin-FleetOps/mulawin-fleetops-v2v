@@ -140,7 +140,7 @@ App.page('admin', {
     UI.tabs(box, tabs, ctx.query.from || ctx.query.area ? 'log' : null);
     box.addEventListener('click', async (e) => {
       if (e.target.closest('[data-addcat]')) catForm();
-      if (e.target.closest('[data-backup]')) { try { UI.result(await App.api('Admin.backup_create', {})); App.route(); } catch (x) { UI.toast(x.message, 'error'); } }
+      if (e.target.closest('[data-backup]')) { if (!await UI.confirmProceed('Create backup', 'Create a new database backup now?', 'Create backup')) return; try { UI.result(await App.api('Admin.backup_create', {})); App.route(); } catch (x) { UI.toast(x.message, 'error'); } }
     });
   },
 });
