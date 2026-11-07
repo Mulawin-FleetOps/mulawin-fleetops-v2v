@@ -435,7 +435,7 @@ const TripUI = {
       <div style="grid-column:1/3"><b>LOCATION / PERSON/S INVOLVED IN INCIDENT:</b> ${UI.esc(i.location)}${i.persons_involved ? ' / ' + UI.esc(i.persons_involved) : ''}</div>
       <div style="grid-column:1/3"><b>REASON:</b> ${UI.esc(i.reason || '')}</div></div>
       <div><b>INCIDENT DETAILS:</b></div><div class="pf-box" style="min-height:160px">${UI.esc(i.problem)}\n\n${UI.esc(i.details)}</div>
-      <div class="pf-signs">${UI.sign('Reported by (name and signature)', i.reported_by_name, i.reported_by)}${UI.sign('Received by (name and signature)', i.assessed_by_name || '', i.assessed_by)}</div>
+      <div class="pf-signs">${UI.sign('Reported by (name and signature)', i.reported_by_name, i.reported_by, 'incident', i.id)}${UI.sign('Received by (name and signature)', i.assessed_by_name || '', i.assessed_by, 'incident', i.id)}</div>
       <div class="mt-2"><b>RECOMMENDATION:</b></div><div class="pf-box">${UI.esc(i.recommendation || '')}${i.severity ? '\nAssessment: ' + UI.esc(i.severity) + ' damage' : ''}</div>
       <div class="pf-signs">${UI.sign('Recommended by (name and signature)')}${UI.sign('Approved by (name and signature)')}</div>`, { number: i.incident_ref });
   },

@@ -69,7 +69,7 @@ const BillUI = {
       <table style="width:52%"><tr><td>Total Sales (VAT inclusive)</td><td class="num">${UI.money(total)}</td></tr><tr><td>Less: VAT</td><td class="num">${UI.money(vatAmt)}</td></tr>
         <tr><td>Amount: Net of VAT</td><td class="num">${UI.money(total - vatAmt)}</td></tr><tr><td>Add: VAT</td><td class="num">${UI.money(vatAmt)}</td></tr>
         <tr><th>TOTAL AMOUNT DUE</th><th class="num">${UI.money(total)}</th></tr></table></div>
-      <div class="pf-signs">${UI.sign('Received the amount of / Received by (client)')}${UI.sign('Authorized representative', b.finalized_by_name || '', b.finalized_by)}</div>`, { number: b.invoice_number });
+      <div class="pf-signs">${UI.sign('Received the amount of / Received by (client)')}${UI.sign('Authorized representative', b.finalized_by_name || '', b.finalized_by, 'billing', b.id)}</div>`, { number: b.invoice_number });
   },
   /** Amount in words for receipts, e.g. 13875.5 -> "THIRTEEN THOUSAND EIGHT HUNDRED SEVENTY-FIVE PESOS AND 50/100". */
   words(amount) {
@@ -101,7 +101,7 @@ const BillUI = {
         <p><span class="pf-fill w-100">${UI.esc(BillUI.words(co.amount))}</span></p>
         <p>pesos (₱ <span class="pf-fill">${UI.money(co.amount).replace('₱', '')}</span>) in ${full ? '<s>partial</s> / <b>full</b>' : '<b>partial</b> / <s>full</s>'} payment for <span class="pf-fill w-40">trucking service, invoice ${UI.esc(b.invoice_number)}</span></p>
         <p class="small">${co.reference ? 'Reference: ' + UI.esc(co.reference) + '. ' : ''}${co.cheque_number ? 'Cheque no. ' + UI.esc(co.cheque_number) + (co.bank_name ? ' (' + UI.esc(co.bank_name) + ')' : '') + '. ' : ''}AR no. ${UI.esc(co.ar_number || '')}</p>
-        <div class="pf-signs">${UI.sign('Cashier / Authorized Representative', co.recorded_by_name || '', co.recorded_by)}</div>
+        <div class="pf-signs">${UI.sign('Cashier / Authorized Representative', co.recorded_by_name || '', co.recorded_by, 'collection', co.id)}</div>
         <div class="pf-note">"THIS DOCUMENT IS NOT VALID FOR CLAIMING INPUT TAXES"</div>
       </div></div>`, { number: co.ar_number || '' });
   },

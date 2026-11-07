@@ -1048,7 +1048,7 @@ UI.printForm = (title, body, opts = {}) => {
  */
 /** Empty table rows so a printed list looks like the paper form (rows = columns count, upTo = total rows wanted). */
 UI.pfBlank = (cols, have, upTo = 8) => Array.from({ length: Math.max(0, upTo - have) }, () => `<tr>${'<td>&nbsp;</td>'.repeat(cols)}</tr>`).join('');
-UI.sign = (label, name = '', sig = null) => `<div class="pf-sign">${sig ? `<img class="pf-sig-img" src="index.php?api=signature&user=${encodeURIComponent(sig)}" alt="" onerror="this.remove()">` : ''}<div class="pf-line">${UI.esc(name)}</div><div class="pf-sl">${UI.esc(label)}</div></div>`;
+UI.sign = (label, name = '', sig = null, recordType = null, recordId = null) => `<div class="pf-sign">${sig ? `<img class="pf-sig-img" src="index.php?api=signature&user=${encodeURIComponent(sig)}&record_type=${encodeURIComponent(recordType || '')}&record_id=${encodeURIComponent(recordId || '')}" alt="" onerror="this.remove()">` : ''}<div class="pf-line">${UI.esc(name)}</div><div class="pf-sl">${UI.esc(label)}</div></div>`;
 
 // ------------------------------------------------------------------ e-signature (upload or draw)
 /**

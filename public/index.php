@@ -172,7 +172,9 @@ if (isset($_GET['api'])) {
                 $uid = filter_var($_GET['user'] ?? null, FILTER_VALIDATE_INT);
                 must($uid !== false && $uid > 0, 'Invalid user.');
                 core('SignatureAccess');
-                must(SignatureAccess::canView($viewer, (int)$uid), 'You cannot view this signature.', 403);
+                $recordType = (string)($_GET['record_type'] ?? '');
+                $recordId = filter_var($_GET['record_id'] ?? null, FILTER_VALIDATE_INT);
+                must(SignatureAccess::canView($viewer, (int)$uid, $recordType, ($recordId !== false && $recordId !== null) ? (int)$recordId : 0), 'You cannot view this signature.', 403);
                 $doc = one(db(), "SELECT d.storage_name, d.mime_type FROM users u JOIN documents d ON d.id=u.signature_document_id WHERE u.id=? AND d.entity_type='user'", [(int)$uid]);
                 if (!$doc) { http_response_code(404); exit; }
                 $file = dirname(__DIR__) . '/storage/private/' . basename((string)$doc['storage_name']);
