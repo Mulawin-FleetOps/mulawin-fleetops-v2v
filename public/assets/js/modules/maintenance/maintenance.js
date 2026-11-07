@@ -91,8 +91,8 @@ const MaintUI = {
       if (a === 'assess') UI.formModal('Repair plan for ' + UI.esc(i.incident_ref), [
           { name: 'severity', label: 'Repair plan', type: 'select', required: true, col: 12, options: [['Minor', 'Repair at the incident location; continue the trip after clearance'], ['Major', 'Return the truck for repair; reschedule the trip']] },
           { name: 'mechanic_id', label: 'Mechanic sent / assigned', type: 'select', required: true, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
-          { name: 'expected_completion', label: 'Expected truck availability date (if returning for repair)', type: 'date', col: 6 },
-          { name: 'recommendation', label: 'Recommendation', type: 'textarea', required: true, col: 12 }],
+          { name: 'expected_completion', label: 'Expected return-to-service date (if returning for repair)', type: 'date', col: 6 },
+          { name: 'recommendation', label: 'Repair recommendation', type: 'textarea', required: true, col: 12 }],
         'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>${UI.esc(i.problem)}</b> at ${UI.esc(i.location)}.<br>Select the actual repair approach: repair at the incident location and continue after clearance, or return the truck for repair and reschedule the trip.`, after: reopen });
       if (a === 'mech') UI.formModal((j.mechanic_id ? 'Change mechanic for ' : 'Assign mechanic to ') + UI.esc(j.job_ref), [
           { name: 'mechanic_id', label: 'Mechanic', type: 'select', required: true, col: 12, options: mech.filter(o => +o[0] !== +j.mechanic_id), placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
