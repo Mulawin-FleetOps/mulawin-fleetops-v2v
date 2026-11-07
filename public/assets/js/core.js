@@ -798,6 +798,48 @@ UI.modalEditSnapshot = (form) => JSON.stringify([...form.querySelectorAll('input
   .map(el => [el.name, el.type === 'file' ? [...el.files].map(f => [f.name, f.size, f.lastModified])
     : (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value]));
 
+/* CHECKLIST_18_CONFIRM_BEFORE_SAVE_V2 */
+/** Custom confirmation layer ABOVE the current app modal (never browser confirm). */
+UI.askWithinModal = (wrap, title, message, confirmLabel = 'Confirm changes') => new Promise(resolve => {
+  if (wrap.querySelector('[data-app-confirm-layer]')) { resolve(false); return; }
+  const layer = document.createElement('div');
+  layer.dataset.appConfirmLayer = '1';
+  layer.style.cssText = 'position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.42)';
+  layer.innerHTML = `<div role="alertdialog" aria-modal="true" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmText"
+    class="bg-white rounded-3 shadow-lg border p-4" style="width:min(100%,430px);max-height:90vh;overflow-y:auto">
+    <h5 id="appConfirmTitle" class="mb-2"></h5>
+    <p id="appConfirmText" class="mb-3 text-muted"></p>
+    <div class="d-flex flex-wrap justify-content-end gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-app-confirm-no>Go back</button>
+      <button type="button" class="btn btn-sm btn-primary" data-app-confirm-yes></button>
+    </div></div>`;
+  layer.querySelector('#appConfirmTitle').textContent = title;
+  layer.querySelector('#appConfirmText').textContent = message;
+  layer.querySelector('[data-app-confirm-yes]').textContent = confirmLabel;
+  const previousFocus = document.activeElement;
+  let completed = false;
+  const finish = (result) => {
+    if (completed) return;
+    completed = true;
+    layer.remove();
+    if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+    resolve(result);
+  };
+  layer.querySelector('[data-app-confirm-no]').onclick = () => finish(false);
+  layer.querySelector('[data-app-confirm-yes]').onclick = () => finish(true);
+  layer.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+    if (e.key === 'Tab') {
+      const no = layer.querySelector('[data-app-confirm-no]');
+      const yes = layer.querySelector('[data-app-confirm-yes]');
+      if (e.shiftKey && document.activeElement === no) { e.preventDefault(); yes.focus(); }
+      else if (!e.shiftKey && document.activeElement === yes) { e.preventDefault(); no.focus(); }
+    }
+  }, true);
+  wrap.append(layer);
+  layer.querySelector('[data-app-confirm-no]').focus();
+});
+
 UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
   const wrap = document.createElement('div');
   wrap.className = 'modal fade'; wrap.tabIndex = -1; wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('role', 'dialog');
@@ -809,6 +851,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
   document.body.append(wrap);
   const m = new bootstrap.Modal(wrap);
   const form = wrap.querySelector('form');
+  let confirmPending = false;
   form.onsubmit = async (e) => {
     e.preventDefault();
     const err = wrap.querySelector('.form-error'); err.style.display = 'none';
@@ -826,6 +869,18 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
         ? 'Complete the required field: ' + fieldLabel
         : 'Please enter a valid value for: ' + fieldLabel;
       err.style.display = 'block'; invalid.focus(); return;
+    }
+    // Validate first, ask user inside the app, then execute the save/API request.
+    // Existing explicit confirm-action modals opt out to avoid double prompts.
+    if (onSubmit && opts.confirmBeforeSubmit !== false) {
+      confirmPending = true;
+      let accepted = false;
+      try {
+        accepted = await UI.askWithinModal(wrap, 'Confirm changes',
+          'Are you sure you want to proceed? Your changes will be saved only after confirmation.',
+          'Confirm & save');
+      } finally { confirmPending = false; }
+      if (!accepted) return;
     }
     const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
     try { await onSubmit(UI.formData(form), form, wrap); saveCompleted = true; m.hide(); }
@@ -872,6 +927,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
      dialog.querySelector('[data-unsaved-keep]').focus();
    };
    wrap.addEventListener('hide.bs.modal', (event) => {
+     if (confirmPending) { event.preventDefault(); return; }
      if (allowDiscard || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
      if (UI.modalEditSnapshot(form) === initialValues) return;
      event.preventDefault();
@@ -894,9 +950,9 @@ UI.formModal = (title, fields, action, opts = {}) => UI.modal(title, (opts.intro
 UI.confirmAction = (title, text, action, payload, opts = {}) => UI.modal(title, `<p class="mb-${opts.fields ? 3 : 0}">${text}</p>${opts.fields ? UI.fields(opts.fields) : ''}`, async (d) => {
   const r = await App.api(action, { ...payload, ...d }); UI.result(r);
   if (opts.after) opts.after(r); else { UI.closeDrawer(); App.route(); }
-}, { size: '', submit: opts.submit || 'Confirm', danger: opts.danger });
+}, { size: '', submit: opts.submit || 'Confirm', danger: opts.danger, confirmBeforeSubmit: false });
 /** Simple in-app confirmation (replaces the browser's confirm()). */
-UI.confirm = (title, text, onYes, opts = {}) => UI.modal(UI.esc(title), `<p class="mb-0">${UI.esc(text)}</p>`, async () => { await onYes(); }, { size: '', submit: opts.submit || 'Confirm', danger: opts.danger });
+UI.confirm = (title, text, onYes, opts = {}) => UI.modal(UI.esc(title), `<p class="mb-0">${UI.esc(text)}</p>`, async () => { await onYes(); }, { size: '', submit: opts.submit || 'Confirm', danger: opts.danger, confirmBeforeSubmit: false });
 
 /**
  * Tabs: tabs = [[key, label(html), htmlFn]]. Remembers the last tab of each page.
@@ -1160,7 +1216,7 @@ UI.filterModal = (ctx, fields, opts = {}) => {
     const wrap = UI.modal('Filter records', UI.fields(fields.map(f => ({ ...f, value: ctx.query[f.name] ?? '' }))) + (opts.note ? `<div class="form-help mt-2">${UI.esc(opts.note)}</div>` : ''), async (d) => {
       const q = { ...ctx.query }; keys.forEach(k => { if (d[k]) q[k] = d[k]; else delete q[k]; });
       App.go(ctx.page, q);
-    }, { size: '', submit: 'Apply filters', extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-freset>Clear filters</button>' });
+    }, { size: '', submit: 'Apply filters', confirmBeforeSubmit: false, extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-freset>Clear filters</button>' });
     wrap.querySelector('[data-freset]').onclick = () => { bootstrap.Modal.getInstance(wrap).hide(); reset(); };
   };
   const label = (k) => { const f = fields.find(x => x.name === k); const o = (f.options || []).find(o => String(Array.isArray(o) ? o[0] : o) === String(ctx.query[k])); return `${f.label}: ${o ? (Array.isArray(o) ? o[1] : o) : ctx.query[k]}`; };
