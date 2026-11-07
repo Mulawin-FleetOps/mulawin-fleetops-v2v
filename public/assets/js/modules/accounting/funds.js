@@ -34,7 +34,7 @@ App.page('funds', {
         if (!d.eligibleTrips.length) return UI.toast('No pre-assigned trip needs a fund request right now.', 'warn');
         UI.modal('New fund request', UI.fields([{ name: 'trip_id', label: 'Trip', type: 'select', required: true, col: 12, options: d.eligibleTrips.map(t => [t.id, `${t.trip_ref} · ${t.plate_number || ''} · ${t.pickup_point} → ${t.delivery_point}`]) }]),
           async (x) => { UI.fundForm({ title: 'Fund request', categories: d.categories, action: 'Funds.submit', payload: { trip_id: x.trip_id }, intro: 'Choose the applicable expenses. The system takes the preset amounts and computes the total.' }); },
-          { size: '', submit: 'Next' });
+          { size: '', submit: 'Continue' });
       };
       ctx.tools.append(b);
     }
@@ -54,7 +54,7 @@ App.page('funds', {
     const cols = [['Fund', 'fund_ref'], ['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Breakdown', 'breakdown'], ['Amount', 'amount', 'money'],
       ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Date', 'created_at', 'date']];
     const actions = (f) => {
-      let h = UI.btn('print', 'Print form', 'outline-secondary') + UI.btn('trip', 'Trip');
+      let h = UI.btn('print', 'Print form', 'outline-secondary') + UI.btn('trip', 'View trip');
       if (d.can.approve && f.status === 'Pending Approval') h += UI.btn('approve', 'Approve', 'success') + UI.btn('reject', 'Reject', 'outline-danger');
       if (d.can.release && f.status === 'Ready for Release') h += UI.btn('release', 'Confirm Release', 'primary');
       if (d.can.release && f.status === 'Released' && f.liquidation_status === 'Not Liquidated' && ['Completed', 'Cancelled'].includes(f.trip_status)) h += UI.btn('liquidate', 'Liquidate', 'outline-primary');
@@ -65,11 +65,11 @@ App.page('funds', {
       if (a === 'print') FundUI.print(f.id);
       if (a === 'trip') { App.go('trips'); setTimeout(() => TripUI.open(f.trip_id), 600); }
       if (a === 'approve') UI.confirmAction('Approve ' + UI.esc(f.fund_ref), `Approve ${UI.money(f.amount)} for ${UI.esc(f.trip_ref)}? It goes to Finance for release.<br><span class="small text-muted">${UI.esc(f.breakdown)}</span>`, 'Funds.decide', { fund_id: f.id, decision: 'approve' }, { submit: 'Approve' });
-      if (a === 'reject') UI.confirmAction('Reject ' + UI.esc(f.fund_ref), 'The dispatcher revises and resubmits it.', 'Funds.decide', { fund_id: f.id, decision: 'reject' }, { danger: true, submit: 'Reject', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
+      if (a === 'reject') UI.confirmAction('Reject ' + UI.esc(f.fund_ref), 'The dispatcher must revise the request and submit it again.', 'Funds.decide', { fund_id: f.id, decision: 'reject' }, { danger: true, submit: 'Reject', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
       if (a === 'release') UI.formModal('Confirm release of ' + UI.esc(f.fund_ref), UI.payFields(d.methods), 'Funds.release', { extra: { fund_id: f.id }, submit: 'Confirm Release',
         intro: `Release <b>${UI.money(f.amount)}</b> for ${UI.esc(f.trip_ref)} (${UI.esc(f.breakdown)}). Allowed even before the pre-dispatch checklist.` });
       if (a === 'liquidate') UI.formModalFiles('Liquidation of ' + UI.esc(f.fund_ref), [
-        { name: 'liquidated_amount', label: 'Actual amount spent', type: 'money', required: true, col: 6, value: f.amount },
+        { name: 'liquidated_amount', label: 'Actual expenses (₱)', type: 'money', required: true, col: 6, value: f.amount },
         { name: 'liquidation_notes', label: 'Notes', col: 6 }, { name: 'receipts', label: 'Receipts (optional)', type: 'file', multiple: true, col: 12 }],
         'Funds.liquidate', { extra: { fund_id: f.id }, intro: `Released: ${UI.money(f.amount)}. Returned cash = released minus spent.` });
       if (a === 'revise') { const r = await App.api('Trips.details', { trip_id: f.trip_id }); const old = r.funds.find(x => x.id == f.id);

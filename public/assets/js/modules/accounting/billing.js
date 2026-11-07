@@ -38,14 +38,14 @@ const BillUI = {
         ['', 'id', (v) => `<button class="btn btn-sm btn-outline-secondary" data-ar="${v}"><i class="bi bi-printer"></i> Receipt</button>`]], r.collections, { plain: true }) : ''}`;
     const el = UI.drawer('Billing · ' + UI.esc(t.trip_ref), html, { subtitle: UI.esc(c.company_name) });
     el.querySelectorAll('[data-ar]').forEach(x => x.onclick = () => BillUI.printAR(r.collections.find(co => String(co.id) === x.dataset.ar), b, c));
-    el.querySelectorAll('[data-rmc]').forEach(x => x.onclick = async () => { try { UI.result(await App.api('Billing.charge_remove', { charge_id: x.dataset.rmc })); BillUI.open(id); App.route(); } catch (e) { UI.toast(e.message, 'error'); } });
+    el.querySelectorAll('[data-rmc]').forEach(x => x.onclick = () => UI.confirmAction('Remove additional charge', 'Remove this charge from the billing breakdown?', 'Billing.charge_remove', { charge_id: x.dataset.rmc }, { danger: true, submit: 'Remove charge', after: () => { BillUI.open(id); App.route(); } }));
     el.querySelectorAll('[data-a]').forEach(x => x.onclick = () => {
       const a = x.dataset.a;
-      if (a === 'charge') UI.formModal('Additional charge', [{ name: 'description', label: 'Description (e.g. toll fees, waiting time)', required: true, col: 8 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 4 }],
+      if (a === 'charge') UI.formModal('Add billing charge', [{ name: 'description', label: 'Charge description (e.g. toll fees, waiting time)', required: true, col: 8 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 4 }],
         'Billing.charge_add', { extra: { billing_id: id }, after: () => { BillUI.open(id); App.route(); } });
-      if (a === 'verify') UI.confirmAction('Verify documents', 'Confirm that the waybill and the acknowledgement receipt match this trip and the billing information.', 'Billing.verify', { billing_id: id }, { submit: 'Verified', after: () => { BillUI.open(id); App.route(); } });
+      if (a === 'verify') UI.confirmAction('Verify documents', 'Confirm that the waybill and the acknowledgement receipt match this trip and the billing information.', 'Billing.verify', { billing_id: id }, { submit: 'Verify documents', after: () => { BillUI.open(id); App.route(); } });
       if (a === 'finalize') UI.formModal('Finalize invoice', [{ name: 'invoice_date', label: 'Invoice date', type: 'date', value: UI.today(), required: true, col: 6 },
-          { name: 'invoice_number', label: 'Invoice no. (blank = automatic)', col: 6, help: 'Type the pre-printed service invoice number if you use one.' }],
+          { name: 'invoice_number', label: 'Invoice number (optional)', col: 6, help: 'Leave blank for automatic numbering, or enter the pre-printed invoice number.' }],
         'Billing.finalize', { extra: { billing_id: id }, intro: `Total ${UI.money(b.total_amount)}. Due date = invoice date + client payment terms.`, after: () => { BillUI.open(id); App.route(); } });
       if (a === 'print') BillUI.printInvoice(r);
       if (a === 'pay') UI.formModalFiles('Record payment for ' + UI.esc(b.invoice_number), [

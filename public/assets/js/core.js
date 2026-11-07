@@ -707,10 +707,10 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
     const missing = [...form.querySelectorAll('[required]')].filter(x => x.offsetParent !== null || x.type === 'hidden').find(x => x.type === 'file' ? !x.files.length : !String(x.value).trim());
     if (missing) {
       missing.classList.add('is-invalid');
-      err.textContent = 'Please fill in: ' + (form.querySelector(`label[for="${missing.id}"]`)?.textContent || missing.name).replace(/\s*\*$/, '');
+      err.textContent = 'Complete the required field: ' + (form.querySelector(`label[for="${missing.id}"]`)?.textContent || missing.name).replace(/\s*\*$/, '');
       err.style.display = 'block'; missing.focus(); return;
     }
-    const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving…';
+    const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
     try { await onSubmit(UI.formData(form), form, wrap); m.hide(); }
     catch (x) { err.textContent = x.message; err.style.display = 'block'; }
     finally { btn.disabled = false; btn.innerHTML = label; }
@@ -993,10 +993,10 @@ UI.filterModal = (ctx, fields, opts = {}) => {
   const active = keys.filter(k => ctx.query[k]);
   const reset = () => { const q = { ...ctx.query }; keys.forEach(k => delete q[k]); App.go(ctx.page, q); };
   const open = () => {
-    const wrap = UI.modal('Filter', UI.fields(fields.map(f => ({ ...f, value: ctx.query[f.name] ?? '' }))) + (opts.note ? `<div class="form-help mt-2">${UI.esc(opts.note)}</div>` : ''), async (d) => {
+    const wrap = UI.modal('Filter records', UI.fields(fields.map(f => ({ ...f, value: ctx.query[f.name] ?? '' }))) + (opts.note ? `<div class="form-help mt-2">${UI.esc(opts.note)}</div>` : ''), async (d) => {
       const q = { ...ctx.query }; keys.forEach(k => { if (d[k]) q[k] = d[k]; else delete q[k]; });
       App.go(ctx.page, q);
-    }, { size: '', submit: 'Apply', extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-freset>Reset</button>' });
+    }, { size: '', submit: 'Apply filters', extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-freset>Clear filters</button>' });
     wrap.querySelector('[data-freset]').onclick = () => { bootstrap.Modal.getInstance(wrap).hide(); reset(); };
   };
   const label = (k) => { const f = fields.find(x => x.name === k); const o = (f.options || []).find(o => String(Array.isArray(o) ? o[0] : o) === String(ctx.query[k])); return `${f.label}: ${o ? (Array.isArray(o) ? o[1] : o) : ctx.query[k]}`; };

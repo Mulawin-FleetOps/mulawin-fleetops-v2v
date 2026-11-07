@@ -79,7 +79,7 @@ App.page('admin', {
             onAction: (a, u) => {
               if (a === 'edit') userForm(u);
               if (a === 'pw') {
-                const passwordResetModal = UI.formModal('Set a new password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Give it to the user privately. Their open sessions are signed out; logging in still needs the email code.' },
+                const passwordResetModal = UI.formModal('Reset password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Share the new password securely. Existing sessions are signed out, and email verification is still required at sign-in.' },
                 { name: 'password_confirm', label: 'Confirm new password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"' }], 'Admin.user_password',
                 { extra: { user_id: u.id }, size: '', transform: (x) => { if (x.password !== x.password_confirm) throw new Error('The passwords do not match.'); return x; } });
                 addPasswordVisibility(passwordResetModal);

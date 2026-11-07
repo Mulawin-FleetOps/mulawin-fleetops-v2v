@@ -21,7 +21,7 @@ App.page('finance', {
     const period = UI.filterModal(ctx, [{ name: 'from', label: 'Start date', type: 'date', col: 6 }, { name: 'to', label: 'End date', type: 'date', col: 6 }], { hint: `Period: ${UI.date(d.period.from)} to ${UI.date(d.period.to)} (this month by default).` });
     const payPO = (o) => UI.formModalFiles('Pay ' + UI.esc(o.po_ref), [
       { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6, value: Math.max(0, +o.received_value - +o.paid_amount).toFixed(2) },
-      { name: 'supplier_invoice_no', label: 'Supplier invoice no.', required: true, col: 6, value: o.supplier_invoice_no },
+      { name: 'supplier_invoice_no', label: 'Supplier invoice number', required: true, col: 6, value: o.supplier_invoice_no },
       ...UI.payFields(d.methods),
       { name: 'or_doc', label: 'Official receipt / payment confirmation (required)', type: 'file', required: true, col: 12, attrs: 'accept="application/pdf,image/*"' }],
       'Finance.po_pay', { extra: { po_id: o.id }, submit: 'Record payment',
@@ -40,7 +40,7 @@ App.page('finance', {
               { name: 'or_doc', label: 'Receipt (optional)', type: 'file', col: 12 }], 'Finance.payable_pay', { extra: { payable_id: p.id } }),
             tools: act ? '<button class="btn btn-sm btn-primary" data-addap><i class="bi bi-plus"></i> Add payable</button>' : '' });
         setTimeout(() => body.querySelector('[data-addap]')?.addEventListener('click', () => UI.formModalFiles('Add payable', [
-          { name: 'payee', label: 'Payee (supplier or person paid)', required: true, col: 12 },
+          { name: 'payee', label: 'Payee name', required: true, col: 12 },
           { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 }, { name: 'vehicle_id', label: 'Truck (optional)', type: 'select', options: UI.opts(d.trucks, v => v.plate_number), col: 6 },
           { name: 'description', label: 'Description', required: true, col: 12 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 }, { name: 'due_on', label: 'Due date', type: 'date', col: 6 },
           { name: 'bill', label: 'Bill / invoice file (optional)', type: 'file', col: 12 }], 'Finance.payable_add')), 0);
