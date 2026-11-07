@@ -60,7 +60,7 @@ final class Access {
 
             'trucks'      => ['Truck Masterlist', 'bi-truck', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'motorpool', 'purchasing', 'audit'], $D)],
-            'crew'        => ['Driver Masterlist', 'bi-person-badge', 'Masterlists', 'Fleet', 'operations/fleet',
+            'crew'        => ['Driver & Helper Masterlist', 'bi-person-badge', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'audit'], $D)],
             'clients'     => ['Client Masterlist', 'bi-building', 'Masterlists', 'Clients', 'operations/clients',
                               array_merge(['admin', 'operations_head', 'billing', 'finance', 'audit'], $D)],

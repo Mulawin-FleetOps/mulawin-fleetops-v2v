@@ -110,16 +110,30 @@ App.page('clients', {
     const n = (s) => d.clients.filter(c => c.status === s).length;
     const need = Object.keys(d.requiredDocs).length;
     const rows = d.clients.filter(c => q.status ? c.status === q.status : c.status !== 'Inactive');
+    // Quick status tabs are shortcuts. Keep the Filter modal for detailed filtering.
+    const quickStatuses = [['', 'All current'], ['Active', 'Active'], ['Pending Rate', 'Pending rate'],
+      ['Incomplete', 'Incomplete'], ['Inactive', 'Inactive']];
+    const quickTabs = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Client status shortcuts">
+      ${quickStatuses.map(([value, label]) => `<button type="button" class="btn btn-sm ${String(q.status || '') === value ? 'btn-primary' : 'btn-outline-secondary'}" data-client-quick="${UI.esc(value)}" aria-pressed="${String(q.status || '') === value}">${UI.esc(label)}</button>`).join('')}
+    </div>`;
     ctx.el.innerHTML = UI.cards([
       { label: 'Active clients', value: n('Active'), icon: 'bi-building-check', color: 'green' },
       { label: 'Waiting for billing rate', value: n('Pending Rate'), icon: 'bi-hourglass-split', color: 'blue' },
       { label: 'Incomplete requirements', value: n('Incomplete'), icon: 'bi-exclamation-circle', color: 'amber' },
       { label: 'Inactive', value: n('Inactive'), icon: 'bi-archive', color: 'gray' },
-    ]) + UI.filterModal(ctx, [{ name: 'status', label: 'Status', type: 'select', options: UI.list(['Active', 'Pending Rate', 'Incomplete', 'Inactive']), col: 12 }], { hint: 'Showing all clients except inactive.' })
+    ]) + quickTabs + UI.filterModal(ctx, [{ name: 'status', label: 'Status', type: 'select', options: UI.list(['Active', 'Pending Rate', 'Incomplete', 'Inactive']), col: 12 }], { hint: 'Showing all clients except inactive.' })
       + UI.table([['Code', 'client_code'], ['Client', 'company_name', (v) => `<b>${UI.esc(v)}</b>`], ['Contact', 'contact_person'], ['Phone', 'contact_number'], ['Status', 'status', 'badge'],
         ['Requirements', 'docs_done', (v) => `<span class="badge-s ${+v >= need ? 'green' : 'amber'}">${+v} / ${need}</span>`], ['Balance', 'balance', 'money']],
         rows, { title: 'Clients', actions: (c) => UI.btn('view', 'View') + (d.can.rate && c.status === 'Pending Rate' ? UI.btn('rate', 'Set rate', 'primary') : ''),
           onAction: (a, c) => a === 'rate' ? App.api('Clients.details', { id: c.id }).then(r => ClientUI.rate(r.client, r.rates)) : ClientUI.open(c.id, d) });
     UI.activate(ctx.el);
+    ctx.el.querySelectorAll('[data-client-quick]').forEach(button => {
+      button.addEventListener('click', () => {
+        const next = { ...ctx.query };
+        if (button.dataset.clientQuick) next.status = button.dataset.clientQuick;
+        else delete next.status;
+        App.go(ctx.page, next);
+      });
+    });
   },
 });

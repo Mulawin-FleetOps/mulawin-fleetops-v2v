@@ -54,12 +54,17 @@ App.page('mechanics', {
     let rows = q.inactive ? d.mechanics : active;
     if (q.availability) rows = rows.filter(m => m.availability === q.availability);
     const n = (s) => active.filter(m => m.availability === s).length;
+    // Quick availability tabs supplement (but do not replace) Filter modal controls.
+    const quickStatuses = [['', 'All'], ['Available', 'Available'], ['Assigned', 'Assigned'], ['Unavailable', 'Unavailable']];
+    const quickTabs = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Mechanic availability shortcuts">
+      ${quickStatuses.map(([value, label]) => `<button type="button" class="btn btn-sm ${String(q.availability || '') === value ? 'btn-primary' : 'btn-outline-secondary'}" data-mechanic-quick="${UI.esc(value)}" aria-pressed="${String(q.availability || '') === value}">${UI.esc(label)}</button>`).join('')}
+    </div>`;
     ctx.el.innerHTML = UI.statusStrip([
       { label: 'Active mechanics', value: active.length },
       { label: 'Available', value: n('Available'), color: 'green' },
       { label: 'Assigned to a repair', value: n('Assigned'), color: 'blue' },
       { label: 'Unavailable', value: n('Unavailable'), color: n('Unavailable') ? 'red' : '' },
-    ]) + UI.filterModal(ctx, [
+    ]) + quickTabs + UI.filterModal(ctx, [
       { name: 'availability', label: 'Availability', type: 'select', options: UI.list(['Available', 'Assigned', 'Unavailable']), col: 12 },
       { name: 'inactive', label: 'Include deactivated mechanics', type: 'checkbox', col: 12 }], { hint: 'Showing all active mechanics.' })
       + UI.table([
@@ -70,5 +75,13 @@ App.page('mechanics', {
         ['Completed repairs', 'completed_jobs', 'num']], rows,
         { actions: () => UI.btn('view', 'Open'), onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
           empty: d.mechanics.length ? 'No mechanic matches the filter.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
+    ctx.el.querySelectorAll('[data-mechanic-quick]').forEach(button => {
+      button.addEventListener('click', () => {
+        const next = { ...ctx.query };
+        if (button.dataset.mechanicQuick) next.availability = button.dataset.mechanicQuick;
+        else delete next.availability;
+        App.go(ctx.page, next);
+      });
+    });
   },
 });

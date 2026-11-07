@@ -4,6 +4,24 @@
    Backend: backend/Modules/Operations/Fleet.php */
 'use strict';
 const FleetUI = {
+  // Checklist #13/#14: prominent type tabs; no change to server-side filters.
+  masterlistTypeTabs(page, param, options, current) {
+    return `<div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="${page === 'trucks' ? 'Truck types' : 'Personnel types'}">
+      ${options.map(([value, label]) => `<button type="button" class="btn ${String(current || '') === String(value) ? 'btn-primary' : 'btn-outline-secondary'}" data-masterlist-tab="${UI.esc(page)}" data-param="${UI.esc(param)}" data-value="${UI.esc(value)}" aria-pressed="${String(current || '') === String(value) ? 'true' : 'false'}">${UI.esc(label)}</button>`).join('')}
+    </div>`;
+  },
+  bindMasterlistTypeTabs(ctx) {
+    ctx.el.querySelectorAll('[data-masterlist-tab]').forEach(button => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.param;
+        const value = button.dataset.value;
+        const next = { ...ctx.query };
+        if (value) next[key] = value;
+        else delete next[key];
+        App.go(ctx.page, next);
+      });
+    });
+  },
   docBadge(days, date) {
     if (!date) return '<span class="text-muted">—</span>';
     return UI.date(date) + ' ' + UI.days(days);
@@ -119,11 +137,10 @@ App.page('trucks', {
       { label: 'Assigned / on trip', value: n('Assigned') + n('On Trip'), color: 'blue', note: n('On Trip') + ' on the road' },
       { label: 'Under maintenance', value: n('Under Maintenance'), color: n('Under Maintenance') ? 'red' : '', go: 'trucks?status=Under%20Maintenance' },
       { label: 'Unavailable', value: n('Unavailable'), color: n('Unavailable') ? 'red' : '', go: 'trucks?status=Unavailable' },
-    ]) + UI.filterModal(ctx, [
-      { name: 'truck_type', label: 'Truck type', type: 'select', options: UI.list(App.me.truckTypes), col: 6 },
+    ]) + `<div class="d-flex flex-wrap align-items-center gap-2 mb-3">${FleetUI.masterlistTypeTabs('trucks', 'truck_type', [['', 'All trucks'], ...(App.me.truckTypes || []).map(t => [t, t])], q.truck_type)}` + UI.filterModal(ctx, [
       { name: 'status', label: 'Status', type: 'select', options: UI.list(['Available', 'Assigned', 'On Trip', 'Under Maintenance', 'Unavailable']), col: 6 },
       { name: 'docs', label: 'Documents', type: 'select', options: [['expiring', 'Registration or insurance expiring / expired']], col: 6 },
-      { name: 'inactive', label: 'Include inactive trucks', type: 'checkbox', col: 12 }], { hint: 'Showing all active trucks.' }) + UI.table([
+      { name: 'inactive', label: 'Include inactive trucks', type: 'checkbox', col: 12 }], { hint: 'Showing all active trucks.' }) + `</div>` + UI.table([
       ['Truck', 'plate_number', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${r.truck_number ? 'Unit #' + UI.esc(r.truck_number) : 'No unit no.'}</div>`],
       ['Type', 'truck_type'],
       ['Availability', 'status', (v, r) => UI.badge(v) + (r.status_reason && v === 'Unavailable' ? `<div class="cell-sub">${UI.esc(r.status_reason)}</div>` : '')],
@@ -131,12 +148,13 @@ App.page('trucks', {
       ['Regular driver', 'driver_name'], ['Registration', 'registration_expiry', (v, r) => FleetUI.docBadge(r.reg_days, v)], ['Insurance', 'insurance_expiry', (v, r) => FleetUI.docBadge(r.ins_days, v)]], rows,
       { actions: () => UI.btn('view', 'Open'), onAction: (a, v) => FleetUI.truckDetails(v.id, d), rowClick: (v) => FleetUI.truckDetails(v.id, d), empty: 'No truck matches the filter.' });
     UI.activate(ctx.el);
+    FleetUI.bindMasterlistTypeTabs(ctx);
     if (q.open) FleetUI.truckDetails(q.open, d);
   },
 });
 
 App.page('crew', {
-  title: 'Driver Masterlist',
+  title: 'Driver & Helper Masterlist',
   subtitle: 'Drivers and helpers: availability, current trip and license expiry.',
   render(ctx) {
     const d = ctx.data, q = ctx.query;
@@ -151,16 +169,16 @@ App.page('crew', {
       { label: 'Drivers on trip', value: c('Driver', 'On Trip'), color: 'blue' },
       { label: 'Helpers available', value: c('Helper', 'Available') + ' / ' + c('Helper') },
       { label: 'Unavailable', value: act.filter(p => p.availability === 'Unavailable').length, color: act.some(p => p.availability === 'Unavailable') ? 'red' : '' },
-    ]) + UI.filterModal(ctx, [
-      { name: 'person_type', label: 'Type', type: 'select', options: UI.list(['Driver', 'Helper']), col: 6 },
+    ]) + `<div class="d-flex flex-wrap align-items-center gap-2 mb-3">${FleetUI.masterlistTypeTabs('crew', 'person_type', [['', 'All personnel'], ['Driver', 'Drivers'], ['Helper', 'Helpers']], q.person_type)}` + UI.filterModal(ctx, [
       { name: 'availability', label: 'Availability', type: 'select', options: UI.list(['Available', 'On Trip', 'Unavailable']), col: 6 },
       { name: 'license', label: 'License', type: 'select', options: [['expiring', 'Expiring / expired']], col: 6 },
-      { name: 'inactive', label: 'Include inactive drivers and helpers', type: 'checkbox', col: 12 }], { hint: 'Showing all active drivers and helpers.' }) + UI.table([
+      { name: 'inactive', label: 'Include inactive drivers and helpers', type: 'checkbox', col: 12 }], { hint: 'Showing all active drivers and helpers.' }) + `</div>` + UI.table([
       ['Name', 'full_name', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${UI.esc(r.employee_no ? 'ID ' + r.employee_no : r.person_type)}</div>`], ['Type', 'person_type'],
       ['Availability', 'availability', (v, r) => UI.badge(v) + (r.unavailable_reason ? `<div class="small text-muted">${UI.esc(r.unavailable_reason)}</div>` : '')],
       ['Current trip', 'trip_ref', (v, r) => v ? `${UI.esc(v)} <span class="small text-muted">${UI.esc(r.trip_plate || '')} · ${UI.esc(r.trip_status)}</span>` : '—'],
       ['License expiry', 'license_expiry', (v, r) => FleetUI.docBadge(r.license_days, v)], ['Completed trips', 'completed_trips', 'num']], rows,
       { actions: () => UI.btn('view', 'Open'), onAction: (a, p) => FleetUI.crewDetails(p.id, d), rowClick: (p) => FleetUI.crewDetails(p.id, d), empty: 'No driver or helper matches the filter.' });
     UI.activate(ctx.el);
+    FleetUI.bindMasterlistTypeTabs(ctx);
   },
 });
