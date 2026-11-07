@@ -81,7 +81,7 @@ App.page('funds', {
     UI.tabs(box, [
       ['pending', `Pending approval (${n('Pending Approval')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Pending Approval'), { actions, onAction, empty: 'Nothing waiting for approval.' })],
       ['release', `Ready for release (${n('Ready for Release')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Ready for Release'), { actions, onAction, empty: 'Nothing to release.' })],
-      ['liquidate', `For liquidation (${toLiq.length})`, () => UI.table([...cols, ['Released', 'released_at', 'date'], ['Voucher', 'voucher_number']], toLiq, { actions, onAction, empty: 'Nothing for liquidation.' })],
+      ['liquidate', `For liquidation (${toLiq.length})`, () => UI.table([...cols, ['Release date', 'released_at', 'date'], ['Voucher', 'voucher_number']], toLiq, { actions, onAction, empty: 'Nothing for liquidation.' })],
       ['revision', `Needs revision (${needsRevision.length})`, () => UI.table(cols, needsRevision, { actions, onAction, empty: 'No fund requests need revision.' })],
       ['history', `History (${history.length})`, () => UI.table([...cols, ['Liquidation', 'liquidation_status', 'badge'], ['Voucher', 'voucher_number']], history, { title: 'Fund request history', actions, onAction, empty: 'No historical fund requests.' })],
     ], def);

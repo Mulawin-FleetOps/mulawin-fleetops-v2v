@@ -14,7 +14,7 @@ App.page('documents', {
       const b = document.createElement('button'); b.className = 'btn btn-sm btn-primary'; b.innerHTML = '<i class="bi bi-upload"></i> Upload';
       b.onclick = () => {
         const wrap = UI.modal('Upload documents', UI.fields([
-          { name: 'entity_type', label: 'Belongs to', type: 'select', required: true, col: 6, options: d.uploadTypes.map(t => [t, d.entityLabels[t]]) },
+          { name: 'entity_type', label: 'Record type', type: 'select', required: true, col: 6, options: d.uploadTypes.map(t => [t, d.entityLabels[t]]) },
           { name: 'entity_id', label: 'Record', type: 'select', col: 6, options: [] },
           { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 },
           { name: 'expires_on', label: 'Expiry date (for reminders)', type: 'date', col: 6 },
@@ -40,11 +40,11 @@ App.page('documents', {
       { label: 'Documents you can see', value: d.documents.length, icon: 'bi-folder2-open' },
       { label: `Expiring within ${d.alertDays} days or expired`, value: expiring.length, icon: 'bi-calendar-x', color: 'red' },
     ]) + UI.filterModal(ctx, [
-      { name: 'entity_type', label: 'Belongs to', type: 'select', options: Object.entries(d.entityLabels), col: 6 },
+      { name: 'entity_type', label: 'Record type', type: 'select', options: Object.entries(d.entityLabels), col: 6 },
       { name: 'category', label: 'Category', type: 'select', options: UI.list([...new Set(d.documents.map(x => x.category))].sort()), col: 6 },
       { name: 'expiring', label: 'Expiry', type: 'select', options: [['1', 'Expiring / expired only']], col: 6 }])
       + UI.table([['File', 'original_filename', (v, r) => `<a href="${UI.docUrl(r.id)}" target="_blank" rel="noopener">${UI.esc(v)}</a>`], ['Category', 'category'],
-        ['Belongs to', 'entity_type', (v) => UI.esc(d.entityLabels[v] || v)], ['Record', 'record_label'], ['Expiry', 'expires_on', (v, r) => v ? UI.date(v) + ' ' + UI.days(r.days_left) : '—'],
+        ['Record type', 'entity_type', (v) => UI.esc(d.entityLabels[v] || v)], ['Record', 'record_label'], ['Expiry date', 'expires_on', (v, r) => v ? UI.date(v) + ' ' + UI.days(r.days_left) : '—'],
         ['Description', 'notes'], ['Uploaded by', 'uploader'], ['Upload date', 'created_at', 'date']], rows,
         { title: 'Documents', actions: () => UI.btn('dl', 'Download', 'outline-secondary'), onAction: (a, r) => { window.location = UI.docUrl(r.id, false); } });
     UI.activate(ctx.el);

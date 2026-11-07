@@ -34,7 +34,7 @@ const BillUI = {
       ${UI.h('Client profile')}${UI.kv([['Client', `<b>${UI.esc(c.company_name)}</b>`], ['TIN', UI.e(c.tin)], ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
         ['Payment terms', c.payment_terms_days !== null ? c.payment_terms_days + ' days' : 'default']])}
       ${b.invoice_number ? UI.h('Invoice') + UI.kv([['Invoice no.', UI.esc(b.invoice_number)], ['Invoice date', UI.date(b.invoice_date)], ['Due date', UI.date(b.due_date)], ['Finalized by', UI.e(b.finalized_by_name)]]) : ''}
-      ${r.collections.length ? UI.h('Payments') + UI.table([['Date', 'payment_date', 'date'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number'], ['By', 'recorded_by_name'],
+      ${r.collections.length ? UI.h('Payments') + UI.table([['Payment date', 'payment_date', 'date'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number'], ['Recorded by', 'recorded_by_name'],
         ['', 'id', (v) => `<button class="btn btn-sm btn-outline-secondary" data-ar="${v}"><i class="bi bi-printer"></i> Receipt</button>`]], r.collections, { plain: true }) : ''}`;
     const el = UI.drawer('Billing · ' + UI.esc(t.trip_ref), html, { subtitle: UI.esc(c.company_name) });
     el.querySelectorAll('[data-ar]').forEach(x => x.onclick = () => BillUI.printAR(r.collections.find(co => String(co.id) === x.dataset.ar), b, c));

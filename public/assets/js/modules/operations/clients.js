@@ -79,13 +79,13 @@ const ClientUI = {
       ${c.status === 'Pending Rate' ? '<div class="alert alert-info py-2 small">Profile complete. Waiting for Billing to set the billing rate.</div>' : ''}
       <div class="drawer-actions">${acts.join('')}</div>
       ${UI.h('Client information')}${UI.kv([['Registered name', `<b>${UI.esc(c.company_name)}</b>`], ['Trade name', UI.e(c.trade_name)], ['TIN', UI.e(c.tin)], ['Nature of business', UI.e(c.nature_of_business)],
-        ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_position].filter(Boolean).join(', ') || '—')], ['Phone / email', UI.esc([c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
+        ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_position].filter(Boolean).join(', ') || '—')], ['Contact number / email', UI.esc([c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
         ['Payment terms', c.payment_terms_days !== null ? c.payment_terms_days + ' days' : 'default'], ['Created by', UI.e(c.created_by_name)], ['Rate set by', c.rate_set_by_name ? UI.esc(c.rate_set_by_name) + ' · ' + UI.datetime(c.rate_set_at) : '—']])}
       ${UI.h('Billing rates')}${r.rates.length ? UI.table([['Truck type', 'truck_type'], ['Rate per km', 'rate_per_km', 'money'], ['Minimum charge', 'minimum_charge', 'money'], ['Updated by', 'updated_by_name'], ['Updated', 'updated_at', 'date']], r.rates) : '<div class="text-muted small">No rate yet.</div>'}
       ${UI.h('Approved routes')}<div data-client-routes><div class="text-muted small">Loading approved routes…</div></div>
       ${UI.h('Accreditation documents')}${UI.docs(r.documents)}
       ${UI.h('Billing summary')}${UI.kv([['Invoices', UI.num(r.billing.invoices)], ['Billed', UI.money(r.billing.billed)], ['Paid', UI.money(r.billing.paid)], ['Balance', UI.money(r.billing.billed - r.billing.paid)]])}
-      ${UI.h('Recent trips')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Type', 'truck_type'], ['Schedule', 'scheduled_at', 'date'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
+      ${UI.h('Recent trips')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Type', 'truck_type'], ['Scheduled date and time', 'scheduled_at', 'datetime'], ['Destination', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
     const el = UI.drawer(UI.esc(c.company_name), html, { subtitle: 'Client profile' });
     ClientUI.routes(el, c.id);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {

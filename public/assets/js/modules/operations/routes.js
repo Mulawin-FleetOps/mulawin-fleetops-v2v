@@ -154,7 +154,7 @@ const RouteUI = {
       ${x.pending_rate_id ? UI.h('Waiting for approval') + UI.kv([['Proposed rate', `<b>${RouteUI.rateText(x.pending_rate_type, x.pending_rate_amount, x.pending_minimum_charge)}</b>`], ['Version', UI.e(x.pending_version)], ['Entered by', UI.esc(x.pending_entered_by_name) + ' · ' + UI.datetime(x.pending_entered_at)]]) : ''}
       ${UI.h('Rate history')}${UI.table([['Version', 'version_no'], ['Rate', 'rate_amount', (v, t) => RouteUI.rateText(t.rate_type, t.rate_amount, t.minimum_charge)], ['Status', 'status', 'badge'],
         ['Entered by', 'entered_by_name'], ['Decided by', 'decided_by_name'], ['Effective start date and time', 'effective_from', 'datetime'], ['Effective end date and time', 'effective_to', 'datetime'], ['Remarks', 'decision_notes']], r.rates, { plain: true, empty: 'No rate entered yet.' })}
-      ${UI.h('History')}${UI.table([['Date and time', 'created_at', 'datetime'], ['Action', 'event_type'], ['By', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}`;
+      ${UI.h('History')}${UI.table([['Action date and time', 'created_at', 'datetime'], ['Action', 'event_type'], ['Performed by', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}`;
     const el = UI.drawer(UI.esc(x.route_ref), html.replace(UI.h('Current approved rate'), (x.origin_lat && x.destination_lat ? '<div class="route-map mb-3" data-routedetailmap style="height:240px"></div>' : '') + UI.h('Current approved rate')), { subtitle: 'Client route' });
     const mbox = el.querySelector('[data-routedetailmap]');
     if (mbox) setTimeout(() => UI.routeMap(mbox, null, { a: [+x.origin_lat, +x.origin_lng], b: [+x.destination_lat, +x.destination_lng],
