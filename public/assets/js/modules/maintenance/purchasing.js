@@ -180,19 +180,19 @@ App.page('purchasing', {
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
       ['requests', 'Parts requests', () => UI.table([['Request', 'request_ref'], ['Date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Maintenance', 'job_ref'], ['Items', 'items'], ['Purpose', 'purpose'],
-        ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Processed by', 'processed_by_name']], d.requests, { title: 'Truck-parts requests (stock-out)', actions: reqActs, onAction: reqAct })],
+        ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name']], d.requests, { title: 'Truck-parts requests (stock-out)', actions: reqActs, onAction: reqAct })],
       ['orders', 'Purchase orders', () => UI.table([['PO', 'po_ref'], ['Date', 'created_at', 'date'], ['Supplier', 'supplier'], ['Items (received/ordered)', 'items'], ['Total', 'total_amount', 'money'],
-        ['Approver', 'approver_role', (v) => v === 'finance' ? 'Finance' : 'Admin'], ['Status', 'status', 'badge'], ['Payment', 'payment_status', 'badge'], ['Paid', 'paid_amount', 'money'], ['Decided by', 'decided_by_name']], d.orders,
+        ['Approver', 'approver_role', (v) => v === 'finance' ? 'Finance' : 'Admin'], ['Status', 'status', 'badge'], ['Payment', 'payment_status', 'badge']], d.orders,
         { title: 'Purchase order requests (stock-in)', actions: poActs, onAction: poAct })],
       ['inventory', `Inventory${lowStock.length ? ' (' + lowStock.length + ' low)' : ''}`, (body) => {
         const h = UI.table([['Part no.', 'part_number'], ['Description', 'description'], ['Category', 'category'], ['On hand', 'quantity_on_hand', (v, p) => `${UI.num(v)} ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}`],
-          ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money'], ['Warranty', 'warranty_info']], d.parts, { title: 'Parts inventory', actions: partActs, onAction: partAct,
+          ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], d.parts, { title: 'Parts inventory', actions: partActs, onAction: partAct,
           tools: can.stock ? '<button class="btn btn-sm btn-primary" data-addpart><i class="bi bi-plus"></i> Add part</button>' : '' });
         setTimeout(() => body.querySelector('[data-addpart]')?.addEventListener('click', () => partForm()), 0);
         return h;
       }],
       ['movements', 'Stock movements', () => UI.table([['When', 'created_at', 'datetime'], ['Part', 'part_number'], ['Description', 'description'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', 'num'],
-        ['Unit cost', 'unit_cost', 'money'], ['Reason', 'reason'], ['Truck', 'plate_number'], ['By', 'actor']], d.movements, { title: 'Stock-in, stock-out and adjustments (latest 500)' })],
+        ['Reason', 'reason'], ['Truck', 'plate_number'], ['By', 'actor']], d.movements, { title: 'Stock-in, stock-out and adjustments (latest 500)' })],
     ], can.approveSmall || can.approveBig ? 'orders' : null);
     const once = UI.takeQuery(ctx, 'request_for', 'job');
     if (once.request_for && can.request) PurUI.newRequest(once.request_for, once.job);

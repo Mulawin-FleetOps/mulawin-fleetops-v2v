@@ -566,6 +566,30 @@ UI.tableRows = (id) => {
   return f ? t.rows.filter(r => t.columns.some(([, k]) => String(r[k] ?? '').toLowerCase().includes(f))) : t.rows;
 };
 /** Draws one page of a table, with page numbers. */
+/** Consistent, formal labels across every table in FleetOps. */
+UI.columnLabel = (label, type = '') => {
+  const text = String(label || '');
+  if (text === 'When') return 'Date and time';
+  if (text === 'Schedule' || text === 'Scheduled') return type === 'datetime' ? 'Scheduled date and time' : 'Scheduled date';
+  if (text === 'Date' && type === 'datetime') return 'Date and time';
+  if (text === 'Completed' && type === 'datetime') return 'Completion date and time';
+  if (text === 'Reported' && type === 'datetime') return 'Reported date and time';
+  if (text === 'Due' && type === 'date') return 'Due date';
+  if (text === 'Created' && type === 'datetime') return 'Created date and time';
+  return text;
+};
+/** Date input labels use dates, not ambiguous 'from/to/when'. */
+UI.formLabel = (field) => {
+  const label = String(field.label || '');
+  if (!['date', 'datetime'].includes(field.type)) return label;
+  if (label === 'From') return 'Start date';
+  if (label === 'To') return 'End date';
+  if (label === 'When') return field.type === 'datetime' ? 'Date and time' : 'Date';
+  if (label === 'Schedule from') return 'Scheduled start date';
+  if (label === 'Schedule to') return 'Scheduled end date';
+  if (label === 'Expected back') return 'Expected availability date';
+  return label;
+};
 UI.drawTable = (id) => {
   const t = UI._tables[id]; const box = document.querySelector(`[data-tbody="${id}"]`); if (!t || !box) return;
   const rows = UI.tableRows(id);
@@ -578,7 +602,7 @@ UI.drawTable = (id) => {
   t.page = Math.min(Math.max(t.page, 0), pages - 1);
   const first = t.page * t.limit, shown = rows.slice(first, first + t.limit);
   const num = (f) => f === 'money' || f === 'num';
-  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${num(f) ? 'num' : ''}">${UI.esc(l)}</th>`).join('')}${t.opts.actions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
+  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${num(f) ? 'num' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.opts.actions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
     <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f]) => `<td class="${num(f) ? 'num' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.opts.actions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${t.opts.actions(r) || ''}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
   if (pager && pages > 1) {
     const nums = [];
@@ -614,12 +638,12 @@ UI.activate = (root) => {
     m.replaceWith(holder); holder.querySelectorAll('[data-chart]').forEach(c => UI.drawChart(c));
   });
 };
-UI.btn = (act, label, cls = 'outline-secondary', icon = '') => `<button type="button" class="btn btn-sm btn-${cls}" data-act="${act}">${icon ? `<i class="bi ${icon}"></i> ` : ''}${UI.esc(label)}</button>`;
+UI.btn = (act, label, cls = 'outline-secondary', icon = '') => `<button type="button" class="btn btn-sm btn-${cls}" data-act="${act}">${icon ? `<i class="bi ${icon}"></i> ` : ''}${UI.esc(label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label)}</button>`;
 
 /** CSV download (Excel-friendly with BOM). Downloadable reports — PDF V.64. */
 UI.csv = (name, columns, rows) => {
   const clean = (v) => { let s = String(v ?? '').replace(/<[^>]+>/g, ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
-  const lines = [columns.map(c => clean(c[0])).join(','), ...rows.map(r => columns.map(([, k]) => clean(r[k])).join(','))];
+  const lines = [columns.map(c => clean(UI.columnLabel(c[0], c[2]))).join(','), ...rows.map(r => columns.map(([, k]) => clean(r[k])).join(','))];
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = name.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + UI.today() + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -645,13 +669,13 @@ UI.field = (f) => {
     input = `<textarea class="form-control form-control-sm" id="${id}" name="${f.name}" rows="${f.rows || 3}" ${req} placeholder="${UI.esc(f.placeholder || '')}">${UI.esc(val)}</textarea>`;
   } else if (f.type === 'checkbox') {
     return `<div class="col-${f.col || 12}"><div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="${id}" name="${f.name}" value="1" ${+val ? 'checked' : ''}>
-      <label class="form-check-label small" for="${id}">${UI.esc(f.label)}</label>${f.help ? `<div class="form-help">${UI.esc(f.help)}</div>` : ''}</div></div>`;
+      <label class="form-check-label small" for="${id}">${UI.esc(UI.formLabel(f))}</label>${f.help ? `<div class="form-help">${UI.esc(f.help)}</div>` : ''}</div></div>`;
   } else {
     const type = { money: 'number', datetime: 'datetime-local' }[f.type] || f.type || 'text';
     const step = f.type === 'money' ? 'step="0.01" min="0"' : (f.type === 'number' ? `step="${f.step || 1}" min="${f.min ?? 0}"` : '');
     input = `<input class="form-control form-control-sm" type="${type}" id="${id}" name="${f.name}" value="${UI.esc(val)}" ${step} ${req} placeholder="${UI.esc(f.placeholder || '')}" ${f.type === 'file' && f.multiple ? 'multiple' : ''} ${f.attrs || ''}>`;
   }
-  return `<div class="col-md-${f.col || 6}"><label class="form-label ${f.required ? 'req' : ''}" for="${id}">${UI.esc(f.label)}</label>${input}${f.help ? `<div class="form-help">${UI.esc(f.help)}</div>` : ''}</div>`;
+  return `<div class="col-md-${f.col || 6}"><label class="form-label ${f.required ? 'req' : ''}" for="${id}">${UI.esc(UI.formLabel(f))}</label>${input}${f.help ? `<div class="form-help">${UI.esc(f.help)}</div>` : ''}</div>`;
 };
 /** Reads a form into an object (checkboxes -> 1/0). */
 UI.formData = (form) => {

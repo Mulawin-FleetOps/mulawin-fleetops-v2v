@@ -135,11 +135,11 @@ App.page('billing', {
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
       ['ongoing', `Ongoing trips (${by(['Ongoing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Route', 'delivery_point'], ['Dispatched', 'dispatched_at', 'datetime'],
-        ['Km', 'distance_km', 'num'], ['Rate/km', 'rate_per_km', 'money'], ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
+        ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
       ['for', `For billing (${by(['For Billing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Completed', 'completed_at', 'datetime'], ['Waybill', 'waybill_number'],
         ['Documents', 'waybill_docs', (v, b) => `<span class="badge-s ${+b.waybill_docs && +b.ar_docs ? 'green' : 'red'}">${+b.waybill_docs && +b.ar_docs ? 'Complete' : 'Missing'}</span>`],
         ['Verified', 'docs_verified_at', (v) => v ? '<span class="badge-s green">Yes</span>' : '<span class="badge-s amber">No</span>'], ['Amount', 'total_amount', 'money']], by(['For Billing']), { ...open, title: 'Completed trips to verify and invoice' })],
-      ['invoices', `Unpaid invoices (${unpaid.length})`, () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Date', 'invoice_date', 'date'], ['Due', 'due_date', 'date'],
+      ['invoices', `Unpaid invoices (${unpaid.length})`, () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Invoice date', 'invoice_date', 'date'], ['Due date', 'due_date', 'date'],
         ['Amount', 'total_amount', 'money'], ['Paid', 'amount_paid', 'money'], ['Balance', 'balance', 'money'], ['Overdue', 'days_overdue', (v) => +v > 0 ? `<span class="badge-s red">${v} days</span>` : '—'], ['Status', 'status', 'badge']], unpaid, { ...open, title: 'Invoices waiting for payment' })],
       ['paid', 'Paid', () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Date', 'invoice_date', 'date'], ['Amount', 'total_amount', 'money']], by(['Paid']), { ...open, title: 'Paid invoices' })],
       ['collections', 'Collections', () => UI.table([['Date', 'payment_date', 'date'], ['Invoice', 'invoice_number'], ['Client', 'client'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number'], ['Recorded by', 'recorded_by_name']], d.collections, { title: 'Payments received' })],

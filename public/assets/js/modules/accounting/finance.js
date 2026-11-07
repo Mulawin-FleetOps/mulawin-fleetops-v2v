@@ -33,7 +33,7 @@ App.page('finance', {
         { title: 'Approved purchase orders (Pending Payment)', actions: (o) => UI.btn('po', 'View PO', 'outline-secondary') + (act && +o.received_value > +o.paid_amount ? UI.btn('pay', 'Pay', 'primary') : ''),
           onAction: (a, o) => a === 'pay' ? payPO(o) : PurUI.printPO(o), empty: 'No purchase order is waiting for payment.' })],
       ['ap', 'Other payables', (body) => {
-        const h = UI.table([['Ref', 'payable_ref'], ['Payee', 'payee'], ['Category', 'category'], ['Truck', 'plate_number'], ['Description', 'description'], ['Due', 'due_on', 'date'],
+        const h = UI.table([['Ref', 'payable_ref'], ['Payee', 'payee'], ['Category', 'category'], ['Truck', 'plate_number'], ['Description', 'description'], ['Due date', 'due_on', 'date'],
           ['Amount', 'amount', 'money'], ['Paid', 'paid_amount', 'money'], ['Balance', 'balance', 'money'], ['Status', 'status', 'badge']], d.payables,
           { title: 'Bills to pay (not from a purchase order)', actions: (p) => act && p.status !== 'Paid' ? UI.btn('pay', 'Pay', 'primary') : '',
             onAction: (a, p) => UI.formModalFiles('Pay ' + UI.esc(p.payable_ref), [{ name: 'amount', label: 'Amount', type: 'money', value: p.balance, required: true, col: 12 }, ...UI.payFields(d.methods),

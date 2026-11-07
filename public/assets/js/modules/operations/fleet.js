@@ -49,7 +49,7 @@ const FleetUI = {
       ${UI.h('Vehicle documents')}${UI.kv([['MV file no.', UI.e(v.mv_file_number)], ['OR / CR no.', UI.esc([v.or_number, v.cr_number].filter(Boolean).join(' / ') || '—')],
         ['Registration expiry', UI.date(v.registration_expiry)], ['Insurance', UI.esc([v.insurance_provider, v.insurance_policy_number].filter(Boolean).join(' · ') || '—')], ['Insurance expiry', UI.date(v.insurance_expiry)]])}
       <div class="mt-2">${UI.docs(r.documents, 'No OR/CR or insurance files attached yet.')}</div>
-      ${UI.h('Trips (latest 50)')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'date'], ['Client', 'client'], ['Driver', 'driver_name'], ['Route', 'delivery_point']], r.trips, { plain: true, empty: 'No trips yet.' })}
+      ${UI.h('Trips (latest 50)')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Client', 'client'], ['Driver', 'driver_name'], ['Route', 'delivery_point']], r.trips, { plain: true, empty: 'No trips yet.' })}
       ${UI.h('Maintenance history')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date'], ['Cost', 'cost', 'money']], r.maintenance,
         { plain: true, empty: 'No maintenance records.', rowClick: (m) => { UI.closeDrawer(); App.go('maintenance', { open: m.id }); } })}
       ${UI.h('Status history')}<ul class="timeline">${r.statusLog.map(l => `<li><span class="when">${UI.datetime(l.created_at)} · ${UI.esc(l.actor || 'System')}</span><br>${UI.esc(l.from_status || 'new')} → <b>${UI.esc(l.to_status)}</b>${l.reason ? ' · ' + UI.esc(l.reason) : ''}</li>`).join('') || '<li>No changes yet.</li>'}</ul>`;
@@ -90,7 +90,7 @@ const FleetUI = {
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
       ${UI.h('Details')}${UI.kv([['Type', UI.e(p.person_type)], ['Employee no.', UI.e(p.employee_no)], ['Contact', UI.e(p.contact_number)], ['Address', UI.e(p.address)],
         ["License", UI.esc([p.license_number, p.license_expiry ? 'expires ' + UI.date(p.license_expiry) : ''].filter(Boolean).join(' · ') || '—')], ['Date hired', UI.date(p.date_hired)], ['Notes', UI.e(p.notes)]])}
-      ${UI.h('Trip history')}${UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'date'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
+      ${UI.h('Trip history')}${UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
     const el = UI.drawer(UI.esc(p.full_name), html, { subtitle: UI.esc(p.person_type) });
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
