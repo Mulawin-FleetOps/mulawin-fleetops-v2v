@@ -1293,11 +1293,47 @@ UI.steps = (stages, current, opts = {}) => `<div class="wf-steps ${opts.compact 
 UI.kv = (pairs) => `<dl class="kv">${pairs.filter(Boolean).map(([k, v]) => `<dt>${UI.esc(k)}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd>`).join('')}</dl>`;
 UI.e = (v) => (v === null || v === undefined || v === '') ? '—' : UI.esc(v);
 
-/** List of documents with view / download links. */
+/* CHECKLIST_25_INLINE_DOCUMENT_PREVIEW_V1 */
+/** Existing authenticated endpoint checks role/record permissions for every image and PDF. */
 UI.docUrl = (id, inline = true) => 'index.php?api=document_download&id=' + encodeURIComponent(id) + (inline ? '&inline=1' : '');
-UI.docs = (list, empty = 'No documents attached.') => (list || []).length ? `<ul class="doc-list">${list.map(d => `<li><i class="bi ${String(d.mime_type || '').startsWith('image') ? 'bi-file-image' : 'bi-file-pdf'}"></i>
-    <div><a href="${UI.docUrl(d.id)}" target="_blank" rel="noopener">${UI.esc(d.original_filename)}</a><div class="small text-muted">${UI.esc(d.category)}${d.for ? ' · ' + UI.esc(d.for) : ''} · ${UI.datetime(d.created_at)}${d.uploader ? ' · ' + UI.esc(d.uploader) : ''}</div></div></li>`).join('')}</ul>`
-  : `<div class="text-muted small">${UI.esc(empty)}</div>`;
+/** In-list thumbnails: maintenance sees incident evidence immediately, without opening a file. */
+UI.docs = (list, empty = 'No documents attached.') => (list || []).length ? `<ul class="doc-list doc-preview-list">${list.map(d => {
+    const mime = String(d.mime_type || '');
+    const image = mime.startsWith('image/');
+    const pdf = mime === 'application/pdf';
+    const id = Number(d.id);
+    const fileName = UI.esc(d.original_filename);
+    const preview = image
+      ? `<button type="button" class="doc-thumb-button" data-doc-preview="${id}" data-doc-mime="${UI.esc(mime)}" data-doc-name="${fileName}" aria-label="Preview ${fileName}"><img class="doc-thumb" src="${UI.docUrl(id)}" alt="${fileName}" loading="lazy" decoding="async"></button>`
+      : `<button type="button" class="doc-thumb-button doc-thumb-pdf" data-doc-preview="${id}" data-doc-mime="${UI.esc(mime)}" data-doc-name="${fileName}" aria-label="Preview ${fileName}"><i class="bi ${pdf ? 'bi-file-earmark-pdf' : 'bi-file-earmark'}" aria-hidden="true"></i><span>${pdf ? 'PDF' : 'FILE'}</span></button>`;
+    return `<li class="doc-preview-item">${preview}<div class="doc-preview-info"><button type="button" class="doc-preview-name" data-doc-preview="${id}" data-doc-mime="${UI.esc(mime)}" data-doc-name="${fileName}">${fileName}</button><div class="small text-muted">${UI.esc(d.category)}${d.for ? ' · ' + UI.esc(d.for) : ''} · ${UI.datetime(d.created_at)}${d.uploader ? ' · ' + UI.esc(d.uploader) : ''}</div><a class="small" href="${UI.docUrl(id, false)}" download>Download</a></div></li>`;
+  }).join('')}</ul>` : `<div class="text-muted small">${UI.esc(empty)}</div>`;
+/** A single delegated handler also works for document lists created later in drawers. */
+if (!UI._documentPreviewBound) {
+  UI._documentPreviewBound = true;
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-doc-preview]');
+    if (!button) return;
+    event.preventDefault();
+    const id = Number(button.dataset.docPreview);
+    if (!Number.isSafeInteger(id) || id <= 0) return;
+    const mime = button.dataset.docMime || '';
+    const name = button.dataset.docName || 'Document';
+    const url = UI.docUrl(id);
+    const content = mime.startsWith('image/')
+      ? `<img src="${url}" alt="${UI.esc(name)}" class="doc-full-image">`
+      : mime === 'application/pdf'
+        ? `<iframe src="${url}" title="${UI.esc(name)}" class="doc-pdf-frame"></iframe>`
+        : `<div class="p-4 text-muted">Preview is not available for this file type. Use Download.</div>`;
+    const wrap = UI.modal('Document preview', `<div class="doc-full-frame">${content}</div>`, null, {
+      size: 'modal-xl',
+      extraFooter: `<a class="btn btn-outline-secondary btn-sm" href="${url}" target="_blank" rel="noopener">Open in new tab</a> <a class="btn btn-primary btn-sm" href="${UI.docUrl(id, false)}" download>Download</a>`
+    });
+    // Browser's Bootstrap modal handles Escape and close button.
+    wrap.querySelector('.modal-title').textContent = name;
+  });
+}
+
 
 /** Section heading inside drawers. */
 UI.h = (text, extra = '') => `<div class="drawer-h"><span>${UI.esc(text)}</span>${extra}</div>`;
