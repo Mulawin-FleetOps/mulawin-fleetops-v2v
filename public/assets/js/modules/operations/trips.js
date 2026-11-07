@@ -602,7 +602,7 @@ App.page('trips', {
       }],
     ];
     const box = document.createElement('div'); ctx.el.append(box);
-    UI.tabs(box, tabs, ctx.query.q || ctx.query.status || ctx.query.from ? 'history' : null);
+    UI.tabs(box, tabs, ctx.query.q || ctx.query.status || ctx.query.from ? 'history' : null, { forceActive: !!(ctx.query.q || ctx.query.status || ctx.query.from) });
     const once = UI.takeQuery(ctx, 'open');
     if (once.open) TripUI.open(once.open);
   },

@@ -643,7 +643,7 @@ UI.btn = (act, label, cls = 'outline-secondary', icon = '') => `<button type="bu
 /** CSV download (Excel-friendly with BOM). Downloadable reports — PDF V.64. */
 UI.csv = (name, columns, rows) => {
   const clean = (v) => { let s = String(v ?? '').replace(/<[^>]+>/g, ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
-  const lines = [columns.map(c => clean(UI.columnLabel(c[0], c[2]))).join(','), ...rows.map(r => columns.map(([, k]) => clean(r[k])).join(','))];
+  const lines = [columns.map(c => clean(UI.columnLabel(c[0], c[2]))).join(','), ...rows.map(r => columns.map(([, k, f]) => clean(f === 'date' ? UI.date(r[k]) : f === 'datetime' ? UI.datetime(r[k]) : r[k])).join(','))];
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = name.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + UI.today() + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -762,7 +762,7 @@ UI.tabs = (root, tabs, active, opts = {}) => {
   };
   document.querySelectorAll(`#${id} > [data-tab]`).forEach(b => b.onclick = () => show(b.dataset.tab));
   const remembered = sessionStorage.getItem(mem);
-  show(tabs.some(t => t[0] === remembered) ? remembered : active);
+  show(opts.forceActive && tabs.some(t => t[0] === active) ? active : (tabs.some(t => t[0] === remembered) ? remembered : active));
 };
 
 // ------------------------------------------------------------------ charts (Chart.js, repo colors)
