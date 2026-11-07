@@ -50,6 +50,7 @@ final class Trips {
     public const DOC_REQUEST = 'Trip Request Document';
     public const DOC_WAYBILL = 'Waybill';
     public const DOC_AR = 'Acknowledgement Receipt';
+    public const DOC_DR = 'Delivery Receipt';
     public const DOC_ARRIVAL_PHOTO = 'Arrival Inspection Photo';
     public const FUEL_LEVELS = ['Full', '3/4', '1/2', '1/4', 'Low'];
 
@@ -128,6 +129,7 @@ final class Trips {
                 (SELECT i.severity FROM incidents i WHERE i.trip_id=t.id ORDER BY i.id DESC LIMIT 1) AS incident_severity,
                 (SELECT COUNT(*) FROM documents dw WHERE dw.entity_type='trip' AND dw.entity_id=t.id AND dw.category='" . self::DOC_WAYBILL . "') AS waybill_docs,
                 (SELECT COUNT(*) FROM documents da WHERE da.entity_type='trip' AND da.entity_id=t.id AND da.category='" . self::DOC_AR . "') AS ar_docs,
+                (SELECT COUNT(*) FROM documents dr WHERE dr.entity_type='trip' AND dr.entity_id=t.id AND dr.category='" . self::DOC_DR . "') AS dr_docs,
                 b.status AS billing_status, b.total_amount AS billing_amount
             FROM trips t
             JOIN clients c ON c.id=t.client_id
@@ -750,7 +752,7 @@ final class Trips {
 
     /**
      * TRIP COMPLETION (PDF #12 step 11): completion date/time + required supporting
-     * documents (waybill and acknowledgement receipt, PDF #13). The system refuses
+     * documents (waybill, acknowledgement receipt and delivery receipt). The system refuses
      * completion while anything is missing and says what is missing.
      */
     private static function complete(array $u, array $d): array {
@@ -768,10 +770,12 @@ final class Trips {
             if ($t['truck_type'] === 'Car Carrier') must($units !== null && $units > 0, 'Enter the number of units delivered.');
             Files::store($p, $u, 'waybill', 'trip', $id, self::DOC_WAYBILL);
             Files::store($p, $u, 'ack_receipt', 'trip', $id, self::DOC_AR);
+            Files::store($p, $u, 'delivery_receipt', 'trip', $id, self::DOC_DR);
             Files::store($p, $u, 'other', 'trip', $id, 'Other Trip Document');
             $missing = [];
             if (!Files::count($p, 'trip', $id, self::DOC_WAYBILL)) $missing[] = 'waybill file';
             if (!Files::count($p, 'trip', $id, self::DOC_AR)) $missing[] = 'acknowledgement receipt file';
+            if (!Files::count($p, 'trip', $id, self::DOC_DR)) $missing[] = 'delivery receipt (DR) file';
             must(!$missing, 'Trip cannot be completed yet. Missing: ' . implode(', ', $missing) . '.', 422);
             run($p, "UPDATE trips SET status='Completed', completed_at=?, waybill_number=?, units_delivered=?, delivery_notes=? WHERE id=?",
                 [$when, $waybill, $units, $notes, $id]);

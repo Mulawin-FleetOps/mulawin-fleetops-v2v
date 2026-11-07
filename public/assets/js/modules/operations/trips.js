@@ -374,6 +374,7 @@ const TripUI = {
         { name: 'delivery_notes', label: 'Delivery / return notes', col: cc ? 6 : 12 },
         { name: 'waybill', label: 'Waybill file (PDF or photo)' + (+t.waybill_docs ? ' — already attached: ' + t.waybill_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
         { name: 'ack_receipt', label: 'Acknowledgement receipt file' + (+t.ar_docs ? ' — already attached: ' + t.ar_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
+        { name: 'delivery_receipt', label: 'Delivery Receipt (DR) file' + (+t.dr_docs ? ' — already attached: ' + t.dr_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
         { name: 'other', label: 'Other documents (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="application/pdf,image/*"' }])}
       <ul class="req-list" data-req></ul>`;
     UI.modal('Complete trip ' + UI.esc(t.trip_ref), body, async (d, form) => {
@@ -384,7 +385,8 @@ const TripUI = {
         const has = (n) => form.querySelector(`[name=${n}]`).files.length > 0;
         const items = [['Completion date and time', !!form.completed_at.value], ['Waybill number', !!form.waybill_number.value.trim()],
           ...(cc ? [['Units delivered', +form.units_delivered.value > 0]] : []),
-          ['Waybill file', has('waybill') || +t.waybill_docs > 0], ['Acknowledgement receipt file', has('ack_receipt') || +t.ar_docs > 0]];
+          ['Waybill file', has('waybill') || +t.waybill_docs > 0], ['Acknowledgement receipt file', has('ack_receipt') || +t.ar_docs > 0],
+          ['Delivery Receipt (DR) file', has('delivery_receipt') || +t.dr_docs > 0]];
         w.querySelector('[data-req]').innerHTML = items.map(([l, ok]) => `<li class="${ok ? 'ok' : 'no'}"><i class="bi ${ok ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> ${UI.esc(l)}${ok ? '' : ' — missing'}</li>`).join('');
         btn.disabled = items.some(x => !x[1]);
       };
