@@ -127,6 +127,8 @@ App.page('clients', {
         rows, { title: 'Clients', actions: (c) => UI.btn('view', 'View') + (d.can.rate && c.status === 'Pending Rate' ? UI.btn('rate', 'Set rate', 'primary') : ''),
           onAction: (a, c) => a === 'rate' ? App.api('Clients.details', { id: c.id }).then(r => ClientUI.rate(r.client, r.rates)) : ClientUI.open(c.id, d) });
     UI.activate(ctx.el);
+    // Quick tabs replace the redundant Filter button on this masterlist.
+    ctx.el.querySelector('.filter-summary [data-fopen]')?.remove();
     ctx.el.querySelectorAll('[data-client-quick]').forEach(button => {
       button.addEventListener('click', () => {
         const next = { ...ctx.query };

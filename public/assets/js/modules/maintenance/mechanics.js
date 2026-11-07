@@ -51,13 +51,13 @@ App.page('mechanics', {
     if (d.can.edit) UI.tool(ctx, 'Add mechanic', () => MechUI.form(), 'bi-plus-lg', 'primary');
     const q = ctx.query;
     const active = d.mechanics.filter(m => +m.active);
-    let rows = q.inactive ? d.mechanics : active;
+    let rows = q.inactive ? d.mechanics.filter(m => !+m.active) : active;
     if (q.availability) rows = rows.filter(m => m.availability === q.availability);
     const n = (s) => active.filter(m => m.availability === s).length;
     // Quick availability tabs supplement (but do not replace) Filter modal controls.
-    const quickStatuses = [['', 'All'], ['Available', 'Available'], ['Assigned', 'Assigned'], ['Unavailable', 'Unavailable']];
+    const quickStatuses = [['', 'All'], ['Available', 'Available'], ['Assigned', 'Assigned'], ['Unavailable', 'Unavailable'], ['__inactive__', 'Inactive']];
     const quickTabs = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Mechanic availability shortcuts">
-      ${quickStatuses.map(([value, label]) => `<button type="button" class="btn btn-sm ${String(q.availability || '') === value ? 'btn-primary' : 'btn-outline-secondary'}" data-mechanic-quick="${UI.esc(value)}" aria-pressed="${String(q.availability || '') === value}">${UI.esc(label)}</button>`).join('')}
+      ${quickStatuses.map(([value, label]) => `<button type="button" class="btn btn-sm ${String(q.inactive ? '__inactive__' : (q.availability || '')) === value ? 'btn-primary' : 'btn-outline-secondary'}" data-mechanic-quick="${UI.esc(value)}" aria-pressed="${String(q.inactive ? '__inactive__' : (q.availability || '')) === value}">${UI.esc(label)}</button>`).join('')}
     </div>`;
     ctx.el.innerHTML = UI.statusStrip([
       { label: 'Active mechanics', value: active.length },
@@ -75,11 +75,16 @@ App.page('mechanics', {
         ['Completed repairs', 'completed_jobs', 'num']], rows,
         { actions: () => UI.btn('view', 'Open'), onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
           empty: d.mechanics.length ? 'No mechanic matches the filter.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
+    // Quick tabs replace the redundant Filter button on this masterlist.
+    ctx.el.querySelector('.filter-summary [data-fopen]')?.remove();
     ctx.el.querySelectorAll('[data-mechanic-quick]').forEach(button => {
       button.addEventListener('click', () => {
         const next = { ...ctx.query };
-        if (button.dataset.mechanicQuick) next.availability = button.dataset.mechanicQuick;
-        else delete next.availability;
+        const value = button.dataset.mechanicQuick;
+        delete next.availability;
+        delete next.inactive;
+        if (value === '__inactive__') next.inactive = '1';
+        else if (value) next.availability = value;
         App.go(ctx.page, next);
       });
     });
