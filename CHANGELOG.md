@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-07 (Checklist #5 Phase 3: road distance in Trip Management)
+- **New trip / Review request / Edit details**: choose an **approved client route** (client + truck type) or pin the points
+  and pick a route option; the road km fills in (2 decimals). Changing the km needs a reason; above 15% a warning is shown.
+  The server checks the route (Approved, approved rate, Active client, same truck type, dispatcher team) and computes the
+  road distance again before saving. Without the map service the typed km is saved as Manual, as before.
+- **Trip details** show the distance source, the computed / route km, the route reference, the reason and the road line.
+- **Billing unchanged**: still km × client rate per km. The route rate is not used yet (business decision pending).
+- Database: `database/migrations/2026-11-07_07_trip_routing.sql` (7 columns in `trips`, new table `trip_routes`; existing
+  trips become `Manual`). Tests: `tests/run_trip_routing_tests.php`. Details: `docs/CLAUDE_05_PHASE3_TRIP_ROUTING.md`.
+
 ## 2026-11-06 (Checklist #5: OpenStreetMap and automatic road distance; Phase 1 + 2)
 - **Maps use OpenStreetMap** (MapTiler removed). Address search and map-point addresses go through the server
   (openrouteservice geocoding); the browser never sees an API key. The map code moved from `core.js` to `assets/js/map.js`.
