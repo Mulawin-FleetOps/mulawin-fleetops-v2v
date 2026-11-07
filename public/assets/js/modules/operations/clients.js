@@ -117,7 +117,7 @@ App.page('clients', {
       { label: 'Inactive', value: n('Inactive'), icon: 'bi-archive', color: 'gray' },
     ]) + UI.filterModal(ctx, [{ name: 'status', label: 'Status', type: 'select', options: UI.list(['Active', 'Pending Rate', 'Incomplete', 'Inactive']), col: 12 }], { hint: 'Showing all clients except inactive.' })
       + UI.table([['Code', 'client_code'], ['Client', 'company_name', (v) => `<b>${UI.esc(v)}</b>`], ['Contact', 'contact_person'], ['Phone', 'contact_number'], ['Status', 'status', 'badge'],
-        ['Requirements', 'docs_done', (v) => `<span class="badge-s ${+v >= need ? 'green' : 'amber'}">${+v} / ${need}</span>`], ['Rates', 'rates'], ['Trips', 'trip_count', 'num'], ['Balance', 'balance', 'money']],
+        ['Requirements', 'docs_done', (v) => `<span class="badge-s ${+v >= need ? 'green' : 'amber'}">${+v} / ${need}</span>`], ['Balance', 'balance', 'money']],
         rows, { title: 'Clients', actions: (c) => UI.btn('view', 'View') + (d.can.rate && c.status === 'Pending Rate' ? UI.btn('rate', 'Set rate', 'primary') : ''),
           onAction: (a, c) => a === 'rate' ? App.api('Clients.details', { id: c.id }).then(r => ClientUI.rate(r.client, r.rates)) : ClientUI.open(c.id, d) });
     UI.activate(ctx.el);

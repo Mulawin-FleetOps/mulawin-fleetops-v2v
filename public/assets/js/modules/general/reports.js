@@ -18,7 +18,7 @@ App.page('reports', {
       `<button type="button" class="btn btn-sm ${per.from === f && per.to === t ? 'btn-primary' : 'btn-outline-secondary'}" data-preset="${f}|${t}">${l}</button>`).join('')}
       <span class="small ms-2"><b>${UI.date(per.from)} – ${UI.date(per.to)}</b> <span class="text-muted">(compared with ${UI.date(per.prevFrom)} – ${UI.date(per.prevTo)})</span></span></div>`;
     const filters = UI.filterModal(ctx, [
-      { name: 'from', label: 'From (custom period)', type: 'date', col: 6 }, { name: 'to', label: 'To', type: 'date', col: 6 },
+      { name: 'from', label: 'Start date (custom period)', type: 'date', col: 6 }, { name: 'to', label: 'End date', type: 'date', col: 6 },
       { name: 'truck_type', label: 'Truck type', type: 'select', options: UI.list(App.me.truckTypes), col: 6 },
       { name: 'status', label: 'Trip status', type: 'select', options: UI.list(d.statuses), col: 6 },
       { name: 'client_id', label: 'Client', type: 'select', options: UI.opts(fo.clients, c => c.company_name), col: 6 },

@@ -82,7 +82,7 @@ const MaintUI = {
       <div class="text-end small">Parts ${UI.money(partsCost)} + other ${UI.money(other)} = <b>${UI.money(partsCost + other)}</b></div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
       ${UI.h('Status history')}<ul class="timeline">${r.events.map(e => `<li><span class="when">${UI.datetime(e.created_at)} · ${UI.esc(e.actor || 'System')}</span><br><b>${UI.esc(e.to_status)}</b>${e.mechanic ? ' · ' + UI.esc(e.mechanic) : ''}${e.details ? ' — ' + UI.esc(e.details) : ''}</li>`).join('')}</ul>
-      ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
+      ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
     const el = UI.drawer(UI.esc(j.job_ref) + ' · ' + UI.esc(j.plate_number), html, { subtitle: 'Corrective maintenance · ' + UI.esc(j.verified_at ? 'Returned to service' : j.status) });
     const reopen = () => { MaintUI.open(j.id); App.route(); };
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
@@ -153,12 +153,12 @@ App.page('maintenance', {
       ['Truck', 'plate_number', (v, j) => `${UI.esc(v)}<div class="cell-sub">${UI.esc(j.truck_type)}</div>`],
       ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`], ['Priority', 'priority', 'badge'],
       ['Mechanic', 'mechanic', (v) => v ? UI.esc(v) : '<span class="text-muted">Not assigned</span>'],
-      ['Status', 'display_status', 'badge'], ['Reported', 'reported_on', 'date']];
+      ['Status', 'display_status', 'badge'], ['Date reported', 'reported_on', 'date']];
     const opt = { actions: () => UI.btn('view', 'Open'), onAction: (a, j) => MaintUI.open(j.id), rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
       ['open', `Open records <span class="tab-count">${open.length}</span>`, () => UI.table(cols, open, { ...opt, empty: 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
-      ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 5), ['Completed', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime'], ['Parts', 'parts_cost', 'money'], ['Other cost', 'other_cost', 'money']], done, { ...opt, empty: 'No completed repairs yet.' })],
+      ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 5), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
       ['all', 'All records', () => UI.table(cols, jobs, { ...opt })],
     ], null);
     const once = UI.takeQuery(ctx, 'report', 'open');

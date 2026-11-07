@@ -64,7 +64,7 @@ App.page('mechanics', {
       { name: 'inactive', label: 'Include deactivated mechanics', type: 'checkbox', col: 12 }], { hint: 'Showing all active mechanics.' })
       + UI.table([
         ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
-        ['Specialization', 'specialization'], ['Contact', 'contact_number'],
+        ['Specialization', 'specialization'],
         ['Availability', 'availability', (v, m) => UI.badge(+m.active ? v : 'Inactive')],
         ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
         ['Completed repairs', 'completed_jobs', 'num']], rows,

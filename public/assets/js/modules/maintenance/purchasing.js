@@ -179,9 +179,9 @@ App.page('purchasing', {
       'Purchasing.adjust', { extra: { part_id: p.id }, intro: 'On hand now: ' + p.quantity_on_hand + ' ' + UI.esc(p.unit) + '.' });
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
-      ['requests', 'Parts requests', () => UI.table([['Request', 'request_ref'], ['Date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Maintenance', 'job_ref'], ['Items', 'items'], ['Purpose', 'purpose'],
+      ['requests', 'Parts requests', () => UI.table([['Request', 'request_ref'], ['Request date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Maintenance', 'job_ref'], ['Purpose', 'purpose'],
         ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name']], d.requests, { title: 'Truck-parts requests (stock-out)', actions: reqActs, onAction: reqAct })],
-      ['orders', 'Purchase orders', () => UI.table([['PO', 'po_ref'], ['Date', 'created_at', 'date'], ['Supplier', 'supplier'], ['Items (received/ordered)', 'items'], ['Total', 'total_amount', 'money'],
+      ['orders', 'Purchase orders', () => UI.table([['PO', 'po_ref'], ['Order date', 'created_at', 'date'], ['Supplier', 'supplier'], ['Total', 'total_amount', 'money'],
         ['Approver', 'approver_role', (v) => v === 'finance' ? 'Finance' : 'Admin'], ['Status', 'status', 'badge'], ['Payment', 'payment_status', 'badge']], d.orders,
         { title: 'Purchase order requests (stock-in)', actions: poActs, onAction: poAct })],
       ['inventory', `Inventory${lowStock.length ? ' (' + lowStock.length + ' low)' : ''}`, (body) => {
@@ -191,7 +191,7 @@ App.page('purchasing', {
         setTimeout(() => body.querySelector('[data-addpart]')?.addEventListener('click', () => partForm()), 0);
         return h;
       }],
-      ['movements', 'Stock movements', () => UI.table([['When', 'created_at', 'datetime'], ['Part', 'part_number'], ['Description', 'description'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', 'num'],
+      ['movements', 'Stock movements', () => UI.table([['Date and time', 'created_at', 'datetime'], ['Part', 'part_number'], ['Description', 'description'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', 'num'],
         ['Reason', 'reason'], ['Truck', 'plate_number'], ['By', 'actor']], d.movements, { title: 'Stock-in, stock-out and adjustments (latest 500)' })],
     ], can.approveSmall || can.approveBig ? 'orders' : null);
     const once = UI.takeQuery(ctx, 'request_for', 'job');

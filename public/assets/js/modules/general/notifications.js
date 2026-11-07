@@ -15,7 +15,7 @@ App.page('notifications', {
       + UI.table([
         ['', 'state', (v) => `<span class="notif-dot ${v === 'Unread' ? 'on' : ''}"></span>`],
         ['Notification', 'message', (v, n) => `<b>${UI.esc(n.category)}</b><div>${UI.esc(v)}</div>`],
-        ['Received', 'created_at', 'datetime'], ['State', 'state', 'badge'],
+        ['Date and time received', 'created_at', 'datetime'], ['Status', 'state', 'badge'],
         ['Resolved', 'resolved_at', (v, n) => v ? UI.datetime(v) + `<div class="cell-sub">${+n.auto_resolved ? 'task done' : 'by you'}</div>` : '—']], d.items,
         { empty: 'No notifications.',
           actions: (n) => (n.page ? UI.btn('go', 'View details', 'outline-primary') : '') + (['Unread', 'Read'].includes(n.state) ? UI.btn('resolve', 'Resolve', 'outline-success') : '') + (n.state !== 'Archived' ? UI.btn('archive', 'Archive', 'outline-secondary') : ''),
