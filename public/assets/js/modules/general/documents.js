@@ -10,29 +10,7 @@ App.page('documents', {
   subtitle: 'Search, view and download the files linked to trips, trucks, clients and transactions.',
   render(ctx) {
     const d = ctx.data, q = ctx.query;
-    if (d.uploadTypes.length) {
-      const b = document.createElement('button'); b.className = 'btn btn-sm btn-primary'; b.innerHTML = '<i class="bi bi-upload"></i> Upload';
-      b.onclick = () => {
-        const wrap = UI.modal('Upload documents', UI.fields([
-          { name: 'entity_type', label: 'Record type', type: 'select', required: true, col: 6, options: d.uploadTypes.map(t => [t, d.entityLabels[t]]) },
-          { name: 'entity_id', label: 'Record', type: 'select', col: 6, options: [] },
-          { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 },
-          { name: 'expires_on', label: 'Expiry date (for reminders)', type: 'date', col: 6 },
-          { name: 'notes', label: 'Description', col: 12 },
-          { name: 'files', label: 'Files (PDF, JPG, PNG; up to 20 at a time)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/*"' }]),
-          async (x, form) => {
-            if (x.entity_type !== 'company' && !x.entity_id) throw new Error('Choose the record.');
-            const fd = new FormData(); ['entity_type', 'entity_id', 'category', 'expires_on', 'notes'].forEach(k => fd.append(k, x[k] || ''));
-            if (x.entity_type === 'company') fd.set('entity_id', '');
-            [...form.querySelector('[name=files]').files].forEach(f => fd.append('files[]', f));
-            UI.result(await App.upload(fd)); App.route();
-          }, { submit: 'Upload' });
-        const type = wrap.querySelector('[name=entity_type]'), rec = wrap.querySelector('[name=entity_id]');
-        const fill = () => { const list = d.records[type.value] || []; rec.innerHTML = type.value === 'company' ? '<option value="">(not linked)</option>' : '<option value="">Choose…</option>' + list.map(r => `<option value="${r.id}">${UI.esc(r.label)}</option>`).join(''); rec.disabled = type.value === 'company'; };
-        type.onchange = fill; fill();
-      };
-      ctx.tools.append(b);
-    }
+    // DOCUMENTS_VIEW_ONLY_V1: Upload from the related workflow, not this library.
     // CHECKLIST_DOCS_FILE_MANAGER_GROUPS_V1
     // Each folder is ONE authorized record (entity_type + entity_id).
     // File uploads stay linked to their original records; no database changes.
