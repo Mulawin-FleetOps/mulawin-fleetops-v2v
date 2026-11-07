@@ -335,7 +335,6 @@ const App = {
           <button class="icon-btn d-lg-none" id="menuBtn" type="button" aria-label="Open the menu"><i class="bi bi-list"></i></button>
           <div class="crumbs" id="crumbs"></div>
           <div class="topbar-actions">
-            <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top"><i class="bi bi-arrow-up" aria-hidden="true"></i><span>Top</span></button>
             <div class="dropdown">
               <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
               <div class="dropdown-menu dropdown-menu-end bell-menu">
@@ -371,10 +370,12 @@ const App = {
       if (topButton) topButton.setAttribute('aria-label', y > 0 ? 'Back to top' : 'Already at top');
     };
     window.addEventListener('scroll', this._rpmScrollNavigation, { passive: true });
-    document.getElementById('rpmBackToTop').onclick = () => {
+    // The page header is recreated on every route, so delegate its Top button.
+    document.getElementById('pageContent').addEventListener('click', (event) => {
+      if (!event.target.closest('#rpmBackToTop')) return;
       const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       window.scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
-    };
+    });
     this._rpmScrollNavigation();
     // RPM STICKY PAGE NAV V1 END
     const sb = document.getElementById('appSidebar'), bd = document.getElementById('sidebarBackdrop');
@@ -456,7 +457,8 @@ const App = {
       return;
     }
     el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(def.title || nav.label)}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
-        <div class="page-actions no-print" id="pageTools"></div></div>
+        <div class="page-actions no-print" id="pageTools"></div>
+        <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top"><i class="bi bi-arrow-up" aria-hidden="true"></i><span>Top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
     if (this._lastPage !== page) {
       window.scrollTo(0, 0);
