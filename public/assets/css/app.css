@@ -1303,3 +1303,42 @@ details > summary { cursor: pointer; font-size: var(--fs-sm); color: var(--blue)
 }
 @media print { .rpm-trip-view-switch, .rpm-trip-per-page, .rpm-trip-pagination { display: none !important; } }
 /* RPM TRIP VIEW SWITCH V1 END */
+
+/* RPM SHARED RECORD VIEW SWITCH V1 START */
+.table-tools-right { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.rpm-record-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.rpm-record-toggle { display: inline-flex; gap: 2px; border: 1px solid #cfe3d3; background: #f4faf5; border-radius: 8px; padding: 2px; }
+.rpm-record-toggle button { border: 0; background: none; border-radius: 6px; padding: 6px 10px; min-height: 30px; color: #3a6547; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.rpm-record-toggle button.active { background: #227b43; color: #fff; }
+.rpm-record-toggle button:focus-visible, .rpm-record-size-label select:focus-visible { outline: 2px solid #218b48; outline-offset: 1px; }
+.rpm-record-size-label { margin: 0; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; color: #52705c; }
+.rpm-record-size-label select { width: 70px; min-height: 32px; padding: 4px 24px 4px 8px; font-size: 12px; }
+.rpm-record-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 285px), 1fr)); gap: 12px; padding: 12px; align-items: start; background: #f8fcf9; }
+.rpm-record-card { min-width: 0; border: 1px solid #d8e6dc; border-radius: 12px; padding: 13px 14px; background: #fff; overflow-wrap: anywhere; }
+.rpm-record-clickable { cursor: pointer; }
+.rpm-record-clickable:hover { border-color: #a9ceb2; }
+.rpm-record-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.rpm-record-field { min-width: 0; display: grid; grid-template-columns: minmax(75px, 34%) minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
+.rpm-record-field.rpm-record-primary { display: flex; flex-direction: column; gap: 3px; padding-bottom: 7px; border-bottom: 1px solid #e6eee8; }
+.rpm-record-name { font-size: 11px; color: #627b6b; line-height: 1.35; }
+.rpm-record-primary .rpm-record-name { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.rpm-record-value { min-width: 0; font-size: 12.5px; color: #233c2d; line-height: 1.45; }
+.rpm-record-primary .rpm-record-value { font-size: 15px; font-weight: 700; color: #174b2b; }
+.rpm-record-value .badge-s { max-width: 100%; white-space: normal; }
+.rpm-record-more { border-top: 1px solid #e6eee8; margin-top: 9px; padding-top: 6px; }
+.rpm-record-more summary { color: #247846; font-size: 12px; cursor: pointer; font-weight: 600; }
+.rpm-record-extra-grid { display: grid; gap: 8px; padding: 10px 0 3px; }
+.rpm-record-actions { border-top: 1px solid #e6eee8; margin-top: 10px; padding-top: 10px; }
+.rpm-record-actions .row-actions { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; max-width: 100%; }
+.rpm-record-actions .btn { white-space: normal; }
+@media (max-width: 767.98px) {
+  .table-tools-right { width: 100%; justify-content: flex-start; }
+  .rpm-record-controls { order: 0; width: auto; }
+  .rpm-record-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 9px; padding: 9px; }
+}
+@media (max-width: 420px) {
+  .rpm-record-grid { grid-template-columns: minmax(0, 1fr); }
+  .rpm-record-toggle button { padding: 6px 8px; }
+}
+@media print { .rpm-record-controls { display: none !important; } .rpm-record-grid { display: block; } .rpm-record-card { break-inside: avoid; margin-bottom: 10px; } }
+/* RPM SHARED RECORD VIEW SWITCH V1 END */

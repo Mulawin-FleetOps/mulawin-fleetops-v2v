@@ -1192,6 +1192,163 @@ UI.signatureModal = () => {
   } });
 };
 
+/* RPM SHARED RECORD VIEW SWITCH V1 START */
+/* Adds Cards/List choice to normal UI.table lists without changing backend queries,
+ * row actions, search, CSV, or the existing paginator. Plain detail tables excluded.
+ */
+(() => {
+  const oldTable = UI.table;
+  const oldDraw = UI.drawTable;
+  const oldActivate = UI.activate;
+  const userKey = () => String(App.me?.user?.id ?? App.me?.user?.username ?? 'user');
+  const prefKey = () => 'rpm:record-view:v1:' + userKey() + ':' + String(App.current?.page || 'records');
+  const getPref = () => {
+    try { return localStorage.getItem(prefKey()) === 'cards' ? 'cards' : 'list'; }
+    catch (_) { return 'list'; }
+  };
+  const savePref = (value) => {
+    try { localStorage.setItem(prefKey(), value); } catch (_) { /* private browsing */ }
+  };
+  const eligible = (opts) => !opts.plain && opts.viewSwitch !== false && App.current?.page !== 'dashboard';
+
+  UI.table = (columns, rows, opts = {}) => {
+    if (!eligible(opts)) return oldTable(columns, rows, opts);
+    const marker = 'rpmview' + Math.random().toString(36).slice(2, 9);
+    const actions = `<div class="rpm-record-controls no-print" data-rpm-controls="${marker}" aria-label="Record view and page size">
+      <div class="rpm-record-toggle" role="group" aria-label="View records as">
+        <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i> List</button>
+        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i> Cards</button>
+      </div>
+      <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
+    </div>`;
+    const originalTools = opts.tools || '';
+    const result = oldTable(columns, rows, { ...opts, tools: originalTools + actions });
+    const t = Object.values(UI._tables).find(table => table.opts && table.opts.tools && table.opts.tools.includes(marker));
+    if (t) {
+      t.rpmView = getPref();
+      t.rpmMarker = marker;
+      t.limit = 12;
+    }
+    return result;
+  };
+
+  UI.drawTable = (id) => {
+    oldDraw(id);
+    const t = UI._tables[id];
+    if (!t?.rpmMarker) return;
+    const container = document.querySelector(`[data-tbody="${id}"]`);
+    const control = document.querySelector(`[data-rpm-controls="${t.rpmMarker}"]`);
+    if (!container) return;
+    if (control) {
+      control.querySelectorAll('[data-rpm-view]').forEach(button => {
+        const active = button.dataset.rpmView === t.rpmView;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      const size = control.querySelector('[data-rpm-size]');
+      if (size) size.value = String(t.limit);
+    }
+    if (t.rpmView !== 'cards') return;
+    const table = container.querySelector('table.data-table');
+    if (!table) return; // empty list is handled by existing table renderer
+    const grid = document.createElement('div');
+    grid.className = 'rpm-record-grid';
+    const columns = t.columns;
+    table.querySelectorAll('tbody tr[data-ri]').forEach(tr => {
+      const r = t.rows[Number(tr.dataset.ri)];
+      const cells = Array.from(tr.children);
+      const card = document.createElement('article');
+      card.className = 'rpm-record-card' + (t.opts.rowClick ? ' rpm-record-clickable' : '');
+      if (t.opts.rowClick) { card.tabIndex = 0; card.setAttribute('role', 'button'); }
+      const fields = document.createElement('div');
+      fields.className = 'rpm-record-fields';
+      columns.forEach(([label, , format], idx) => {
+        const td = cells[idx];
+        if (!td) return;
+        const field = document.createElement('div');
+        field.className = 'rpm-record-field' + (idx === 0 ? ' rpm-record-primary' : '') + (idx >= 4 ? ' rpm-record-extra' : '');
+        const name = document.createElement('span');
+        name.className = 'rpm-record-name';
+        name.textContent = UI.columnLabel(label, format);
+        const value = document.createElement('div');
+        value.className = 'rpm-record-value';
+        while (td.firstChild) value.appendChild(td.firstChild); // move nodes: existing action/listeners preserved
+        field.append(name, value);
+        fields.appendChild(field);
+      });
+      card.appendChild(fields);
+      if (columns.length > 4) {
+        const extra = Array.from(fields.querySelectorAll('.rpm-record-extra'));
+        if (extra.length) {
+          const details = document.createElement('details');
+          details.className = 'rpm-record-more';
+          const summary = document.createElement('summary');
+          summary.textContent = 'More details';
+          const inner = document.createElement('div');
+          inner.className = 'rpm-record-extra-grid';
+          extra.forEach(el => inner.appendChild(el));
+          details.append(summary, inner);
+          card.appendChild(details);
+        }
+      }
+      if (t.opts.actions) {
+        const actions = cells[cells.length - 1]?.querySelector('.row-actions');
+        if (actions) {
+          const area = document.createElement('div');
+          area.className = 'rpm-record-actions';
+          area.appendChild(actions); // move original bound buttons, not re-create them
+          card.appendChild(area);
+        }
+      }
+      if (t.opts.rowClick) {
+        const open = () => t.opts.rowClick(r);
+        card.addEventListener('click', e => {
+          if (e.target.closest('a,button,input,select,textarea,label,summary,details')) return;
+          open();
+        });
+        card.addEventListener('keydown', e => {
+          if (e.target !== card) return;
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        });
+      }
+      grid.appendChild(card);
+    });
+    table.replaceWith(grid);
+  };
+
+  UI.activate = (root) => {
+    oldActivate(root);
+    root.querySelectorAll('[data-rpm-controls]').forEach(ctrl => {
+      if (ctrl.dataset.rpmBound) return;
+      ctrl.dataset.rpmBound = '1';
+      const marker = ctrl.dataset.rpmControls;
+      const entry = () => Object.entries(UI._tables).find(([, t]) => t.rpmMarker === marker);
+      ctrl.querySelectorAll('[data-rpm-view]').forEach(b => b.addEventListener('click', () => {
+        const choice = b.dataset.rpmView;
+        savePref(choice);
+        // Sync all visible eligible lists in the current module, not just one.
+        Object.entries(UI._tables).forEach(([id, t]) => {
+          if (!t.rpmMarker || !document.querySelector(`[data-tbody="${id}"]`)) return;
+          t.rpmView = choice;
+          t.page = 0;
+          UI.drawTable(id);
+        });
+      }));
+      ctrl.querySelector('[data-rpm-size]')?.addEventListener('change', e => {
+        const result = entry();
+        if (!result) return;
+        const [id, t] = result;
+        const count = Number(e.target.value);
+        if (![12, 24, 48].includes(count)) return;
+        t.limit = count;
+        t.page = 0;
+        UI.drawTable(id);
+      });
+    });
+  };
+})();
+/* RPM SHARED RECORD VIEW SWITCH V1 END */
+
 // Maps (UI.Map, UI.mapPicker, UI.routeMap) moved to assets/js/map.js (Checklist #5: OpenStreetMap + server-side road distance).
 
 /** Payment fields used by Finance and Billing. */
