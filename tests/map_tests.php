@@ -239,7 +239,8 @@ $ops = $U('operations_head');
 $base = fn(array $o = []) => $o + ['client_id' => $cid, 'truck_type' => 'Wing Van', 'origin' => 'Tanauan', 'destination' => 'Malvar',
     'origin_lat' => (string)$TAN[0], 'origin_lng' => (string)$TAN[1], 'destination_lat' => (string)$MAL[0], 'destination_lng' => (string)$MAL[1]];
 $comp = Routing::route($p, $ops['id'], $TAN, $MAL, 'recommended')['distance_km'];
-$checks = fn() => array_map(fn($t) => $p->query("CHECKSUM TABLE $t")->fetch()['Checksum'], ['trips', 'billings', 'client_rates', 'audit_event_changes']);
+// audit_event_changes is NOT in this list: since Activity Log #5H-2, route actions record their changes there on purpose.
+$checks = fn() => array_map(fn($t) => $p->query("CHECKSUM TABLE $t")->fetch()['Checksum'], ['trips', 'billings', 'client_rates', 'fund_requests', 'disbursements']);
 $sum = $checks();
 
 $r1 = Routes::action($ops, 'request', $base(['route_option' => 'recommended', 'distance_km' => number_format($comp, 2, '.', '')]));
@@ -288,7 +289,7 @@ $det = Routes::action($U('admin'), 'details', ['route_id' => $r7['route_id']]);
 ok(array_key_exists('distance_computed_km', $det['route']) && array_key_exists('route_geometry', $det['route']) && array_key_exists('distance_override_reason', $det['route']), 'route details include the distance fields');
 $page = Routes::read($ops, 'routes', []);
 ok($page['routing'] === true && count($page['routeOptions']) === 3 && $page['defaultRouteOption'] === 'recommended' && $page['overrideWarningRatio'] === 0.15, 'page data: routing on, 3 options, default Recommended, 15% warning');
-ok($checks() === $sum, 'trips, billings, client_rates and the audit change table were not changed by the map work');
+ok($checks() === $sum, 'trips, billings, client_rates, fund requests and disbursements were not changed by route requests');
 try { $p->exec("UPDATE client_routes SET distance_source='GPS' WHERE id={$r7['route_id']}"); ok(false, 'database refuses an unknown distance_source'); }
 catch (PDOException $e) { ok(($e->errorInfo[1] ?? 0) === 4025, 'database refuses an unknown distance_source (CHECK)'); }
 try { $p->exec("UPDATE client_routes SET route_option='fly' WHERE id={$r7['route_id']}"); ok(false, 'database refuses an unknown route option'); }
@@ -354,7 +355,9 @@ $mapJs = test_sql('public/assets/js/map.js'); $coreJs = test_sql('public/assets/
 ok(!str_contains($coreJs, 'UI.Map = {') && !str_contains($coreJs, 'UI.mapPicker = ') && str_contains($mapJs, 'UI.mapPicker = ') && str_contains($mapJs, 'UI.routeMap = '), 'map code lives only in map.js (moved out of core.js)');
 $pos = fn(string $f) => strpos($index, '<script src="assets/js/' . $f);
 ok($pos('map.js') !== false && $pos('map.js') > $pos('core.js') && $pos('map.js') < $pos('modules/'), 'map.js is loaded after core.js and before the page scripts');
-ok(!preg_match('/maptiler|api\.heigit\.org|api\.openrouteservice\.org|Authorization/i', $mapJs . $coreJs) && str_contains($mapJs, "App.api('Maps.route'"), 'no MapTiler and no direct ORS call in the browser code (all map calls go through App.api to our server)');
+// Hosts: any case. Header: the exact "Authorization:" header name (a code comment about "authorization" is not a call).
+ok(!preg_match('/maptiler|api\.heigit\.org|api\.openrouteservice\.org/i', $mapJs . $coreJs) && !preg_match('/Authorization\s*[:\'"]/', $mapJs . $coreJs)
+   && !str_contains($mapJs . $coreJs, 'ORS_API_KEY=') && str_contains($mapJs, "App.api('Maps.route'"), 'no MapTiler, no ORS host, no Authorization header in the browser code (all map calls go through App.api to our server)');
 $node = trim((string)@shell_exec('command -v node 2>/dev/null'));
 if ($node === '' || !preg_match('/^\s*decode\(str\) \{.*?^\s*\},\s*$/ms', $mapJs, $mm)) {
     echo "  NOTE  Node.js not found (or decode() not found): polyline decoding check skipped\n";

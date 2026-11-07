@@ -38,6 +38,7 @@ core('Settings');
 core('Notify');
 core('Files');
 core('BillingDraft');
+core('RouteDistance');
 
 final class Trips {
     public const STATUSES = ['Pending Review', 'Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'Dispatched',
@@ -285,11 +286,81 @@ final class Trips {
         return $row;
     }
 
+    // ---------- road distance (Checklist #5 Phase 3) ----------
+    /** Distance columns of a trip (the road line itself is kept in trip_routes). */
+    private const DISTANCE_COLS = ['distance_source', 'route_option', 'distance_computed_km', 'distance_provider',
+                                   'distance_computed_at', 'distance_override_reason', 'client_route_id'];
+
+    /**
+     * Distance of the trip form, decided by the SERVER (the km typed or filled in by the browser is
+     * never trusted alone). Rules: backend/Core/RouteDistance.php (same as Client Routes).
+     *   - approved client route chosen (client_route_id) -> km of that route; must be selectable for
+     *     this client and truck type; its map pins are used
+     *   - map pins + route option                          -> road distance computed again here
+     *   - otherwise / map service unavailable             -> typed km (Manual)
+     *   - km different from the reference km              -> reason required; warning above 15%
+     * $current = the saved trip (review / edit): when nothing about the distance changed, the saved
+     * distance is kept as is (no new map call; an approved route stays even if deactivated later).
+     * Returns [$row, $geometry, $note]; $geometry = string (save), null (remove), false (keep).
+     */
+    private static function distanceColumns(array $u, array $d, array $row, int $clientId, ?string $truckType, ?array $current): array {
+        $routeId = trim((string)($d['client_route_id'] ?? '')) === '' ? null : idField($d, 'client_route_id');
+        $km = $row['distance_km'] !== null ? (float)$row['distance_km'] : null;
+        if ($current !== null && self::distanceUnchanged($d, $row, $routeId, $current)) {
+            foreach (self::DISTANCE_COLS as $c) $row[$c] = $current[$c];
+            return [$row, false, ''];
+        }
+        if ($routeId !== null) {
+            $res = RouteDistance::fromClientRoute(db(), $routeId, $clientId, $truckType, $d, $km);
+            if ($res['points']) {
+                [$row['pickup_lat'], $row['pickup_lng']] = $res['points'][0];
+                [$row['delivery_lat'], $row['delivery_lng']] = $res['points'][1];
+            }
+        } else {
+            $res = RouteDistance::resolve($u['id'], $d, $km, [$row['pickup_lat'], $row['pickup_lng']], [$row['delivery_lat'], $row['delivery_lng']]);
+        }
+        $geometry = $res['cols']['geometry'];
+        unset($res['cols']['geometry']);
+        $row = array_merge($row, $res['cols'], ['client_route_id' => $routeId, 'distance_km' => $res['km']]);
+        return [$row, $geometry, $res['warning'] !== '' ? ' ' . $res['warning'] : ''];
+    }
+
+    /** True when the form did not change anything the distance depends on. */
+    private static function distanceUnchanged(array $d, array $row, ?int $routeId, array $t): bool {
+        $same = fn($a, $b) => ($a === null || $a === '') ? ($b === null || $b === '') : ($b !== null && $b !== '' && abs((float)$a - (float)$b) < 0.0000005);
+        $opt = is_string($d['route_option'] ?? null) && trim($d['route_option']) !== '' ? trim($d['route_option']) : null;
+        $reason = trim((string)($d['distance_override_reason'] ?? ''));
+        $savedRoute = $t['client_route_id'] !== null ? (int)$t['client_route_id'] : null;
+        $kmSame = ($row['distance_km'] === null && $t['distance_km'] === null)
+            || ($row['distance_km'] !== null && $t['distance_km'] !== null && abs(round((float)$row['distance_km'], 2) - (float)$t['distance_km']) < 0.005);
+        return $routeId === $savedRoute && ($routeId !== null || $opt === $t['route_option']) && $kmSame
+            && $same($row['pickup_lat'], $t['pickup_lat']) && $same($row['pickup_lng'], $t['pickup_lng'])
+            && $same($row['delivery_lat'], $t['delivery_lat']) && $same($row['delivery_lng'], $t['delivery_lng'])
+            && ($reason === '' || $reason === (string)$t['distance_override_reason']);
+    }
+
+    /** Road line of a trip: string = save, null = remove, false = keep. */
+    private static function saveGeometry(PDO $p, int $tripId, string|null|false $geometry): void {
+        if ($geometry === false) return;
+        if ($geometry === null) { run($p, 'DELETE FROM trip_routes WHERE trip_id=?', [$tripId]); return; }
+        $p->prepare('INSERT INTO trip_routes (trip_id, geometry) VALUES (?,?) ON DUPLICATE KEY UPDATE geometry=VALUES(geometry)')->execute([$tripId, $geometry]);
+    }
+
+    /** Short text for the trip history, e.g. "18.52 km, Map (Recommended)". */
+    private static function distanceNote(array $row): string {
+        if ($row['distance_km'] === null) return 'no km yet';
+        $opt = $row['route_option'] && isset(Routing::OPTIONS[$row['route_option']]) ? Routing::OPTIONS[$row['route_option']]['label'] : '';
+        return number_format((float)$row['distance_km'], 2) . ' km, ' . $row['distance_source']
+            . ($row['distance_computed_km'] !== null && in_array($row['distance_source'], ['Map (edited)', 'Client Route (edited)'], true) ? ' (reference ' . $row['distance_computed_km'] . ' km)' : '')
+            . ($opt !== '' ? ', ' . $opt : '') . ($row['distance_provider'] && str_starts_with((string)$row['distance_provider'], 'Client route') ? ', ' . $row['distance_provider'] : '');
+    }
+
     // ---------- create (Scenario A by Ops Head / Scenario B by dispatcher) ----------
     private static function create(array $u, array $d): array {
         must(self::canCreate($u), 'Only the Operations Head or a dispatcher can create a trip.', 403);
         $isOps = hasRole($u, 'operations_head');
-        $row = self::deliveryFields($d, $isOps);
+        // km is checked AFTER the road distance (an approved route or the map may supply it).
+        $row = self::deliveryFields($d, false);
         $row['client_id'] = idField($d, 'client_id');
         // One key per opened New Trip form: the same form sent twice creates the trip once.
         $key = trim((string)($d['request_key'] ?? ''));
@@ -299,7 +370,10 @@ final class Trips {
         if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.');
         $row['truck_type'] = $type;
         if ($type === 'Car Carrier' && !$row['units_planned']) $row['units_planned'] = (int)Settings::value('units_per_trip');
-        return transaction(function (PDO $p) use ($u, $row, $isOps) {
+        // Road distance before the transaction (no lock is held while the map service answers).
+        [$row, $geometry, $distNote] = self::distanceColumns($u, $d, $row, $row['client_id'], $type, null);
+        if ($isOps) must($row['distance_km'] !== null && $row['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
+        return transaction(function (PDO $p) use ($u, $row, $isOps, $geometry, $distNote) {
             if ($row['request_key'] !== null && ($dup = one($p, 'SELECT id, trip_ref, created_by FROM trips WHERE request_key=?', [$row['request_key']]))) {
                 must((int)$dup['created_by'] === $u['id'], 'Invalid form key. Reload the page.', 409);
                 return ['trip_id' => (int)$dup['id'], 'trip_ref' => $dup['trip_ref'], 'duplicate' => true,
@@ -308,6 +382,8 @@ final class Trips {
             $c = one($p, 'SELECT company_name, status FROM clients WHERE id=?', [$row['client_id']]);
             must($c && $c['status'] === 'Active', 'Choose an Active client from the client masterlist (clients waiting for documents or rates cannot be used yet).');
             if ($row['truck_type']) must(self::hasRate($p, $row['client_id'], $row['truck_type']), $c['company_name'] . ' has no billing rate for ' . $row['truck_type'] . ' yet.');
+            if ($row['client_route_id'] !== null) must((bool)RouteDistance::selectable($p, $row['client_id'], $row['truck_type'], $row['client_route_id']),
+                'The chosen client route was just changed and can no longer be used. Reload the page.', 409);
             $row += ['trip_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'created_by' => $u['id'],
                      'intake_source' => $isOps ? 'Operations Head' : 'Dispatcher',
                      'dispatcher_role' => $row['truck_type'] ? dispatcherRoleFor($row['truck_type']) : $u['role'],
@@ -315,14 +391,16 @@ final class Trips {
             $id = insert($p, 'trips', $row);
             $ref = refNumber('TRP', $id);
             run($p, 'UPDATE trips SET trip_ref=? WHERE id=?', [$ref, $id]);
-            self::event($p, $u['id'], $id, $isOps ? 'trip created by Operations Head (Scenario A)' : 'delivery request encoded by dispatcher (Scenario B)', '', 'Pending Review');
+            self::saveGeometry($p, $id, $geometry);
+            self::event($p, $u['id'], $id, $isOps ? 'trip created by Operations Head (Scenario A)' : 'delivery request encoded by dispatcher (Scenario B)', '', 'Pending Review',
+                'Distance: ' . self::distanceNote($row) . ($row['distance_override_reason'] ? '. Km changed by hand: ' . $row['distance_override_reason'] : ''));
             if ($isOps) {
                 run($p, 'UPDATE trips SET approved_by=?, approved_at=NOW() WHERE id=?', [$u['id'], $id]);
                 $res = self::approveAndAssign($p, $u, self::lockTrip($p, $id));
-                return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Trip $ref created. " . $res . self::$scheduleWarning];
+                return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Trip $ref created. " . $res . self::$scheduleWarning . $distNote];
             }
             Notify::roles($p, ['operations_head'], 'Trip request', "New delivery request $ref from " . $u['full_name'] . ' is Pending Review.', 'trips', 'trip-review-' . $id);
-            return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Request $ref sent to the Operations Head (Pending Review)."];
+            return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Request $ref sent to the Operations Head (Pending Review)." . $distNote];
         });
     }
 
@@ -331,7 +409,19 @@ final class Trips {
         requireRole($u, 'operations_head');
         $id = idField($d, 'trip_id');
         $decision = choiceField($d, 'decision', ['approve', 'reject']);
-        return transaction(function (PDO $p) use ($u, $d, $id, $decision) {
+        // Approve: the form and the road distance are checked BEFORE the transaction (no lock is
+        // held while the map service answers); the status is checked again under the lock.
+        $prepared = null;
+        if ($decision === 'approve') {
+            $pre = one(db(), 'SELECT * FROM trips WHERE id=?', [$id]);
+            must((bool)$pre, 'Trip not found.', 404);
+            self::mustBeStatus($pre, ['Pending Review'], 'review');
+            $row = self::deliveryFields($d, false, (string)$pre['scheduled_at']);
+            $row['truck_type'] = choiceField($d, 'truck_type', TRUCK_TYPES);
+            $prepared = self::distanceColumns($u, $d, $row, (int)$pre['client_id'], $row['truck_type'], $pre);
+            must($prepared[0]['distance_km'] !== null && $prepared[0]['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
+        }
+        return transaction(function (PDO $p) use ($u, $d, $id, $decision, $prepared) {
             $t = self::lockTrip($p, $id);
             self::mustBeStatus($t, ['Pending Review'], 'review');
             if ($decision === 'reject') {
@@ -342,32 +432,45 @@ final class Trips {
                 Notify::user($p, (int)$t['created_by'], 'Trip request', $t['trip_ref'] . ' was rejected: ' . $reason, 'trips');
                 return ['message' => 'Request rejected.'];
             }
-            $row = self::deliveryFields($d, true, (string)$t['scheduled_at']);
-            $row['truck_type'] = choiceField($d, 'truck_type', TRUCK_TYPES);
+            [$row, $geometry, $distNote] = $prepared;
             if ($row['truck_type'] === 'Car Carrier' && !$row['units_planned']) $row['units_planned'] = (int)Settings::value('units_per_trip');
             must(self::hasRate($p, (int)$t['client_id'], $row['truck_type']), 'This client has no billing rate for ' . $row['truck_type'] . ' yet.');
             $row['dispatcher_role'] = dispatcherRoleFor($row['truck_type']);
             $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
             run($p, "UPDATE trips SET $cols, approved_by=?, approved_at=NOW() WHERE id=?", array_merge(array_values($row), [$u['id'], $id]));
+            self::saveGeometry($p, $id, $geometry);
             Notify::resolve($p, 'trip-review-' . $id);
-            self::event($p, $u['id'], $id, 'trip details confirmed by Operations Head', 'Pending Review', 'Pending Review', $row['truck_type'] . ', ' . $row['distance_km'] . ' km');
-            return ['message' => self::approveAndAssign($p, $u, self::lockTrip($p, $id)) . self::$scheduleWarning];
+            self::event($p, $u['id'], $id, 'trip details confirmed by Operations Head', 'Pending Review', 'Pending Review', $row['truck_type'] . ', ' . self::distanceNote($row)
+                . ($row['distance_override_reason'] ? '. Km changed by hand: ' . $row['distance_override_reason'] : ''));
+            return ['message' => self::approveAndAssign($p, $u, self::lockTrip($p, $id)) . self::$scheduleWarning . $distNote];
         });
     }
 
     /** Ops Head edits details before dispatch; the dispatcher may fill in booking / container / units details. */
     private static function edit(array $u, array $d): array {
         $id = idField($d, 'trip_id');
-        return transaction(function (PDO $p) use ($u, $d, $id) {
+        // Operations Head: form and road distance checked BEFORE the transaction (no lock while the
+        // map service answers); status checked again under the lock.
+        $prepared = null;
+        if (hasRole($u, 'operations_head')) {
+            $pre = one(db(), 'SELECT * FROM trips WHERE id=?', [$id]);
+            must((bool)$pre, 'Trip not found.', 404);
+            must(!in_array($pre['status'], self::CLOSED, true), 'The trip is already closed.', 409);
+            self::mustBeStatus($pre, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery details');
+            $prepared = self::distanceColumns($u, $d, self::deliveryFields($d, false, (string)$pre['scheduled_at']), (int)$pre['client_id'], $pre['truck_type'], $pre);
+            must($prepared[0]['distance_km'] !== null && $prepared[0]['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
+        }
+        return transaction(function (PDO $p) use ($u, $d, $id, $prepared) {
             $t = self::lockTrip($p, $id);
             // CHECKLIST_27_TRIP_DETAILS_LOCK_V1: booking and delivery fields are
             // immutable once a truck is dispatched. A rescheduled attempt gets a
             // new editable pre-dispatch phase; completion/incident/arrival use
             // their separate workflow actions and remain available.
             self::mustBeStatus($t, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery / booking details');
+            $geometry = false; $distNote = '';
             if (hasRole($u, 'operations_head')) {
                 self::mustBeStatus($t, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery details');
-                $row = self::deliveryFields($d, true, (string)$t['scheduled_at']);
+                [$row, $geometry, $distNote] = $prepared;
             } else {
                 self::mustBeTripDispatcher($u, $t);
                 $row = ['booking_reference' => optField($d, 'booking_reference', 150), 'units_planned' => intField($d, 'units_planned', 1, false, 100),
@@ -377,17 +480,19 @@ final class Trips {
             }
             $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
             run($p, "UPDATE trips SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
+            self::saveGeometry($p, $id, $geometry);
             // Audit only operational fields; omit free-text/identifiers that may contain private data.
             $labels = ['scheduled_at' => 'Scheduled at', 'pickup_point' => 'Pickup point',
                 'delivery_point' => 'Delivery point', 'truck_type' => 'Truck type',
-                'distance_km' => 'Distance (km)', 'units_planned' => 'Units planned'];
+                'distance_km' => 'Distance (km)', 'units_planned' => 'Units planned',
+                'distance_source' => 'Distance source', 'route_option' => 'Route option', 'client_route_id' => 'Client route'];
             $oldFields = []; $newFields = [];
             foreach ($labels as $key => $label) if (array_key_exists($key, $row)) {
                 $oldFields[$label] = $t[$key] ?? null;
                 $newFields[$label] = $row[$key];
             }
             self::event($p, $u['id'], $id, 'trip details updated', $t['status'], $t['status'], '', $oldFields, $newFields);
-            return ['message' => 'Trip details updated.' . self::$scheduleWarning];
+            return ['message' => 'Trip details updated.' . self::$scheduleWarning . $distNote];
         });
     }
 
@@ -915,6 +1020,8 @@ final class Trips {
         must((bool)$t, 'Trip not found.', 404);
         $t['dispatch_blockers'] = self::dispatchBlockers($p, $t);
         $t['fuel_estimate'] = $t['distance_km'] ? Settings::fuelEstimate((float)$t['distance_km']) : null;
+        $t['route_geometry'] = one($p, 'SELECT geometry FROM trip_routes WHERE trip_id=?', [$id])['geometry'] ?? null;
+        $t['client_route_ref'] = $t['client_route_id'] ? (one($p, 'SELECT route_ref FROM client_routes WHERE id=?', [$t['client_route_id']])['route_ref'] ?? null) : null;
         $funds = many($p, 'SELECT f.*, ru.full_name AS requested_by_name, au.full_name AS approved_by_name, lu.full_name AS released_by_name
             FROM fund_requests f JOIN users ru ON ru.id=f.requested_by LEFT JOIN users au ON au.id=f.approved_by LEFT JOIN users lu ON lu.id=f.released_by WHERE f.trip_id=? ORDER BY f.id', [$id]);
         foreach ($funds as &$f) $f['lines'] = many($p, 'SELECT category_name, amount, is_preset FROM fund_request_lines WHERE fund_request_id=? ORDER BY id', [$f['id']]);

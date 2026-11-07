@@ -41,7 +41,8 @@ final class Data {
         $attr = envValue('MAP_TILE_ATTRIBUTION', '') ?: '© OpenStreetMap contributors';
         try { core('Routing'); $routing = Routing::configured(); $options = array_map(fn($o) => $o['label'], Routing::OPTIONS); }
         catch (Throwable $e) { $routing = false; $options = []; }
+        try { core('RouteDistance'); $ratio = RouteDistance::OVERRIDE_WARNING_RATIO; } catch (Throwable $e) { $ratio = 0.15; }
         return ['tileUrl' => $tile, 'tileAttribution' => cut($attr, 200), 'routing' => $routing, 'routeOptions' => $options,
-                'routeAttribution' => '© openrouteservice.org by HeiGIT'];
+                'routeAttribution' => '© openrouteservice.org by HeiGIT', 'defaultRouteOption' => 'recommended', 'overrideWarningRatio' => $ratio];
     }
 }

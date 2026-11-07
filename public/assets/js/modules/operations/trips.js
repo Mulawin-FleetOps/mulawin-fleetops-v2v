@@ -127,12 +127,14 @@ const TripUI = {
         attrs: `min="${t.scheduled_at && String(t.scheduled_at).slice(0, 16).replace(' ', 'T') < UI.nowManila() ? String(t.scheduled_at).slice(0, 16).replace(' ', 'T') : UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`,
         help: 'Present or future date and time (Philippine time).' },
       { name: 'distance_km', label: 'Billable distance (km)', type: 'number', step: '0.01', min: 0, attrs: 'max="3000"', required: opts.needsKm, col: 4, value: t.distance_km,
-        help: 'Pickup point to delivery point. Billing = km x client rate.' },
+        help: UI.Map.serviceReady() ? 'Filled in from the road distance or the approved route; you may change it (a reason is required). Billing = km x client rate.' : 'Pickup point to delivery point. Billing = km x client rate.' },
       { name: 'pickup_point', label: 'Pickup point', required: true, col: 6, value: t.pickup_point, attrs: 'list="dlPlaces"' },
       { name: 'delivery_point', label: 'Delivery point', required: true, col: 6, value: t.delivery_point, attrs: 'list="dlPlaces"' },
       { type: 'html', html: '<div data-mapbox></div>' },
       { type: 'hidden', name: 'pickup_lat', value: t.pickup_lat }, { type: 'hidden', name: 'pickup_lng', value: t.pickup_lng },
       { type: 'hidden', name: 'delivery_lat', value: t.delivery_lat }, { type: 'hidden', name: 'delivery_lng', value: t.delivery_lng },
+      // Road distance (Checklist #5 Phase 3): approved client route, route option, distance info, override reason (map.js)
+      ...UI.distanceFieldDefs({ withRoutePick: true, routeId: t.client_route_id, option: t.route_option, reason: t.distance_override_reason }),
       { name: 'delivery_details', label: 'Delivery details', type: 'textarea', rows: 2, col: 12, value: t.delivery_details },
       { name: 'booking_reference', label: 'Booking / nomination details', col: 6, value: t.booking_reference },
       { name: 'units_planned', label: 'Units (car carrier)', type: 'number', min: 1, col: 3, value: t.units_planned },
@@ -150,7 +152,10 @@ const TripUI = {
   },
   /** Wires map, availability and type-specific fields of a trip form. */
   wireForm(wrap, form, t = {}) {
-    UI.mapPicker(wrap.querySelector('[data-mapbox]'), form, t);
+    // Map + road distance + approved client route (shared with Client Routes; the server checks again on save).
+    const dist = UI.distanceWidget(form, { mapBox: wrap.querySelector('[data-mapbox]'), initial: t,
+      routePick: form.querySelector('[name=client_id]') ? { clientField: 'client_id', truckField: 'truck_type' } : { clientId: t.client_id, truckField: 'truck_type' } });
+    wrap.addEventListener('shown.bs.modal', () => dist.map && dist.map.invalidateSize());
     const typeSel = form.querySelector('[name=truck_type]');
     const show = () => {
       const type = typeSel.value;
@@ -176,7 +181,7 @@ const TripUI = {
       `<div class="small text-muted mb-2">${isOps ? 'Pick the client, enter the delivery details, pin the route and type the km. The system assigns an available truck, driver and helper right away.'
         : 'Encode the delivery information from the client. The Operations Head reviews it, then the system assigns the truck and crew.'}</div>
        ${TripUI.datalists()}${UI.fields(TripUI.deliveryFields({}, { withClient: true, needsKm: isOps }))}`,
-      async (d) => { const r = await App.api('Trips.create', d); UI.result(r); App.route(); if (r.trip_id) setTimeout(() => TripUI.open(r.trip_id), 400); },
+      async (d, form) => { form._distance?.clean(d); const r = await App.api('Trips.create', d); UI.result(r); App.route(); if (r.trip_id) setTimeout(() => TripUI.open(r.trip_id), 400); },
       { submit: isOps ? 'Create trip and auto-assign' : 'Send request', onShow: (w, f) => TripUI.wireForm(w, f) });
   },
   /**
@@ -192,7 +197,7 @@ const TripUI = {
     const back = document.createElement('button'); back.type = 'button'; back.className = 'btn btn-sm btn-outline-secondary';
     back.innerHTML = '<i class="bi bi-arrow-left"></i> Back to trips'; back.onclick = () => App.go('trips'); ctx.tools.append(back);
     const all = Object.fromEntries(TripUI.deliveryFields({}, { withClient: true, needsKm: isOps }).filter(f => f.name).map(f => [f.name, f]));
-    const pick = (names, cols = {}) => UI.fields(names.map(n => ({ ...all[n], col: cols[n] || all[n].col })));
+    const pick = (names, cols = {}) => UI.fields(names.filter(n => all[n]).map(n => ({ ...all[n], col: cols[n] || all[n].col })));
     const section = (n, title, desc, body) => `<section class="form-section"><div class="form-section-head"><span class="form-section-num">${n}</span><div>
       <h2 class="form-section-title">${title}</h2><p class="form-section-desc">${desc}</p></div></div><div class="form-section-body">${body}</div></section>`;
     const clients = (d.clients || []);
@@ -202,8 +207,8 @@ const TripUI = {
         ${clients.length ? '' : '<div class="alert alert-warning">No Active client with a billing rate yet. Billing must set the client\'s rate first (Client Masterlist).</div>'}
         ${section(1, 'Client and schedule', 'Who the delivery is for, which truck type, and when the truck should be at the pickup point.',
           pick(['client_id', 'consignee', 'truck_type', 'scheduled_at'], { client_id: 8, consignee: 4, truck_type: 6, scheduled_at: 6 }))}
-        ${section(2, 'Pickup and destination', 'Search a place or click the map to pin both points, then check the address text below the map.',
-          `<div data-mapbox class="mb-3"></div>${pick(['pickup_point', 'delivery_point', 'distance_km'], { distance_km: 4 })}
+        ${section(2, 'Pickup and destination', 'Choose an approved client route, or search a place or click the map to pin both points. The road distance fills in the km. Check the address text below the map.',
+          `${pick(['client_route_id'])}<div data-mapbox class="mb-3 mt-2"></div>${pick(['pickup_point', 'delivery_point', 'route_option', 'distance_km', 'km_info', 'distance_override_reason'], { distance_km: 4 })}
            <input type="hidden" name="pickup_lat"><input type="hidden" name="pickup_lng"><input type="hidden" name="delivery_lat"><input type="hidden" name="delivery_lng">`)}
         ${section(3, 'Cargo and booking details', 'Only the fields for the chosen truck type are shown.',
           pick(['booking_reference', 'units_planned', 'container_number', 'container_size', 'seal_number', 'shipment_number', 'delivery_details']))}
@@ -224,7 +229,7 @@ const TripUI = {
       const pinned = (k) => form.querySelector(`[name=${k}_lat]`).value ? ' <span class="badge-s green">pinned</span>' : '';
       const rows = [['Client', UI.esc(val('client_id'))], ['Truck type', UI.esc(val('truck_type'))], ['Schedule', val('scheduled_at') ? UI.datetime(val('scheduled_at').replace('T', ' ')) : ''],
         ['Pickup', UI.esc(val('pickup_point')) + (val('pickup_point') ? pinned('pickup') : '')], ['Destination', UI.esc(val('delivery_point')) + (val('delivery_point') ? pinned('delivery') : '')],
-        ['Distance', val('distance_km') ? UI.num(val('distance_km'), 2) + ' km' : '']];
+        ['Distance', val('distance_km') ? UI.num(val('distance_km'), 2) + ' km' + (form._distance ? ` <span class="text-muted small">(${UI.esc(form._distance.sourceText())})</span>` : '') : '']];
       form.querySelector('#ntSum').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v || '<span class="text-muted">—</span>'}</dd>`).join('');
     };
     form.addEventListener('input', summary); form.addEventListener('change', summary);
@@ -253,7 +258,8 @@ const TripUI = {
       if (!await UI.confirmProceed('Confirm new trip', 'Are you sure you want to create or submit this trip request?', 'Confirm trip')) return;
       const btn = form.querySelector('button[type=submit]'), label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving…';
       try {
-        const r = await App.apiForm('Trips.create', UI.formData(form), form);
+        const data = UI.formData(form); form._distance?.clean(data);
+        const r = await App.apiForm('Trips.create', data, form);
         UI.result(r); App.go('trips', r.trip_id ? { open: r.trip_id } : {});
       } catch (x) { fail(x.message); }
       finally { btn.disabled = false; btn.innerHTML = label; }
@@ -262,7 +268,7 @@ const TripUI = {
   review(t) {
     const wrap = UI.modal('Review request ' + UI.esc(t.trip_ref), `<div class="small text-muted mb-2">Requested by ${UI.esc(t.created_by_name)} for <b>${UI.esc(t.client)}</b>. Complete the truck type, km and details, then confirm. The system assigns the truck and crew.</div>
       ${TripUI.datalists()}${UI.fields(TripUI.deliveryFields(t, { needsKm: true }))}`,
-      async (d) => { const r = await App.api('Trips.review', { ...d, trip_id: t.id, decision: 'approve' }); UI.result(r); UI.closeDrawer(); App.route(); },
+      async (d, form) => { form._distance?.clean(d); const r = await App.api('Trips.review', { ...d, trip_id: t.id, decision: 'approve' }); UI.result(r); UI.closeDrawer(); App.route(); },
       { submit: 'Confirm and auto-assign', onShow: (w, f) => TripUI.wireForm(w, f, t), extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" id="rvReject">Reject request</button>' });
     wrap.querySelector('#rvReject').onclick = () => { bootstrap.Modal.getInstance(wrap).hide();
       UI.confirmAction('Reject request ' + UI.esc(t.trip_ref), 'The dispatcher will be notified.', 'Trips.review', { trip_id: t.id, decision: 'reject' }, { danger: true, submit: 'Reject', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] }); };
@@ -270,8 +276,11 @@ const TripUI = {
   edit(t) {
     if (UI.role('operations_head')) {
       UI.modal('Edit trip ' + UI.esc(t.trip_ref), TripUI.datalists() + UI.fields(TripUI.deliveryFields(t, { needsKm: true }).filter(f => f.name !== 'truck_type')),
-        async (d) => { const r = await App.api('Trips.edit', { ...d, trip_id: t.id }); UI.result(r); TripUI.open(t.id); App.route(); },
-        { onShow: (w, f) => { UI.mapPicker(w.querySelector('[data-mapbox]'), f, t); w.querySelector('[data-avail]').remove(); } });
+        async (d, form) => { form._distance?.clean(d); const r = await App.api('Trips.edit', { ...d, trip_id: t.id }); UI.result(r); TripUI.open(t.id); App.route(); },
+        { onShow: (w, f) => {
+          const dist = UI.distanceWidget(f, { mapBox: w.querySelector('[data-mapbox]'), initial: t, routePick: { clientId: t.client_id, truckType: t.truck_type } });
+          w.addEventListener('shown.bs.modal', () => dist.map && dist.map.invalidateSize());
+          w.querySelector('[data-avail]').remove(); } });
     } else {
       UI.formModal('Trip details ' + UI.esc(t.trip_ref), [
         { name: 'booking_reference', label: 'Booking / nomination details', value: t.booking_reference, col: 6 }, { name: 'units_planned', label: 'Units (car carrier)', type: 'number', min: 1, value: t.units_planned, col: 6 },
@@ -503,7 +512,11 @@ const TripUI = {
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}${why ? `<div class="why"><i class="bi bi-info-circle"></i> ${UI.esc(why)}</div>` : ''}</div>` : ''}
       ${UI.h('Trip')}
       ${UI.kv([['Client', `<b>${UI.esc(t.client)}</b>${t.consignee ? ' · ' + UI.esc(t.consignee) : ''}`], ['Route', `${UI.esc(t.pickup_point)} <i class="bi bi-arrow-right"></i> ${UI.esc(t.delivery_point)}`],
-        ['Billable distance', t.distance_km ? UI.num(t.distance_km, 2) + ' km' + (t.fuel_estimate ? ` <span class="text-muted small">(est. diesel ${UI.money(t.fuel_estimate)})</span>` : '') : '—'],
+        ['Billable distance', t.distance_km ? UI.num(t.distance_km, 2) + ' km' + (t.fuel_estimate ? ` <span class="text-muted small">(est. diesel ${UI.money(t.fuel_estimate)})</span>` : '') + (t.distance_source ? ` <span class="text-muted small">· ${UI.esc(t.distance_source)}</span>` : '') : '—'],
+        t.distance_computed_km ? [t.client_route_id ? 'Approved client route' : 'Computed road distance', UI.num(t.distance_computed_km, 2) + ' km'
+          + (t.client_route_ref ? ' · ' + UI.esc(t.client_route_ref) : '') + (t.route_option && (UI.Map.cfg().routeOptions || {})[t.route_option] ? ' · ' + UI.esc(UI.Map.cfg().routeOptions[t.route_option]) : '')
+          + (t.distance_computed_at ? ' · ' + UI.datetime(t.distance_computed_at) : '')] : null,
+        t.distance_override_reason ? ['Reason the km was changed', UI.esc(t.distance_override_reason)] : null,
         ['Schedule', UI.datetime(t.scheduled_at)], ['Truck type', UI.e(t.truck_type)], ['Truck', t.plate_number ? `<b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ' #' + UI.esc(t.truck_number) : ''} ${UI.badge(t.truck_status)}` : '—'],
         ...crew.map(([l, v]) => [l, UI.e(v)]), ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
@@ -526,7 +539,8 @@ const TripUI = {
       ${UI.h('Documents')}${UI.docs(r.documents)}
       ${UI.h('History')}<ul class="timeline">${r.events.map(e => `<li><span class="when">${UI.datetime(e.created_at)} · ${UI.esc(e.actor || 'System')}</span><br>${UI.esc(e.event_type)}${e.from_status !== e.to_status && e.to_status ? ` <span class="text-muted">(${UI.esc(e.from_status || 'new')} → ${UI.esc(e.to_status)})</span>` : ''}${e.notes ? '<br><span class="text-muted">' + UI.esc(e.notes) + '</span>' : ''}</li>`).join('')}</ul>`;
     const el = UI.drawer('Trip ' + UI.esc(t.trip_ref), html, { subtitle: UI.esc(t.client) });
-    UI.routeMap(el.querySelector('[data-routemap]'), t);
+    UI.routeMap(el.querySelector('[data-routemap]'), t, t.route_geometry && t.pickup_lat && t.delivery_lat ? { a: [+t.pickup_lat, +t.pickup_lng], b: [+t.delivery_lat, +t.delivery_lng],
+      aLabel: 'Pickup: ' + t.pickup_point, bLabel: 'Destination: ' + t.delivery_point, geometry: t.route_geometry } : null);
     el.querySelectorAll('[data-printinc]').forEach(b => b.onclick = () => TripUI.printIncident(r.incidents.find(i => String(i.id) === b.dataset.printinc), t));
     el.querySelectorAll('[data-tact]').forEach(b => b.onclick = () => {
       const a = b.dataset.tact;
