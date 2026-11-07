@@ -1263,6 +1263,7 @@ UI.signatureModal = () => {
       const fields = document.createElement('div');
       fields.className = 'rpm-record-fields';
       columns.forEach(([label, , format], idx) => {
+        if (idx >= 4) return; // RPM CARD COMPACT V2: hide secondary fields; full details through View action. // Keep cards concise; the View action opens full details.
         const td = cells[idx];
         if (!td) return;
         const field = document.createElement('div');
@@ -1277,20 +1278,6 @@ UI.signatureModal = () => {
         fields.appendChild(field);
       });
       card.appendChild(fields);
-      if (columns.length > 4) {
-        const extra = Array.from(fields.querySelectorAll('.rpm-record-extra'));
-        if (extra.length) {
-          const details = document.createElement('details');
-          details.className = 'rpm-record-more';
-          const summary = document.createElement('summary');
-          summary.textContent = 'More details';
-          const inner = document.createElement('div');
-          inner.className = 'rpm-record-extra-grid';
-          extra.forEach(el => inner.appendChild(el));
-          details.append(summary, inner);
-          card.appendChild(details);
-        }
-      }
       if (t.opts.actions) {
         const actions = cells[cells.length - 1]?.querySelector('.row-actions');
         if (actions) {
