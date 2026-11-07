@@ -184,6 +184,7 @@ final class Billing {
         });
     }
 
+    // S4B-2D-D: explicit fields only: keep invoice print fields, omit unrelated metadata.
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'billing'), 'Not allowed.', 403);
         $id = idField($d, 'billing_id'); $p = db();
@@ -193,9 +194,9 @@ final class Billing {
         $docs = array_merge(Files::of($p, 'trip', (int)$b['trip_id']), Files::of($p, 'billing', $id));
         return [
             'billing' => $b,
-            'trip' => one($p, 'SELECT t.*, v.plate_number, d1.full_name AS driver_name, d2.full_name AS driver2_name, h.full_name AS helper_name FROM trips t
+            'trip' => one($p, 'SELECT t.id, t.trip_ref, t.truck_type, t.pickup_point, t.delivery_point, t.dispatched_at, t.completed_at, t.waybill_number, t.units_delivered, v.plate_number, d1.full_name AS driver_name, d2.full_name AS driver2_name, h.full_name AS helper_name FROM trips t
                 LEFT JOIN vehicles v ON v.id=t.vehicle_id LEFT JOIN personnel d1 ON d1.id=t.driver_id LEFT JOIN personnel d2 ON d2.id=t.driver2_id LEFT JOIN personnel h ON h.id=t.helper_id WHERE t.id=?', [$b['trip_id']]),
-            'client' => one($p, 'SELECT * FROM clients WHERE id=?', [$b['client_id']]),
+            'client' => one($p, 'SELECT id, company_name, tin, business_address, contact_person, contact_number, email, payment_terms_days FROM clients WHERE id=?', [$b['client_id']]),
             'charges' => many($p, 'SELECT c.*, u.full_name AS added_by_name FROM billing_charges c JOIN users u ON u.id=c.added_by WHERE c.billing_id=? ORDER BY c.id', [$id]),
             'collections' => many($p, 'SELECT co.*, u.full_name AS recorded_by_name FROM collections co JOIN users u ON u.id=co.recorded_by WHERE co.billing_id=? ORDER BY co.id', [$id]),
             'documents' => $docs,
@@ -207,10 +208,10 @@ final class Billing {
     private static function soa(array $u, array $d): array {
         must(Access::canOpen($u, 'billing'), 'Not allowed.', 403);
         $cid = idField($d, 'client_id'); $p = db();
-        $c = one($p, 'SELECT * FROM clients WHERE id=?', [$cid]);
+        $c = one($p, 'SELECT id, company_name, business_address FROM clients WHERE id=?', [$cid]);
         must((bool)$c, 'Client not found.', 404);
         return ['client' => $c, 'invoices' => many($p, "SELECT b.invoice_number, b.invoice_date, b.due_date, b.total_amount, b.amount_paid, (b.total_amount-b.amount_paid) AS balance,
-                t.trip_ref, t.waybill_number, t.pickup_point, t.delivery_point, DATEDIFF(CURRENT_DATE(), b.due_date) AS days_overdue
+                t.trip_ref, t.waybill_number, DATEDIFF(CURRENT_DATE(), b.due_date) AS days_overdue
             FROM billings b JOIN trips t ON t.id=b.trip_id WHERE b.client_id=? AND b.status IN ('Invoiced','Partially Paid') ORDER BY b.invoice_date", [$cid])];
     }
 }
