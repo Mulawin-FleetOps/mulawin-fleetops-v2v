@@ -358,7 +358,7 @@ final class Maintenance {
     }
 
     private static function details(array $u, array $d): array {
-        must(Access::canOpen($u, 'maintenance') || Access::canOpen($u, 'trucks'), 'Not allowed.', 403);
+        must(Access::canOpen($u, 'maintenance'), 'Not allowed.', 403);
         $id = idField($d, 'job_id'); $p = db();
         $j = one($p, 'SELECT m.*, v.plate_number, v.truck_number, v.truck_type, v.status AS truck_status, t.trip_ref, mc.full_name AS mechanic, mc.mechanic_code, mc.contact_number AS mechanic_contact,
                 su.full_name AS started_by_name, cu.full_name AS completed_by_name, vu.full_name AS verified_by_name, ru.full_name AS reported_by_name
