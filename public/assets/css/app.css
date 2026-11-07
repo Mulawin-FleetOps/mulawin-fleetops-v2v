@@ -1428,3 +1428,68 @@ details > summary { cursor: pointer; font-size: var(--fs-sm); color: var(--blue)
   .page-body .panel { break-inside: auto; }
 }
 /* RPM UNIFORM LAYOUT V1 END */
+
+
+/* MASTERLIST INLINE QUICK FILTERS V1 */
+/* Search -> Filter -> category buttons. Advanced Filter modal remains intact. */
+.masterlist-toolbar-controls {
+  display: flex;
+  flex: 1 1 420px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.masterlist-toolbar-controls .masterlist-toolbar-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+.masterlist-toolbar-controls .masterlist-toolbar-hint {
+  display: none;
+}
+.masterlist-toolbar-controls .masterlist-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border-radius: 6px !important;
+  white-space: nowrap;
+  font-weight: 500;
+  padding: 4px 10px;
+}
+.masterlist-toolbar-controls .masterlist-quick-selected {
+  color: #18643a !important;
+  background-color: #edf6f0 !important;
+  border-color: #8bbca0 !important;
+  font-weight: 650;
+}
+.masterlist-toolbar-controls .masterlist-quick-btn:hover {
+  border-color: #599471;
+  background-color: #f3f8f5;
+  color: #165c35;
+}
+.table-tools:has(.masterlist-toolbar-controls) {
+  justify-content: flex-start;
+  gap: 10px;
+}
+.table-tools:has(.masterlist-toolbar-controls) > .table-search {
+  flex: 0 1 320px;
+  min-width: 170px;
+}
+.table-tools:has(.masterlist-toolbar-controls) > .table-tools-right {
+  margin-left: auto;
+}
+@media (max-width: 760px) {
+  .table-tools:has(.masterlist-toolbar-controls) > .table-search {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .masterlist-toolbar-controls {
+    flex-basis: 100%;
+  }
+}
+

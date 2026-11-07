@@ -664,6 +664,69 @@ UI.drawTable = (id) => {
     t.opts.rowClick(t.rows[+tr.dataset.ri]);
   }));
 };
+
+/** Move existing masterlist quick tabs and Filter next to Search in the table toolbar.
+ *  DOM movement preserves their original click handlers and modal filter logic.
+ *  Order: Search | Filter | Quick buttons | active filter chips | row count.
+ */
+UI.mountMasterlistQuickToolbar = (root) => {
+  const quickButtons = [...root.querySelectorAll(
+    '[data-masterlist-tab], [data-client-quick], [data-mechanic-quick]'
+  )];
+  if (!quickButtons.length) return;
+  const toolbar = root.querySelector('.table-tools');
+  const filterBar = root.querySelector('.filter-summary');
+  if (!toolbar || !filterBar) return;
+  if (toolbar.querySelector('.masterlist-toolbar-controls')) return;
+
+  const controls = document.createElement('div');
+  controls.className = 'masterlist-toolbar-controls';
+  controls.setAttribute('role', 'group');
+  controls.setAttribute('aria-label', 'Record filters');
+
+  // Move entire filter bar, not just the Filter button. data-fid is needed
+  // by the shared delegated click listener in UI.filterModal.
+  const filterParent = filterBar.parentElement;
+  controls.append(filterBar);
+  filterBar.classList.add('masterlist-toolbar-filter');
+  // The permanent "Showing all ..." hint consumes space next to Search.
+  // Actual filter chips and Reset remain visible.
+  [...filterBar.children].forEach(node => {
+    if (node.tagName === 'SPAN' && !node.classList.contains('filter-chip')) {
+      node.classList.add('masterlist-toolbar-hint');
+    }
+  });
+
+  const oldGroups = new Set();
+  for (const button of quickButtons) {
+    const oldGroup = button.parentElement;
+    oldGroups.add(oldGroup);
+    button.classList.remove('btn-primary', 'btn-group', 'active');
+    button.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'masterlist-quick-btn');
+    // Respect existing aria-pressed; communicate selection without a solid block.
+    if (button.getAttribute('aria-pressed') === 'true') {
+      button.classList.add('masterlist-quick-selected');
+    }
+    controls.append(button);
+  }
+
+  const search = toolbar.querySelector('.table-search');
+  if (search) search.insertAdjacentElement('afterend', controls);
+  else toolbar.prepend(controls);
+
+  // Remove now-empty decorative wrappers, not the shared Filter root.
+  for (const oldGroup of oldGroups) {
+    if (oldGroup && oldGroup !== root && oldGroup !== toolbar &&
+        !oldGroup.children.length && !oldGroup.textContent.trim()) {
+      oldGroup.remove();
+    }
+  }
+  if (filterParent && filterParent !== root && filterParent !== toolbar &&
+      !filterParent.children.length && !filterParent.textContent.trim()) {
+    filterParent.remove();
+  }
+};
+
 /** Call after inserting table HTML into the page (the router calls it for the page body). */
 UI.activate = (root) => {
   root.querySelectorAll('[data-tbody]').forEach(b => { if (!b.dataset.drawn) { b.dataset.drawn = '1'; UI.drawTable(b.dataset.tbody); } });
@@ -677,6 +740,7 @@ UI.activate = (root) => {
     holder.innerHTML = (UI._more[m.dataset.chartmore] || []).map(UI.chartHtml).join('');
     m.replaceWith(holder); holder.querySelectorAll('[data-chart]').forEach(c => UI.drawChart(c));
   });
+  UI.mountMasterlistQuickToolbar(root);
 };
 UI.btn = (act, label, cls = 'outline-secondary', icon = '') => {
   const text = label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label;
