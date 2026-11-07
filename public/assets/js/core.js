@@ -638,7 +638,13 @@ UI.activate = (root) => {
     m.replaceWith(holder); holder.querySelectorAll('[data-chart]').forEach(c => UI.drawChart(c));
   });
 };
-UI.btn = (act, label, cls = 'outline-secondary', icon = '') => `<button type="button" class="btn btn-sm btn-${cls}" data-act="${act}">${icon ? `<i class="bi ${icon}"></i> ` : ''}${UI.esc(label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label)}</button>`;
+UI.btn = (act, label, cls = 'outline-secondary', icon = '') => {
+  const text = label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label;
+  const isView = act === 'view' || (act === 'trip' && text === 'View trip');
+  const variant = isView && cls === 'outline-secondary' ? 'outline-primary' : cls;
+  const viewIcon = isView && !icon ? 'bi-eye' : icon;
+  return `<button type="button" class="btn btn-sm btn-${variant}${isView ? ' table-view-btn' : ''}" data-act="${act}">${viewIcon ? `<i class="bi ${viewIcon}" aria-hidden="true"></i> ` : ''}${UI.esc(text)}</button>`;
+};
 
 /** CSV download (Excel-friendly with BOM). Downloadable reports — PDF V.64. */
 UI.csv = (name, columns, rows) => {
