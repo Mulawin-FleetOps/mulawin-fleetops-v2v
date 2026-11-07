@@ -16,7 +16,8 @@ INSERT INTO schema_migrations (id) VALUES
   ('2026-11-04_account_security'), ('2026-11-05_arrival_checklist'), ('2026-11-05_checklist_timer'),
   ('2026-11-06_00_schema_migrations'), ('2026-11-06_01_phase1_supplier_snapshot_and_trip_key'),
   ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes'),
-  ('2026-11-06_04_maps_routing');
+  ('2026-11-06_04_maps_routing'),
+  ('2026-11-06_05_account_ownership'), ('2026-11-06_06_trusted_devices_email');
 
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
@@ -820,3 +821,47 @@ ALTER TABLE client_routes
   ADD CONSTRAINT chk_route_option CHECK (route_option IS NULL OR route_option IN ('recommended','avoid_tolls','general_roads')),
   ADD CONSTRAINT chk_route_computed_km CHECK (distance_computed_km IS NULL OR (distance_computed_km > 0 AND distance_computed_km <= 3000)),
   ADD CONSTRAINT chk_route_distance_source CHECK (distance_source IN ('Manual','Map','Map (edited)'));
+
+-- FRESH_INSTALL_SECURITY_05_06_SYNC_V1
+-- Security schema for brand-new installs (schema.sql followed by extension.sql).
+-- Keep in sync with migrations 05/06, applied separately to EXISTING databases.
+-- Do NOT import this whole extension.sql into a live/upgraded database.
+-- =====================================================================
+-- Exact schema from database/migrations/2026-11-06_05_account_ownership.sql
+-- Security S1: credential ownership / verified password changes.
+-- Run ONCE using phpMyAdmin after backup, before testing new PHP/JS.
+ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS password_change_challenges (
+    user_id INT NOT NULL PRIMARY KEY,
+    password_hash VARCHAR(255) NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pw_change_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Existing employees remain enrolled; new Admin-created or Admin-reset accounts are forced to change.
+
+-- Exact schema from database/migrations/2026-11-06_06_trusted_devices_email.sql
+-- Security S2: Remember this device (hashed server-side tokens) + verified email ownership.
+-- Run ONCE in phpMyAdmin, after Security S1 migration and before S2 code deployment.
+CREATE TABLE IF NOT EXISTS trusted_login_devices (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ user_id INT NOT NULL,
+ token_hash CHAR(64) NOT NULL,
+ expires_at DATETIME NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ last_used_at DATETIME NULL,
+ UNIQUE KEY uq_trusted_token (token_hash),
+ INDEX idx_trusted_user (user_id, expires_at),
+ CONSTRAINT fk_trusted_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS email_change_challenges (
+ user_id INT NOT NULL PRIMARY KEY,
+ new_email VARCHAR(190) NOT NULL,
+ code_hash VARCHAR(255) NOT NULL,
+ expires_at DATETIME NOT NULL,
+ attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+ requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_email_change_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
