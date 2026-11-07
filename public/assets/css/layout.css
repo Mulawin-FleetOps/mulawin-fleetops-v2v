@@ -349,3 +349,23 @@ a:hover { color: var(--rpm-brand-strong); }
   .app-drawer .offcanvas-body { padding: 12px; }
 }
 /* END RPM SYSTEMWIDE DESIGN V1 */
+
+/* RPM SIDEBAR WORKSPACE V1 START */
+/* Only the role's primary workflow is shown by default. Extra permitted
+   reference pages are collapsed; notifications remain in the top bell. */
+.sidebar-nav { padding: 10px 10px 16px; }
+.sidebar-nav > .nav-section { padding-top: 8px; }
+.sidebar .nav-item-link { min-height: 39px; height: auto; padding: 9px 11px; gap: 10px; line-height: 1.25; }
+.sidebar .nav-item-link span { min-width: 0; overflow-wrap: anywhere; }
+.sidebar-more { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.16); }
+.sidebar-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 9px 11px; color: #e8f4ec; font-size: 13px; font-weight: 600; border-radius: var(--r); }
+.sidebar-more > summary::-webkit-details-marker { display: none; }
+.sidebar-more > summary:hover { background: rgba(255,255,255,.12); }
+.sidebar-more > summary:focus-visible { outline: 2px solid #d5efb8; outline-offset: 2px; }
+.sidebar-more > summary > .bi:first-child { font-size: 16px; width: 18px; text-align: center; }
+.sidebar-more-chevron { margin-left: auto; font-size: 12px; transition: transform .15s ease; }
+.sidebar-more[open] .sidebar-more-chevron { transform: rotate(180deg); }
+.sidebar-more-items { padding: 4px 0 0 6px; }
+.sidebar-more-items .nav-item-link { font-size: 12.5px; }
+@media (max-width: 575.98px) { .sidebar .nav-item-link { min-height: 42px; } }
+/* RPM SIDEBAR WORKSPACE V1 END */

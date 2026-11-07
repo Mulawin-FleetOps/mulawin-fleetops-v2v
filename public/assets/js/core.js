@@ -296,12 +296,33 @@ const App = {
   shell() {
     const me = this.me, u = me.user;
     const initials = (u.full_name || u.username).split(/[\s,]+/).filter(Boolean).map(s => s[0]).slice(0, 2).join('').toUpperCase();
-    const link = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}"></i><span>${UI.esc(n.label)}</span></a>`;
-    let nav = me.nav.filter(n => !n.section).map(link).join('');
-    (me.sections || []).forEach(sec => {
-      const items = me.nav.filter(n => n.section === sec && n.id !== 'notifications'); if (!items.length) return;
-      nav += `<div class="nav-section">${UI.esc(sec)}</div>${items.map(link).join('')}`;
-    });
+    // Role-focused presentation. The server's me.nav remains the sole source of
+    // permitted pages; hiding a link does NOT change authorization or routing.
+    const mainPages = {
+      admin: ['dashboard', 'admin', 'trips', 'reports', 'trucks'],
+      operations_head: ['dashboard', 'trips', 'trucks', 'crew', 'clients', 'routes', 'funds'],
+      car_carrier_dispatcher: ['dashboard', 'trips', 'funds'],
+      container_wingvan_dispatcher: ['dashboard', 'trips', 'funds'],
+      motorpool: ['dashboard', 'maintenance', 'trucks', 'mechanics', 'purchasing'],
+      purchasing: ['dashboard', 'purchasing'],
+      finance: ['dashboard', 'funds', 'finance', 'purchasing'],
+      billing: ['dashboard', 'billing', 'clients', 'routes'],
+      audit: ['dashboard', 'reports', 'admin'],
+    };
+    const shortNames = {
+      trips: 'Trips', trucks: 'Trucks', crew: 'Drivers', clients: 'Clients',
+      routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance',
+      purchasing: 'Parts & purchasing', funds: 'Trip funds', billing: 'Billing',
+      finance: 'Finance', reports: 'Reports', admin: 'Users & settings',
+    };
+    const order = mainPages[u.role] || ['dashboard'];
+    const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
+    const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
+    const primaryIds = new Set(primary.map(n => n.id));
+    const extra = allowed.filter(n => !primaryIds.has(n.id));
+    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : shortNames[n.id] || n.label)}</span></a>`;
+    let nav = `<div class="nav-section">My workspace</div>${primary.map(link).join('')}`;
+    if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
     document.getElementById('app').innerHTML = `
     <div class="app-shell" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
@@ -405,6 +426,9 @@ const App = {
     if (!nav) return this.go('dashboard');
     this.current = { page, query };
     document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === page));
+    // Expand the supporting-tools group only when the current route is inside it.
+    const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
+    if (secondary) document.getElementById('sidebarMore').open = true;
     document.getElementById('appSidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('show');
     document.getElementById('crumbs').innerHTML = `${nav.section ? `<span class="crumb-sec">${UI.esc(nav.section)}</span><i class="bi bi-chevron-right"></i>` : ''}<span class="crumb-page">${UI.esc(nav.label)}</span>`;
     document.title = nav.label + ' · Mulawin FleetOps';
