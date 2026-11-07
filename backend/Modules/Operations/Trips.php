@@ -314,8 +314,6 @@ final class Trips {
             $ref = refNumber('TRP', $id);
             run($p, 'UPDATE trips SET trip_ref=? WHERE id=?', [$ref, $id]);
             self::event($p, $u['id'], $id, $isOps ? 'trip created by Operations Head (Scenario A)' : 'delivery request encoded by dispatcher (Scenario B)', '', 'Pending Review');
-            // Optional supporting files from the New Trip Request page (booking / nomination, delivery order).
-            Files::store($p, $u, 'attachments', 'trip', $id, self::DOC_REQUEST);
             if ($isOps) {
                 run($p, 'UPDATE trips SET approved_by=?, approved_at=NOW() WHERE id=?', [$u['id'], $id]);
                 $res = self::approveAndAssign($p, $u, self::lockTrip($p, $id));

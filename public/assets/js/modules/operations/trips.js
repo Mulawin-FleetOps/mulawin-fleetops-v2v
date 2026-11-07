@@ -181,7 +181,7 @@ const TripUI = {
   },
   /**
    * New Trip Request page (#trips?new=1): one page with numbered sections instead of a modal,
-   * because this is the main form of the system (client -> pickup/destination -> cargo -> assignment -> files).
+   * because this is the main form of the system (client -> pickup/destination -> cargo -> assignment).
    */
   newPage(ctx) {
     const isOps = UI.role('operations_head');
@@ -208,9 +208,6 @@ const TripUI = {
         ${section(3, 'Cargo and booking details', 'Only the fields for the chosen truck type are shown.',
           pick(['booking_reference', 'units_planned', 'container_number', 'container_size', 'seal_number', 'shipment_number', 'delivery_details']))}
         ${section(4, 'Assignment', 'Trucks and crew are assigned by the system from the masterlists (only available, valid records).', '<div data-avail></div>')}
-        ${section(5, 'Attachments (optional)', 'Booking or nomination copy, delivery order, client instructions. PDF, JPG, PNG or WebP, up to 10 MB each.',
-          `<input class="form-control form-control-sm" type="file" name="attachments" id="ntFiles" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
-           <ul class="doc-list mt-2" id="ntFileList"></ul>`)}
       </div>
       <aside class="form-aside"><section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-card-checklist"></i> Summary</h2></div>
         <div class="panel-body"><dl class="kv" id="ntSum"></dl>
@@ -222,15 +219,13 @@ const TripUI = {
     const form = ctx.el.querySelector('#ntForm');
     const err = form.querySelector('.form-error');
     TripUI.wireForm(form, form);
-    const files = form.querySelector('#ntFiles');
     const val = (n) => { const el = form.querySelector(`[name=${n}]`); if (!el) return ''; return el.tagName === 'SELECT' ? (el.value ? el.selectedOptions[0].textContent : '') : el.value.trim(); };
     const summary = () => {
       const pinned = (k) => form.querySelector(`[name=${k}_lat]`).value ? ' <span class="badge-s green">pinned</span>' : '';
       const rows = [['Client', UI.esc(val('client_id'))], ['Truck type', UI.esc(val('truck_type'))], ['Schedule', val('scheduled_at') ? UI.datetime(val('scheduled_at').replace('T', ' ')) : ''],
         ['Pickup', UI.esc(val('pickup_point')) + (val('pickup_point') ? pinned('pickup') : '')], ['Destination', UI.esc(val('delivery_point')) + (val('delivery_point') ? pinned('delivery') : '')],
-        ['Distance', val('distance_km') ? UI.num(val('distance_km'), 2) + ' km' : ''], ['Files', files.files.length ? files.files.length + ' file(s)' : 'none']];
+        ['Distance', val('distance_km') ? UI.num(val('distance_km'), 2) + ' km' : '']];
       form.querySelector('#ntSum').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v || '<span class="text-muted">—</span>'}</dd>`).join('');
-      form.querySelector('#ntFileList').innerHTML = [...files.files].map(f => `<li><i class="bi bi-paperclip"></i><div>${UI.esc(f.name)}<div class="cell-sub">${UI.num(f.size / 1024, 0)} KB</div></div></li>`).join('');
     };
     form.addEventListener('input', summary); form.addEventListener('change', summary);
     form.querySelectorAll('[name=pickup_point],[name=delivery_point]').forEach(x => x.addEventListener('input', () => { form.querySelector('#ntConfirm').checked = false; }));
@@ -244,7 +239,6 @@ const TripUI = {
       form.querySelectorAll('.is-invalid').forEach(x => x.classList.remove('is-invalid'));
       const missing = [...form.querySelectorAll('[required]')].filter(x => x.offsetParent !== null).find(x => !String(x.value).trim());
       if (missing) return fail('Please fill in: ' + (form.querySelector(`label[for="${missing.id}"]`)?.textContent || missing.name).replace(/\s*\*$/, ''), missing);
-      const big = [...files.files].find(f => f.size > 10000000); if (big) return fail(big.name + ' is larger than 10 MB.', files);
       const when = form.querySelector('[name=scheduled_at]');
       if (when.value && when.value < UI.nowManila(-5)) return fail('The schedule cannot be earlier than the current date and time (' + UI.nowManila().replace('T', ' ') + ', Philippine time).', when);
       if (when.value && when.value > UI.nowManila(365 * 1440)) return fail('The schedule cannot be more than 365 days ahead. Check the year.', when);
