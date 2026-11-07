@@ -338,3 +338,41 @@ details > summary { cursor: pointer; font-size: var(--fs-sm); color: var(--blue)
 .pf-ar-date { text-align: right; margin-bottom: 6px; }
 .pf-fill { display: inline-block; min-width: 110px; border-bottom: 1px solid #111; padding: 0 4px; line-height: 1.4; font-weight: 600; }
 .pf-fill.w-40 { min-width: 40%; } .pf-fill.w-60 { min-width: 60%; } .pf-fill.w-100 { width: 100%; }
+
+/* MULAWIN UIUX BATCH 6 START: responsive tables, readability and print safety */
+/* Shared list/table improvements across every department. */
+.table-wrap { max-width: 100%; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
+.data-table { line-height: 1.45; }
+.data-table th, .data-table td { overflow-wrap: anywhere; }
+.data-table th { vertical-align: middle; }
+.data-table td .cell-sub { line-height: 1.35; }
+.data-table .actions-col { vertical-align: middle; }
+.row-actions { align-items: center; flex-wrap: wrap; max-width: min(410px, 100%); }
+.row-actions .btn { white-space: normal; line-height: 1.25; }
+.table-search { min-width: 0; }
+.filter-summary .filter-chip { overflow-wrap: anywhere; }
+.drawer-actions .btn { white-space: normal; text-align: left; }
+
+/* Smaller screens: preserve table scrolling without compressing amounts or actions. */
+@media (max-width: 767.98px) {
+  .data-table { font-size: 12px; }
+  .data-table th, .data-table td { padding: 9px 10px; }
+  .data-table .actions-col { position: static; }
+  .row-actions { min-width: 120px; max-width: 220px; justify-content: flex-start; }
+  .row-actions .btn { min-height: 32px; }
+  .filter-summary { align-items: flex-start; }
+  .filter-summary > span { min-width: 0; overflow-wrap: anywhere; }
+  .drawer-actions { padding: 10px; gap: 6px; }
+  .drawer-actions .btn { max-width: 100%; }
+}
+
+/* Printing: avoid clipped table text and split rows in formal reports/forms. */
+@media print {
+  #printArea .print-report, #printArea .pf { overflow: visible !important; }
+  #printArea .print-report th, #printArea .print-report td,
+  #printArea .pf th, #printArea .pf td { overflow-wrap: anywhere; word-break: normal; }
+  #printArea .print-report tr, #printArea .pf tr { break-inside: avoid; page-break-inside: avoid; }
+  #printArea .pr-card, #printArea .pf-signs, #printArea .pf-box { break-inside: avoid; page-break-inside: avoid; }
+  #printArea .print-report img, #printArea .pf img { max-width: 100%; }
+}
+/* MULAWIN UIUX BATCH 6 END */

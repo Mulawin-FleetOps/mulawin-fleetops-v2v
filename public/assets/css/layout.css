@@ -250,3 +250,26 @@ textarea.form-control { min-height: 64px; }
   .page-actions .btn { flex: 1; }
   .crumb-sec, .crumbs .bi { display: none; }
 }
+
+/* MULAWIN UIUX BATCH 6 START: responsive tables, readability and print safety */
+/* Shared keyboard focus and readable form labels across modules. */
+:where(.btn, .icon-btn, .nav-item-link, .data-table a, .filter-summary button, .drawer-actions button):focus-visible {
+  outline: 2px solid var(--gold-500);
+  outline-offset: 2px;
+}
+.modal .form-label, .modal .form-help, .modal-intro { overflow-wrap: anywhere; }
+.modal .form-control, .modal .form-select { min-width: 0; }
+.page-subtitle, .section-note, .bell-msg, .app-toast > span { overflow-wrap: anywhere; }
+.page-actions .btn { white-space: normal; }
+
+/* Narrow phones: constrain dialogs, their actions and long field names. */
+@media (max-width: 575.98px) {
+  .modal-dialog { margin: 8px; max-width: calc(100vw - 16px); }
+  .modal { --bs-modal-header-padding: 12px 14px; --bs-modal-padding: 14px; }
+  .modal-footer { padding: 10px 14px; flex-wrap: wrap; }
+  .modal-footer .btn { white-space: normal; }
+  .modal .form-label { line-height: 1.35; }
+  .content { padding-left: 12px; padding-right: 12px; }
+  .page-head { gap: 10px; }
+}
+/* MULAWIN UIUX BATCH 6 END */
