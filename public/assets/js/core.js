@@ -602,8 +602,9 @@ UI.drawTable = (id) => {
   t.page = Math.min(Math.max(t.page, 0), pages - 1);
   const first = t.page * t.limit, shown = rows.slice(first, first + t.limit);
   const num = (f) => f === 'money' || f === 'num';
-  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${num(f) ? 'num' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.opts.actions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
-    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f]) => `<td class="${num(f) ? 'num' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.opts.actions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${t.opts.actions(r) || ''}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
+  const cellClass = (f) => f === 'money' ? 'num money-col' : f === 'num' ? 'count-col' : (f === 'badge' || f === 'yes') ? 'status-col' : '';
+  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${cellClass(f)}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.opts.actions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
+    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f]) => `<td class="${cellClass(f)}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.opts.actions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${t.opts.actions(r) || ''}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
   if (pager && pages > 1) {
     const nums = [];
     for (let i = 0; i < pages; i++) if (i === 0 || i === pages - 1 || Math.abs(i - t.page) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
