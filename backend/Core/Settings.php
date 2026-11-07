@@ -38,6 +38,9 @@ final class Settings {
         // CHECKLIST_40_FINANCE_WINDOW_V1: Admin can configure when Finance may release.
         'fund_release_lead_hours'       => ['Enable trip fund release before dispatch', 2, 'hours before',
             'Finance can release a Ready for Release trip fund this many hours before its scheduled dispatch. 0 = not before the scheduled time.', 0, 24],
+        // CHECKLIST_42_ATTENDANCE_PHASE1_V1: start hours are configurable by Admin (0-23, Philippine time).
+        'attendance_day_start_hour' => ['Day shift attendance reminder starts', 6, 'hour (0-23 PH time)', 'Hour when the Admin bell begins reminding for Day shift attendance.', 0, 23],
+        'attendance_night_start_hour' => ['Night shift attendance reminder starts', 18, 'hour (0-23 PH time)', 'Hour when the Admin bell begins reminding for Night shift attendance.', 0, 23],
         'inspection_min_minutes'      => ['Minimum checklist duration', 15, 'minutes',
             'Pre-dispatch and arrival checklists: the earliest a checklist can be submitted, counted from when the dispatcher opened it (PDF #11 section G). 0 = no minimum.', 0, 120],
     ];

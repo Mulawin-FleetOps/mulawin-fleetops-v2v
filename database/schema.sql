@@ -201,6 +201,7 @@ CREATE TABLE personnel (
   employee_no VARCHAR(40) NULL UNIQUE,
   full_name VARCHAR(120) NOT NULL COMMENT 'LAST, FIRST (same as the monitoring sheets)',
   person_type VARCHAR(10) NOT NULL,
+  duty_shift VARCHAR(5) NULL COMMENT 'Day or Night; assigned by Admin',
   contact_number VARCHAR(60) NULL,
   address VARCHAR(255) NULL,
   license_number VARCHAR(60) NULL UNIQUE,

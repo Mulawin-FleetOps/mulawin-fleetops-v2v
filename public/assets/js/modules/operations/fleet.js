@@ -92,6 +92,7 @@ const FleetUI = {
     UI.formModal(p.id ? 'Edit ' + UI.esc(p.full_name) : 'Add driver or helper', [
       { name: 'full_name', label: 'Name (LAST NAME, FIRST NAME)', required: true, col: 8, value: p.full_name, placeholder: 'JUEGOS, HECTOR' },
       { name: 'person_type', label: 'Type', type: 'select', options: UI.list(['Driver', 'Helper']), required: true, col: 4, value: p.person_type },
+      { name: 'duty_shift', label: 'Assigned shift (drivers)', type: 'select', options: [['', 'Not assigned'], ['Day','Day Shift'], ['Night','Night Shift']], required: UI.role('admin') && p.person_type === 'Driver', attrs: UI.role('admin') ? '' : 'disabled', col: 4, value: p.duty_shift },
       { name: 'employee_no', label: 'Employee no.', col: 4, value: p.employee_no }, { name: 'contact_number', label: 'Contact number', col: 4, value: p.contact_number },
       { name: 'date_hired', label: 'Employment start date', type: 'date', col: 4, value: p.date_hired },
       { name: 'license_number', label: "Driver's license no. (drivers)", col: 6, value: p.license_number }, { name: 'license_expiry', label: 'Driver’s license expiry date', type: 'date', col: 6, value: p.license_expiry },
@@ -159,6 +160,7 @@ App.page('crew', {
   render(ctx) {
     const d = ctx.data, q = ctx.query;
     if (d.can.edit) UI.tool(ctx, 'Add driver or helper', () => FleetUI.crewForm({}), 'bi-plus-lg', 'primary');
+    if (App.me.user.role === 'admin') UI.tool(ctx, 'Attendance', () => AttendanceUI.open('Driver'), 'bi-clipboard-check', 'outline-primary');
     const act = d.crew.filter(p => +p.active);
     const rows = d.crew.filter(p => (q.inactive ? true : +p.active) && (!q.person_type || p.person_type === q.person_type) && (!q.availability || p.availability === q.availability)
       && (!q.license || (p.license_days !== null && +p.license_days <= +d.alertDays)));
@@ -174,6 +176,7 @@ App.page('crew', {
       { name: 'license', label: 'License', type: 'select', options: [['expiring', 'Expiring / expired']], col: 6 },
       { name: 'inactive', label: 'Include inactive drivers and helpers', type: 'checkbox', col: 12 }], { hint: 'Showing all active drivers and helpers.' }) + `</div>` + UI.table([
       ['Name', 'full_name', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${UI.esc(r.employee_no ? 'ID ' + r.employee_no : r.person_type)}</div>`], ['Type', 'person_type'],
+      ['Shift', 'duty_shift', (v,r) => r.person_type==='Driver' ? UI.esc(v || 'Unassigned') : '—'],
       ['Availability', 'availability', (v, r) => UI.badge(v) + (r.unavailable_reason ? `<div class="small text-muted">${UI.esc(r.unavailable_reason)}</div>` : '')],
       ['Current trip', 'trip_ref', (v, r) => v ? `${UI.esc(v)} <span class="small text-muted">${UI.esc(r.trip_plate || '')} · ${UI.esc(r.trip_status)}</span>` : '—'],
       ['License expiry', 'license_expiry', (v, r) => FleetUI.docBadge(r.license_days, v)], ['Completed trips', 'completed_trips', 'num']], rows,

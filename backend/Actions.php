@@ -31,6 +31,7 @@ final class Actions {
         'Fleet' => 'Operations', 'Clients' => 'Operations', 'Trips' => 'Operations', 'Routes' => 'Operations',
         'Maintenance' => 'Maintenance', 'Mechanics' => 'Maintenance', 'Purchasing' => 'Maintenance',
         'Funds' => 'Accounting', 'Billing' => 'Accounting', 'Finance' => 'Accounting',
+        'Attendance' => 'Administration',
         'Analytics' => 'General', 'Documents' => 'General', 'Maps' => 'General',
         'Admin' => 'Administration',
     ];

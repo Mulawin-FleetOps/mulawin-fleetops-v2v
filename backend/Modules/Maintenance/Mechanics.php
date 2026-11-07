@@ -48,20 +48,24 @@ final class Mechanics {
         $row = ['full_name' => preg_replace('/\s+/', ' ', field($d, 'full_name', 100)),
                 'contact_number' => optField($d, 'contact_number', 40),
                 'specialization' => optField($d, 'specialization', 150),
-                'notes' => optField($d, 'notes', 255)];
+                'notes' => optField($d, 'notes', 255),
+                'duty_shift' => choiceField($d, 'duty_shift', ['Day', 'Night'], false)];
+        if (hasRole($u, 'admin')) must($row['duty_shift'] !== null, 'Choose a Day or Night shift.');
         if ($row['contact_number'] !== null) must((bool)preg_match('/^[0-9+()\-\s]{7,40}$/', $row['contact_number']), 'Contact number: digits, spaces, + ( ) - only.');
         return transaction(function (PDO $p) use ($u, $id, $row) {
             must(!one($p, 'SELECT id FROM mechanics WHERE full_name=? AND id<>?', [$row['full_name'], $id ?? 0]), 'A mechanic named ' . $row['full_name'] . ' is already in the masterlist.', 409);
             if ($id) {
                 $old = one($p, 'SELECT * FROM mechanics WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$old, 'Mechanic not found.', 404);
+                if (!hasRole($u, 'admin')) $row['duty_shift'] = $old['duty_shift']; // Admin-only shift changes.
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE mechanics SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-                $before = ['Full name' => $old['full_name'], 'Specialization' => $old['specialization']];
-                $after = ['Full name' => $row['full_name'], 'Specialization' => $row['specialization']];
+                $before = ['Full name' => $old['full_name'], 'Specialization' => $old['specialization'], 'Assigned shift' => $old['duty_shift']];
+                $after = ['Full name' => $row['full_name'], 'Specialization' => $row['specialization'], 'Assigned shift' => $row['duty_shift']];
                 auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic updated', $row['full_name'], $before, $after);
                 return ['id' => $id, 'message' => 'Mechanic information updated.'];
             }
+            if (!hasRole($u, 'admin')) $row['duty_shift'] = null;
             $id = insert($p, 'mechanics', ['mechanic_code' => 'TMP-' . bin2hex(random_bytes(4))] + $row);
             $code = 'MEC-' . str_pad((string)$id, 3, '0', STR_PAD_LEFT);
             run($p, 'UPDATE mechanics SET mechanic_code=? WHERE id=?', [$code, $id]);

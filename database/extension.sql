@@ -18,7 +18,7 @@ INSERT INTO schema_migrations (id) VALUES
   ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes'),
   ('2026-11-06_04_maps_routing'),
   ('2026-11-06_05_account_ownership'), ('2026-11-06_06_trusted_devices_email'),
-  ('2026-11-07_07_trip_routing');
+  ('2026-11-07_07_trip_routing'), ('2026-11-08_08_attendance');
 
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
@@ -306,6 +306,7 @@ CREATE TABLE mechanics (
   id INT AUTO_INCREMENT PRIMARY KEY,
   mechanic_code VARCHAR(20) NOT NULL UNIQUE COMMENT 'MEC-001, given by the system',
   full_name VARCHAR(100) NOT NULL,
+  duty_shift VARCHAR(5) NULL COMMENT 'Day or Night; assigned by Admin',
   contact_number VARCHAR(40) NULL,
   specialization VARCHAR(150) NULL COMMENT 'e.g. engine, electrical, brakes, welding',
   availability VARCHAR(15) NOT NULL DEFAULT 'Available',
@@ -890,4 +891,25 @@ CREATE TABLE trip_routes (
   geometry MEDIUMTEXT NOT NULL COMMENT 'route line (encoded polyline) for display',
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (trip_id) REFERENCES trips(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- CHECKLIST_42_ATTENDANCE_PHASE1_V1: fresh-install attendance records.
+CREATE TABLE attendance_marks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  duty_date DATE NOT NULL,
+  duty_shift VARCHAR(5) NOT NULL,
+  personnel_id INT NULL,
+  mechanic_id INT NULL,
+  status VARCHAR(7) NOT NULL,
+  marked_by INT NOT NULL,
+  marked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_att_person (duty_date,duty_shift,personnel_id),
+  UNIQUE KEY uq_att_mech (duty_date,duty_shift,mechanic_id),
+  INDEX idx_att_date (duty_date,duty_shift),
+  CONSTRAINT fk_att_person FOREIGN KEY (personnel_id) REFERENCES personnel(id),
+  CONSTRAINT fk_att_mech FOREIGN KEY (mechanic_id) REFERENCES mechanics(id),
+  CONSTRAINT fk_att_admin FOREIGN KEY (marked_by) REFERENCES users(id),
+  CONSTRAINT chk_att_kind CHECK ((personnel_id IS NOT NULL AND mechanic_id IS NULL) OR (personnel_id IS NULL AND mechanic_id IS NOT NULL)),
+  CONSTRAINT chk_att_shift CHECK (duty_shift IN ('Day','Night')),
+  CONSTRAINT chk_att_status CHECK (status IN ('Present','Absent'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
