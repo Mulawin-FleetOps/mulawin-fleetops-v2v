@@ -591,7 +591,9 @@ $act('admin', 'decide', ['rate_id' => (int)$act('billing', 'rate_enter', ['route
 $before = $checksums();
 try {
     $t = Trips::action($users['operations_head'], 'create', ['client_id' => $client2, 'truck_type' => 'Wing Van', 'pickup_point' => 'Tanauan', 'delivery_point' => 'Malvar',
-        'distance_km' => '20', 'scheduled_at' => date('Y-m-d\TH:i', strtotime('+1 day'))]);
+        'distance_km' => '20',
+        // +1 hour: inside the Finance release window (Checklist #40, default 2 hours before dispatch).
+        'scheduled_at' => date('Y-m-d\TH:i', strtotime('+1 hour'))]);
     $trip = one($p, 'SELECT * FROM trips WHERE id=?', [$t['trip_id']]);
     ok($trip['status'] === 'Pre-Assigned' && (int)$trip['vehicle_id'] === $veh && (int)$trip['driver_id'] === $drv && (int)$trip['helper_id'] === $hlp, 'trip created and auto-assigned (Pre-Assigned) as before');
     $D = $users['container_wingvan_dispatcher'];
