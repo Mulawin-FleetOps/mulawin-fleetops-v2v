@@ -35,27 +35,26 @@ const RPMDashboard = {
     return card.format === 'money' ? UI.money(card.value)
       : UI.esc(typeof card.value === 'number' ? UI.num(card.value, 2) : card.value);
   },
+  tile(c) {
+    const go = c.page && UI.canGo(c.page);
+    return `<div class="rpm-kpi rpm-kpi-${['green', 'amber', 'red'].includes(c.color) ? c.color : 'normal'}${go ? ' rpm-kpi-link' : ''}"
+      ${go ? `data-go="${UI.esc(c.page)}" role="link" tabindex="0"` : ''}>
+      <span class="rpm-kpi-icon"><i class="bi ${this.icon(c.icon)}" aria-hidden="true"></i></span>
+      <div class="rpm-kpi-body"><div class="rpm-kpi-label">${UI.esc(c.label)}</div>
+      <div class="rpm-kpi-value">${this.number(c)}</div></div>
+      ${go ? '<i class="bi bi-arrow-up-right rpm-kpi-corner" aria-hidden="true"></i>' : ''}
+    </div>`;
+  },
   cards(cards) {
-    const groups = [];
-    (cards || []).forEach(c => {
-      const group = c.group || 'Overview';
-      let item = groups.find(x => x.name === group);
-      if (!item) { item = { name: group, cards: [] }; groups.push(item); }
-      item.cards.push(c);
-    });
-    return groups.map(group => `<section class="rpm-kpi-group" aria-label="${UI.esc(group.name)}">
-      <h2 class="rpm-section-caption">${UI.esc(group.name)}</h2>
-      <div class="rpm-kpi-grid">${group.cards.map(c => {
-        const go = c.page && UI.canGo(c.page);
-        return `<div class="rpm-kpi rpm-kpi-${['green', 'amber', 'red'].includes(c.color) ? c.color : 'normal'}${go ? ' rpm-kpi-link' : ''}"
-          ${go ? `data-go="${UI.esc(c.page)}" role="link" tabindex="0"` : ''}>
-          <div class="rpm-kpi-top"><span class="rpm-kpi-icon"><i class="bi ${RPMDashboard.icon(c.icon)}" aria-hidden="true"></i></span><span class="rpm-kpi-label">${UI.esc(c.label)}</span></div>
-          <div class="rpm-kpi-value">${RPMDashboard.number(c)}</div>
-          ${c.hint ? `<div class="rpm-kpi-note">${UI.esc(c.hint)}</div>` : ''}
-          ${go ? '<i class="bi bi-arrow-up-right rpm-kpi-corner" aria-hidden="true"></i>' : ''}
-        </div>`;
-      }).join('')}</div>
-    </section>`).join('');
+    // Keep important facts visible; secondary metrics are one click away.
+    const primary = (cards || []).slice(0, 6);
+    const rest = (cards || []).slice(6);
+    if (!primary.length) return '';
+    return `<section class="rpm-compact-metrics" aria-label="Key metrics">
+      <div class="rpm-kpi-grid">${primary.map(c => this.tile(c)).join('')}</div>
+      ${rest.length ? `<details class="rpm-more-metrics"><summary>Show ${rest.length} more metrics</summary>
+        <div class="rpm-kpi-grid">${rest.map(c => this.tile(c)).join('')}</div></details>` : ''}
+    </section>`;
   },
   // A breakdown is shown only when there are genuinely comparable counts.
   breakdown(cards, role) {
@@ -89,14 +88,14 @@ const RPMDashboard = {
     </section>`;
   },
   alerts(alerts) {
-    const list = (alerts || []).slice(0, 7);
+    const list = (alerts || []).slice(0, 4);
     return `<section class="rpm-summary-panel rpm-alert-panel"><h2 class="rpm-panel-title">Needs attention <span class="rpm-alert-count">${(alerts || []).length}</span></h2>
       ${list.length ? `<ul class="rpm-alert-list">${list.map(a => {
         const go = a.page && UI.canGo(a.page);
         const level = ['danger', 'warning', 'success'].includes(a.level) ? a.level : 'info';
         return `<li class="rpm-alert-${level}"><span class="rpm-alert-mark"><i class="bi ${level === 'danger' ? 'bi-exclamation-circle' : level === 'success' ? 'bi-check-circle' : 'bi-info-circle'}" aria-hidden="true"></i></span>
           <span>${UI.esc(a.text)}</span>${go ? `<button type="button" data-go="${UI.esc(a.page)}" class="rpm-alert-link" aria-label="Open related module"><i class="bi bi-chevron-right"></i></button>` : ''}</li>`;
-      }).join('')}</ul>${(alerts || []).length > 7 ? `<p class="rpm-alert-more">${(alerts || []).length - 7} more notices. See Notifications for details.</p>` : ''}`
+      }).join('')}</ul>${(alerts || []).length > 4 ? `<p class="rpm-alert-more">${(alerts || []).length - 4} more notices. See Notifications for details.</p>` : ''}`
         : '<p class="rpm-all-clear"><i class="bi bi-check-circle"></i> No pending dashboard alerts right now.</p>'}
     </section>`;
   },
@@ -110,41 +109,54 @@ const RPMDashboard = {
 
 App.page('dashboard', {
   title: 'Dashboard',
-  subtitle: 'Current records and work waiting for your account.',
+  subtitle: 'Your current records and pending work.',
   render(ctx) {
     const d = ctx.data || {};
     const role = App.me?.user?.role || 'audit';
     const cfg = RPMDashboard.roles[role] || RPMDashboard.roles.audit;
-    const current = new Intl.DateTimeFormat('en-PH', {
+    // The app shell already provides a page header: use it rather than duplicate it.
+    const pageTitle = document.querySelector('.page-title');
+    const pageSubtitle = document.querySelector('.page-subtitle');
+    if (pageTitle) pageTitle.textContent = cfg.title;
+    if (pageSubtitle) pageSubtitle.textContent = cfg.detail;
+    const time = new Intl.DateTimeFormat('en-PH', {
       timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short', hour12: true,
     }).format(new Date());
     const stamp = document.createElement('span');
     stamp.className = 'small text-muted align-self-center';
-    stamp.textContent = 'Updated ' + current + ' PHT';
+    stamp.textContent = 'Updated ' + time + ' PHT';
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'btn btn-sm btn-outline-success';
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-success';
     btn.innerHTML = '<i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh';
     btn.onclick = () => ctx.reload();
     ctx.tools.append(stamp, btn);
 
     const cards = d.cards || [], alerts = d.alerts || [], charts = d.charts || [], tables = d.tables || [];
     const breakdown = RPMDashboard.breakdown(cards, role);
-    const extras = charts.length ? `<div class="chart-grid">${charts.slice(0, 2).map(UI.chartHtml).join('')}</div>` : '';
-    ctx.el.classList.add('rpm-dashboard');
-    ctx.el.innerHTML = `<header class="rpm-welcome">
-      <div class="rpm-welcome-brand"><img src="assets/img/logo.png" alt="RPM" onerror="this.style.display='none'" /></div>
-      <div class="rpm-welcome-copy"><span class="rpm-eyebrow">RPM FleetOps V2 · Role dashboard</span>
-        <h1><i class="bi ${RPMDashboard.icon(cfg.icon)}" aria-hidden="true"></i> ${UI.esc(cfg.title)}</h1>
-        <p>${UI.esc(cfg.detail)}</p></div>
-      <span class="rpm-welcome-time"><i class="bi bi-calendar3" aria-hidden="true"></i> ${UI.esc(current)} PHT</span>
-    </header>
-    <div class="rpm-dashboard-content">
+    const summary = RPMDashboard.alerts(alerts);
+    // One primary table, capped to five rows, avoids a wall of records on arrival.
+    const primaryTable = tables.length ? UI.blockTable({ ...tables[0], limit: 5 }) : '';
+    const otherTables = tables.slice(1);
+    const moreTables = otherTables.length ? `<details class="rpm-more-records">
+      <summary>Show ${otherTables.length} more record ${otherTables.length === 1 ? 'section' : 'sections'}</summary>
+      <div class="rpm-dashboard-tables">${otherTables.map(t => UI.blockTable({ ...t, limit: 5 })).join('')}</div>
+    </details>` : '';
+    const moreCharts = charts.length ? `<details class="rpm-more-records">
+      <summary>Show ${charts.length} chart${charts.length === 1 ? '' : 's'}</summary>
+      <div class="chart-grid">${charts.slice(0, 2).map(UI.chartHtml).join('')}</div>
+    </details>` : '';
+    ctx.el.classList.add('rpm-dashboard', 'rpm-dashboard-compact');
+    ctx.el.innerHTML = `<div class="rpm-dashboard-content">
       <div class="rpm-dashboard-kpis">${RPMDashboard.cards(cards)}</div>
-      <div class="rpm-dashboard-overview${breakdown ? '' : ' rpm-no-breakdown'}">${breakdown}${RPMDashboard.alerts(alerts)}</div>
-      ${extras}
-      ${tables.length ? `<section class="rpm-dashboard-records"><h2 class="rpm-area-title">Recent records and follow-ups</h2>
-        <div class="rpm-dashboard-tables">${tables.map(t => UI.blockTable(t)).join('')}</div></section>` : ''}
-      <section class="rpm-dashboard-shortcuts"><h2 class="rpm-area-title">Quick access</h2><div class="rpm-quick-grid">${RPMDashboard.links(role)}</div></section>
+      <div class="rpm-dashboard-overview${breakdown ? '' : ' rpm-no-breakdown'}">
+        ${summary}${breakdown}
+      </div>
+      ${primaryTable ? `<section class="rpm-dashboard-records"><h2 class="rpm-area-title">Recent records</h2>
+        <div class="rpm-dashboard-tables">${primaryTable}</div>${moreTables}</section>` : ''}
+      ${moreCharts}
+      <section class="rpm-dashboard-shortcuts"><h2 class="rpm-area-title">Quick access</h2>
+        <div class="rpm-quick-grid">${RPMDashboard.links(role)}</div></section>
     </div>`;
     UI.activate(ctx.el);
   },
