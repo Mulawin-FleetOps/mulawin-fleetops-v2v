@@ -790,6 +790,14 @@ UI.formData = (form) => {
  * Application modal with a form. onSubmit(data, form, wrap) may throw an Error; the message
  * shows inside the modal. Returns the modal element.
  */
+/* CHECKLIST_18_MODAL_UNSAVED_GUARD_V1 */
+/** Capture user-editable modal values, including selected files (not file bytes). */
+UI.modalEditSnapshot = (form) => JSON.stringify([...form.querySelectorAll('input, select, textarea')]
+  .filter(el => !el.disabled && el.name && el.type !== 'hidden' &&
+    !['submit', 'button', 'reset'].includes(el.type))
+  .map(el => [el.name, el.type === 'file' ? [...el.files].map(f => [f.name, f.size, f.lastModified])
+    : (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value]));
+
 UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
   const wrap = document.createElement('div');
   wrap.className = 'modal fade'; wrap.tabIndex = -1; wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('role', 'dialog');
@@ -820,14 +828,25 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
       err.style.display = 'block'; invalid.focus(); return;
     }
     const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
-    try { await onSubmit(UI.formData(form), form, wrap); m.hide(); }
+    try { await onSubmit(UI.formData(form), form, wrap); saveCompleted = true; m.hide(); }
     catch (x) { err.textContent = x.message; err.style.display = 'block'; }
     finally { btn.disabled = false; btn.innerHTML = label; }
   };
-  wrap.addEventListener('hidden.bs.modal', () => wrap.remove());
-  m.show();
-  if (opts.onShow) opts.onShow(wrap, form);
-  return wrap;
+   // The confirmation runs only when a user tries to close a modified form.
+   // Successful submission bypasses it, while validation/API errors preserve the edits.
+   let initialValues = null;
+   let saveCompleted = false;
+   wrap.addEventListener('hide.bs.modal', (event) => {
+     if (!onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
+     if (UI.modalEditSnapshot(form) === initialValues) return;
+     if (!window.confirm('You have unsaved changes. Discard them and close this form?')) event.preventDefault();
+   });
+   wrap.addEventListener('hidden.bs.modal', () => wrap.remove());
+   m.show();
+   if (opts.onShow) opts.onShow(wrap, form);
+   // Wait until initial conditional fields/onShow handlers have populated the form.
+   queueMicrotask(() => { initialValues = UI.modalEditSnapshot(form); });
+   return wrap;
 };
 /** Standard "form -> action -> reload page" modal. */
 UI.formModal = (title, fields, action, opts = {}) => UI.modal(title, (opts.intro ? `<p class="modal-intro">${opts.intro}</p>` : '') + UI.fields(fields), async (d, form, wrap) => {
