@@ -832,14 +832,50 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
     catch (x) { err.textContent = x.message; err.style.display = 'block'; }
     finally { btn.disabled = false; btn.innerHTML = label; }
   };
-   // The confirmation runs only when a user tries to close a modified form.
-   // Successful submission bypasses it, while validation/API errors preserve the edits.
+   // Checklist #18: in-app discard dialog; never call window.confirm.
+   // Render within the existing Bootstrap modal to avoid competing backdrops.
    let initialValues = null;
    let saveCompleted = false;
+   let allowDiscard = false;
+   const showDiscardDialog = () => {
+     if (wrap.querySelector('[data-unsaved-dialog]')) return;
+     const dialog = document.createElement('div');
+     dialog.className = 'unsaved-dialog-layer';
+     dialog.dataset.unsavedDialog = '1';
+     dialog.style.cssText = 'position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.42);';
+     dialog.innerHTML = `<section role="alertdialog" aria-modal="true" aria-labelledby="unsavedTitle"
+       aria-describedby="unsavedMessage" class="bg-white shadow-lg rounded-3 border p-4"
+       style="width:min(100%,430px);max-height:90%;overflow:auto">
+       <h5 id="unsavedTitle" class="mb-2"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Unsaved changes</h5>
+       <p id="unsavedMessage" class="text-muted mb-3">You have unsaved changes. Discard them and close this form?</p>
+       <div class="d-flex justify-content-end gap-2 flex-wrap">
+         <button type="button" class="btn btn-sm btn-outline-secondary" data-unsaved-keep>Keep editing</button>
+         <button type="button" class="btn btn-sm btn-danger" data-unsaved-discard>Discard changes</button>
+       </div>
+     </section>`;
+     // Keep Escape and backdrop clicks from closing the parent while asking.
+     const escGuard = (e) => {
+       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); dialog.querySelector('[data-unsaved-keep]').click(); }
+     };
+     dialog.addEventListener('keydown', escGuard, true);
+     const closeDialog = () => { dialog.remove(); };
+     dialog.querySelector('[data-unsaved-keep]').onclick = () => {
+       closeDialog();
+       form.querySelector('input:not([type=hidden]),select,textarea')?.focus();
+     };
+     dialog.querySelector('[data-unsaved-discard]').onclick = () => {
+       allowDiscard = true;
+       closeDialog();
+       m.hide();
+     };
+     wrap.append(dialog);
+     dialog.querySelector('[data-unsaved-keep]').focus();
+   };
    wrap.addEventListener('hide.bs.modal', (event) => {
-     if (!onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
+     if (allowDiscard || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
      if (UI.modalEditSnapshot(form) === initialValues) return;
-     if (!window.confirm('You have unsaved changes. Discard them and close this form?')) event.preventDefault();
+     event.preventDefault();
+     showDiscardDialog();
    });
    wrap.addEventListener('hidden.bs.modal', () => wrap.remove());
    m.show();
