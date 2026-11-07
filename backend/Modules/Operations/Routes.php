@@ -39,6 +39,7 @@
 declare(strict_types=1);
 core('Notify');
 core('Routing');
+core('RouteDistance');
 
 final class Routes {
     /**
@@ -112,7 +113,7 @@ final class Routes {
      * Client statuses whose Approved routes can be SELECTED for new trip planning.
      * Same rule as Trip Management today (only Active clients can be used for trips).
      */
-    public const PLANNING_CLIENT_STATUSES = ['Active'];
+    public const PLANNING_CLIENT_STATUSES = RouteDistance::PLANNING_CLIENT_STATUSES;
 
     /** True when the client may get route requests and approvals (POLICY['client_statuses']). */
     private static function clientEligible(array $client): bool {
@@ -150,11 +151,7 @@ final class Routes {
      * Planning must call this again on the server when saving (never trust the screen).
      */
     public static function selectableFor(PDO $p, int $clientId, ?string $truckType = null): array {
-        $marks = implode(',', array_fill(0, count(self::PLANNING_CLIENT_STATUSES), '?'));
-        $sql = self::approvedSql() . " AND c.status IN ($marks)";
-        $args = array_merge([$clientId], self::PLANNING_CLIENT_STATUSES);
-        if ($truckType !== null) { $sql .= ' AND r.truck_type=?'; $args[] = $truckType; }
-        return many($p, $sql . ' ORDER BY r.origin_label, r.destination_label, r.truck_type', $args);
+        return RouteDistance::selectable($p, $clientId, $truckType);   // one eligibility rule for Client Routes and Trips
     }
 
     // =================================================================
@@ -169,6 +166,7 @@ final class Routes {
             'deactivate' => self::deactivate($u, $d),
             'details' => self::details($u, $d),
             'for_client' => self::forClient($u, $d),
+            'selectable' => self::selectableAction($u, $d),
             default => throw new BusinessRuleException('Unknown route action.', 404),
         };
     }
@@ -300,34 +298,12 @@ final class Routes {
      *        different                        -> a reason is REQUIRED, distance_source = Map (edited);
      *                                            warning when the difference is more than 15%.
      */
-    public const OVERRIDE_WARNING_RATIO = 0.15;
+    public const OVERRIDE_WARNING_RATIO = RouteDistance::OVERRIDE_WARNING_RATIO;
     private static function distanceFields(array $u, array $d, float $finalKm, array $row): array {
-        $cols = ['distance_source' => 'Manual', 'route_option' => null, 'distance_computed_km' => null, 'distance_provider' => null,
-                 'distance_computed_at' => null, 'distance_override_reason' => null, 'route_geometry' => null];
-        $opt = is_string($d['route_option'] ?? null) ? trim($d['route_option']) : '';
-        if ($opt === '' || $row['origin_lat'] === null || $row['destination_lat'] === null) return [$cols, ''];
-        $opt = Routing::option($opt);
-        try {
-            $r = Routing::route(db(), $u['id'], [$row['origin_lat'], $row['origin_lng']], [$row['destination_lat'], $row['destination_lng']], $opt);
-        } catch (RoutingUnavailable $e) {
-            return [$cols, 'Automatic km was not available (' . $e->getMessage() . ') The typed km was saved as Manual.'];
-        }
-        $computed = (float)$r['distance_km'];
-        $cols = ['distance_source' => 'Map', 'route_option' => $opt, 'distance_computed_km' => number_format($computed, 2, '.', ''),
-                 'distance_provider' => $r['provider'], 'distance_computed_at' => date('Y-m-d H:i:s'), 'distance_override_reason' => null,
-                 'route_geometry' => $r['geometry'] !== '' ? $r['geometry'] : null];
-        $warning = $r['warning'];
-        if (abs(round($finalKm, 2) - $computed) >= 0.005) {
-            $reason = trim((string)($d['distance_override_reason'] ?? ''));
-            must($reason !== '', 'The km (' . number_format($finalKm, 2) . ') is different from the computed road distance (' . number_format($computed, 2)
-                . ' km). Give the reason for the change, or use the computed km.');
-            must(textLength($reason) <= 300, 'The reason is too long (max 300 characters).');
-            $cols['distance_source'] = 'Map (edited)';
-            $cols['distance_override_reason'] = $reason;
-            if (abs($finalKm - $computed) > self::OVERRIDE_WARNING_RATIO * $computed)
-                $warning = trim($warning . ' The km differs from the computed road distance by more than ' . (int)(self::OVERRIDE_WARNING_RATIO * 100) . '%. Billing and the Admin will see the reason.');
-        }
-        return [$cols, $warning];
+        $res = RouteDistance::resolve($u['id'], $d, $finalKm, [$row['origin_lat'], $row['origin_lng']], [$row['destination_lat'], $row['destination_lng']]);
+        $cols = $res['cols'];
+        $cols['route_geometry'] = $cols['geometry']; unset($cols['geometry']);
+        return [$cols, $res['warning']];
     }
 
     // ---------- withdraw (Operations Head, own request, before approval) ----------
@@ -536,6 +512,27 @@ final class Routes {
             'events' => many($p, 'SELECT e.event_type, e.from_status, e.to_status, e.notes, e.created_at, COALESCE(a.full_name, \'System\') AS actor
                 FROM client_route_events e LEFT JOIN users a ON a.id=e.actor_id WHERE e.route_id=? ORDER BY e.id DESC', [$id]),
         ];
+    }
+
+    /**
+     * Approved routes that may be chosen in the trip form (Checklist #5 Phase 3): same eligibility as
+     * planning (RouteDistance::selectable). For the people who create trips; the rate is NOT included.
+     * With route_id: that one route, with its road line, for the map.
+     */
+    private static function selectableAction(array $u, array $d): array {
+        must(hasRole($u, 'operations_head') || roleIsDispatcher($u['role']), 'Only the Operations Head or a dispatcher can choose a route for a trip.', 403);
+        $clientId = idField($d, 'client_id');
+        $type = choiceField($d, 'truck_type', TRUCK_TYPES, false);
+        if (roleIsDispatcher($u['role']) && $type !== null) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.', 403);
+        $routeId = trim((string)($d['route_id'] ?? '')) === '' ? null : idField($d, 'route_id');
+        $p = db();
+        $rows = RouteDistance::selectable($p, $clientId, $type, $routeId);
+        if (roleIsDispatcher($u['role'])) $rows = array_values(array_filter($rows, fn($r) => dispatcherRoleFor($r['truck_type']) === $u['role']));
+        $keep = ['id', 'route_ref', 'truck_type', 'origin_label', 'destination_label', 'distance_km', 'distance_source', 'route_option',
+                 'origin_lat', 'origin_lng', 'destination_lat', 'destination_lng'];
+        $out = array_map(fn($r) => array_intersect_key($r, array_flip($keep)), $rows);
+        if ($routeId !== null && $out) $out[0]['route_geometry'] = RouteDistance::routeGeometry($p, $routeId);
+        return ['routes' => $out];
     }
 
     /** Read-only Approved routes of one client (used by the client details window). */
