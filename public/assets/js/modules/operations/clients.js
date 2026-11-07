@@ -61,7 +61,7 @@ const ClientUI = {
     const rate = (x) => x.rate_type === 'Flat' ? UI.money(x.rate_amount) : UI.money(x.rate_amount) + '/km' + (+x.minimum_charge > 0 ? ' (minimum ' + UI.money(x.minimum_charge) + ')' : '');
     box.innerHTML = UI.table([['Origin → destination', 'origin_label', (v, x) => UI.esc(x.origin_label + ' → ' + x.destination_label)], ['Truck type', 'truck_type'], ['Km', 'distance_km', 'num'],
       ['Rate', 'rate_amount', (v, x) => rate(x)], ['Since', 'effective_from', 'date']], r.routes, { plain: true, empty: 'No approved route yet.' })
-      + (r.can_open_routes ? `<a class="small" href="#routes?client_id=${encodeURIComponent(clientId)}">Open all routes of this client</a>` : '');
+      + (r.can_open_routes ? `<a class="small" href="#routes?client_id=${encodeURIComponent(clientId)}">View all routes for this client</a>` : '');
     UI.activate(box);
   },
   async open(id, d) {
