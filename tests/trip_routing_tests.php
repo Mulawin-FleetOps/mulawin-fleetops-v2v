@@ -291,6 +291,22 @@ run($p, "UPDATE client_routes SET status='Approved' WHERE id=?", [$rWV]);
 $res = Trips::action($wvd, 'edit', ['trip_id' => $id, 'booking_reference' => 'BK-1', 'distance_km' => '1.00', 'client_route_id' => '', 'route_option' => 'general_roads']);
 ok($T($id)['distance_km'] === '9.50' && $T($id)['booking_reference'] === 'BK-1', 'dispatcher edit cannot change the distance (only booking / container / units)');
 
+// Checklist #27 (CHECKLIST_27_TRIP_DETAILS_LOCK_V1): no booking / delivery / distance edits from Dispatched onward.
+$r = Trips::action($ops, 'create', $trip(['route_option' => 'recommended']));
+$lid = $r['trip_id'];
+foreach (['Dispatched', 'In Transit', 'On Hold - Incident Reported', 'Completed', 'Cancelled', 'Rejected'] as $status) {
+    run($p, 'UPDATE trips SET status=? WHERE id=?', [$status, $lid]);
+    $before = $T($lid); $calls = Routing::$outboundCalls;
+    $tryOps = ['trip_id' => $lid, 'pickup_point' => 'CHANGED', 'delivery_point' => $before['delivery_point'], 'scheduled_at' => str_replace(' ', 'T', substr($before['scheduled_at'], 0, 16)),
+        'pickup_lat' => '14.2000', 'pickup_lng' => '121.1000', 'delivery_lat' => $before['delivery_lat'], 'delivery_lng' => $before['delivery_lng'],
+        'route_option' => 'general_roads', 'distance_km' => '99.00', 'distance_override_reason' => 'try', 'client_route_id' => (string)$rWV];
+    fails(fn() => Trips::action($ops, 'edit', $tryOps), "#27 edit lock: Operations Head cannot edit a $status trip", 409);
+    fails(fn() => Trips::action($wvd, 'edit', ['trip_id' => $lid, 'booking_reference' => 'BK-LOCK', 'container_number' => 'CONT1', 'delivery_details' => 'x']), "#27 edit lock: dispatcher cannot edit a $status trip", 409);
+    $after = $T($lid);
+    ok($after === $before && Routing::$outboundCalls === $calls && $line($lid) === 'triplineA', "#27 edit lock: $status trip, distance and line unchanged; no map call");
+}
+run($p, "UPDATE trips SET status='Pre-Assigned' WHERE id=?", [$lid]);
+
 // ---------------------------------------------------------------------
 section('H. Invalid inputs');
 fails(fn() => Trips::action($ops, 'create', $trip(['route_option' => 'teleport', 'distance_km' => '8'])), 'unknown route option refused');
