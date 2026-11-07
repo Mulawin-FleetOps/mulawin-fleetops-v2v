@@ -30,17 +30,17 @@ final class Finance {
         if (!DateTimeImmutable::createFromFormat('!Y-m-d', $from)) $from = date('Y-m-01');
         if (!DateTimeImmutable::createFromFormat('!Y-m-d', $to)) $to = date('Y-m-d');
         $data = readSections([
-            'poPayables' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, du.full_name AS approved_by_name,
+            'poPayables' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.payment_status, o.total_amount, o.paid_amount, o.supplier_invoice_no, COALESCE(o.supplier_name, s.name) AS supplier, du.full_name AS approved_by_name,
                     (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id LEFT JOIN users du ON du.id=o.decided_by
                 WHERE o.payment_status IN ('Pending Payment','Partially Paid') ORDER BY o.id"),
-            'payables' => fn() => many($p, "SELECT pa.*, (pa.amount-pa.paid_amount) AS balance, v.plate_number, s.name AS supplier FROM payables pa
+            'payables' => fn() => many($p, "SELECT pa.id, pa.payable_ref, pa.payee, pa.category, pa.description, pa.due_on, pa.amount, pa.paid_amount, pa.status, (pa.amount-pa.paid_amount) AS balance, v.plate_number, s.name AS supplier FROM payables pa
                 LEFT JOIN vehicles v ON v.id=pa.vehicle_id LEFT JOIN suppliers s ON s.id=pa.supplier_id ORDER BY FIELD(pa.status,'Unpaid','Partially Paid','Paid'), pa.due_on, pa.id DESC LIMIT 500"),
-            'expenses' => fn() => many($p, "SELECT e.*, t.trip_ref, v.plate_number, u.full_name AS recorded_by_name FROM expenses e LEFT JOIN trips t ON t.id=e.trip_id
+            'expenses' => fn() => many($p, "SELECT e.id, e.category, e.amount, e.incurred_on, e.payee, e.reference_number, e.description, e.source, t.trip_ref, v.plate_number, u.full_name AS recorded_by_name FROM expenses e LEFT JOIN trips t ON t.id=e.trip_id
                 LEFT JOIN vehicles v ON v.id=e.vehicle_id LEFT JOIN users u ON u.id=e.recorded_by WHERE e.incurred_on BETWEEN ? AND ? ORDER BY e.incurred_on DESC, e.id DESC LIMIT 2000", [$from, $to]),
-            'disbursements' => fn() => many($p, "SELECT d.*, u.full_name AS recorded_by_name FROM disbursements d JOIN users u ON u.id=d.recorded_by
+            'disbursements' => fn() => many($p, "SELECT d.id, d.voucher_number, d.source_type, d.payee, d.payment_method, d.cheque_number, d.bank_name, d.reference_number, d.amount, d.released_on, u.full_name AS recorded_by_name FROM disbursements d JOIN users u ON u.id=d.recorded_by
                 WHERE d.released_on BETWEEN ? AND ? ORDER BY d.released_on DESC, d.id DESC LIMIT 2000", [$from, $to]),
-            'budgets' => fn() => many($p, "SELECT b.*, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.status, b.id DESC"),
+            'budgets' => fn() => many($p, "SELECT b.id, b.period_start, b.period_end, b.amount, b.reserved_amount, b.spent_amount, b.status, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.status, b.id DESC"),
             'cashflow' => fn() => many($p, "SELECT m, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (
                     SELECT DATE_FORMAT(payment_date,'%Y-%m') AS m, amount AS cash_in, 0 AS cash_out FROM collections WHERE payment_date>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
                     UNION ALL SELECT DATE_FORMAT(released_on,'%Y-%m'), 0, amount FROM disbursements WHERE released_on>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)) x GROUP BY m ORDER BY m"),
