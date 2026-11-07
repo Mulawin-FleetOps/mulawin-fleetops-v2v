@@ -576,17 +576,68 @@ App.page('trips', {
     ];
     const tabs = [
       ['active', `Active trips (${d.active.length})`, (body) => {
-        body.innerHTML = `<div class="board-tools"><div class="table-search"><i class="bi bi-search"></i><input class="form-control form-control-sm" type="search" placeholder="Search trip no., client, place, truck…" id="tbSearch" aria-label="Search active trips"></div>
+        const prefKey = 'rpm:trip-view:' + String(App.me?.user?.id ?? App.me?.user?.role ?? 'account');
+        let saved = 'cards';
+        try { saved = localStorage.getItem(prefKey) === 'list' ? 'list' : 'cards'; } catch (_) { /* private browsing: default to cards */ }
+        let mode = saved, page = 0, pageSize = 12;
+        body.innerHTML = `<div class="board-tools rpm-trip-tools">
+          <div class="table-search"><i class="bi bi-search"></i><input class="form-control form-control-sm" type="search" placeholder="Search trip no., client, place, truck…" id="tbSearch" aria-label="Search active trips"></div>
           ${['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher', 'finance', 'motorpool'].includes(App.me.user.role) ? '<div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="tbMine"><label class="form-check-label small" for="tbMine">Only trips waiting for me</label></div>' : ''}
-          <span class="small text-muted ms-auto" id="tbCount"></span></div><div class="trip-board" id="tbBoard"></div>`;
+          <div class="rpm-trip-view-switch" role="group" aria-label="Trip display layout">
+            <button type="button" class="rpm-trip-view-btn" data-trip-view="cards" aria-pressed="false"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> Cards</button>
+            <button type="button" class="rpm-trip-view-btn" data-trip-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i> List</button>
+          </div>
+          <label class="rpm-trip-per-page" for="tbPageSize">Per page <select class="form-select form-select-sm" id="tbPageSize" aria-label="Trips per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
+          <span class="small text-muted rpm-trip-count" id="tbCount" aria-live="polite"></span>
+        </div>
+        <div id="tbBoard" class="trip-board"></div>
+        <nav class="rpm-trip-pagination" id="tbPager" aria-label="Active trip pages"></nav>`;
+        const search = body.querySelector('#tbSearch'), mine = body.querySelector('#tbMine');
+        const board = body.querySelector('#tbBoard'), pager = body.querySelector('#tbPager');
+        const viewButtons = body.querySelectorAll('[data-trip-view]');
+        const emptyText = d.active.length ? 'No active trip matches the search.' : 'No active trips.' + (d.can.create ? ' Use “New trip” to encode a client delivery.' : '');
         const draw = () => {
-          const q = (body.querySelector('#tbSearch').value || '').toLowerCase(), mineOnly = body.querySelector('#tbMine')?.checked;
+          const q = (search.value || '').trim().toLowerCase(), mineOnly = !!mine?.checked;
           const rows = d.active.filter(t => (!q || [t.trip_ref, t.client, t.pickup_point, t.delivery_point, t.plate_number, t.driver_name, t.status, t.consignee].join(' ').toLowerCase().includes(q)) && (!mineOnly || TripUI.needsMe(t)));
-          body.querySelector('#tbCount').textContent = rows.length + ' trip(s)';
-          body.querySelector('#tbBoard').innerHTML = rows.length ? rows.map(TripUI.card).join('') : `<div class="panel" style="grid-column:1/-1"><div class="table-empty"><i class="bi bi-signpost-split"></i>${d.active.length ? 'No active trip matches the search.' : 'No active trips.' + (d.can.create ? ' Use “New trip” to encode a client delivery.' : '')}</div></div>`;
-          body.querySelectorAll('[data-trip]').forEach(c => c.onclick = () => TripUI.open(c.dataset.trip));
+          const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+          page = Math.max(0, Math.min(page, totalPages - 1));
+          const from = page * pageSize, shown = rows.slice(from, from + pageSize);
+          body.querySelector('#tbCount').textContent = rows.length ? `${from + 1}–${from + shown.length} of ${rows.length} trip(s)` : '0 trip(s)';
+          viewButtons.forEach(b => { const active = b.dataset.tripView === mode; b.classList.toggle('active', active); b.setAttribute('aria-pressed', String(active)); });
+          board.classList.toggle('trip-board', mode === 'cards');
+          board.classList.toggle('rpm-trip-list', mode === 'list');
+          if (!rows.length) {
+            board.innerHTML = `<div class="panel rpm-trip-empty"><div class="table-empty"><i class="bi bi-signpost-split"></i><span>${emptyText}</span></div></div>`;
+          } else if (mode === 'cards') {
+            board.innerHTML = shown.map(TripUI.card).join('');
+          } else {
+            board.innerHTML = `<div class="table-wrap rpm-trip-table-wrap"><table class="data-table rpm-trip-table"><thead><tr>
+              <th>Trip</th><th>Client</th><th>Route</th><th>Schedule</th><th>Truck / Crew</th><th>Status</th><th class="actions-col">Action</th>
+              </tr></thead><tbody>${shown.map(t => `<tr>
+                <td><strong>${UI.esc(t.trip_ref)}</strong><div class="cell-sub">${UI.esc(t.truck_type || '')}</div></td>
+                <td>${UI.esc(t.client)}${t.consignee ? `<div class="cell-sub">${UI.esc(t.consignee)}</div>` : ''}</td>
+                <td><div class="rpm-trip-route" title="${UI.esc([t.pickup_point, t.delivery_point].filter(Boolean).join(' → '))}">${UI.esc(t.pickup_point || '—')} <i class="bi bi-arrow-right" aria-hidden="true"></i> ${UI.esc(t.delivery_point || '—')}</div></td>
+                <td>${UI.datetime(t.scheduled_at)}</td>
+                <td>${UI.esc(t.plate_number || 'Not assigned')}${t.driver_name ? `<div class="cell-sub">${UI.esc(t.driver_name)}</div>` : ''}</td>
+                <td>${UI.badge(t.status)}${TripUI.flags(t) ? `<div class="rpm-trip-list-flags">${TripUI.flags(t)}</div>` : ''}</td>
+                <td class="actions-col"><button type="button" class="btn btn-sm btn-outline-success table-view-btn" data-trip="${UI.esc(t.id)}"><i class="bi bi-eye" aria-hidden="true"></i> View</button></td>
+              </tr>`).join('')}</tbody></table></div>`;
+          }
+          board.querySelectorAll('[data-trip]').forEach(el => { el.onclick = () => TripUI.open(el.dataset.trip); });
+          pager.innerHTML = rows.length > pageSize ? `<div class="rpm-trip-page-info">Page ${page + 1} of ${totalPages}</div><div class="rpm-trip-page-buttons">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-page="prev" ${page === 0 ? 'disabled' : ''}>Previous</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-page="next" ${page >= totalPages - 1 ? 'disabled' : ''}>Next</button></div>` : '';
+          pager.querySelectorAll('[data-page]').forEach(b => { b.onclick = () => { page += b.dataset.page === 'next' ? 1 : -1; draw(); }; });
         };
-        body.querySelector('#tbSearch').oninput = draw; body.querySelector('#tbMine')?.addEventListener('change', draw); draw();
+        search.addEventListener('input', () => { page = 0; draw(); });
+        mine?.addEventListener('change', () => { page = 0; draw(); });
+        body.querySelector('#tbPageSize').addEventListener('change', e => { pageSize = Number(e.target.value) || 12; page = 0; draw(); });
+        viewButtons.forEach(b => { b.addEventListener('click', () => {
+          mode = b.dataset.tripView; page = 0;
+          try { localStorage.setItem(prefKey, mode); } catch (_) { /* local preference is optional */ }
+          draw();
+        }); });
+        draw();
       }],
       ['history', 'Completed and closed', (body) => {
         body.innerHTML = (UI.filterModal(ctx, filterFields, { note: 'Filters apply to completed, cancelled and rejected trips.' }) || '') + UI.table([
