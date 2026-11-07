@@ -431,12 +431,12 @@ const TripUI = {
     UI.printForm('INCIDENT REPORT', `<div class="pf-grid"><div><b>NAME:</b> ${UI.esc(i.reported_by_name)}</div><div><b>DATE:</b> ${UI.date(i.created_at)}</div>
       <div><b>DEPARTMENT:</b> Operations</div><div><b>REFERENCE:</b> ${UI.esc(i.incident_ref)} / ${UI.esc(t.trip_ref || i.trip_ref || '')}</div></div>
       <div class="pf-grid"><div><b>INCIDENT TYPE:</b> ${UI.esc(i.incident_type)}</div><div><b>TRUCK:</b> ${UI.esc(t.plate_number || i.plate_number || '')}</div>
-      <div><b>INCIDENT DATE:</b> ${UI.date(i.incident_at)}</div><div><b>TIME:</b> ${UI.esc(String(i.incident_at).slice(11, 16))}</div>
+      <div><b>INCIDENT DATE:</b> ${UI.date(i.incident_at)}</div><div><b>INCIDENT TIME:</b> ${UI.esc(String(i.incident_at).slice(11, 16))}</div>
       <div style="grid-column:1/3"><b>LOCATION / PERSON/S INVOLVED IN INCIDENT:</b> ${UI.esc(i.location)}${i.persons_involved ? ' / ' + UI.esc(i.persons_involved) : ''}</div>
       <div style="grid-column:1/3"><b>REASON:</b> ${UI.esc(i.reason || '')}</div></div>
-      <div><b>INCIDENT DETAILS:</b></div><div class="pf-box" style="min-height:160px">${UI.esc(i.problem)}\n\n${UI.esc(i.details)}</div>
+      <div><b>DESCRIPTION OF INCIDENT:</b></div><div class="pf-box" style="min-height:160px">${UI.esc(i.problem)}\n\n${UI.esc(i.details)}</div>
       <div class="pf-signs">${UI.sign('Reported by (name and signature)', i.reported_by_name, i.reported_by, 'incident', i.id)}${UI.sign('Received by (name and signature)', i.assessed_by_name || '', i.assessed_by, 'incident', i.id)}</div>
-      <div class="mt-2"><b>RECOMMENDATION:</b></div><div class="pf-box">${UI.esc(i.recommendation || '')}${i.severity ? '\nAssessment: ' + UI.esc(i.severity) + ' damage' : ''}</div>
+      <div class="mt-2"><b>RECOMMENDATION:</b></div><div class="pf-box">${UI.esc(i.recommendation || '')}</div>
       <div class="pf-signs">${UI.sign('Recommended by (name and signature)')}${UI.sign('Approved by (name and signature)')}</div>`, { number: i.incident_ref });
   },
 
@@ -512,7 +512,7 @@ const TripUI = {
       ${UI.h('Pre-dispatch checklist' + (+t.attempt_number > 1 ? ' (attempt #' + t.attempt_number + ')' : ''))}${checklistHtml}
       ${t.status === 'Completed' ? UI.h('Arrival checklist') + TripUI.arrivalHtml(t, ins, arr) : ''}
       ${r.incidents.length ? UI.h('Incidents') + r.incidents.map(i => `<div class="border rounded p-2 mb-2 small"><div class="d-flex justify-content-between"><b>${UI.esc(i.incident_ref)} · ${UI.esc(i.incident_type)}</b>${UI.badge(i.status)}</div>
-          ${UI.esc(i.problem)} @ ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}<br>Severity: ${UI.e(i.severity)}${i.recommendation ? ' · ' + UI.esc(i.recommendation) : ''} · Maintenance record ${UI.e(i.job_ref)} (${UI.e(i.job_status)})
+          ${UI.esc(i.problem)} · ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}${i.recommendation ? '<br>Recommendation: ' + UI.esc(i.recommendation) : ''}${i.job_ref ? '<br>Maintenance record: ' + UI.esc(i.job_ref) + (i.job_status ? ' (' + UI.esc(i.job_status) + ')' : '') : ''}
           <div><button class="btn btn-link btn-sm p-0" data-printinc="${i.id}">Print Incident Report Form</button></div></div>`).join('') : ''}
       ${t.status === 'Completed' ? UI.h('Completion') + UI.kv([['Completed', UI.datetime(t.completed_at)], ['Waybill no.', UI.e(t.waybill_number)], ['Notes', UI.e(t.delivery_notes)],
           r.billing ? ['Billing', UI.badge(r.billing.status) + ' ' + UI.money(r.billing.total_amount)] : null]) : ''}
@@ -590,14 +590,14 @@ App.page('trips', {
       }],
       ['history', 'Completed and closed', (body) => {
         body.innerHTML = (UI.filterModal(ctx, filterFields, { note: 'Filters apply to completed, cancelled and rejected trips.' }) || '') + UI.table([
-          ['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Client', 'client'], ['Type', 'truck_type'], ['Truck', 'plate_number'], ['Driver', 'driver_name'],
-          ['From', 'pickup_point'], ['To', 'delivery_point'], ['Schedule', 'scheduled_at', 'datetime'], ['Completed', 'completed_at', 'datetime'], ['Waybill', 'waybill_number'], ['Billing', 'billing_status', 'badge']],
+          ['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Client', 'client'], ['Truck', 'plate_number'], ['Driver', 'driver_name'],
+          ['Scheduled date and time', 'scheduled_at', 'datetime'], ['Completion date and time', 'completed_at', 'datetime'], ['Billing', 'billing_status', 'badge']],
           d.history, { title: 'Trip records', actions: () => UI.btn('view', 'View', 'outline-primary'), onAction: (a, t) => TripUI.open(t.id), empty: 'No trips match.' });
       }],
       ['incidents', `Incidents (${d.incidents.filter(i => i.status !== 'Resolved').length} open)`, (body) => {
-        body.innerHTML = UI.table([['Incident', 'incident_ref'], ['When', 'incident_at', 'datetime'], ['Trip', 'trip_ref'], ['Truck', 'plate_number'], ['Type', 'incident_type'], ['Problem', 'problem'],
-          ['Location', 'location'], ['Severity', 'severity', 'badge'], ['Status', 'status', 'badge'], ['Reported by', 'reported_by_name']], d.incidents,
-          { title: 'Incident reports', actions: () => UI.btn('trip', 'Open trip') + UI.btn('print', 'Print form', 'outline-secondary'),
+        body.innerHTML = UI.table([['Incident', 'incident_ref'], ['Incident date and time', 'incident_at', 'datetime'], ['Trip', 'trip_ref'], ['Truck', 'plate_number'], ['Type', 'incident_type'], ['Problem', 'problem'],
+          ['Location', 'location'], ['Status', 'status', 'badge']], d.incidents,
+          { title: 'Incident reports', actions: () => UI.btn('trip', 'View trip') + UI.btn('print', 'Print report', 'outline-secondary'),
             onAction: (a, i) => a === 'trip' ? TripUI.open(i.trip_id) : TripUI.printIncident(i, {}) });
       }],
     ];

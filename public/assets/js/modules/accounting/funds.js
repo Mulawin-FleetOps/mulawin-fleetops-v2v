@@ -52,7 +52,7 @@ App.page('funds', {
       { label: 'For liquidation', value: toLiq.length, icon: 'bi-receipt', color: 'gray' },
     ]);
     const cols = [['Fund', 'fund_ref'], ['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Breakdown', 'breakdown'], ['Amount', 'amount', 'money'],
-      ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Date', 'created_at', 'date']];
+      ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Request date', 'created_at', 'date']];
     const actions = (f) => {
       let h = UI.btn('print', 'Print form', 'outline-secondary') + UI.btn('trip', 'View trip');
       if (d.can.approve && f.status === 'Pending Approval') h += UI.btn('approve', 'Approve', 'success') + UI.btn('reject', 'Reject', 'outline-danger');

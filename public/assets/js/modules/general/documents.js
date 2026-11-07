@@ -45,7 +45,7 @@ App.page('documents', {
       { name: 'expiring', label: 'Expiry', type: 'select', options: [['1', 'Expiring / expired only']], col: 6 }])
       + UI.table([['File', 'original_filename', (v, r) => `<a href="${UI.docUrl(r.id)}" target="_blank" rel="noopener">${UI.esc(v)}</a>`], ['Category', 'category'],
         ['Belongs to', 'entity_type', (v) => UI.esc(d.entityLabels[v] || v)], ['Record', 'record_label'], ['Expiry', 'expires_on', (v, r) => v ? UI.date(v) + ' ' + UI.days(r.days_left) : '—'],
-        ['Description', 'notes'], ['Uploaded by', 'uploader'], ['Date', 'created_at', 'date']], rows,
+        ['Description', 'notes'], ['Uploaded by', 'uploader'], ['Upload date', 'created_at', 'date']], rows,
         { title: 'Documents', actions: () => UI.btn('dl', 'Download', 'outline-secondary'), onAction: (a, r) => { window.location = UI.docUrl(r.id, false); } });
     UI.activate(ctx.el);
   },
