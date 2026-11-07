@@ -586,7 +586,7 @@ UI.bindGo = (root) => root.querySelectorAll('[data-go]').forEach(x => { x.onclic
 UI.card = (title, body, tools = '') => `<section class="panel">${title || tools ? `<div class="panel-head"><h2 class="panel-title">${title}</h2><div class="panel-tools">${tools}</div></div>` : ''}<div class="panel-body flush">${body}</div></section>`;
 
 /**
- * Data table with search, paging and CSV download.
+ * Data table with search and paging; bulk CSV export is intentionally unavailable.
  * columns: [[label, key, format]] ; opts: {title, actions(row) -> html, onAction, rowClick(row), empty, tools, limit, plain}
  *  plain = compact table without panel and toolbar (inside drawers).
  */
@@ -596,8 +596,7 @@ UI.table = (columns, rows, opts = {}) => {
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   const head = `<div class="table-tools">
       <div class="table-search"><i class="bi bi-search"></i><input class="form-control" type="search" placeholder="Search this list" aria-label="Search this list" data-tsearch="${id}"></div>
-      <div class="table-tools-right"><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}
-      <button type="button" class="btn btn-sm btn-outline-secondary" data-tcsv="${id}" title="Download as CSV (opens in Excel)"><i class="bi bi-download"></i> CSV</button></div></div>`;
+      <div class="table-tools-right"><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}</div></div>`;
   const html = `${head}<div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div>`;
   return opts.title ? UI.card(opts.title, html) : `<section class="panel"><div class="panel-body flush">${html}</div></section>`;
 };
@@ -670,8 +669,6 @@ UI.activate = (root) => {
   root.querySelectorAll('[data-tbody]').forEach(b => { if (!b.dataset.drawn) { b.dataset.drawn = '1'; UI.drawTable(b.dataset.tbody); } });
   root.querySelectorAll('[data-tsearch]').forEach(inp => { if (inp.dataset.bound) return; inp.dataset.bound = '1';
     inp.addEventListener('input', () => { const t = UI._tables[inp.dataset.tsearch]; t.filter = inp.value.trim(); t.page = 0; UI.drawTable(inp.dataset.tsearch); }); });
-  root.querySelectorAll('[data-tcsv]').forEach(b => { if (b.dataset.bound) return; b.dataset.bound = '1';
-    b.addEventListener('click', () => { const t = UI._tables[b.dataset.tcsv]; UI.csv((t.opts.title || document.title || 'report').replace(/<[^>]+>/g, ''), t.columns, UI.tableRows(b.dataset.tcsv)); }); });
   UI.bindGo(root);
   root.querySelectorAll('[data-chart]').forEach(c => { if (!c.dataset.drawn) { c.dataset.drawn = '1'; UI.drawChart(c); } });
   root.querySelectorAll('[data-tpicker]').forEach(box => { if (!box.dataset.drawn) { box.dataset.drawn = '1'; UI.drawPicker(box); } });
@@ -687,15 +684,6 @@ UI.btn = (act, label, cls = 'outline-secondary', icon = '') => {
   const variant = isView && cls === 'outline-secondary' ? 'outline-primary' : cls;
   const viewIcon = isView && !icon ? 'bi-eye' : icon;
   return `<button type="button" class="btn btn-sm btn-${variant}${isView ? ' table-view-btn' : ''}" data-act="${act}">${viewIcon ? `<i class="bi ${viewIcon}" aria-hidden="true"></i> ` : ''}${UI.esc(text)}</button>`;
-};
-
-/** CSV download (Excel-friendly with BOM). Downloadable reports — PDF V.64. */
-UI.csv = (name, columns, rows) => {
-  const clean = (v) => { let s = String(v ?? '').replace(/<[^>]+>/g, ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
-  const lines = [columns.map(c => clean(UI.columnLabel(c[0], c[2]))).join(','), ...rows.map(r => columns.map(([, k, f]) => clean(f === 'date' ? UI.date(r[k]) : f === 'datetime' ? UI.datetime(r[k]) : r[k])).join(','))];
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = name.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + UI.today() + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
 // ------------------------------------------------------------------ forms
@@ -1194,7 +1182,7 @@ UI.signatureModal = () => {
 
 /* RPM SHARED RECORD VIEW SWITCH V1 START */
 /* Adds Cards/List choice to normal UI.table lists without changing backend queries,
- * row actions, search, CSV, or the existing paginator. Plain detail tables excluded.
+ * row actions, search, or the existing paginator. Plain detail tables excluded.
  */
 (() => {
   const oldTable = UI.table;
