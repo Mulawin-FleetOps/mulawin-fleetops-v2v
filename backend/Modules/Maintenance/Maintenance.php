@@ -51,7 +51,7 @@ final class Maintenance {
                     (SELECT COALESCE(SUM(l.released_qty*l.unit_cost),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id) AS parts_cost
                 FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id
                 LEFT JOIN incidents i ON i.id=m.incident_id LEFT JOIN trips t ON t.id=m.trip_id
-                ORDER BY FIELD(m.status,'Reported','Under Inspection','Under Repair','Completed','Cancelled'), FIELD(m.priority,'Critical','High','Normal','Low'), m.id DESC LIMIT 1000"),
+                ORDER BY FIELD(m.status,'Reported','Under Inspection','Under Repair','Completed','Cancelled'), m.id DESC LIMIT 1000"),
             'trucks' => fn() => many($p, "SELECT v.id, v.plate_number, v.truck_number, v.truck_type, v.status,
                     (SELECT m.job_ref FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1 LIMIT 1) AS open_job,
                     (SELECT t.trip_ref FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='vehicle' AND a.resource_id=v.id AND t.status IN ('Dispatched','On Hold - Incident Reported','In Transit') LIMIT 1) AS on_road
@@ -128,7 +128,7 @@ final class Maintenance {
         $problem = field($d, 'problem', 500);
         $date = dateField($d, 'reported_on');
         must($date <= date('Y-m-d'), 'The date reported cannot be in the future.');
-        $priority = choiceField($d, 'priority', self::PRIORITIES);
+        $priority = 'Normal'; // Legacy DB field; users no longer choose priority (#41).
         $mechanicId = optId($d, 'mechanic_id');
         $remarks = optField($d, 'remarks', 500);
         return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks) {
@@ -193,7 +193,7 @@ final class Maintenance {
         $sev = choiceField($d, 'severity', ['Minor', 'Major']);
         $rec = field($d, 'recommendation', 500);
         $mechanicId = idField($d, 'mechanic_id');
-        $exp = dateField($d, 'expected_completion', $sev === 'Major');
+        $exp = null; // ETA no longer requested during assessment (#43).
         if ($exp) must($exp >= date('Y-m-d'), 'Expected completion cannot be in the past.');
         return transaction(function (PDO $p) use ($u, $id, $sev, $rec, $mechanicId, $exp) {
             $j = self::lockJob($p, $id);
@@ -228,7 +228,7 @@ final class Maintenance {
         $id = idField($d, 'job_id');
         $findings = field($d, 'findings', 2000);
         $diagnosis = field($d, 'diagnosis', 2000);
-        $exp = dateField($d, 'expected_completion', false);
+        $exp = null; // ETA no longer requested during inspection (#43).
         if ($exp) must($exp >= date('Y-m-d'), 'Expected completion cannot be in the past.');
         return transaction(function (PDO $p) use ($u, $id, $findings, $diagnosis, $exp) {
             $j = self::lockJob($p, $id);

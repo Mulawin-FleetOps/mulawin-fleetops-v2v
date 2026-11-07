@@ -1,3 +1,4 @@
+/* MAINTENANCE_CLEANUP_41_43_V1: no priority/ETA controls; preserve safety repair plan. */
 /* assets/js/modules/maintenance/maintenance.js — CORRECTIVE MAINTENANCE
    Unexpected truck problems: report -> assign mechanic (Under Inspection) -> findings and
    diagnosis (Under Repair) -> corrective action + evidence (Completed) -> verify and return the
@@ -34,8 +35,7 @@ const MaintUI = {
       { name: 'vehicle_id', label: 'Affected truck', type: 'select', required: true, col: 6, value: vehicleId,
         options: ok.map(v => [v.id, `${v.plate_number}${v.truck_number ? ' · #' + v.truck_number : ''} · ${v.truck_type} (${v.status})`]),
         help: d.trucks.length > ok.length ? 'Trucks on the road or already under repair are not listed.' : '' },
-      { name: 'reported_on', label: 'Date reported', type: 'date', value: UI.today(), required: true, col: 3 },
-      { name: 'priority', label: 'Priority', type: 'select', required: true, col: 3, value: 'Normal', placeholder: false, options: UI.list(d.priorities) },
+      { name: 'reported_on', label: 'Date reported', type: 'date', value: UI.today(), required: true, col: 6 },
       { name: 'problem', label: 'Problem or defect', type: 'textarea', required: true, col: 12, placeholder: 'What is wrong with the truck? Where is the damage?' },
       { name: 'mechanic_id', label: 'Assign mechanic (optional now)', type: 'select', col: 6, options: mech, placeholder: mech.length ? 'Assign later' : 'No mechanic is available',
         help: 'Only Available mechanics are listed.' },
@@ -68,9 +68,9 @@ const MaintUI = {
       ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at) : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
-        ['Priority', UI.badge(j.priority)]])}
+        ])}
       ${UI.h('Mechanic and repair')}${UI.kv([['Mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : '—'],
-        ['Inspection findings', UI.e(j.findings)], ['Diagnosis', UI.e(j.diagnosis)], ['Expected return-to-service date', UI.date(j.expected_completion)],
+        ['Inspection findings', UI.e(j.findings)], ['Diagnosis', UI.e(j.diagnosis)],
         ['Corrective action', UI.e(j.repair_performed)], ['Repair completion date', j.completed_on ? UI.date(j.completed_on) + ' · ' + UI.e(j.completed_by_name) : '—'],
         ['Verification', j.verified_at ? `Passed · ${UI.e(j.verified_by_name)} · ${UI.datetime(j.verified_at)}<div class="small text-muted">${UI.e(j.verification_notes)}</div>` : (j.status === 'Completed' ? '<span class="badge-s amber">Waiting for verification</span>' : '—')],
         ['Remarks', UI.e(j.remarks)]])}
@@ -91,7 +91,6 @@ const MaintUI = {
       if (a === 'assess') UI.formModal('Repair plan for ' + UI.esc(i.incident_ref), [
           { name: 'severity', label: 'Repair plan', type: 'select', required: true, col: 12, options: [['Minor', 'Repair at the incident location; continue the trip after clearance'], ['Major', 'Return the truck for repair; reschedule the trip']] },
           { name: 'mechanic_id', label: 'Mechanic sent / assigned', type: 'select', required: true, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
-          { name: 'expected_completion', label: 'Expected return-to-service date (if returning for repair)', type: 'date', col: 6 },
           { name: 'recommendation', label: 'Repair recommendation', type: 'textarea', required: true, col: 12 }],
         'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>${UI.esc(i.problem)}</b> at ${UI.esc(i.location)}.<br>Select the actual repair approach: repair at the incident location and continue after clearance, or return the truck for repair and reschedule the trip.`, after: reopen });
       if (a === 'mech') UI.formModal((j.mechanic_id ? 'Change mechanic for ' : 'Assign mechanic to ') + UI.esc(j.job_ref), [
@@ -101,7 +100,6 @@ const MaintUI = {
       if (a === 'inspect') UI.formModalFiles('Inspection findings for ' + UI.esc(j.job_ref), [
           { name: 'findings', label: 'Inspection findings', type: 'textarea', required: true, col: 12, placeholder: 'What the mechanic found when checking the truck' },
           { name: 'diagnosis', label: 'Diagnosis', type: 'textarea', required: true, col: 12, placeholder: 'Cause of the problem and what must be repaired or replaced' },
-          { name: 'expected_completion', label: 'Expected completion', type: 'date', col: 6, value: j.expected_completion || '' },
           { name: 'photos', label: 'More photos (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="image/png,image/jpeg"' }],
         'Maintenance.inspect', { extra: { job_id: j.id }, submit: 'Save and start repair', after: reopen });
       if (a === 'complete') UI.formModalFiles('Complete repair ' + UI.esc(j.job_ref), [
@@ -151,14 +149,14 @@ App.page('maintenance', {
     ]);
     const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Arrival checklist ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
       ['Truck', 'plate_number', (v, j) => `${UI.esc(v)}<div class="cell-sub">${UI.esc(j.truck_type)}</div>`],
-      ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`], ['Priority', 'priority', 'badge'],
+      ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`],
       ['Mechanic', 'mechanic', (v) => v ? UI.esc(v) : '<span class="text-muted">Not assigned</span>'],
       ['Status', 'display_status', 'badge'], ['Date reported', 'reported_on', 'date']];
     const opt = { actions: () => UI.btn('view', 'Open'), onAction: (a, j) => MaintUI.open(j.id), rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
       ['open', `Open records <span class="tab-count">${open.length}</span>`, () => UI.table(cols, open, { ...opt, empty: 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
-      ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 5), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
+      ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
       ['all', 'All records', () => UI.table(cols, jobs, { ...opt })],
     ], null);
     const once = UI.takeQuery(ctx, 'report', 'open');
