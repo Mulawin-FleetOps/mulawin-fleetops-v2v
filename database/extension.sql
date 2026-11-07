@@ -17,7 +17,8 @@ INSERT INTO schema_migrations (id) VALUES
   ('2026-11-06_00_schema_migrations'), ('2026-11-06_01_phase1_supplier_snapshot_and_trip_key'),
   ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes'),
   ('2026-11-06_04_maps_routing'),
-  ('2026-11-06_05_account_ownership'), ('2026-11-06_06_trusted_devices_email');
+  ('2026-11-06_05_account_ownership'), ('2026-11-06_06_trusted_devices_email'),
+  ('2026-11-07_07_trip_routing');
 
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
@@ -864,4 +865,29 @@ CREATE TABLE IF NOT EXISTS email_change_challenges (
  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
  requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT fk_email_change_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
+-- TRIP ROUTING  (Checklist #5 Phase 3: road distance in Trip Management)
+-- Same statements as database/migrations/2026-11-07_07_trip_routing.sql
+-- (the ALTER keeps the column order identical to an upgraded database).
+-- =====================================================================
+ALTER TABLE trips
+  ADD COLUMN distance_source VARCHAR(30) NOT NULL DEFAULT 'Manual' COMMENT 'Manual, Map, Map (edited), Client Route, Client Route (edited)',
+  ADD COLUMN route_option VARCHAR(20) NULL COMMENT 'recommended, avoid_tolls or general_roads',
+  ADD COLUMN distance_computed_km DECIMAL(10,2) NULL COMMENT 'road km computed by the map service, or the km of the approved client route',
+  ADD COLUMN distance_provider VARCHAR(60) NULL COMMENT 'e.g. openrouteservice/driving-hgv or Client route RTE-2026-0001',
+  ADD COLUMN distance_computed_at DATETIME NULL,
+  ADD COLUMN distance_override_reason VARCHAR(300) NULL COMMENT 'why the billable km differs from the computed / route km',
+  ADD COLUMN client_route_id INT NULL COMMENT 'approved client route chosen for this trip (history: kept even if the route is later deactivated)',
+  ADD CONSTRAINT fk_trip_client_route FOREIGN KEY (client_route_id) REFERENCES client_routes(id),
+  ADD CONSTRAINT chk_trip_distance_source CHECK (distance_source IN ('Manual','Map','Map (edited)','Client Route','Client Route (edited)')),
+  ADD CONSTRAINT chk_trip_route_option CHECK (route_option IS NULL OR route_option IN ('recommended','avoid_tolls','general_roads')),
+  ADD CONSTRAINT chk_trip_computed_km CHECK (distance_computed_km IS NULL OR (distance_computed_km > 0 AND distance_computed_km <= 3000));
+
+CREATE TABLE trip_routes (
+  trip_id INT PRIMARY KEY,
+  geometry MEDIUMTEXT NOT NULL COMMENT 'route line (encoded polyline) for display',
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (trip_id) REFERENCES trips(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
