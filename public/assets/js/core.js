@@ -1295,6 +1295,8 @@ UI.e = (v) => (v === null || v === undefined || v === '') ? '—' : UI.esc(v);
 
 /* CHECKLIST_25_INLINE_DOCUMENT_PREVIEW_V1 */
 /** Existing authenticated endpoint checks role/record permissions for every image and PDF. */
+/* CHECKLIST_25_INLINE_DOCUMENT_PREVIEW_ALL_RECORDS_V3 */
+/** Existing authenticated endpoint checks role/record permissions for every image and PDF. */
 UI.docUrl = (id, inline = true) => 'index.php?api=document_download&id=' + encodeURIComponent(id) + (inline ? '&inline=1' : '');
 /** In-list thumbnails: maintenance sees incident evidence immediately, without opening a file. */
 UI.docs = (list, empty = 'No documents attached.') => (list || []).length ? `<ul class="doc-list doc-preview-list">${list.map(d => {
@@ -1333,7 +1335,6 @@ if (!UI._documentPreviewBound) {
     wrap.querySelector('.modal-title').textContent = name;
   });
 }
-
 
 /** Section heading inside drawers. */
 UI.h = (text, extra = '') => `<div class="drawer-h"><span>${UI.esc(text)}</span>${extra}</div>`;

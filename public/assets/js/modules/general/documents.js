@@ -43,7 +43,15 @@ App.page('documents', {
       { name: 'entity_type', label: 'Record type', type: 'select', options: Object.entries(d.entityLabels), col: 6 },
       { name: 'category', label: 'Category', type: 'select', options: UI.list([...new Set(d.documents.map(x => x.category))].sort()), col: 6 },
       { name: 'expiring', label: 'Expiry', type: 'select', options: [['1', 'Expiring / expired only']], col: 6 }])
-      + UI.table([['File', 'original_filename', (v, r) => `<a href="${UI.docUrl(r.id)}" target="_blank" rel="noopener">${UI.esc(v)}</a>`], ['Category', 'category'],
+      + UI.table([['File', 'original_filename', (v, r) => {
+          const image = String(r.mime_type || '').startsWith('image/');
+          const label = UI.esc(v);
+          const id = Number(r.id);
+          const thumb = image
+            ? `<img src="${UI.docUrl(id)}" alt="${label}" loading="lazy" class="doc-table-thumb">`
+            : `<i class="bi bi-file-earmark-pdf doc-table-pdf" aria-hidden="true"></i>`;
+          return `<button type="button" class="doc-table-preview" data-doc-preview="${id}" data-doc-mime="${UI.esc(r.mime_type || '')}" data-doc-name="${label}">${thumb}<span>${label}</span></button>`;
+        }], ['Category', 'category'],
         ['Record type', 'entity_type', (v) => UI.esc(d.entityLabels[v] || v)], ['Record', 'record_label'], ['Expiry date', 'expires_on', (v, r) => v ? UI.date(v) + ' ' + UI.days(r.days_left) : '—'],
         ['Description', 'notes'], ['Uploaded by', 'uploader'], ['Upload date', 'created_at', 'date']], rows,
         { title: 'Documents', actions: () => UI.btn('dl', 'Download', 'outline-secondary'), onAction: (a, r) => { window.location = UI.docUrl(r.id, false); } });
