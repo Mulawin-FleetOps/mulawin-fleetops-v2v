@@ -73,19 +73,16 @@ App.page('documents', {
         <div class="docfm-folders">${folders.map(folder => {
           const pictures = folder.files.filter(f => String(f.mime_type || '').startsWith('image/')).length;
           const searched = [folder.label, d.entityLabels[type] || type, ...folder.files.map(f => [f.original_filename, f.category, f.notes || ''].join(' '))].join(' ').toLocaleLowerCase();
-          return `<details class="docfm-folder" data-docfm-folder data-docfm-search="${UI.esc(searched)}">
-            <summary class="docfm-folder-title">
+          return `<button type="button" class="docfm-folder docfm-folder-title" data-docfm-folder
+            data-docfm-key="${UI.esc(String(type) + ':' + String(folder.id ?? ''))}"
+            data-docfm-search="${UI.esc(searched)}" aria-label="Open folder ${UI.esc(folder.label)}">
               <span class="docfm-folder-icon"><i class="bi bi-folder2" aria-hidden="true"></i></span>
               <span class="docfm-folder-name"><strong>${UI.esc(folder.label)}</strong>
                 <small>${UI.esc(d.entityLabels[type] || type)}${folder.id ? ' · #' + UI.esc(folder.id) : ''}</small>
               </span>
               <span class="docfm-folder-meta">${folder.files.length} file${folder.files.length === 1 ? '' : 's'}${pictures ? ' · ' + pictures + ' photo' + (pictures === 1 ? '' : 's') : ''}</span>
-              <i class="bi bi-chevron-down docfm-chevron" aria-hidden="true"></i>
-            </summary>
-            <div class="docfm-folder-body">
-              ${UI.docs(folder.files)}
-            </div>
-          </details>`;
+              <i class="bi bi-box-arrow-up-right docfm-chevron" aria-hidden="true"></i>
+            </button>`;
         }).join('')}</div>
       </section>`).join('');
 
@@ -120,6 +117,52 @@ App.page('documents', {
         section.hidden = ![...section.querySelectorAll('[data-docfm-folder]')].some(folder => !folder.hidden);
       });
       ctx.el.querySelector('[data-docfm-empty]').classList.toggle('d-none', visible !== 0 || groups.size === 0);
+    });
+    // DOCFM_FOLDER_MODAL_V1 — open record folders in a modal.
+    // Previews stay within the SAME modal, avoiding stacked Bootstrap modals.
+    ctx.el.querySelector('[data-docfm-content]').addEventListener('click', event => {
+      const button = event.target.closest('[data-docfm-folder]');
+      if (!button) return;
+      const folder = groups.get(button.dataset.docfmKey);
+      if (!folder) return;
+      const label = folder.label;
+      const wrap = UI.modal(UI.esc(label), `<div class="docfm-modal-intro">
+        <span><i class="bi bi-folder2-open" aria-hidden="true"></i> ${UI.esc(d.entityLabels[folder.type] || folder.type)}</span>
+        <span>${folder.files.length} file${folder.files.length === 1 ? '' : 's'}</span>
+      </div><div data-docfm-view>${UI.docs(folder.files)}</div>`, null, { size: 'modal-xl' });
+      const view = wrap.querySelector('[data-docfm-view]');
+      const initialHtml = view.innerHTML;
+      const title = wrap.querySelector('.modal-title');
+      view.addEventListener('click', e => {
+        const file = e.target.closest('[data-doc-preview]');
+        if (file) {
+          // Intercept the global document preview; never open a nested modal.
+          e.preventDefault();
+          e.stopPropagation();
+          const id = Number(file.dataset.docPreview);
+          if (!Number.isSafeInteger(id) || id <= 0) return;
+          const name = file.dataset.docName || 'Document';
+          const mime = file.dataset.docMime || '';
+          const inline = UI.docUrl(id);
+          const content = mime.startsWith('image/')
+            ? `<img src="${inline}" class="doc-full-image" alt="${UI.esc(name)}">`
+            : mime === 'application/pdf'
+              ? `<iframe src="${inline}" class="doc-pdf-frame" title="${UI.esc(name)}"></iframe>`
+              : '<div class="p-3 text-muted">Preview unavailable. Download the file instead.</div>';
+          title.textContent = name;
+          view.innerHTML = `<div class="docfm-modal-nav">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-docfm-back><i class="bi bi-arrow-left"></i> Back to files</button>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-outline-secondary btn-sm" href="${inline}" target="_blank" rel="noopener">Open in new tab</a>
+              <a class="btn btn-primary btn-sm" href="${UI.docUrl(id, false)}" download>Download</a>
+            </div>
+          </div><div class="doc-full-frame">${content}</div>`;
+        } else if (e.target.closest('[data-docfm-back]')) {
+          e.preventDefault();
+          title.textContent = label;
+          view.innerHTML = initialHtml;
+        }
+      });
     });
     UI.activate(ctx.el);
   },

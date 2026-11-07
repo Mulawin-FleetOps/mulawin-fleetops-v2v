@@ -1796,3 +1796,36 @@ details > summary { cursor: pointer; font-size: var(--fs-sm); color: var(--blue)
   }
 }
 
+/* DOCFM_FOLDER_MODAL_V1 */
+button.docfm-folder {
+  width:100%; display:flex; align-items:center; text-align:left;
+  color:inherit; font:inherit; cursor:pointer;
+}
+button.docfm-folder:focus-visible {
+  outline:2px solid var(--primary,#157347); outline-offset:2px;
+}
+.docfm-modal-intro {
+  display:flex; align-items:center; flex-wrap:wrap; gap:14px;
+  color:var(--text-3); font-size:13px; padding:0 0 14px;
+}
+.docfm-modal-intro i { margin-right:5px; }
+.docfm-modal-nav {
+  display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:10px; padding-bottom:12px;
+}
+[data-docfm-view] .doc-preview-list {
+  display:grid; gap:12px;
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));
+}
+[data-docfm-view] .doc-preview-item {
+  min-width:0; padding:12px; border:1px solid var(--border);
+  border-radius:10px; background:var(--surface);
+}
+[data-docfm-view] .doc-full-frame {
+  border:1px solid var(--border); border-radius:10px; overflow:hidden;
+}
+@media(max-width:600px) {
+  [data-docfm-view] .doc-preview-list { grid-template-columns:1fr; }
+  .docfm-modal-nav > div { width:100%; }
+}
+
