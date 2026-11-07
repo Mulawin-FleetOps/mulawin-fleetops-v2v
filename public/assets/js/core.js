@@ -82,11 +82,10 @@ const App = {
     document.getElementById('app').innerHTML = `
     <div class="auth-page"><div class="auth-shell">
       <section class="auth-side" aria-hidden="true">
-        <div class="auth-side-brand"><img src="assets/img/logo.png" alt="" class="auth-logo" onerror="this.remove()">
+        <div class="auth-side-brand"><span class="auth-logo-frame"><img src="assets/img/logo.png" alt="" class="auth-logo" onerror="this.remove()"></span>
           <div><div class="auth-side-company">R.P. Mulawin Trucking Services</div><div class="auth-side-product">Mulawin FleetOps</div></div></div>
         <div class="auth-side-copy"><h2>Fleet operations and financial monitoring</h2>
-          <ul><li>Trips from request to payment</li><li>Truck, driver, client and mechanic masterlists</li><li>Corrective maintenance, parts and purchasing</li><li>Billing, collections and reports</li></ul></div>
-        <div class="auth-side-foot">Car Carrier · Container · Wing Van</div>
+          <p>Manage trips, fleet, maintenance, purchasing, billing and company records in one secure system.</p></div>
       </section>
       <main class="auth-main"><div class="auth-card" id="authCard">${inner}</div>
         <p class="auth-foot">Mulawin FleetOps &copy; ${new Date().getFullYear()} · Authorized personnel only</p></main>

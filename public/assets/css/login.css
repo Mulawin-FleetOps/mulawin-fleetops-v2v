@@ -42,3 +42,163 @@
 .login-brand .brand-name { font-size: 20px; font-weight: 650; margin: 0 0 4px; }
 .login-brand .brand-sub { font-size: var(--fs-md); color: var(--text-3); margin-bottom: 18px; }
 .login-btn { height: 40px; }
+
+/* RPM LIGHT LOGIN V1 START — login/recovery/OTP visual design only. */
+/* These styles are deliberately scoped to .auth-page; the installer and app shell are unaffected. */
+.auth-page {
+  --auth-green: #14652f;
+  --auth-mint: #eefaf0;
+  --auth-border: #d9e7de;
+  background: #f9fbf9;
+}
+.auth-page .auth-shell {
+  grid-template-columns: minmax(370px, 47%) minmax(0, 1fr);
+  min-height: 100vh;
+}
+.auth-page .auth-side {
+  justify-content: center;
+  gap: 45px;
+  padding: clamp(32px, 4.5vw, 76px);
+  color: #183e27;
+  background: linear-gradient(145deg, #effbf0 0%, #e9f7ed 75%, #e4f4e8 100%);
+  isolation: isolate;
+}
+/* The small, pale bottom sweep is decorative and will not obstruct content. */
+.auth-page .auth-side::after {
+  content: '';
+  position: absolute;
+  right: auto;
+  left: -12%;
+  bottom: -105px;
+  width: 125%;
+  height: 160px;
+  border: 0;
+  border-radius: 50% 50% 0 0;
+  background: #cbeed0;
+  opacity: .72;
+  z-index: -1;
+}
+.auth-page .auth-side-brand {
+  gap: 17px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.auth-page .auth-logo-frame {
+  width: 130px;
+  max-width: 100%;
+  padding: 7px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #c5dec9;
+  box-shadow: 0 1px 4px rgba(22, 92, 43, .08);
+  flex: none;
+}
+.auth-page .auth-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 3px;
+  box-shadow: none;
+}
+.auth-page .auth-side-company {
+  color: #2a6240;
+  font-size: 14px;
+  font-weight: 550;
+}
+.auth-page .auth-side-product {
+  color: #11532a;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 730;
+  letter-spacing: -.018em;
+}
+.auth-page .auth-side-copy {
+  max-width: 535px;
+}
+.auth-page .auth-side-copy h2 {
+  color: #0c5428;
+  font-size: clamp(29px, 3vw, 43px);
+  font-weight: 760;
+  letter-spacing: -.035em;
+  line-height: 1.12;
+  margin: 0 0 26px;
+}
+.auth-page .auth-side-copy h2::after {
+  content: '';
+  display: block;
+  width: 94px;
+  height: 5px;
+  border-radius: 5px;
+  background: #7aca4c;
+  margin-top: 20px;
+}
+.auth-page .auth-side-copy p {
+  font-size: clamp(15px, 1.4vw, 18px);
+  line-height: 1.55;
+  color: #4b5c51;
+  margin: 0;
+}
+.auth-page .auth-main {
+  min-width: 0;
+  padding: 36px clamp(20px, 4vw, 60px);
+  background: #fafbfc;
+}
+.auth-page .auth-card {
+  max-width: 500px;
+  padding: clamp(25px, 3vw, 40px);
+  border: 1px solid #e2e7e3;
+  border-radius: 15px;
+  box-shadow: 0 8px 26px rgba(18, 54, 33, .055);
+}
+.auth-page .auth-head h1 {
+  color: #182a20;
+  font-size: 25px;
+  font-weight: 720;
+}
+.auth-page .auth-head p { color: #61716a; }
+.auth-page .form-label { color: #2b4034; }
+.auth-page .form-control,
+.auth-page .form-select { border-color: #cfdcd4; min-height: 39px; }
+.auth-page .form-control:focus,
+.auth-page .form-select:focus {
+  border-color: #30864c;
+  box-shadow: 0 0 0 3px rgba(48, 134, 76, .13);
+}
+.auth-page .form-check-input:checked { background-color: #16753b; border-color: #16753b; }
+.auth-page .form-check-input:focus { box-shadow: 0 0 0 3px rgba(48, 134, 76, .13); }
+.auth-page .btn-primary {
+  --bs-btn-bg: #18783a;
+  --bs-btn-border-color: #18783a;
+  --bs-btn-hover-bg: #12622f;
+  --bs-btn-hover-border-color: #12622f;
+  --bs-btn-active-bg: #0e5227;
+  --bs-btn-active-border-color: #0e5227;
+  --bs-btn-disabled-bg: #73a883;
+  --bs-btn-disabled-border-color: #73a883;
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+  border-radius: 7px;
+}
+.auth-page .btn-outline-secondary { border-color: #cfdcd4; }
+.auth-page .auth-links { color: #66766d; }
+.auth-page .auth-foot { text-align: center; }
+@media (max-width: 949.98px) {
+  .auth-page .auth-shell { grid-template-columns: 1fr; }
+  .auth-page .auth-side { padding: 20px 24px; gap: 0; }
+  .auth-page .auth-side::after, .auth-page .auth-side-copy { display: none; }
+  .auth-page .auth-logo-frame { width: 86px; padding: 4px; }
+  .auth-page .auth-side-company { font-size: 12px; }
+  .auth-page .auth-side-product { font-size: 19px; }
+  .auth-page .auth-main { justify-content: flex-start; padding: 24px 16px; }
+  .auth-page .auth-card { width: min(100%, 500px); padding: 26px 23px; }
+}
+@media (max-width: 390px) {
+  .auth-page .auth-side { padding: 16px; }
+  .auth-page .auth-card { padding: 22px 17px; }
+  .auth-page .auth-side-brand { gap: 10px; }
+  .auth-page .auth-logo-frame { width: 74px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-page .btn { transition: none; }
+}
+/* RPM LIGHT LOGIN V1 END */
