@@ -367,7 +367,7 @@ const App = {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
       document.querySelector('#pageContent .page-head')?.classList.toggle('rpm-page-head-scrolled', y > 90);
       const topButton = document.getElementById('rpmBackToTop');
-      if (topButton) topButton.setAttribute('aria-label', y > 0 ? 'Back to top' : 'Already at top');
+      if (topButton) { topButton.hidden = y <= 90; topButton.setAttribute('aria-label', 'Back to top'); }
     };
     window.addEventListener('scroll', this._rpmScrollNavigation, { passive: true });
     // The page header is recreated on every route, so delegate its Top button.
@@ -458,7 +458,7 @@ const App = {
     }
     el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(def.title || nav.label)}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
         <div class="page-actions no-print" id="pageTools"></div>
-        <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top"><i class="bi bi-arrow-up" aria-hidden="true"></i><span>Top</span></button></div>
+        <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
     if (this._lastPage !== page) {
       window.scrollTo(0, 0);

@@ -876,3 +876,35 @@ a:hover { color: var(--rpm-brand-strong); }
   #pageContent .page-head > .rpm-back-to-top { min-width: 34px; }
 }
 /* RPM TOP BUTTON IN PAGE HEADER V3 END */
+
+/* RPM BACK TO TOP PLAIN SCROLL V4 START */
+/* Show a simple text action only once the sticky page title has condensed. */
+#pageContent .page-head > .rpm-back-to-top,
+#pageContent .page-head > .rpm-back-to-top[hidden] {
+  display: none !important;
+}
+#pageContent .page-head.rpm-page-head-scrolled > .rpm-back-to-top:not([hidden]) {
+  display: inline-flex !important;
+}
+#pageContent .page-head > .rpm-back-to-top {
+  width: auto; height: auto; min-width: 0; min-height: 30px;
+  padding: 2px 5px; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none;
+  color: #176238; font-size: 12px; font-weight: 650;
+  text-decoration: underline; text-underline-offset: 3px;
+  white-space: nowrap; cursor: pointer;
+}
+#pageContent .page-head > .rpm-back-to-top:hover {
+  background: transparent; border: 0; color: #0d4628; text-decoration-thickness: 2px;
+}
+#pageContent .page-head > .rpm-back-to-top:focus-visible {
+  outline: 2px solid #218b48; outline-offset: 2px;
+}
+@media (max-width: 575.98px) {
+  #pageContent .page-head > .rpm-back-to-top { width: auto; height: auto; min-width: 0; padding: 2px 4px; }
+  #pageContent .page-head > .rpm-back-to-top span { display: inline; }
+}
+@media print {
+  #pageContent .page-head > .rpm-back-to-top { display: none !important; }
+}
+/* RPM BACK TO TOP PLAIN SCROLL V4 END */
