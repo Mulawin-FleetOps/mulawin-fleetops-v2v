@@ -464,7 +464,7 @@ UI.nowManila = (addMinutes = 0) => {
 /** Random id for one form (duplicate-submit protection). Works on http:// too, where crypto.randomUUID is missing. */
 UI.uuid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
   : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = crypto.getRandomValues(new Uint8Array(1))[0] & 15; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
-UI.today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+UI.today = () => UI.nowManila().slice(0, 10);
 UI.label = (role) => (App.me && App.me.roles[role]) || role;
 UI.role = (...roles) => App.me && roles.includes(App.me.user.role);
 UI.isDispatcher = () => UI.role('car_carrier_dispatcher', 'container_wingvan_dispatcher');
@@ -704,11 +704,19 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
     e.preventDefault();
     const err = wrap.querySelector('.form-error'); err.style.display = 'none';
     form.querySelectorAll('.is-invalid').forEach(x => x.classList.remove('is-invalid'));
-    const missing = [...form.querySelectorAll('[required]')].filter(x => x.offsetParent !== null || x.type === 'hidden').find(x => x.type === 'file' ? !x.files.length : !String(x.value).trim());
-    if (missing) {
-      missing.classList.add('is-invalid');
-      err.textContent = 'Complete the required field: ' + (form.querySelector(`label[for="${missing.id}"]`)?.textContent || missing.name).replace(/\s*\*$/, '');
-      err.style.display = 'block'; missing.focus(); return;
+    const visibleControls = [...form.querySelectorAll('input, select, textarea')].filter(x => !x.disabled && (x.offsetParent !== null || x.type === 'hidden'));
+    const invalid = visibleControls.find(x => {
+      if (x.required && x.type === 'checkbox' && !x.checked) return true;
+      if (x.required && x.type === 'file' && !x.files.length) return true;
+      return !x.checkValidity();
+    });
+    if (invalid) {
+      invalid.classList.add('is-invalid');
+      const fieldLabel = (form.querySelector(`label[for="${invalid.id}"]`)?.textContent || invalid.name || 'field').replace(/\s*\*$/, '');
+      err.textContent = invalid.validity.valueMissing || (invalid.type === 'checkbox' && !invalid.checked)
+        ? 'Complete the required field: ' + fieldLabel
+        : 'Please enter a valid value for: ' + fieldLabel;
+      err.style.display = 'block'; invalid.focus(); return;
     }
     const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
     try { await onSubmit(UI.formData(form), form, wrap); m.hide(); }
