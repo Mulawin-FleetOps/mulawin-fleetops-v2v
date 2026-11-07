@@ -125,13 +125,20 @@ Also run `tests/run_map_tests.php` and `tests/run_route_tests.php`.
 - The route line is a display aid; the billable km is what is saved and billed.
 - Batch planning / scheduling is not part of this phase.
 
-## Open business-policy questions
+## Business-policy decisions (project owner, 2026-11-08)
 
-1. **Approved-route billing**: today billing uses km × client rate per km even when an approved route (with its own flat or
-   per-km route rate) is chosen. Options: A) keep this (current); B) bill the route rate (flat or per km) with a snapshot
-   on the trip — needs approval and a BillingDraft change; C) require an approved route for every trip of clients that have one.
-2. **Toll roads**: default option is Recommended (toll roads allowed). Confirm the company policy, and whether toll fees are
-   charged to the client.
-3. **Which km is billed** when the computed km and the contract km differ (current: the km in the form, with a reason).
-4. Upgraded databases: migrations 05 / 06 (account security) have no tracker row of their own; a small tracker migration is
-   suggested (separate PR, owner: account-security work).
+1. **Billing formula stays** for now: km × client rate per km. An approved route only supplies the km, pins and line;
+   its route rate is not billed. (Revisit later: billing the route rate would need a snapshot on the trip and a
+   BillingDraft change, with approval.)
+2. **All three route options stay**; **Recommended** is the default.
+3. **No automatic toll charges.** Choosing a route with toll roads adds nothing to the billing.
+4. **Billed km = the saved final billable km**; a reason is required whenever it differs from the reference
+   (computed road km or approved-route km). Already how this phase works.
+5. **Migrations 05 / 06 tracker cleanup**: handled separately (not in this PR).
+
+## Compatibility with other checklist items
+
+- **#27 trip details lock** (`CHECKLIST_27_TRIP_DETAILS_LOCK_V1`): kept. `Trips.edit` is refused from Dispatched onward
+  (also On Hold, Completed, Cancelled, Rejected) for the Operations Head and dispatchers; no map call is made and the
+  distance is not touched. Covered in `tests/trip_routing_tests.php` section G.
+- **#40 Finance release window**: unchanged (`Funds.php`, `funds.js`, `Settings.php` identical to `main`).
