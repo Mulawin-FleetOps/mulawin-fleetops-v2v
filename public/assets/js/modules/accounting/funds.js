@@ -56,7 +56,10 @@ App.page('funds', {
     const actions = (f) => {
       let h = UI.btn('print', 'Print form', 'outline-secondary') + UI.btn('trip', 'View trip');
       if (d.can.approve && f.status === 'Pending Approval') h += UI.btn('approve', 'Approve', 'success') + UI.btn('reject', 'Reject', 'outline-danger');
-      if (d.can.release && f.status === 'Ready for Release') h += UI.btn('release', 'Confirm Release', 'primary');
+      if (d.can.release && f.status === 'Ready for Release') {
+        if (f.release_allowed_now) h += UI.btn('release', 'Confirm Release', 'primary');
+        else h += `<span class="small text-muted" title="Refresh this page once the window opens"><i class="bi bi-clock"></i> Release opens ${UI.datetime(f.release_opens_at)} (PH time)</span>`;
+      }
       if (d.can.release && f.status === 'Released' && f.liquidation_status === 'Not Liquidated' && ['Completed', 'Cancelled'].includes(f.trip_status)) h += UI.btn('liquidate', 'Liquidate', 'outline-primary');
       if (d.can.submit && f.status === 'Rejected' && !['Completed', 'Cancelled', 'Rejected'].includes(f.trip_status)) h += UI.btn('revise', 'Revise', 'primary');
       return h;
@@ -66,8 +69,11 @@ App.page('funds', {
       if (a === 'trip') { App.go('trips'); setTimeout(() => TripUI.open(f.trip_id), 600); }
       if (a === 'approve') UI.confirmAction('Approve ' + UI.esc(f.fund_ref), `Approve ${UI.money(f.amount)} for ${UI.esc(f.trip_ref)}? It goes to Finance for release.<br><span class="small text-muted">${UI.esc(f.breakdown)}</span>`, 'Funds.decide', { fund_id: f.id, decision: 'approve' }, { submit: 'Approve' });
       if (a === 'reject') UI.confirmAction('Reject ' + UI.esc(f.fund_ref), 'The dispatcher must revise the request and submit it again.', 'Funds.decide', { fund_id: f.id, decision: 'reject' }, { danger: true, submit: 'Reject', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
-      if (a === 'release') UI.formModal('Confirm release of ' + UI.esc(f.fund_ref), UI.payFields(d.methods), 'Funds.release', { extra: { fund_id: f.id }, submit: 'Confirm Release',
-        intro: `Release <b>${UI.money(f.amount)}</b> for ${UI.esc(f.trip_ref)} (${UI.esc(f.breakdown)}). Allowed even before the pre-dispatch checklist.` });
+      if (a === 'release') {
+        if (!f.release_allowed_now) return UI.toast('Release is not yet allowed. Refresh this page when the release window opens.', 'error');
+        UI.formModal('Confirm release of ' + UI.esc(f.fund_ref), UI.payFields(d.methods), 'Funds.release', { extra: { fund_id: f.id }, submit: 'Confirm Release',
+          intro: `Release <b>${UI.money(f.amount)}</b> for ${UI.esc(f.trip_ref)} (${UI.esc(f.breakdown)}). Available from ${UI.datetime(f.release_opens_at)} (Philippine time), even if the pre-dispatch checklist is pending.` });
+      }
       if (a === 'liquidate') UI.formModalFiles('Liquidation of ' + UI.esc(f.fund_ref), [
         { name: 'liquidated_amount', label: 'Actual expenses (₱)', type: 'money', required: true, col: 6, value: f.amount },
         { name: 'liquidation_notes', label: 'Notes', col: 6 }, { name: 'receipts', label: 'Receipts (optional)', type: 'file', multiple: true, col: 12 }],

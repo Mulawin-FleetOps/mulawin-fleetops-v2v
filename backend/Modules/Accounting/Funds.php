@@ -23,7 +23,9 @@ declare(strict_types=1);
 core('Notify');
 core('Money');
 core('Files');
+core('Settings');
 
+// CHECKLIST_40_FINANCE_WINDOW_V1: scheduling always uses Asia/Manila from bootstrap.php.
 final class Funds {
     public static function read(array $u, string $page, array $q): array {
         $p = db();
@@ -48,6 +50,17 @@ final class Funds {
                     ORDER BY t.scheduled_at", [$u['role']]),
             ]);
         }
+        // Server-derived flags power the Finance UI; the release API rechecks time.
+        $leadSeconds = (int)round(Settings::value('fund_release_lead_hours') * 3600);
+        if (isset($data['funds']) && is_array($data['funds'])) foreach ($data['funds'] as &$fund) {
+            $scheduled = strtotime((string)$fund['scheduled_at']);
+            $opensAt = $scheduled === false ? null : $scheduled - $leadSeconds;
+            $fund['release_opens_at'] = $opensAt === null ? null : date('Y-m-d H:i:s', $opensAt);
+            $fund['release_allowed_now'] = $opensAt !== null
+                && time() >= $opensAt && !in_array($fund['trip_status'], ['Cancelled', 'Rejected', 'Completed'], true);
+        }
+        unset($fund);
+        $data['releaseLeadHours'] = Settings::value('fund_release_lead_hours');
         $data['categories'] = many($p, 'SELECT name, amount FROM fund_categories WHERE active=1 ORDER BY sort_order, name');
         $data['methods'] = Money::METHODS;
         $data['can'] = ['submit' => roleIsDispatcher($u['role']), 'approve' => hasRole($u, 'operations_head'), 'release' => hasRole($u, 'finance')];
@@ -164,11 +177,19 @@ final class Funds {
         $id = idField($d, 'fund_id');
         $pay = Money::paymentFields($d);
         return transaction(function (PDO $p) use ($u, $id, $pay) {
-            $f = one($p, 'SELECT f.*, t.trip_ref, t.status AS trip_status, t.vehicle_id, d.full_name AS driver_name FROM fund_requests f JOIN trips t ON t.id=f.trip_id
+            $f = one($p, 'SELECT f.*, t.trip_ref, t.status AS trip_status, t.scheduled_at, t.vehicle_id, d.full_name AS driver_name FROM fund_requests f JOIN trips t ON t.id=f.trip_id
                           LEFT JOIN personnel d ON d.id=t.driver_id WHERE f.id=? FOR UPDATE', [$id]);
             must((bool)$f, 'Fund request not found.', 404);
             must($f['status'] === 'Ready for Release', 'Only approved requests (Ready for Release) can be released. This one is ' . $f['status'] . '.', 409);
-            must(!in_array($f['trip_status'], ['Cancelled', 'Rejected'], true), 'The trip is ' . $f['trip_status'] . '.', 409);
+            must(!in_array($f['trip_status'], ['Cancelled', 'Rejected', 'Completed'], true), 'The trip is ' . $f['trip_status'] . '.', 409);
+            // Re-evaluate under the row lock. Browser UI and submitted payment dates are not trusted.
+            $scheduled = strtotime((string)$f['scheduled_at']);
+            must($scheduled !== false, 'Invalid trip dispatch schedule.', 409);
+            $leadHours = Settings::value('fund_release_lead_hours');
+            $opensAt = $scheduled - (int)round($leadHours * 3600);
+            must(time() >= $opensAt, 'Too early to release the fund. Finance may release ' .
+                $leadHours . ' hour(s) before dispatch (' . date('M j, Y g:i A', $opensAt) .
+                ' Philippine time).', 409);
             $payee = $f['driver_name'] ?: 'Trip ' . $f['trip_ref'];
             $disb = Money::disburse($p, $u, 'fund_request', $id, $payee, $f['amount'], $pay);
             run($p, "UPDATE fund_requests SET status='Released', released_by=?, released_at=NOW(), disbursement_id=? WHERE id=?", [$u['id'], $disb, $id]);

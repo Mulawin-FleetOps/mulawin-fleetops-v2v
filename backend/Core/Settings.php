@@ -35,6 +35,9 @@ final class Settings {
             'Used with the value above: estimated diesel = (km / km per liter) x price.', 0, 1000],
         'units_per_trip'              => ['Default units per car carrier trip', 5, 'units',
             'First value of "units" on a car carrier trip; can be changed per trip.', 1, 20],
+        // CHECKLIST_40_FINANCE_WINDOW_V1: Admin can configure when Finance may release.
+        'fund_release_lead_hours'       => ['Enable trip fund release before dispatch', 2, 'hours before',
+            'Finance can release a Ready for Release trip fund this many hours before its scheduled dispatch. 0 = not before the scheduled time.', 0, 24],
         'inspection_min_minutes'      => ['Minimum checklist duration', 15, 'minutes',
             'Pre-dispatch and arrival checklists: the earliest a checklist can be submitted, counted from when the dispatcher opened it (PDF #11 section G). 0 = no minimum.', 0, 120],
     ];
