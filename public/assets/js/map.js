@@ -11,7 +11,10 @@
    Public helpers (same names as before, so Trip Management keeps working unchanged):
      UI.Map                                   tiles, search, reverse, route, polyline decoding
      UI.mapPicker(box, form, initial, opts)   two-point picker (pickup / destination)
-     UI.routeMap(box, t, opts)                read-only map (trip details, route details) */
+     UI.routeMap(box, t, opts)                read-only map (trip details, route details)
+     UI.distanceFieldDefs(opts) / UI.distanceWidget(form, opts)
+                                              road km + route option + manual override (+ approved route
+                                              choice) shared by Client Routes and Trip Management */
 'use strict';
 UI.Map = {
   cfg() { return (App.me && App.me.map) || {}; },
@@ -121,6 +124,12 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
       map.fitBounds(routeLine.getBounds().pad(0.15));
     },
     clearRoute() { if (routeLine) { routeLine.remove(); routeLine = null; } update(true); },
+    /** Places both pins from code (approved route), without address lookup and without onChange. */
+    setPoints(a, b) {
+      place('pickup', L.latLng(a[0], a[1]), '', false, true);
+      place('delivery', L.latLng(b[0], b[1]), '', false, true);
+      map.fitBounds(L.latLngBounds([pins.pickup.getLatLng(), pins.delivery.getLatLng()]).pad(0.3));
+    },
   };
   map.picker = picker;
   function update(silent) {
@@ -212,3 +221,163 @@ UI.routeMap = (box, t, opts = null) => {
   }
   map.fitBounds(bounds.pad(0.2)); setTimeout(() => map.invalidateSize(), 300);
 };
+
+/**
+ * Form fields of the distance widget (put them next to the km field named distance_km).
+ * opts.withRoutePick = true adds "Approved client route" (Trip Management).
+ */
+UI.distanceFieldDefs = (opts = {}) => {
+  const cfg = UI.Map.cfg();
+  return [
+    ...(opts.withRoutePick ? [{ name: 'client_route_id', label: 'Approved client route (optional)', type: 'select', col: 12, options: [], value: opts.routeId || '',
+      placeholder: 'None: pin the points on the map', help: 'Approved routes of the chosen client and truck type. Billing still uses the client rate per km.' }] : []),
+    ...(cfg.routing ? [{ name: 'route_option', label: 'Route option', type: 'select', col: opts.optionCol || 8, placeholder: false,
+      value: opts.option || cfg.defaultRouteOption || 'recommended', options: Object.entries(cfg.routeOptions || {}),
+      help: 'Used for the road distance. The company still has to confirm the toll-road policy.' }] : []),
+    { type: 'html', name: 'km_info', col: 12, html: '<div class="small" data-kminfo></div>' },
+    { name: 'distance_override_reason', label: 'Reason for changing the computed km', required: true, col: 12, value: opts.reason || '', attrs: 'maxlength="300"' },
+  ];
+};
+
+/**
+ * Road distance widget (Checklist #5): map pins -> road km from OUR server (Maps.route), route
+ * option, "use the computed km", required reason when the km is changed, 15% warning, manual km
+ * when the service is not available, and (trips) the choice of an approved client route.
+ * The server decides again on save; this only helps the person fill in the form.
+ *
+ * opts.mapBox    element for the map           opts.fields / opts.labels / opts.footNote  -> UI.mapPicker
+ * opts.initial   saved record (edit / review): its pins, km, source, reference km, line, route
+ * opts.routePick { clientField | clientId, truckField | truckType } (when client_route_id is in the form)
+ * Returns { clean(data), state }; also stored as form._distance.
+ */
+UI.distanceWidget = (form, opts = {}) => {
+  const cfg = UI.Map.cfg(), ratio = +cfg.overrideWarningRatio || 0.15, ini = opts.initial || {};
+  const q = (sel) => form.querySelector(sel);
+  const km = q('[name=distance_km]'), opt = q('[name=route_option]'), info = q('[data-kminfo]'), pick = q('[name=client_route_id]');
+  const reasonEl = q('[name=distance_override_reason]'), reasonBox = reasonEl ? reasonEl.closest('[class*="col-"]') : null;
+  const st = { computed: null, kind: null, seq: 0, route: null };
+  const noService = '<span class="text-muted">Automatic road distance is not set up on the server. Type the km.</span>';
+  const ref = () => st.kind === 'route' ? 'approved route distance' : 'computed road distance';
+  const checkOverride = () => {
+    const show = st.computed !== null && km && km.value !== '' && Math.abs(+km.value - st.computed) >= 0.005;
+    if (reasonBox) reasonBox.classList.toggle('d-none', !show);
+    const warn = info && info.querySelector('[data-kmwarn]');
+    if (warn) warn.textContent = show && Math.abs(+km.value - st.computed) > ratio * st.computed
+      ? `Warning: the km differs from the ${ref()} by more than ${Math.round(ratio * 100)}%.` : '';
+  };
+  const say = (html) => { if (info) info.innerHTML = html; checkOverride(); };
+  const useBtn = (label) => ` <button type="button" class="btn btn-link btn-sm p-0 ms-2" data-usekm>${label}</button><div class="text-warning" data-kmwarn></div>`;
+  const wireUse = () => { const b = info && info.querySelector('[data-usekm]'); if (b) b.onclick = () => { km.value = st.computed.toFixed(2); km.dispatchEvent(new Event('input', { bubbles: true })); checkOverride(); }; };
+  if (reasonBox) reasonBox.classList.add('d-none');
+  if (km) km.addEventListener('input', checkOverride);
+
+  let picker = null;
+  const leaveRouteMode = () => {
+    if (st.kind !== 'route') return;
+    st.kind = null; st.route = null; st.computed = null;
+    if (pick) pick.value = '';
+    if (opt) opt.disabled = false;
+  };
+  const compute = async (points) => {
+    leaveRouteMode();
+    st.computed = null; st.kind = null;
+    if (!cfg.routing) { say(noService); return; }
+    if (!points.pickup || !points.delivery) { say('<span class="text-muted">Pin both points to get the road distance.</span>'); return; }
+    const seq = ++st.seq;
+    say('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Computing the road distance…</span>');
+    let r;
+    try { r = await UI.Map.route(points.pickup, points.delivery, opt ? opt.value : cfg.defaultRouteOption); }
+    catch (e) { r = { available: false, message: e.message }; }
+    if (seq !== st.seq) return;   // an older answer: ignore
+    if (!r.available) { say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span> <span class="text-muted">Type the km.</span>`); return; }
+    st.computed = +r.distance_km; st.kind = 'map';
+    km.value = st.computed.toFixed(2); km.dispatchEvent(new Event('input', { bubbles: true }));
+    if (r.geometry && picker) picker.showRoute(UI.Map.decode(r.geometry));
+    say(`Road distance: <b>${UI.num(r.distance_km, 2)} km</b> · about ${UI.num(r.duration_min, 0)} min · ${UI.esc(r.option_label)}
+      <span class="text-muted">(straight line ${UI.num(r.straight_km, 1)} km)</span>
+      ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}${useBtn('Use the computed km')}`);
+    wireUse();
+  };
+  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, onChange: (pts) => compute(pts),
+    footNote: opts.footNote || (cfg.routing ? 'Road distance by openrouteservice (estimate). Check it before saving.' : 'Type the km.') }) : null;
+  picker = map ? map.picker : null;
+  if (opt) opt.addEventListener('change', () => { if (picker && st.kind !== 'route') compute(picker.points()); });
+
+  // ----- saved record (review / edit) -----
+  if (ini.distance_computed_km != null && ini.distance_source && ini.distance_source !== 'Manual') {
+    st.computed = +ini.distance_computed_km; st.kind = ini.client_route_id ? 'route' : 'map';
+    if (st.kind === 'route' && opt) opt.disabled = true;
+    if (ini.route_geometry && picker) setTimeout(() => picker.showRoute(UI.Map.decode(ini.route_geometry)), 300);
+    say(`Saved ${st.kind === 'route' ? 'approved route' : 'road'} distance: <b>${UI.num(ini.distance_computed_km, 2)} km</b> · ${UI.esc(ini.distance_source)}
+      ${ini.route_option && (cfg.routeOptions || {})[ini.route_option] ? ' · ' + UI.esc(cfg.routeOptions[ini.route_option]) : ''}${useBtn(st.kind === 'route' ? 'Use the route km' : 'Use the computed km')}`);
+    wireUse();
+  } else if (ini.pickup_lat && ini.delivery_lat) {
+    say(cfg.routing ? '<span class="text-muted">The saved km was typed (Manual). Move a pin or change the route option to compute the road distance.</span>' : noService);
+  } else if (!cfg.routing) say(noService);
+
+  // ----- approved client route (Trip Management) -----
+  if (pick) {
+    const rp = opts.routePick || {};
+    const clientId = () => rp.clientId || (rp.clientField && q(`[name=${rp.clientField}]`) ? q(`[name=${rp.clientField}]`).value : '');
+    const truckType = () => rp.truckType || (rp.truckField && q(`[name=${rp.truckField}]`) ? q(`[name=${rp.truckField}]`).value : '');
+    const savedId = ini.client_route_id ? String(ini.client_route_id) : '';
+    const fill = (routes, msg) => {
+      const keep = pick.value || savedId;
+      pick.innerHTML = `<option value="">${UI.esc(msg)}</option>` + routes.map(r => `<option value="${r.id}">${UI.esc(r.route_ref + ' · ' + r.origin_label + ' → ' + r.destination_label + ' · ' + UI.num(r.distance_km, 2) + ' km')}</option>`).join('')
+        + (savedId && !routes.some(r => String(r.id) === savedId) ? `<option value="${UI.esc(savedId)}">${UI.esc((ini.client_route_ref || 'Saved route') + ' (saved; no longer offered for new trips)')}</option>` : '');
+      pick.value = [...pick.options].some(o => o.value === keep) ? keep : '';
+      if (keep && pick.value === '' && st.kind === 'route') { leaveRouteMode(); say(''); }
+    };
+    let loadSeq = 0;
+    const load = async () => {
+      const c = clientId(), t = truckType(), seq = ++loadSeq;
+      if (!c || !t) { fill([], 'Choose the client and truck type first'); pick.disabled = !savedId; return; }
+      pick.disabled = false;
+      try { const r = await App.api('Routes.selectable', { client_id: c, truck_type: t }); if (seq === loadSeq) { st.routes = r.routes || []; fill(st.routes, st.routes.length ? 'None: pin the points on the map' : 'No approved route for this client and truck type'); } }
+      catch (e) { if (seq === loadSeq) fill([], 'Approved routes are not available right now'); }
+    };
+    pick.addEventListener('change', async () => {
+      if (!pick.value) { leaveRouteMode(); st.kind = null; st.computed = null; if (opt) opt.disabled = false; if (picker) compute(picker.points()); else say(''); return; }
+      if (pick.value === savedId && ini.client_route_id) { st.kind = 'route'; st.computed = +ini.distance_computed_km; if (opt) opt.disabled = true; checkOverride(); return; }
+      let r;
+      try { r = (await App.api('Routes.selectable', { client_id: clientId(), truck_type: truckType(), route_id: pick.value })).routes[0]; } catch (e) { r = null; }
+      if (!r) { pick.value = ''; say('<span class="text-danger">That route can no longer be used. Choose another one or pin the points.</span>'); return; }
+      st.seq++; st.kind = 'route'; st.route = r; st.computed = +r.distance_km;
+      if (opt) { if (r.route_option) opt.value = r.route_option; opt.disabled = true; }
+      const setText = (n, v) => { const f = q(`[name=${n}]`); if (f && v) { f.value = v; f.dispatchEvent(new Event('input', { bubbles: true })); } };
+      setText((opts.fields && opts.fields.pickup && opts.fields.pickup.addr) || 'pickup_point', r.origin_label);
+      setText((opts.fields && opts.fields.delivery && opts.fields.delivery.addr) || 'delivery_point', r.destination_label);
+      if (picker && r.origin_lat && r.destination_lat) {
+        picker.setPoints([+r.origin_lat, +r.origin_lng], [+r.destination_lat, +r.destination_lng]);
+        if (r.route_geometry) picker.showRoute(UI.Map.decode(r.route_geometry));
+      }
+      km.value = st.computed.toFixed(2); km.dispatchEvent(new Event('input', { bubbles: true }));
+      say(`Approved route <b>${UI.esc(r.route_ref)}</b>: <b>${UI.num(r.distance_km, 2)} km</b>${r.route_option && (cfg.routeOptions || {})[r.route_option] ? ' · ' + UI.esc(cfg.routeOptions[r.route_option]) : ''}
+        <span class="text-muted">(billing still uses the client rate per km)</span>${useBtn('Use the route km')}`);
+      wireUse();
+    });
+    [rp.clientField, rp.truckField].filter(Boolean).forEach(n => { const f = q(`[name=${n}]`); if (f) f.addEventListener('change', load); });
+    load();
+  }
+
+  const widget = {
+    state: st,
+    map,
+    /** Removes what the server must not receive (it decides again anyway). */
+    clean(d) {
+      if (st.kind === 'route') delete d.route_option;
+      if (st.computed === null) { delete d.route_option; delete d.distance_override_reason; }
+      else if (Math.abs(+d.distance_km - st.computed) < 0.005) delete d.distance_override_reason;
+      return d;
+    },
+    /** Short text for summaries: where the km comes from. */
+    sourceText() {
+      if (st.computed === null) return 'typed';
+      const changed = km && km.value !== '' && Math.abs(+km.value - st.computed) >= 0.005;
+      return (st.kind === 'route' ? 'approved route' : 'road distance') + (changed ? ', changed by hand' : '');
+    },
+  };
+  form._distance = widget;
+  return widget;
+};
+

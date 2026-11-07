@@ -27,20 +27,17 @@ const RouteUI = {
       { name: 'destination', label: 'Destination (delivery point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
       { type: 'html', col: 12, html: '<div data-routemapbox></div>' },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
-      ...(d.routing ? [{ name: 'route_option', label: 'Route option', type: 'select', col: 8, placeholder: false, value: d.defaultRouteOption,
-        options: Object.entries(d.routeOptions || {}), help: 'Used for the road distance. The company still has to confirm the toll-road policy.' }] : []),
+      // Route option, km, distance info and override reason: shared widget (assets/js/map.js), same as Trip Management.
+      ...UI.distanceFieldDefs().filter(f => f.name === 'route_option'),
       { name: 'distance_km', label: 'Distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
         help: d.routing ? 'Filled in from the road distance when both points are pinned. You may change it (a reason is required).' : 'Type the km (automatic road distance is not set up on the server).' },
-      { type: 'html', col: 12, html: '<div class="small" data-kminfo></div>' },
-      { name: 'distance_override_reason', label: 'Reason for changing the computed km', required: true, col: 12, attrs: 'maxlength="300"' },
+      ...UI.distanceFieldDefs().filter(f => f.name !== 'route_option'),
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    const st = { computed: null, option: null, seq: 0 };
     UI.modal('Request a new route', '<p class="modal-intro">Pin the origin and the destination on the map (or search them). The road distance fills in the km. Origin to destination is one direction: the return trip is a separate route. The route is sent to Billing for the rate, then to the Admin for approval.</p>'
       + UI.fields(fields), async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
-      if (st.computed === null) { delete f.route_option; delete f.distance_override_reason; }
-      else if (Math.abs(+f.distance_km - st.computed) < 0.005) delete f.distance_override_reason;
+      if (form._distance) form._distance.clean(f);
       // Soft warning: same client and truck type, and one place name contains the other (e.g. "TANAUAN" and "TANAUAN CITY").
       const o = RouteUI.norm(f.origin), t = RouteUI.norm(f.destination);
       const close = (a, b) => a && b && (a === b || a.includes(b) || b.includes(a));
@@ -51,58 +48,18 @@ const RouteUI = {
         throw new Error('Similar route already exists: ' + similar.map(r => `${r.route_ref} ${RouteUI.name(r)} (${r.status})`).join('; ') + '. Check it first. Click "Send request" again to continue anyway.');
       }
       const r = await App.api('Routes.request', f); UI.result(r); App.route();
-    }, { submit: 'Send request', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form, d, st) });
+    }, { submit: 'Send request', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form) });
   },
 
-  /** Map, route option, automatic km and manual override of the Request route form (Checklist #5). */
-  wireDistance(wrap, form, d, st) {
-    const km = form.querySelector('[name=distance_km]'), opt = form.querySelector('[name=route_option]');
-    const info = form.querySelector('[data-kminfo]');
-    const reasonBox = form.querySelector('[name=distance_override_reason]').closest('[class*="col-"]');
-    const ratio = +d.overrideWarningRatio || 0.15;
-    const noService = '<span class="text-muted">Automatic road distance is not set up on the server. Type the km.</span>';
-    const checkOverride = () => {
-      const show = st.computed !== null && km.value !== '' && Math.abs(+km.value - st.computed) >= 0.005;
-      reasonBox.classList.toggle('d-none', !show);
-      const warn = info.querySelector('[data-kmwarn]');
-      if (warn) warn.textContent = show && Math.abs(+km.value - st.computed) > ratio * st.computed
-        ? `Warning: the km differs from the computed road distance by more than ${Math.round(ratio * 100)}%.` : '';
-    };
-    const say = (html) => { info.innerHTML = html; checkOverride(); };
-    reasonBox.classList.add('d-none');
-    km.addEventListener('input', checkOverride);
-    const compute = async (points, picker) => {
-      st.computed = null;
-      if (!d.routing) { say(noService); return; }
-      if (!points.pickup || !points.delivery) { say('<span class="text-muted">Pin both points to get the road distance.</span>'); return; }
-      const seq = ++st.seq;
-      say('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Computing the road distance…</span>');
-      let r;
-      try { r = await UI.Map.route(points.pickup, points.delivery, opt ? opt.value : d.defaultRouteOption); }
-      catch (e) { r = { available: false, message: e.message }; }
-      if (seq !== st.seq) return;   // an older answer: ignore
-      if (!r.available) {
-        say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span>`); return;
-      }
-      st.computed = +r.distance_km; st.option = r.option;
-      km.value = st.computed.toFixed(2);
-      if (r.geometry && picker) picker.showRoute(UI.Map.decode(r.geometry));
-      say(`Road distance: <b>${UI.num(r.distance_km, 2)} km</b> · about ${UI.num(r.duration_min, 0)} min · ${UI.esc(r.option_label)}
-        <span class="text-muted">(straight line ${UI.num(r.straight_km, 1)} km)</span>
-        ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}
-        <button type="button" class="btn btn-link btn-sm p-0 ms-2" data-usekm>Use the computed km</button>
-        <div class="text-warning" data-kmwarn></div>`);
-      info.querySelector('[data-usekm]').onclick = () => { km.value = st.computed.toFixed(2); checkOverride(); };
-    };
-    const map = UI.mapPicker(form.querySelector('[data-routemapbox]'), form, {}, {
+  /** Map, route option, automatic km and manual override of the Request route form (Checklist #5; shared widget in map.js). */
+  wireDistance(wrap, form) {
+    const w = UI.distanceWidget(form, {
+      mapBox: form.querySelector('[data-routemapbox]'),
       fields: { pickup: { addr: 'origin', lat: 'origin_lat', lng: 'origin_lng' }, delivery: { addr: 'destination', lat: 'destination_lat', lng: 'destination_lng' } },
       labels: { pickup: 'Origin', delivery: 'Destination' },
-      footNote: d.routing ? 'Road distance by openrouteservice (estimate). Check it before sending.' : 'Type the km.',
-      onChange: compute,
+      footNote: UI.Map.serviceReady() ? 'Road distance by openrouteservice (estimate). Check it before sending.' : 'Type the km.',
     });
-    if (opt && map) opt.addEventListener('change', () => compute(map.picker.points(), map.picker));
-    wrap.addEventListener('shown.bs.modal', () => map && map.invalidateSize());
-    if (!d.routing) say(noService);
+    wrap.addEventListener('shown.bs.modal', () => w.map && w.map.invalidateSize());
   },
 
   rate(route, d) {
