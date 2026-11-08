@@ -272,6 +272,30 @@ final class Trips {
                 'dispatch_opens_at' => date('Y-m-d H:i:s', $disp), 'dispatch_allowed_now' => $now >= $disp,
                 'late_minutes' => $now > $sched ? intdiv($now - $sched, 60) : 0];
     }
+    /** The current attempt's pre-dispatch checklist (null when there is none). */
+    private static function currentChecklist(PDO $p, array $t): ?array {
+        return one($p, "SELECT id, vehicle_id, completed_at FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch' AND completed_at IS NOT NULL",
+            [$t['id'], $t['attempt_number']]) ?: null;
+    }
+    /**
+     * Schedule-change revalidation (approved 2026-11-08). A completed checklist stays valid for a new schedule only if it
+     * was completed inside that schedule's checklist window (completed_at >= new scheduled_at - checklist_lead_hours).
+     * Earlier schedules and small moves inside the window keep it; a later move outside the window sends the trip back to
+     * Pre-Assigned for a new checklist. Assignment, fund, route distance and booking details are not touched.
+     * Uses the existing Admin window; no separate expiry duration.
+     */
+    private static function revalidateChecklistAfterScheduleChange(PDO $p, array $u, array $t, array $row): string {
+        if ($t['status'] !== 'Ready for Dispatch' || !array_key_exists('scheduled_at', $row)) return '';
+        if (strtotime((string)$row['scheduled_at']) === strtotime((string)$t['scheduled_at'])) return '';
+        $new = $t; $new['scheduled_at'] = $row['scheduled_at'];
+        $opens = self::timeGates($new)['checklist_opens_at'];
+        $c = self::currentChecklist($p, $t);
+        if ($c && strtotime((string)$c['completed_at']) >= strtotime($opens)) return '';
+        $why = 'The pre-dispatch checklist must be done again: it was completed ' . ($c ? self::phTime((string)$c['completed_at']) : '(not found)')
+             . ', before the checklist window for the new schedule (opens ' . self::phTime($opens) . ').';
+        self::setStatus($p, $u['id'], $t, 'Pre-Assigned', 'pre-dispatch checklist reset after schedule change', $why);
+        return ' ' . $why;
+    }
     private static function phTime(string $dt): string { return date('M j, Y g:i A', strtotime($dt)) . ' Philippine time'; }
     /** Refuses the pre-dispatch checklist before its window (re-checked on submit: the schedule may have moved). */
     private static function mustBeChecklistWindow(array $t): void {
@@ -524,7 +548,8 @@ final class Trips {
                 $newFields[$label] = $row[$key];
             }
             self::event($p, $u['id'], $id, 'trip details updated', $t['status'], $t['status'], '', $oldFields, $newFields);
-            return ['message' => 'Trip details updated.' . self::$scheduleWarning . $distNote];
+            $recheck = self::revalidateChecklistAfterScheduleChange($p, $u, $t, $row);
+            return ['message' => 'Trip details updated.' . self::$scheduleWarning . $distNote . $recheck];
         });
     }
 
@@ -782,6 +807,12 @@ final class Trips {
     public static function dispatchBlockers(PDO $p, array $t): array {
         $why = [];
         if ($t['status'] !== 'Ready for Dispatch') $why[] = 'Trip status is ' . $t['status'] . ' (needs Ready for Dispatch).';
+        else {
+            // Not status-only: the checklist must exist for the CURRENT attempt and the CURRENTLY assigned truck.
+            $c = self::currentChecklist($p, $t);
+            if (!$c) $why[] = 'No pre-dispatch checklist for attempt #' . $t['attempt_number'] . ' (the Operations Head must reassign or reschedule so the checklist can be done again).';
+            elseif ((int)$c['vehicle_id'] !== (int)$t['vehicle_id']) $why[] = 'The pre-dispatch checklist was done for another truck (the Operations Head must reassign so the checklist can be done for the assigned truck).';
+        }
         $fund = one($p, 'SELECT status FROM fund_requests WHERE trip_id=? AND attempt_number=?', [$t['id'], $t['attempt_number']]);
         if ($fund && $fund['status'] !== 'Released') $why[] = 'Fund status is ' . $fund['status'] . ' (needs Released).';
         if (!$fund && (int)$t['attempt_number'] === 1) $why[] = 'No fund request yet (needs a Released fund).';
