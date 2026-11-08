@@ -100,19 +100,6 @@ const TripUI = {
     if (r === 'container_wingvan_dispatcher') return ['Container', 'Wing Van'];
     return App.me.truckTypes;
   },
-  /** Live availability of trucks and crew for the chosen truck type (shown in the trip form). */
-  availability(type) {
-    const d = TripUI.data; if (!d || !d.trucks) return '';
-    const trucks = d.trucks.filter(v => (!type || v.truck_type === type));
-    const free = trucks.filter(v => v.status === 'Available' && !v.on_trip);
-    const drivers = (d.crew || []).filter(p => p.person_type === 'Driver' && p.availability === 'Available' && !p.on_trip && (!p.license_expiry || p.license_expiry >= UI.today()));
-    const helpers = (d.crew || []).filter(p => p.person_type === 'Helper' && p.availability === 'Available' && !p.on_trip);
-    const need = type === 'Car Carrier' ? 'driver(s)' : 'driver(s) and helper(s)';
-    const ok = free.length && drivers.length && (type === 'Car Carrier' || helpers.length);
-    return `<div class="alert ${ok ? 'alert-success' : 'alert-warning'} py-2 small mb-0"><b>Available now${type ? ' (' + UI.esc(type) + ')' : ''}:</b> ${free.length} of ${trucks.length} truck(s), ${drivers.length} driver(s)${type === 'Car Carrier' ? '' : ', ' + helpers.length + ' helper(s)'}.
-      ${ok ? 'The system will assign them automatically.' : `Not enough free trucks / ${need}: the trip will wait as "Awaiting Resources" and is assigned automatically when they are free.`}
-      ${free.length ? `<details class="mt-1"><summary>Show available trucks</summary>${free.map(v => UI.esc(v.plate_number) + (v.truck_number ? ' (#' + UI.esc(v.truck_number) + ')' : '')).join(', ')}</details>` : ''}</div>`;
-  },
   deliveryFields(t = {}, opts = {}) {
     const d = TripUI.data;
     const types = TripUI.truckTypeOptions();
@@ -142,7 +129,7 @@ const TripUI = {
       { name: 'container_size', label: 'Container size', col: 3, value: t.container_size, placeholder: '1X20 / X40' },
       { name: 'seal_number', label: 'Seal no.', col: 3, value: t.seal_number },
       { name: 'shipment_number', label: 'Shipment no.', col: 3, value: t.shipment_number },
-      { type: 'html', html: '<div data-avail class="mt-1"></div>' },
+      { type: 'html', html: '<div data-rate-warning class="col-12" role="status"></div>' },
     ];
   },
   datalists() {
@@ -163,11 +150,17 @@ const TripUI = {
       toggle('units_planned', !type || type === 'Car Carrier');
       ['container_number', 'container_size', 'seal_number'].forEach(n => toggle(n, !type || type === 'Container'));
       toggle('shipment_number', !type || type !== 'Car Carrier');
-      const av = wrap.querySelector('[data-avail]'); if (av) av.innerHTML = TripUI.availability(type);
+      // Assignment stays server-side. Show only actionable client-rate errors here.
+      const notice = wrap.querySelector('[data-rate-warning]');
       const client = form.querySelector('[name=client_id]');
-      if (client && client.value && type) {
-        const c = (TripUI.data.clients || []).find(x => String(x.id) === client.value);
-        if (c && !(c.rate_types || '').split('|').includes(type)) av.insertAdjacentHTML('afterbegin', `<div class="alert alert-danger py-2 small mb-1">${UI.esc(c.company_name)} has no billing rate for ${UI.esc(type)} yet. Ask Billing to set it.</div>`);
+      if (notice) {
+        notice.innerHTML = '';
+        if (client && client.value && type) {
+          const c = (TripUI.data.clients || []).find(x => String(x.id) === client.value);
+          if (c && !(c.rate_types || '').split('|').includes(type)) {
+            notice.innerHTML = `<div class="alert alert-danger py-2 small mb-1">${UI.esc(c.company_name)} has no billing rate for ${UI.esc(type)} yet. Ask Billing to set it.</div>`;
+          }
+        }
       }
     };
     typeSel.addEventListener('change', show);
@@ -206,13 +199,12 @@ const TripUI = {
         <div class="alert alert-danger form-error" role="alert"></div>
         ${clients.length ? '' : '<div class="alert alert-warning">No Active client with a billing rate yet. Billing must set the client\'s rate first (Client Masterlist).</div>'}
         ${section(1, 'Client and schedule', 'Who the delivery is for, which truck type, and when the truck should be at the pickup point.',
-          pick(['client_id', 'consignee', 'truck_type', 'scheduled_at'], { client_id: 8, consignee: 4, truck_type: 6, scheduled_at: 6 }))}
+          pick(['client_id', 'consignee', 'truck_type', 'scheduled_at'], { client_id: 8, consignee: 4, truck_type: 6, scheduled_at: 6 }) + '<div data-rate-warning role="status"></div>')}
         ${section(2, 'Pickup and destination', 'Choose an approved client route, or search a place or click the map to pin both points. The road distance fills in the km. Check the address text below the map.',
           `${pick(['client_route_id'])}<div data-mapbox class="mb-3 mt-2"></div>${pick(['pickup_point', 'delivery_point', 'route_option', 'distance_km', 'km_info', 'distance_override_reason'], { distance_km: 4 })}
            <input type="hidden" name="pickup_lat"><input type="hidden" name="pickup_lng"><input type="hidden" name="delivery_lat"><input type="hidden" name="delivery_lng">`)}
         ${section(3, 'Cargo and booking details', 'Only the fields for the chosen truck type are shown.',
           pick(['booking_reference', 'units_planned', 'container_number', 'container_size', 'seal_number', 'shipment_number', 'delivery_details']))}
-        ${section(4, 'Assignment', 'Trucks and crew are assigned by the system from the masterlists (only available, valid records).', '<div data-avail></div>')}
       </div>
       <aside class="form-aside"><section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-card-checklist"></i> Summary</h2></div>
         <div class="panel-body"><dl class="kv" id="ntSum"></dl>
@@ -280,7 +272,7 @@ const TripUI = {
         { onShow: (w, f) => {
           const dist = UI.distanceWidget(f, { mapBox: w.querySelector('[data-mapbox]'), initial: t, routePick: { clientId: t.client_id, truckType: t.truck_type } });
           w.addEventListener('shown.bs.modal', () => dist.map && dist.map.invalidateSize());
-          w.querySelector('[data-avail]').remove(); } });
+          w.querySelector('[data-rate-warning]')?.remove(); } });
     } else {
       UI.formModal('Trip details ' + UI.esc(t.trip_ref), [
         { name: 'booking_reference', label: 'Booking / nomination details', value: t.booking_reference, col: 6 }, { name: 'units_planned', label: 'Units (car carrier)', type: 'number', min: 1, value: t.units_planned, col: 6 },
