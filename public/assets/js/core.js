@@ -601,7 +601,9 @@ UI.card = (title, body, tools = '') => `<section class="panel">${title || tools 
  */
 UI.table = (columns, rows, opts = {}) => {
   const id = opts.id || 'tbl' + Math.random().toString(36).slice(2, 8);
-  UI._tables[id] = { columns, rows: rows || [], opts, limit: opts.limit || (opts.plain ? 8 : 15), page: 0, filter: '' };
+  // FLEETOPS_LIST_FIRST_UI_2026_11: list overview omits date columns; detail tables retain them.
+  const visibleColumns = (opts.plain || opts.showDates) ? columns : columns.filter(c => c[2] !== 'date' && c[2] !== 'datetime');
+  UI._tables[id] = { columns: visibleColumns, rows: rows || [], opts, limit: opts.limit || (opts.plain ? 8 : 15), page: 0, filter: '' };
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   const head = `<div class="table-tools">
       <div class="table-search"><i class="bi bi-search"></i><input class="form-control" type="search" placeholder="Search this list" aria-label="Search this list" data-tsearch="${id}"></div>

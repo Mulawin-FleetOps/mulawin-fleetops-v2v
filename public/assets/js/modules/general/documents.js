@@ -44,7 +44,7 @@ App.page('documents', {
     }[type] || 'bi-folder2');
 
     const foldersHtml = [...groupedByType].map(([type, folders]) => `
-      <section class="docfm-section" data-docfm-section>
+      <section class="docfm-section" data-docfm-section data-docfm-type="${UI.esc(type)}">
         <div class="docfm-section-head"><i class="bi ${iconFor(type)}" aria-hidden="true"></i>
           <h3>${UI.esc(d.entityLabels[type] || type)}</h3><span>${folders.length} folder${folders.length === 1 ? '' : 's'}</span>
         </div>
@@ -64,6 +64,12 @@ App.page('documents', {
         }).join('')}</div>
       </section>`).join('');
 
+    // FLEETOPS_LIST_FIRST_UI_2026_11: type tabs only affect this Documents view.
+    const docTypes = [...groupedByType.keys()];
+    const typeTabs = `<div class="docfm-type-tabs" role="tablist" aria-label="Document record types">
+      <button type="button" role="tab" class="docfm-type-tab" data-doc-type="" aria-selected="true">All <span>${groups.size}</span></button>
+      ${docTypes.map(type => `<button type="button" role="tab" class="docfm-type-tab" data-doc-type="${UI.esc(type)}" aria-selected="false">${UI.esc(d.entityLabels[type] || type)} <span>${groupedByType.get(type).length}</span></button>`).join('')}
+    </div>`;
     ctx.el.innerHTML = UI.cards([
       { label: 'Documents you can see', value: d.documents.length, icon: 'bi-folder2-open' },
       { label: `Expiring within ${d.alertDays} days or expired`, value: expiring.length, icon: 'bi-calendar-x', color: 'red' }
@@ -71,23 +77,25 @@ App.page('documents', {
       { name: 'entity_type', label: 'Record type', type: 'select', options: Object.entries(d.entityLabels), col: 6 },
       { name: 'category', label: 'Category', type: 'select', options: UI.list([...new Set(d.documents.map(x => x.category))].sort()), col: 6 },
       { name: 'expiring', label: 'Expiry', type: 'select', options: [['1', 'Expiring / expired only']], col: 6 }
-    ]) + `<div class="docfm-toolbar">
+    ]) + typeTabs + `<div class="docfm-toolbar">
       <div class="docfm-heading"><i class="bi bi-folder2-open" aria-hidden="true"></i><strong>Files by record</strong>
         <span>${groups.size} folder${groups.size === 1 ? '' : 's'} · ${rows.length} file${rows.length === 1 ? '' : 's'}</span></div>
       <label class="docfm-search-label"><i class="bi bi-search" aria-hidden="true"></i>
         <input type="search" class="form-control form-control-sm" data-docfm-search-input
           aria-label="Search folders and attachments" placeholder="Search folder or filename..."></label>
     </div>
-    <div data-docfm-content>${foldersHtml || '<div class="text-muted p-3">No documents match the selected filters.</div>'}</div>
+    <div data-docfm-content class="docfm-list-view">${foldersHtml || '<div class="text-muted p-3">No documents match the selected filters.</div>'}</div>
     <p class="text-muted small d-none" data-docfm-empty>No folders match your search.</p>`;
 
     // Local filename/folder search does not alter global filters or URL routing.
     const search = ctx.el.querySelector('[data-docfm-search-input]');
-    search.addEventListener('input', () => {
+    let activeDocType = '';
+    const refreshFolders = () => {
       const query = search.value.trim().toLocaleLowerCase();
       let visible = 0;
       ctx.el.querySelectorAll('[data-docfm-folder]').forEach(folder => {
-        const match = !query || folder.dataset.docfmSearch.includes(query);
+        const section = folder.closest('[data-docfm-section]');
+        const match = (!activeDocType || section?.dataset.docfmType === activeDocType) && (!query || folder.dataset.docfmSearch.includes(query));
         folder.hidden = !match;
         if (match) visible++;
       });
@@ -95,7 +103,17 @@ App.page('documents', {
         section.hidden = ![...section.querySelectorAll('[data-docfm-folder]')].some(folder => !folder.hidden);
       });
       ctx.el.querySelector('[data-docfm-empty]').classList.toggle('d-none', visible !== 0 || groups.size === 0);
-    });
+    };
+    search.addEventListener('input', refreshFolders);
+    ctx.el.querySelectorAll('[data-doc-type]').forEach(tab => tab.addEventListener('click', () => {
+      activeDocType = tab.dataset.docType;
+      ctx.el.querySelectorAll('[data-doc-type]').forEach(b => {
+        const selected = b === tab; b.classList.toggle('active', selected); b.setAttribute('aria-selected', String(selected));
+      });
+      refreshFolders();
+    }));
+    ctx.el.querySelector('[data-doc-type=""]')?.classList.add('active');
+    refreshFolders();
     // DOCFM_FOLDER_MODAL_V1 — open record folders in a modal.
     // Previews stay within the SAME modal, avoiding stacked Bootstrap modals.
     ctx.el.querySelector('[data-docfm-content]').addEventListener('click', event => {

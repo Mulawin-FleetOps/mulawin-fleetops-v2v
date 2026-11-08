@@ -86,7 +86,7 @@ const TripUI = {
     return `<div class="trip-card ${TripUI.needsMe(t) ? 'needs-me' : ''}" data-trip="${t.id}">
       <div class="tc-top"><div><span class="tc-ref">${UI.esc(t.trip_ref)}</span> <span class="small text-muted">${UI.esc(t.truck_type || 'type not set')}</span></div>${UI.badge(t.status)}</div>
       <div class="tc-route"><b>${UI.esc(t.client)}</b>${t.consignee ? ' · ' + UI.esc(t.consignee) : ''}<br><i class="bi bi-geo-alt text-success"></i> ${UI.esc(t.pickup_point)} <i class="bi bi-arrow-right"></i> <i class="bi bi-geo text-danger"></i> ${UI.esc(t.delivery_point)}</div>
-      <div class="tc-meta"><span><i class="bi bi-calendar-event"></i> ${UI.datetime(t.scheduled_at)}</span><span><i class="bi bi-truck"></i> ${UI.esc(t.plate_number || 'no truck yet')}</span>${crew ? `<span><i class="bi bi-person"></i> ${UI.esc(crew)}</span>` : ''}
+      <div class="tc-meta"><span><i class="bi bi-truck"></i> ${UI.esc(t.plate_number || 'no truck yet')}</span>${crew ? `<span><i class="bi bi-person"></i> ${UI.esc(crew)}</span>` : ''}
         ${['Pre-Assigned', 'Ready for Dispatch'].includes(t.status) ? `<span><i class="bi bi-cash-coin"></i> ${UI.esc(TripUI.fundText(t))}</span>` : ''}</div>
       ${UI.steps(TripUI.STAGES, st, { compact: true, warn })}
       ${TripUI.flags(t) ? `<div class="tc-flags">${TripUI.flags(t)}</div>` : ''}
@@ -889,15 +889,20 @@ App.page('trips', {
     const tabs = [
       ['active', `Active trips (${d.active.length})`, (body) => {
         const prefKey = 'rpm:trip-view:' + String(App.me?.user?.id ?? App.me?.user?.role ?? 'account');
-        let saved = 'cards';
-        try { saved = localStorage.getItem(prefKey) === 'list' ? 'list' : 'cards'; } catch (_) { /* private browsing: default to cards */ }
+        // FLEETOPS_LIST_FIRST_UI_2026_11: default list; old saved card preference deliberately reset once.
+        const versionKey = prefKey + ':list-default-v1';
+        let saved = 'list';
+        try {
+          if (localStorage.getItem(versionKey) === '1') saved = localStorage.getItem(prefKey) === 'cards' ? 'cards' : 'list';
+          else { localStorage.setItem(prefKey, 'list'); localStorage.setItem(versionKey, '1'); }
+        } catch (_) { /* private browsing: default to list */ }
         let mode = saved, page = 0, pageSize = 12;
         body.innerHTML = `<div class="board-tools rpm-trip-tools">
           <div class="table-search"><i class="bi bi-search"></i><input class="form-control form-control-sm" type="search" placeholder="Search trip no., client, place, truck…" id="tbSearch" aria-label="Search active trips"></div>
           ${['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher', 'finance', 'motorpool'].includes(App.me.user.role) ? '<div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="tbMine"><label class="form-check-label small" for="tbMine">Only trips waiting for me</label></div>' : ''}
           <div class="rpm-trip-view-switch" role="group" aria-label="Trip display layout">
-            <button type="button" class="rpm-trip-view-btn" data-trip-view="cards" aria-pressed="false"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i> Cards</button>
-            <button type="button" class="rpm-trip-view-btn" data-trip-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i> List</button>
+            <button type="button" class="rpm-trip-view-btn" data-trip-view="cards" aria-label="Grid layout" title="Grid layout" aria-pressed="false"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></button>
+            <button type="button" class="rpm-trip-view-btn" data-trip-view="list" aria-label="List layout" title="List layout" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
           </div>
           <label class="rpm-trip-per-page" for="tbPageSize">Per page <select class="form-select form-select-sm" id="tbPageSize" aria-label="Trips per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
           <span class="small text-muted rpm-trip-count" id="tbCount" aria-live="polite"></span>
@@ -924,12 +929,11 @@ App.page('trips', {
             board.innerHTML = shown.map(TripUI.card).join('');
           } else {
             board.innerHTML = `<div class="table-wrap rpm-trip-table-wrap"><table class="data-table rpm-trip-table"><thead><tr>
-              <th>Trip</th><th>Client</th><th>Route</th><th>Schedule</th><th>Truck / Crew</th><th>Status</th><th class="actions-col">Action</th>
+              <th>Trip</th><th>Client</th><th>Route</th><th>Truck / Crew</th><th>Status</th><th class="actions-col">Action</th>
               </tr></thead><tbody>${shown.map(t => `<tr>
                 <td><strong>${UI.esc(t.trip_ref)}</strong><div class="cell-sub">${UI.esc(t.truck_type || '')}</div></td>
                 <td>${UI.esc(t.client)}${t.consignee ? `<div class="cell-sub">${UI.esc(t.consignee)}</div>` : ''}</td>
                 <td><div class="rpm-trip-route" title="${UI.esc([t.pickup_point, t.delivery_point].filter(Boolean).join(' → '))}">${UI.esc(t.pickup_point || '—')} <i class="bi bi-arrow-right" aria-hidden="true"></i> ${UI.esc(t.delivery_point || '—')}</div></td>
-                <td>${UI.datetime(t.scheduled_at)}</td>
                 <td>${UI.esc(t.plate_number || 'Not assigned')}${t.driver_name ? `<div class="cell-sub">${UI.esc(t.driver_name)}</div>` : ''}</td>
                 <td>${UI.badge(t.status)}${TripUI.flags(t) ? `<div class="rpm-trip-list-flags">${TripUI.flags(t)}</div>` : ''}</td>
                 <td class="actions-col"><button type="button" class="btn btn-sm btn-outline-success table-view-btn" data-trip="${UI.esc(t.id)}"><i class="bi bi-eye" aria-hidden="true"></i> View</button></td>

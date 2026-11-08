@@ -67,6 +67,7 @@ const ClientUI = {
   async open(id, d) {
     let r; try { r = await App.api('Clients.details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
     const c = r.client;
+    const need = Object.keys(d.requiredDocs || {}).length;
     const sig = r.documents.find(x => x.category === 'Client Signature');
     const acts = [];
     if (d.can.edit) acts.push('<button class="btn btn-sm btn-outline-primary" data-a="edit"><i class="bi bi-pencil"></i> Edit information</button>',
@@ -83,6 +84,7 @@ const ClientUI = {
         ['Payment terms', c.payment_terms_days !== null ? c.payment_terms_days + ' days' : 'default'], ['Created by', UI.e(c.created_by_name)], ['Rate set by', c.rate_set_by_name ? UI.esc(c.rate_set_by_name) + ' · ' + UI.datetime(c.rate_set_at) : '—']])}
       ${UI.h('Billing rates')}${r.rates.length ? UI.table([['Truck type', 'truck_type'], ['Rate per km', 'rate_per_km', 'money'], ['Minimum charge', 'minimum_charge', 'money'], ['Updated by', 'updated_by_name'], ['Updated', 'updated_at', 'date']], r.rates) : '<div class="text-muted small">No rate yet.</div>'}
       ${UI.h('Approved routes')}<div data-client-routes><div class="text-muted small">Loading approved routes…</div></div>
+      ${UI.h('Accreditation requirements')}<div class="mb-2"><span class="badge-s ${r.missing.length ? 'amber' : 'green'}">${need - r.missing.length} / ${need} complete</span>${r.missing.length ? `<div class="small text-muted mt-2">Missing: ${r.missing.map(UI.esc).join(', ')}</div>` : ''}</div>
       ${UI.h('Accreditation documents')}${UI.docs(r.documents)}
       ${UI.h('Billing summary')}${UI.kv([['Invoices', UI.num(r.billing.invoices)], ['Billed', UI.money(r.billing.billed)], ['Paid', UI.money(r.billing.paid)], ['Balance', UI.money(r.billing.billed - r.billing.paid)]])}
       ${UI.h('Recent trips')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Type', 'truck_type'], ['Scheduled date and time', 'scheduled_at', 'datetime'], ['Destination', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
@@ -108,7 +110,6 @@ App.page('clients', {
     const d = ctx.data, q = ctx.query; ClientUI.defaultTerms = d.defaultTerms;
     if (d.can.edit) { const b = document.createElement('button'); b.className = 'btn btn-sm btn-primary'; b.innerHTML = '<i class="bi bi-plus-lg"></i> New client'; b.onclick = () => ClientUI.create(); ctx.tools.append(b); }
     const n = (s) => d.clients.filter(c => c.status === s).length;
-    const need = Object.keys(d.requiredDocs).length;
     const rows = d.clients.filter(c => q.status ? c.status === q.status : c.status !== 'Inactive');
     // Quick status tabs are shortcuts. Keep the Filter modal for detailed filtering.
     const quickStatuses = [['', 'All current'], ['Active', 'Active'], ['Pending Rate', 'Pending rate'],
@@ -123,7 +124,7 @@ App.page('clients', {
       { label: 'Inactive', value: n('Inactive'), icon: 'bi-archive', color: 'gray' },
     ]) + quickTabs + UI.filterModal(ctx, [{ name: 'status', label: 'Status', type: 'select', options: UI.list(['Active', 'Pending Rate', 'Incomplete', 'Inactive']), col: 12 }], { hint: 'Showing all clients except inactive.' })
       + UI.table([['Code', 'client_code'], ['Client', 'company_name', (v) => `<b>${UI.esc(v)}</b>`], ['Contact', 'contact_person'], ['Phone', 'contact_number'], ['Status', 'status', 'badge'],
-        ['Requirements', 'docs_done', (v) => `<span class="badge-s ${+v >= need ? 'green' : 'amber'}">${+v} / ${need}</span>`], ['Balance', 'balance', 'money']],
+        ['Balance', 'balance', 'money']],
         rows, { title: 'Clients', actions: (c) => UI.btn('view', 'View') + (d.can.rate && c.status === 'Pending Rate' ? UI.btn('rate', 'Set rate', 'primary') : ''),
           onAction: (a, c) => a === 'rate' ? App.api('Clients.details', { id: c.id }).then(r => ClientUI.rate(r.client, r.rates)) : ClientUI.open(c.id, d) });
     UI.activate(ctx.el);
