@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-08 (Checklist #38 / #40: trip schedule restrictions)
+- **Pre-dispatch checklist** opens 2 hours before the scheduled dispatch and **Confirm Dispatch / Redispatch** 15 minutes
+  before (both set by the Admin in Settings). Planning and approval (create, review, edit, assignment, fund request and
+  approval, reschedule, cancel) stay allowed any time. Enforced on the server; the trip screen shows the opening times and
+  why a button is disabled. A late dispatch is allowed and noted in the trip history. No database change.
+  Changing the schedule of a checked trip keeps the checklist if the new time is still inside its window; otherwise the
+  trip goes back to Pre-Assigned for a new checklist (assignment, fund and distance kept). Confirm Dispatch now checks
+  that the checklist exists for the current attempt and the assigned truck.
+  Tests: `tests/run_trip_schedule_tests.php`. Details: `docs/CLAUDE_38_40_TRIP_TIME_GATES.md`.
+
 ## 2026-11-07 (Checklist #5 Phase 3: road distance in Trip Management)
 - **New trip / Review request / Edit details**: choose an **approved client route** (client + truck type) or pin the points
   and pick a route option; the road km fills in (2 decimals). Changing the km needs a reason; above 15% a warning is shown.

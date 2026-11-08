@@ -464,6 +464,7 @@ const TripUI = {
     const acts = [];
     let why = '';
     const pre = ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'];
+    const gates = t.time_gates || {};
     if (ops) {
       if (t.status === 'Pending Review') acts.push(btn('review', 'Review and confirm', 'primary', 'bi-clipboard-check'));
       if (t.status === 'Awaiting Resources') acts.push(btn('auto', 'Try auto-assign now', 'primary', 'bi-magic'));
@@ -473,11 +474,16 @@ const TripUI = {
     if (mine) {
       const curFund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
       if (['Pre-Assigned', 'Ready for Dispatch'].includes(t.status) && (!curFund || curFund.status === 'Rejected')) acts.push(btn('fund', curFund ? 'Revise fund request' : 'Submit fund request', 'primary', 'bi-cash-coin'));
-      if (t.status === 'Pre-Assigned') acts.push(btn('checklist', 'Pre-dispatch checklist', 'primary', 'bi-ui-checks'));
+      // CHECKLIST_38_40_TRIP_TIME_GATES_V1: the server refuses early actions too; the button only mirrors it.
+      if (t.status === 'Pre-Assigned') {
+        const early = gates.checklist_allowed_now === false;
+        acts.push(btn('checklist', 'Pre-dispatch checklist', early ? 'secondary' : 'primary', 'bi-ui-checks', early));
+        if (early) why = 'Pre-dispatch checklist opens ' + UI.datetime(gates.checklist_opens_at) + ' (Philippine time).';
+      }
       if (['Pre-Assigned', 'Ready for Dispatch'].includes(t.status)) {
         const blocked = t.dispatch_blockers.length > 0;
         acts.push(btn('dispatch', +t.attempt_number > 1 ? 'Confirm Redispatch' : 'Confirm Dispatch', blocked ? 'secondary' : 'success', 'bi-send', blocked));
-        if (blocked) why = 'Confirm Dispatch is enabled when: ' + t.dispatch_blockers.join(' ');
+        if (blocked) why = (why ? why + ' ' : '') + 'Confirm Dispatch is enabled when: ' + t.dispatch_blockers.join(' ');
       }
       if (['Dispatched', 'In Transit'].includes(t.status)) acts.push(btn('complete', 'Complete trip', 'success', 'bi-flag'), btn('incident', 'Report incident', 'outline-danger', 'bi-exclamation-triangle'));
       if (t.status === 'On Hold - Incident Reported') {
@@ -517,7 +523,10 @@ const TripUI = {
           + (t.client_route_ref ? ' · ' + UI.esc(t.client_route_ref) : '') + (t.route_option && (UI.Map.cfg().routeOptions || {})[t.route_option] ? ' · ' + UI.esc(UI.Map.cfg().routeOptions[t.route_option]) : '')
           + (t.distance_computed_at ? ' · ' + UI.datetime(t.distance_computed_at) : '')] : null,
         t.distance_override_reason ? ['Reason the km was changed', UI.esc(t.distance_override_reason)] : null,
-        ['Schedule', UI.datetime(t.scheduled_at)], ['Truck type', UI.e(t.truck_type)], ['Truck', t.plate_number ? `<b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ' #' + UI.esc(t.truck_number) : ''} ${UI.badge(t.truck_status)}` : '—'],
+        ['Schedule', UI.datetime(t.scheduled_at) + (pre.includes(t.status) && gates.checklist_opens_at
+          ? `<div class="small text-muted">Pre-dispatch checklist from ${UI.datetime(gates.checklist_opens_at)} · Confirm Dispatch from ${UI.datetime(gates.dispatch_opens_at)} (Philippine time)</div>`
+            + (+gates.late_minutes > 0 ? `<div class="small text-danger">Past the scheduled time by ${UI.num(gates.late_minutes, 0)} min; a late dispatch is noted in the history.</div>` : '') : '')],
+        ['Truck type', UI.e(t.truck_type)], ['Truck', t.plate_number ? `<b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ' #' + UI.esc(t.truck_number) : ''} ${UI.badge(t.truck_status)}` : '—'],
         ...crew.map(([l, v]) => [l, UI.e(v)]), ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
         t.truck_type === 'Car Carrier' ? ['Units', UI.e(t.units_planned) + (t.units_delivered ? ' planned · ' + t.units_delivered + ' delivered' : '')] : ['Container / seal / shipment', [t.container_number, t.container_size, t.seal_number, t.shipment_number].filter(Boolean).map(UI.esc).join(' · ') || '—'],

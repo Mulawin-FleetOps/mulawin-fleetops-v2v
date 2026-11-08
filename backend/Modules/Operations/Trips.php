@@ -250,6 +250,62 @@ final class Trips {
         return futureDateTimeField($d, 'scheduled_at');
     }
 
+    /**
+     * CHECKLIST_38_40_TRIP_TIME_GATES_V1 — execution actions follow the trip's CURRENT schedule.
+     *   Planning / approval (create, review, edit before dispatch, assignment, fund request and approval,
+     *   reschedule, cancel) is allowed any time. Execution is time-gated (Philippine time, server clock):
+     *     - pre-dispatch checklist (open and submit): from `checklist_lead_hours` before scheduled_at;
+     *     - Confirm Dispatch / Redispatch: from `dispatch_early_minutes` before scheduled_at;
+     *     - incident, resume, completion and arrival need a dispatched trip, so they are gated through dispatch;
+     *     - fund release: Funds.php (Checklist #40 phase 1, `fund_release_lead_hours`).
+     *   Hours are counted, not dates, so a 12:30 AM trip opens its checklist the evening before.
+     *   A late dispatch (after scheduled_at) is allowed and noted in the trip history.
+     */
+    public static function timeGates(array $t, ?int $now = null): array {
+        $now ??= time();
+        $sched = strtotime((string)$t['scheduled_at']);
+        must($sched !== false, 'Invalid trip schedule.', 409);
+        $check = $sched - (int)round(Settings::value('checklist_lead_hours') * 3600);
+        $disp = $sched - (int)round(Settings::value('dispatch_early_minutes') * 60);
+        return ['scheduled_at' => date('Y-m-d H:i:s', $sched),
+                'checklist_opens_at' => date('Y-m-d H:i:s', $check), 'checklist_allowed_now' => $now >= $check,
+                'dispatch_opens_at' => date('Y-m-d H:i:s', $disp), 'dispatch_allowed_now' => $now >= $disp,
+                'late_minutes' => $now > $sched ? intdiv($now - $sched, 60) : 0];
+    }
+    /** The current attempt's pre-dispatch checklist (null when there is none). */
+    private static function currentChecklist(PDO $p, array $t): ?array {
+        return one($p, "SELECT id, vehicle_id, completed_at FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch' AND completed_at IS NOT NULL",
+            [$t['id'], $t['attempt_number']]) ?: null;
+    }
+    /**
+     * Schedule-change revalidation (approved 2026-11-08). A completed checklist stays valid for a new schedule only if it
+     * was completed inside that schedule's checklist window (completed_at >= new scheduled_at - checklist_lead_hours).
+     * Earlier schedules and small moves inside the window keep it; a later move outside the window sends the trip back to
+     * Pre-Assigned for a new checklist. Assignment, fund, route distance and booking details are not touched.
+     * Uses the existing Admin window; no separate expiry duration.
+     */
+    private static function revalidateChecklistAfterScheduleChange(PDO $p, array $u, array $t, array $row): string {
+        if ($t['status'] !== 'Ready for Dispatch' || !array_key_exists('scheduled_at', $row)) return '';
+        if (strtotime((string)$row['scheduled_at']) === strtotime((string)$t['scheduled_at'])) return '';
+        $new = $t; $new['scheduled_at'] = $row['scheduled_at'];
+        $opens = self::timeGates($new)['checklist_opens_at'];
+        $c = self::currentChecklist($p, $t);
+        if ($c && strtotime((string)$c['completed_at']) >= strtotime($opens)) return '';
+        $why = 'The pre-dispatch checklist must be done again: it was completed ' . ($c ? self::phTime((string)$c['completed_at']) : '(not found)')
+             . ', before the checklist window for the new schedule (opens ' . self::phTime($opens) . ').';
+        self::setStatus($p, $u['id'], $t, 'Pre-Assigned', 'pre-dispatch checklist reset after schedule change', $why);
+        return ' ' . $why;
+    }
+    private static function phTime(string $dt): string { return date('M j, Y g:i A', strtotime($dt)) . ' Philippine time'; }
+    /** Refuses the pre-dispatch checklist before its window (re-checked on submit: the schedule may have moved). */
+    private static function mustBeChecklistWindow(array $t): void {
+        $g = self::timeGates($t);
+        must($g['checklist_allowed_now'], 'Too early for the pre-dispatch checklist. It opens ' . self::phTime($g['checklist_opens_at'])
+            . ' (' . self::hoursText(Settings::value('checklist_lead_hours')) . ' before the scheduled dispatch, ' . self::phTime($g['scheduled_at']) . ').', 409);
+    }
+    private static function durationText(int $min): string { return $min >= 60 ? intdiv($min, 60) . ' h ' . ($min % 60) . ' min' : $min . ' min'; }
+    private static function hoursText(float $h): string { return $h == 0.0 ? 'at the time' : rtrim(rtrim(number_format($h, 2, '.', ''), '0'), '.') . ' hour(s)'; }
+
     /** Pickup and delivery coordinates: both or neither for each point, inside the Philippines. */
     private static function coordinates(array $d): array {
         $out = [];
@@ -492,7 +548,8 @@ final class Trips {
                 $newFields[$label] = $row[$key];
             }
             self::event($p, $u['id'], $id, 'trip details updated', $t['status'], $t['status'], '', $oldFields, $newFields);
-            return ['message' => 'Trip details updated.' . self::$scheduleWarning . $distNote];
+            $recheck = self::revalidateChecklistAfterScheduleChange($p, $u, $t, $row);
+            return ['message' => 'Trip details updated.' . self::$scheduleWarning . $distNote . $recheck];
         });
     }
 
@@ -672,7 +729,7 @@ final class Trips {
         return transaction(function (PDO $p) use ($u, $id, $kind) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
-            if ($kind === 'Pre-Dispatch') self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist');
+            if ($kind === 'Pre-Dispatch') { self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist'); self::mustBeChecklistWindow($t); }
             else must($t['status'] === 'Completed' && FleetState::awaitingArrival($p, $id), 'The arrival checklist is not pending for this trip.', 409);
             $p->prepare('INSERT IGNORE INTO checklist_starts (trip_id, attempt_number, kind, started_by) VALUES (?,?,?,?)')
               ->execute([$id, $t['attempt_number'], $kind, $u['id']]);
@@ -712,6 +769,7 @@ final class Trips {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist');
+            self::mustBeChecklistWindow($t);
             $v = one($p, 'SELECT status, plate_number FROM vehicles WHERE id=?', [$t['vehicle_id']]);
             must($v && $v['status'] === 'Assigned', 'The assigned truck is ' . ($v['status'] ?? 'missing') . '.', 409);
             $started = self::mustRespectTimer($p, $t, 'Pre-Dispatch');
@@ -749,9 +807,17 @@ final class Trips {
     public static function dispatchBlockers(PDO $p, array $t): array {
         $why = [];
         if ($t['status'] !== 'Ready for Dispatch') $why[] = 'Trip status is ' . $t['status'] . ' (needs Ready for Dispatch).';
+        else {
+            // Not status-only: the checklist must exist for the CURRENT attempt and the CURRENTLY assigned truck.
+            $c = self::currentChecklist($p, $t);
+            if (!$c) $why[] = 'No pre-dispatch checklist for attempt #' . $t['attempt_number'] . ' (the Operations Head must reassign or reschedule so the checklist can be done again).';
+            elseif ((int)$c['vehicle_id'] !== (int)$t['vehicle_id']) $why[] = 'The pre-dispatch checklist was done for another truck (the Operations Head must reassign so the checklist can be done for the assigned truck).';
+        }
         $fund = one($p, 'SELECT status FROM fund_requests WHERE trip_id=? AND attempt_number=?', [$t['id'], $t['attempt_number']]);
         if ($fund && $fund['status'] !== 'Released') $why[] = 'Fund status is ' . $fund['status'] . ' (needs Released).';
         if (!$fund && (int)$t['attempt_number'] === 1) $why[] = 'No fund request yet (needs a Released fund).';
+        $g = self::timeGates($t);
+        if (!$g['dispatch_allowed_now']) $why[] = 'Scheduled dispatch is ' . self::phTime($g['scheduled_at']) . '; Confirm Dispatch opens ' . self::phTime($g['dispatch_opens_at']) . '.';
         return $why;
     }
 
@@ -765,14 +831,16 @@ final class Trips {
             $v = one($p, 'SELECT status, plate_number FROM vehicles WHERE id=? FOR UPDATE', [$t['vehicle_id']]);
             must($v && $v['status'] === 'Assigned', 'The truck is ' . ($v['status'] ?? 'missing') . '.', 409);
             $redispatch = (int)$t['attempt_number'] > 1;
+            $late = self::timeGates($t)['late_minutes'];
+            $lateNote = $late > 0 ? 'Dispatched ' . self::durationText($late) . ' after the scheduled time (' . substr((string)$t['scheduled_at'], 0, 16) . ').' : '';
             run($p, "UPDATE trips SET status='Dispatched', dispatched_at=NOW(), dispatcher_id=? WHERE id=?", [$u['id'], $id]);
             self::event($p, $u['id'], $id, $redispatch ? 'redispatch confirmed (Second Attempt)' : 'dispatch confirmed', $t['status'], 'Dispatched',
-                $redispatch ? 'Attempt #' . $t['attempt_number'] . ', linked to the original trip and incident report.' : '');
+                trim(($redispatch ? 'Attempt #' . $t['attempt_number'] . ', linked to the original trip and incident report. ' : '') . $lateNote));
             FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Dispatched ' . $t['trip_ref']);
             BillingDraft::createFor($p, $t);
             Notify::resolve($p, 'trip-prep-' . $id . '-*');
             Notify::roles($p, ['operations_head', 'finance', 'billing'], $redispatch ? 'Trip redispatched' : 'Trip dispatched', $t['trip_ref'] . ' left with truck ' . $v['plate_number'] . '.', 'trips');
-            return ['message' => ($redispatch ? 'Redispatch confirmed (Second Attempt).' : 'Dispatch confirmed.') . ' The billing draft was generated.'];
+            return ['message' => ($redispatch ? 'Redispatch confirmed (Second Attempt).' : 'Dispatch confirmed.') . ' The billing draft was generated.' . ($lateNote !== '' ? ' Note: ' . $lateNote : '')];
         });
     }
 
@@ -1019,6 +1087,7 @@ final class Trips {
         $t = one($p, self::select() . " WHERE t.id=? $scope", array_merge([$id], $args));
         must((bool)$t, 'Trip not found.', 404);
         $t['dispatch_blockers'] = self::dispatchBlockers($p, $t);
+        $t['time_gates'] = self::timeGates($t);
         $t['fuel_estimate'] = $t['distance_km'] ? Settings::fuelEstimate((float)$t['distance_km']) : null;
         $t['route_geometry'] = one($p, 'SELECT geometry FROM trip_routes WHERE trip_id=?', [$id])['geometry'] ?? null;
         $t['client_route_ref'] = $t['client_route_id'] ? (one($p, 'SELECT route_ref FROM client_routes WHERE id=?', [$t['client_route_id']])['route_ref'] ?? null) : null;
