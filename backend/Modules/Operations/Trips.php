@@ -54,6 +54,11 @@ final class Trips {
     public const DOC_AR = 'Acknowledgement Receipt';
     public const DOC_DR = 'Delivery Receipt';
     public const DOC_ARRIVAL_PHOTO = 'Arrival Inspection Photo';
+    // CHECKLIST_44_DIESEL_PO_SOA_ATTACHMENTS_V1: optional attachments only (no approval, purchasing or reconciliation flow).
+    public const DOC_DIESEL_PO = 'Diesel PO';
+    public const DOC_SUPPLIER_SOA = 'Supplier SOA';
+    /** Trip statuses where the dispatcher may attach the Diesel PO (assigned, on the road, or just completed). */
+    private const DIESEL_PO_STATUSES = ['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed'];
     public const FUEL_LEVELS = ['Full', '3/4', '1/2', '1/4', 'Low'];
 
     // =================================================================
@@ -132,6 +137,8 @@ final class Trips {
                 (SELECT COUNT(*) FROM documents dw WHERE dw.entity_type='trip' AND dw.entity_id=t.id AND dw.category='" . self::DOC_WAYBILL . "') AS waybill_docs,
                 (SELECT COUNT(*) FROM documents da WHERE da.entity_type='trip' AND da.entity_id=t.id AND da.category='" . self::DOC_AR . "') AS ar_docs,
                 (SELECT COUNT(*) FROM documents dr WHERE dr.entity_type='trip' AND dr.entity_id=t.id AND dr.category='" . self::DOC_DR . "') AS dr_docs,
+                (SELECT COUNT(*) FROM documents dp WHERE dp.entity_type='trip' AND dp.entity_id=t.id AND dp.category='" . self::DOC_DIESEL_PO . "') AS diesel_po_docs,
+                (SELECT COUNT(*) FROM documents ds WHERE ds.entity_type='trip' AND ds.entity_id=t.id AND ds.category='" . self::DOC_SUPPLIER_SOA . "') AS soa_docs,
                 b.status AS billing_status, b.total_amount AS billing_amount
             FROM trips t
             JOIN clients c ON c.id=t.client_id
@@ -178,6 +185,7 @@ final class Trips {
             'auto_assign' => self::retryAssign($u, $d),
             'reassign' => self::reassign($u, $d),
             'crew_options' => self::crewOptions($u, $d),
+            'diesel_po' => self::attachDieselPo($u, $d),
             'checklist_start' => self::checklistStart($u, $d),
             'checklist' => self::checklist($u, $d),
             'dispatch' => self::dispatch($u, $d),
@@ -1035,6 +1043,23 @@ final class Trips {
     }
 
     /**
+     * CHECKLIST_44_DIESEL_PO_SOA_ATTACHMENTS_V1: the trip's dispatcher attaches the Diesel PO (PDF or photo) from Trip
+     * Details. Stored with the secure document system (type / size checked, private storage, audit) and linked to the
+     * trip; visible in Trip Details and Documents (Finance can view and download trip documents). Attachment only.
+     */
+    private static function attachDieselPo(array $u, array $d): array {
+        $id = idField($d, 'trip_id');
+        return transaction(function (PDO $p) use ($u, $id) {
+            $t = self::lockTrip($p, $id);
+            self::mustBeTripDispatcher($u, $t);
+            self::mustBeStatus($t, self::DIESEL_PO_STATUSES, 'attach the Diesel PO');
+            $ids = Files::store($p, $u, 'diesel_po', 'trip', $id, self::DOC_DIESEL_PO, true, 'the Diesel PO file');
+            self::event($p, $u['id'], $id, 'diesel PO attached', $t['status'], $t['status'], count($ids) . ' file(s)');
+            return ['message' => 'Diesel PO attached to ' . $t['trip_ref'] . ' (' . count($ids) . ' file(s)).'];
+        });
+    }
+
+    /**
      * TRIP COMPLETION (PDF #12 step 11): completion date/time + required supporting
      * documents (waybill, acknowledgement receipt and delivery receipt). The system refuses
      * completion while anything is missing and says what is missing.
@@ -1056,6 +1081,7 @@ final class Trips {
             Files::store($p, $u, 'ack_receipt', 'trip', $id, self::DOC_AR);
             Files::store($p, $u, 'delivery_receipt', 'trip', $id, self::DOC_DR);
             Files::store($p, $u, 'other', 'trip', $id, 'Other Trip Document');
+            $soa = Files::store($p, $u, 'supplier_soa', 'trip', $id, self::DOC_SUPPLIER_SOA);   // optional (#44)
             $missing = [];
             if (!Files::count($p, 'trip', $id, self::DOC_WAYBILL)) $missing[] = 'waybill file';
             if (!Files::count($p, 'trip', $id, self::DOC_AR)) $missing[] = 'acknowledgement receipt file';
@@ -1063,7 +1089,7 @@ final class Trips {
             must(!$missing, 'Trip cannot be completed yet. Missing: ' . implode(', ', $missing) . '.', 422);
             run($p, "UPDATE trips SET status='Completed', completed_at=?, waybill_number=?, units_delivered=?, delivery_notes=? WHERE id=?",
                 [$when, $waybill, $units, $notes, $id]);
-            self::event($p, $u['id'], $id, 'trip completed', $t['status'], 'Completed', 'Completed ' . $when . '; waybill ' . $waybill);
+            self::event($p, $u['id'], $id, 'trip completed', $t['status'], 'Completed', 'Completed ' . $when . '; waybill ' . $waybill . ($soa ? '; supplier SOA attached (' . count($soa) . ')' : ''));
             // Crew is free now; the truck stays held (On Trip) until the arrival checklist.
             FleetState::releaseCrew($p, $id);
             FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Trip ' . $t['trip_ref'] . ' completed, truck returning');

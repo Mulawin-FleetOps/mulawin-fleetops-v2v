@@ -386,7 +386,8 @@ const TripUI = {
         { name: 'waybill', label: 'Waybill file (PDF or photo)' + (+t.waybill_docs ? ' — already attached: ' + t.waybill_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
         { name: 'ack_receipt', label: 'Acknowledgement receipt file' + (+t.ar_docs ? ' — already attached: ' + t.ar_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
         { name: 'delivery_receipt', label: 'Delivery Receipt (DR) file' + (+t.dr_docs ? ' — already attached: ' + t.dr_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
-        { name: 'other', label: 'Other documents (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="application/pdf,image/*"' }])}
+        { name: 'supplier_soa', label: 'Supplier SOA (optional)' + (+t.soa_docs ? ' — already attached: ' + t.soa_docs : ''), type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"', help: 'Statement of Account from the diesel supplier, if given.' },
+        { name: 'other', label: 'Other documents (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"' }])}
       <ul class="req-list" data-req></ul>`;
     UI.modal('Complete trip ' + UI.esc(t.trip_ref), body, async (d, form) => {
       const r = await App.apiForm('Trips.complete', { ...d, trip_id: t.id }, form); UI.result(r); TripUI.open(t.id); App.route();
@@ -488,6 +489,9 @@ const TripUI = {
         if (blocked) why = (why ? why + ' ' : '') + 'Confirm Dispatch is enabled when: ' + t.dispatch_blockers.join(' ');
       }
       if (['Dispatched', 'In Transit'].includes(t.status)) acts.push(btn('complete', 'Complete trip', 'success', 'bi-flag'), btn('incident', 'Report incident', 'outline-danger', 'bi-exclamation-triangle'));
+      // CHECKLIST_44_DIESEL_PO_SOA_ATTACHMENTS_V1: optional Diesel PO attachment (the server checks role, team, status and file).
+      if (['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed'].includes(t.status))
+        acts.push(btn('dieselpo', +t.diesel_po_docs ? `Diesel PO (${+t.diesel_po_docs}) — attach more` : 'Attach Diesel PO', 'outline-secondary', 'bi-fuel-pump'));
       if (t.status === 'On Hold - Incident Reported') {
         const ok = t.incident_status === 'Repaired - Cleared to Continue';
         acts.push(btn('resume', 'Resume trip', ok ? 'success' : 'secondary', 'bi-play-circle', !ok));
@@ -582,6 +586,9 @@ const TripUI = {
       if (a === 'arrival') TripUI.checklist(t, 'Arrival', ins || null);
       if (a === 'dispatch') UI.confirmAction((+t.attempt_number > 1 ? 'Confirm Redispatch ' : 'Confirm Dispatch ') + UI.esc(t.trip_ref), 'Confirm only when the truck is actually leaving. The billing draft is generated now.', 'Trips.dispatch', { trip_id: t.id }, { submit: 'Confirm' });
       if (a === 'complete') TripUI.complete(t);
+      if (a === 'dieselpo') UI.formModalFiles('Diesel PO for ' + UI.esc(t.trip_ref), [
+        { name: 'diesel_po', label: 'Diesel PO file(s)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/jpeg,image/png,image/webp"', help: 'PDF, JPG, PNG or WebP, up to 10 MB each.' }],
+        'Trips.diesel_po', { extra: { trip_id: t.id }, intro: 'Optional. The Diesel PO is kept with the trip documents (Finance can view it).', after: () => { TripUI.open(t.id); App.route(); } });
       if (a === 'incident') TripUI.incident(t);
       if (a === 'resume') UI.confirmAction('Resume ' + UI.esc(t.trip_ref), 'The trip continues (In Transit). This is not a second attempt.', 'Trips.resume', { trip_id: t.id }, { submit: 'Resume trip' });
       if (a === 'reschedule') UI.formModal('Reschedule ' + UI.esc(t.trip_ref), [{ name: 'scheduled_at', label: 'New dispatch schedule', type: 'datetime', required: true, col: 12, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`, help: 'Present or future date and time (Philippine time).' }], 'Trips.reschedule',
