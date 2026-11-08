@@ -76,10 +76,16 @@ touched. Tests: `tests/run_crew_attendance_tests.php` (89 checks). Other FleetOp
 | Trip details: per crew member Present / Absent / Not Yet Marked / Shift mismatch / No shift, shift, "Outside trip shift", mode, dispatch-now shift vs scheduled shift, reasons | `Trips::details`, `trips.js` |
 | Ops Head notice when crew of a Pre-Assigned / Ready / For Reschedule trip is marked Absent for that trip's scheduled shift (or the current shift for an overdue trip). One notice per person / shift / trip, re-opened if marked Absent again, resolved when corrected. Trips and assignments never changed. | `Attendance::absentNotice` |
 
+| **Manual reassignment** (Operations Head): crew list labelled for the trip's planning shift (scheduled shift, or the current shift once overdue) — assigned shift, **Absent**, **Shift mismatch**, **No shift**, Not available. Absent: refused in both modes. Other shift / no shift: **Enforce** refuses (409); **Warn** allows with a visible warning, trip history entry, audit (`crew shift fallback`) and Ops Head notice. Availability, license, locking and the new-checklist rule unchanged. | `Trips::crewOptions` (`Trips.crew_options`), `Trips::reassign`, `trips.js` |
+| **Required crew** (`CHECKLIST_42_CREW_COMPLETENESS_V1`), both modes, at Confirm Dispatch / Redispatch: Car Carrier = two different active **drivers**; Container / Wing Van = one active driver + one active helper (right person type). Manual reassign of a Car Carrier now requires Driver 2. The database already refuses the same person twice (`chk_trip_crew`). | `CrewAttendance::crewCompleteness`, `Trips::dispatchBlockers`, `Trips::reassign` |
+
+Note: auto-assignment may still plan a Car Carrier trip with one free driver (existing planning rule); such a trip
+cannot be dispatched until the Operations Head adds Driver 2 (shown as "Crew required" in the trip details).
+
 Not changed: dispatched / in-transit trips, incident, completion, checklist rules (crew replacement still needs a new
 checklist), time gates, Finance release, billing, routing, Phase 1 attendance. No migration.
 
-Tests: `tests/run_crew_dispatch_tests.php` (79 checks, incl. a two-process test where Confirm Dispatch waits for an unsaved
+Tests: `tests/run_crew_dispatch_tests.php` (133 checks, incl. a two-process test where Confirm Dispatch waits for an unsaved
 Absent mark and then refuses).
 
 ### Admin rollout steps

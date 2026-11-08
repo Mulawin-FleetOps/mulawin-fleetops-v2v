@@ -16,6 +16,8 @@
  *    H. Second attempt (Redispatch)
  *    I. Attendance changed at the same moment as Confirm Dispatch (two processes)
  *    J. Readiness report and regression (active trips, checklist, time gates, billing)
+ *    K. Manual reassignment (shift labels, Absent, Warn fallback, Enforce refusal)
+ *    L. Required crew at Confirm Dispatch / Redispatch (both modes, direct API)
  * =====================================================================
  */
 declare(strict_types=1);
@@ -252,7 +254,7 @@ $ev = (string)one($p, "SELECT notes FROM trip_events WHERE trip_id=? AND event_t
 ok((int)$t['helper_id'] === $hN && $t['status'] === 'Pre-Assigned', 'Warn: no free Day helper (the Day one is Absent) -> Night helper as fallback, never the Absent one');
 ok(str_contains($ev, 'Shift fallback (Warn mode)') && str_contains($ev, '(Helper, Night shift)') && str_contains($ev, 'Attendance is NOT verified'), 'fallback written in the trip history', $ev);
 ok((int)$p->query("SELECT COUNT(*) FROM audit_events WHERE action='crew shift fallback'")->fetchColumn() === $c0 + 1, 'fallback audited');
-ok((bool)one($p, "SELECT 1 AS x FROM notifications WHERE dedupe_key=? AND user_id=?", ['trip-shift-fallback-' . $id . '-1', $ops['id']]), 'Operations Head notified of the fallback');
+ok((bool)one($p, "SELECT 1 AS x FROM notifications WHERE dedupe_key LIKE ? AND user_id=?", ['trip-shift-fallback-' . $id . '-1-%', $ops['id']]), 'Operations Head notified of the fallback');
 $det = Trips::action($ops, 'details', ['trip_id' => $id])['trip'];
 $hc = array_values(array_filter($det['crew_attendance']['crew'], fn($c) => $c['role'] === 'Helper'))[0];
 ok($hc['outside_scheduled_shift'] === true && $hc['problem'] !== null && $hc['issue'] === 'Shift mismatch', 'trip screen flags the helper: outside the trip shift, "Shift mismatch" (not Present)');
@@ -386,6 +388,117 @@ $b = one($p, 'SELECT * FROM billings WHERE trip_id=?', [$zid]);
 ok($T($zid)['status'] === 'Dispatched' && $b['base_amount'] === '1000.00', 'dispatched; billing draft = 20 km x 50.00 unchanged');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/operations/trips.js') . file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/administration/admin.js') . file_get_contents(dirname(__DIR__) . '/public/assets/js/attendance.js');
 ok(str_contains($js, 'crew_attendance') && str_contains($js, 'Attendance.readiness') && str_contains($js, 'Outside trip shift') && str_contains($js, "'attendance_mode'"), 'screens: crew attendance in trip details, readiness before switching mode, fallback badge');
+
+// ---------------------------------------------------------------------
+section('K. Manual reassignment (Operations Head)');
+$warn();
+$kD = $person('Driver', 'Day', 'k'); $kH = $person('Helper', 'Day', 'k');
+$kHabs = $person('Helper', 'Day', 'kabs'); $kHn = $person('Helper', 'Night', 'kn'); $kHx = $person('Helper', null, 'kx'); $kHu = $person('Helper', 'Day', 'ku');
+$kid = $trip([$kD, $kH], 30, 'Wing Van', 30); $ready($kid);
+foreach ([$kHabs, $kHn, $kHx] as $x) run($p, "UPDATE personnel SET availability='Available' WHERE id=?", [$x]);
+run($p, "UPDATE personnel SET availability='Unavailable' WHERE id=?", [$kHu]);
+$mark($kHabs, $NOW['date'], 'Day', 'Absent');
+$opt = function () use ($ops, $kid) { $r = Trips::action($ops, 'crew_options', ['trip_id' => $kid]); return [$r, array_column($r['crew'], null, 'id')]; };
+[$co, $byId] = $opt();
+ok($co['mode'] === 'Warn' && $co['shift'] === 'Day', 'crew options: trip shift and mode');
+ok($byId[$kHabs]['labels'] === ['Absent'] && $byId[$kHabs]['allowed'] === false, 'Absent helper labelled "Absent", not allowed');
+ok($byId[$kHn]['labels'] === ['Shift mismatch'] && $byId[$kHn]['duty_shift'] === 'Night' && $byId[$kHn]['allowed'] === true, 'Night helper labelled "Shift mismatch" (allowed in Warn)');
+ok($byId[$kHx]['labels'] === ['No shift'] && $byId[$kHx]['allowed'] === true, 'helper without shift labelled "No shift" (allowed in Warn)');
+ok(in_array('Not available', $byId[$kHu]['labels'], true) && $byId[$kHu]['allowed'] === false, 'Unavailable helper labelled, not allowed');
+ok($byId[$kH]['current'] === true && $byId[$kH]['labels'] === [] && $byId[$kH]['allowed'] === true, 'current same-shift helper: no label');
+foreach (['container_wingvan_dispatcher', 'finance', 'admin'] as $role) fails(fn() => Trips::action($U($role), 'crew_options', ['trip_id' => $kid]), "$role cannot open crew options", 403);
+$re = fn(int $helper) => Trips::action($ops, 'reassign', ['trip_id' => $kid, 'vehicle_id' => $T($kid)['vehicle_id'], 'driver_id' => $kD, 'helper_id' => $helper, 'reason' => 'Crew change']);
+$before = $T($kid);
+fails(fn() => $re($kHabs), 'Warn: Absent helper refused', 409, 'marked Absent for the Day shift');
+fails(fn() => $re($kHu), 'Unavailable helper refused (availability unchanged)', 409, 'Not available');
+ok($T($kid) == $before, 'refused reassignments changed nothing (still Ready for Dispatch)');
+$c0 = (int)$p->query("SELECT COUNT(*) FROM audit_events WHERE action='crew shift fallback'")->fetchColumn();
+$r = $re($kHn);
+$t = $T($kid);
+$ev = (string)one($p, "SELECT notes FROM trip_events WHERE trip_id=? AND event_type='truck and crew assigned manually' ORDER BY id DESC LIMIT 1", [$kid])['notes'];
+ok((int)$t['helper_id'] === $kHn && $t['status'] === 'Pre-Assigned' && str_contains($r['message'], 'checklist must be done again'), 'Warn: Night helper accepted; trip back to Pre-Assigned (new checklist)');
+ok(str_contains($r['message'], 'Warning: Shift fallback (Warn mode, manual)') && str_contains($ev, 'Shift fallback (Warn mode, manual)') && str_contains($ev, '(Helper, Night shift)'), 'visible warning and trip history entry', $ev);
+ok((int)$p->query("SELECT COUNT(*) FROM audit_events WHERE action='crew shift fallback'")->fetchColumn() === $c0 + 1, 'fallback audited');
+ok((bool)one($p, "SELECT 1 AS x FROM notifications WHERE dedupe_key=? AND user_id=?", ['trip-shift-fallback-' . $kid . '-1-' . $kD . '-0-' . $kHn, $ops['id']]), 'Operations Head notified');
+$r = $re($kHx);
+ok((int)$T($kid)['helper_id'] === $kHx && str_contains($r['message'], 'no assigned shift'), 'Warn: helper without shift accepted with warning');
+$r = $re($kH);
+ok((int)$T($kid)['helper_id'] === $kH && !str_contains($r['message'], 'Warning'), 'back to the Day helper: no warning');
+$enforce();
+[$co, $byId] = $opt();
+ok($co['mode'] === 'Enforce' && $byId[$kHn]['allowed'] === false && $byId[$kHx]['allowed'] === false && $byId[$kH]['allowed'] === true, 'Enforce: other-shift and no-shift crew marked not allowed');
+$before = $T($kid);
+fails(fn() => $re($kHn), 'Enforce: Night helper refused server-side', 409, 'Enforce mode does not allow');
+fails(fn() => $re($kHx), 'Enforce: helper without shift refused server-side', 409, 'has no assigned shift');
+fails(fn() => $re($kHabs), 'Enforce: Absent helper refused', 409, 'marked Absent');
+ok($T($kid) == $before, 'Enforce refusals changed nothing');
+$kH2 = $person('Helper', 'Day', 'k2'); run($p, "UPDATE personnel SET availability='Available' WHERE id=?", [$kH2]);
+$re($kH2);
+ok((int)$T($kid)['helper_id'] === $kH2, 'Enforce: another Day helper accepted');
+// Overdue trip: the current shift decides (here Day as well), Absent for now refused.
+run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() - 86400 - 3600), $kid]);
+$mark($kH, $NOW['date'], 'Day', 'Absent');
+fails(fn() => $re($kH), 'overdue trip: helper Absent for the current shift refused', 409, 'marked Absent');
+$mark($kH, $NOW['date'], 'Day', null);
+// Car Carrier: Driver 2 required, two different drivers.
+$warn();
+$k1 = $person('Driver', 'Day', 'kc'); $k2 = $person('Driver', 'Day', 'kc'); $k3 = $person('Driver', 'Day', 'kc');
+$kcc = $trip([$k1, $k2], 30, 'Car Carrier', 30);
+fails(fn() => Trips::action($ops, 'reassign', ['trip_id' => $kcc, 'vehicle_id' => $T($kcc)['vehicle_id'], 'driver_id' => $k1, 'reason' => 'x']), 'Car Carrier reassign without Driver 2 refused', 400, 'Driver 1 and Driver 2');
+fails(fn() => Trips::action($ops, 'reassign', ['trip_id' => $kcc, 'vehicle_id' => $T($kcc)['vehicle_id'], 'driver_id' => $k1, 'driver2_id' => $k1, 'reason' => 'x']), 'same driver twice refused', 400, 'same person');
+run($p, "UPDATE personnel SET availability='Available' WHERE id=?", [$k3]);
+Trips::action($ops, 'reassign', ['trip_id' => $kcc, 'vehicle_id' => $T($kcc)['vehicle_id'], 'driver_id' => $k1, 'driver2_id' => $k3, 'reason' => 'swap']);
+ok((int)$T($kcc)['driver2_id'] === $k3, 'Car Carrier with two different drivers accepted');
+// Active trips cannot be reassigned.
+fails(fn() => Trips::action($ops, 'reassign', ['trip_id' => $aid, 'vehicle_id' => $T($aid)['vehicle_id'], 'driver_id' => $aD, 'helper_id' => $aH, 'reason' => 'x']), 'trip on the road (incident) cannot be reassigned', 409);
+
+// ---------------------------------------------------------------------
+section('L. Required crew at Confirm Dispatch / Redispatch (both modes, direct API)');
+$lcheck = function (int $id, string $contains, string $name) use ($p, $wvd, $ccd, $T, $warn, $enforce) {
+    foreach (['Warn' => $warn, 'Enforce' => $enforce] as $m => $set) {
+        $set();
+        $before = $T($id);
+        $bills = many($p, 'SELECT * FROM billings WHERE trip_id=?', [$id]);   // attempt 1 billing exists for a redispatch
+        $who = $before['truck_type'] === 'Car Carrier' ? $ccd : $wvd;
+        fails(fn() => Trips::action($who, 'dispatch', ['trip_id' => $id]), "$m: $name", 409, $contains);
+        ok($T($id) == $before && many($p, 'SELECT * FROM billings WHERE trip_id=?', [$id]) == $bills, "$m: nothing changed, no new / changed billing");
+    }
+};
+// Auto-assignment with only one free driver leaves Driver 2 empty on a Car Carrier trip (planning allowed).
+$l1 = $person('Driver', 'Day', 'l');
+$lcc = $trip([$l1], 5, 'Car Carrier'); $ready($lcc); $present([$l1]);
+ok($T($lcc)['driver2_id'] === null && $T($lcc)['status'] === 'Ready for Dispatch', 'Car Carrier planned with one free driver (Driver 2 empty)');
+$det = Trips::action($ops, 'details', ['trip_id' => $lcc])['trip'];
+ok(str_contains(implode(' ', $det['crew_attendance']['missing']), 'No Driver 2 assigned'), 'trip details show the missing Driver 2');
+$lcheck($lcc, 'No Driver 2 assigned', 'Car Carrier without Driver 2 refused');
+try { run($p, 'UPDATE trips SET driver2_id=driver_id WHERE id=?', [$lcc]); ok(false, 'database refuses the same driver twice'); }
+catch (PDOException $e) { ok(str_contains($e->getMessage(), 'chk_trip_crew'), 'database itself refuses the same driver as Driver 1 and Driver 2 (chk_trip_crew)'); }
+$dup = ['truck_type' => 'Car Carrier', 'driver_id' => $l1, 'driver2_id' => $l1];
+ok(str_contains(implode(' ', CrewAttendance::crewCompleteness($p, $dup)), 'same person'), 'completeness check also reports the same driver twice');
+$l2 = $person('Helper', 'Day', 'lh');
+run($p, 'UPDATE trips SET driver2_id=? WHERE id=?', [$l2, $lcc]);
+$lcheck($lcc, 'is a Helper, not a Driver (Driver 2)', 'Car Carrier with a helper as Driver 2 refused');
+$lD = $person('Driver', 'Day', 'lw'); $lH = $person('Helper', 'Day', 'lw');
+$lw = $trip([$lD, $lH]); $ready($lw); $present([$lD, $lH]);
+run($p, 'UPDATE trips SET helper_id=NULL WHERE id=?', [$lw]);
+$lcheck($lw, 'No Helper assigned', 'Wing Van without a helper refused');
+run($p, 'UPDATE trips SET helper_id=? WHERE id=?', [$lH, $lw]);
+run($p, 'UPDATE personnel SET active=0 WHERE id=?', [$lH]);
+$lcheck($lw, 'is not an active helper', 'Wing Van with an inactive helper refused (even though Present)');
+run($p, 'UPDATE personnel SET active=1 WHERE id=?', [$lH]);
+$warn();
+Trips::action($wvd, 'dispatch', ['trip_id' => $lw]);
+ok($T($lw)['status'] === 'Dispatched', 'complete Wing Van crew: dispatched');
+// Redispatch: Driver 2 removed on attempt 2 is caught too.
+$r1 = $person('Driver', 'Day', 'r'); $r2 = $person('Driver', 'Day', 'r');
+$rcc = $trip([$r1, $r2], 5, 'Car Carrier'); $ready($rcc); $present([$r1, $r2]);
+Trips::action($ccd, 'dispatch', ['trip_id' => $rcc]);
+run($p, "UPDATE trips SET status='For Reschedule' WHERE id=?", [$rcc]);
+run($p, "UPDATE vehicles SET status='Assigned' WHERE id=?", [$T($rcc)['vehicle_id']]);
+Trips::action($ccd, 'reschedule', ['trip_id' => $rcc, 'scheduled_at' => date('Y-m-d\TH:i', time() + 3600)]);
+run($p, 'UPDATE trips SET scheduled_at=?, driver2_id=NULL WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $rcc]);
+$ready($rcc);
+$lcheck($rcc, 'No Driver 2 assigned', 'Redispatch (attempt 2) without Driver 2 refused');
 
 echo "\n----------------------------------------\n";
 echo "RESULT: $PASS passed, $FAIL failed\n";
