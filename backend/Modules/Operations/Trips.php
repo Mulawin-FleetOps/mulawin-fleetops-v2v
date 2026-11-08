@@ -177,6 +177,7 @@ final class Trips {
             'edit' => self::edit($u, $d),
             'auto_assign' => self::retryAssign($u, $d),
             'reassign' => self::reassign($u, $d),
+            'crew_options' => self::crewOptions($u, $d),
             'checklist_start' => self::checklistStart($u, $d),
             'checklist' => self::checklist($u, $d),
             'dispatch' => self::dispatch($u, $d),
@@ -588,7 +589,7 @@ final class Trips {
         // crew marked Absent for that shift are never picked; Not Yet Marked is allowed (future shifts cannot be marked).
         // Same-shift crew first. Warn mode only: if none is free, other-shift / no-shift crew as a flagged fallback.
         // All existing rules (active, Available, license, not held by another trip) still apply to every candidate.
-        $sched = CrewAttendance::shiftFor(strtotime((string)$t['scheduled_at']) ?: time());
+        $sched = CrewAttendance::planningShift($t);
         $warn = CrewAttendance::mode() === CrewAttendance::MODE_WARN;
         $free = function (string $type) use ($p, $sched): array {
             return many($p, "SELECT pe.id, pe.full_name, pe.duty_shift, (SELECT COUNT(*) FROM trips x WHERE (x.driver_id=pe.id OR x.driver2_id=pe.id OR x.helper_id=pe.id) AND x.status='Completed' AND x.completed_at>=DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent
@@ -661,7 +662,7 @@ final class Trips {
             . (!empty($res['shift_fallback_note']) ? '. ' . $res['shift_fallback_note'] : ''));
         if (!empty($res['shift_fallback_note'])) {
             audit($p, $uid, 'Trips', 'trip ' . $t['id'], 'crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note']);
-            Notify::roles($p, ['operations_head'], 'Crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note'], 'trips', 'trip-shift-fallback-' . $t['id'] . '-' . $t['attempt_number']);
+            Notify::roles($p, ['operations_head'], 'Crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note'], 'trips', 'trip-shift-fallback-' . $t['id'] . '-' . $t['attempt_number'] . '-' . $res['driver_id'] . '-' . ($res['driver2_id'] ?? 0) . '-' . ($res['helper_id'] ?? 0));
         }
         if ($to === 'Pre-Assigned') Notify::roles($p, [$t['dispatcher_role']], 'Pre-assigned trip', $t['trip_ref'] . ' is pre-assigned to truck ' . $res['plate'] . '. Submit the fund request and do the pre-dispatch checklist.', 'trips', 'trip-prep-' . $t['id'] . '-' . $t['attempt_number']);
     }
@@ -721,6 +722,33 @@ final class Trips {
     }
 
     /** Ops Head manual override (PDF #11: Ops Head approves truck and driver assignments). */
+    /**
+     * Crew choices for the Operations Head's manual assignment, labelled for the trip's planning shift:
+     * shift, attendance, Absent / Shift mismatch / No shift, availability. The server rechecks everything on save.
+     */
+    private static function crewOptions(array $u, array $d): array {
+        requireRole($u, 'operations_head');
+        $p = db();
+        $t = one($p, 'SELECT * FROM trips WHERE id=?', [idField($d, 'trip_id')]);
+        must((bool)$t, 'Trip not found.', 404);
+        $plan = CrewAttendance::planningShift($t);
+        $enforce = CrewAttendance::mode() === CrewAttendance::MODE_ENFORCE;
+        $out = [];
+        foreach (many($p, "SELECT id FROM personnel WHERE active=1 AND person_type IN ('Driver','Helper') ORDER BY person_type, full_name") as $r) {
+            $id = (int)$r['id'];
+            $c = CrewAttendance::assignmentCheck($p, $id, $plan);
+            $block = FleetState::personBlocker($p, $id, (int)$t['id']);
+            $current = in_array($id, array_map('intval', [$t['driver_id'], $t['driver2_id'], $t['helper_id']]), true);
+            $labels = [];
+            if ($c['absent']) $labels[] = 'Absent';
+            if ($c['issue']) $labels[] = $c['issue'];
+            if ($block) $labels[] = 'Not available';
+            $out[] = ['id' => $id, 'name' => $c['name'], 'type' => $c['type'], 'duty_shift' => $c['duty_shift'], 'attendance' => $c['attendance'], 'current' => $current,
+                      'labels' => $labels, 'blocker' => $block, 'allowed' => !$c['absent'] && !$block && (!$enforce || !$c['issue'])];
+        }
+        return ['mode' => CrewAttendance::modeName(), 'shift' => $plan['shift'], 'shift_text' => CrewAttendance::shiftText($plan), 'crew' => $out];
+    }
+
     private static function reassign(array $u, array $d): array {
         requireRole($u, 'operations_head');
         $id = idField($d, 'trip_id'); $vid = idField($d, 'vehicle_id'); $driver = idField($d, 'driver_id');
@@ -740,7 +768,25 @@ final class Trips {
                 must(!($why = FleetState::personBlocker($p, $pid, $id)), 'Not available: ' . ($why ?? '') . '.', 409);
             }
             if ($t['truck_type'] !== 'Car Carrier') must((bool)$helper, 'A helper is required for ' . $t['truck_type'] . ' trips.');
-            else must(!$helper, 'Car carrier trips use Driver 1 and Driver 2 (no helper).');
+            else {
+                must(!$helper, 'Car carrier trips use Driver 1 and Driver 2 (no helper).');
+                must((bool)$driver2, 'Car carrier trips need Driver 1 and Driver 2 (two different drivers).');   // CHECKLIST_42_CREW_COMPLETENESS_V1
+            }
+            // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: manual crew follow the same shift rules as auto-assignment.
+            // Absent for the trip's planning shift: never. Other shift / no shift: Enforce refuses; Warn allows, flagged.
+            $plan = CrewAttendance::planningShift($t);
+            $fallback = [];
+            foreach ([[$driver, 'Driver'], [$driver2, 'Driver 2'], [$helper, 'Helper']] as [$pid, $role]) {
+                if (!$pid) continue;
+                $c = CrewAttendance::assignmentCheck($p, $pid, $plan);
+                must(!$c['absent'], $c['name'] . " ($role) is marked Absent for the " . CrewAttendance::shiftText($plan) . ' and cannot be assigned.', 409);
+                if ($c['issue'] === null) continue;
+                $what = $c['issue'] === 'No shift' ? 'has no assigned shift' : 'is on the ' . $c['duty_shift'] . ' shift';
+                must(CrewAttendance::mode() === CrewAttendance::MODE_WARN, $c['name'] . " ($role) $what; this trip needs " . $plan['shift'] . '-shift crew (' . CrewAttendance::shiftText($plan) . '). Enforce mode does not allow other-shift or unassigned-shift crew.', 409);
+                $fallback[] = $c['name'] . " ($role, " . ($c['duty_shift'] ? $c['duty_shift'] . ' shift' : 'no assigned shift') . ')';
+            }
+            $fallbackNote = $fallback ? 'Shift fallback (Warn mode, manual): ' . implode(', ', $fallback) . ' assigned outside the ' . CrewAttendance::shiftText($plan)
+                . '. Attendance is NOT verified.' : '';
             $keep = $t['status'] === 'For Reschedule' ? 'For Reschedule' : null;
             $personName = static function (?int $personId) use ($p): ?string {
                 return $personId ? (one($p, 'SELECT full_name FROM personnel WHERE id=?', [$personId])['full_name'] ?? null) : null;
@@ -750,9 +796,10 @@ final class Trips {
                 'Driver 2' => $personName($t['driver2_id'] ? (int)$t['driver2_id'] : null), 'Helper' => $personName($t['helper_id'] ? (int)$t['helper_id'] : null)];
             $afterAssignment = ['Truck' => $v['plate_number'], 'Driver 1' => $personName($driver),
                 'Driver 2' => $personName($driver2), 'Helper' => $personName($helper)];
-            self::applyAssignment($p, $u['id'], $t, ['vehicle_id' => $vid, 'plate' => $v['plate_number'], 'driver_id' => $driver, 'driver2_id' => $driver2, 'helper_id' => $helper], 'Manual', $keep);
+            self::applyAssignment($p, $u['id'], $t, ['vehicle_id' => $vid, 'plate' => $v['plate_number'], 'driver_id' => $driver, 'driver2_id' => $driver2, 'helper_id' => $helper,
+                'shift_fallback_note' => $fallbackNote], 'Manual', $keep);
             self::event($p, $u['id'], $id, 'assignment changed by Operations Head', $t['status'], $keep ?? 'Pre-Assigned', $reason, $beforeAssignment, $afterAssignment);
-            return ['message' => 'Assignment updated.' . ($t['status'] === 'Ready for Dispatch' ? ' The pre-dispatch checklist must be done again for the new assignment.' : '')];
+            return ['message' => 'Assignment updated.' . ($t['status'] === 'Ready for Dispatch' ? ' The pre-dispatch checklist must be done again for the new assignment.' : '') . ($fallbackNote !== '' ? ' Warning: ' . $fallbackNote : '')];
         });
     }
 
@@ -857,6 +904,8 @@ final class Trips {
         if (!$fund && (int)$t['attempt_number'] === 1) $why[] = 'No fund request yet (needs a Released fund).';
         $g = self::timeGates($t);
         if (!$g['dispatch_allowed_now']) $why[] = 'Scheduled dispatch is ' . self::phTime($g['scheduled_at']) . '; Confirm Dispatch opens ' . self::phTime($g['dispatch_opens_at']) . '.';
+        // CHECKLIST_42_CREW_COMPLETENESS_V1 (both modes): Car Carrier = 2 different drivers; others = driver + helper.
+        foreach (CrewAttendance::crewCompleteness($p, $t) as $c) $why[] = $c;
         // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1 (Enforce): attendance for the ACTUAL dispatch time (now), every crew
         // member Present on their own shift, and the existing availability rules (Present never bypasses them).
         if (CrewAttendance::mode() === CrewAttendance::MODE_ENFORCE) {
@@ -1144,11 +1193,11 @@ final class Trips {
         $t['time_gates'] = self::timeGates($t);
         if (in_array($t['status'], ['Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], true)) {
             $att = CrewAttendance::dispatchFindings($p, $t);
-            $sched = CrewAttendance::shiftFor(strtotime((string)$t['scheduled_at']) ?: time());
+            $sched = CrewAttendance::planningShift($t);   // scheduled shift (current shift once overdue)
             foreach ($att['crew'] as &$c) $c['outside_scheduled_shift'] = $c['duty_shift'] !== $sched['shift'];
             unset($c);
             $t['crew_attendance'] = ['mode' => CrewAttendance::modeName(), 'dispatch_shift' => CrewAttendance::shiftText($att['shift']),
-                'scheduled_shift' => CrewAttendance::shiftText($sched), 'crew' => $att['crew']];
+                'scheduled_shift' => CrewAttendance::shiftText($sched), 'crew' => $att['crew'], 'missing' => CrewAttendance::crewCompleteness($p, $t)];
         }
         $t['fuel_estimate'] = $t['distance_km'] ? Settings::fuelEstimate((float)$t['distance_km']) : null;
         $t['route_geometry'] = one($p, 'SELECT geometry FROM trip_routes WHERE trip_id=?', [$id])['geometry'] ?? null;
