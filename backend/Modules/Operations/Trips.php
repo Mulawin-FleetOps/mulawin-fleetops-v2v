@@ -479,8 +479,11 @@ final class Trips {
      *   1) All rows are checked first without writing anything; if any row is wrong, nothing is created and every
      *      problem is listed by row number.
      *   2) Then the rows are created one by one (earliest schedule first, so earlier trips get resources first).
-     *      Each row has its own form key (request_key), so sending the same batch again creates nothing new.
-     *   Returns one result per row, in the order entered.
+     *      A row that fails unexpectedly here is reported "Not created"; the other rows stay created (partial success,
+     *      approved 2026-11-08). The screen can retry only those rows with their original keys.
+     *   Duplicates are prevented by the per-row form key (trips.request_key, UNIQUE) — NOT by comparing client, route
+     *   or time: a client may need several trucks for the same route and time.
+     *   Returns one result per row, in the order sent (row = the screen's row number when given as row_no).
      */
     public const BATCH_MAX_ROWS = 20;
     private static function createBatch(array $u, array $d): array {
@@ -490,9 +493,11 @@ final class Trips {
         must(count($rows) <= self::BATCH_MAX_ROWS, 'A batch can have at most ' . self::BATCH_MAX_ROWS . ' trips. Split it into smaller batches.');
         $isOps = hasRole($u, 'operations_head');
         $p = db();
-        $errors = []; $seenKeys = []; $seenTrips = []; $sched = [];
+        $errors = []; $seenKeys = []; $sched = []; $label = [];
         foreach ($rows as $i => $row) {
-            $n = $i + 1;
+            // Row number shown to the user: the screen's own row number on a retry of some rows only.
+            $n = $label[$i] = is_array($row) && isset($row['row_no']) && ctype_digit((string)$row['row_no']) && (int)$row['row_no'] >= 1 && (int)$row['row_no'] <= self::BATCH_MAX_ROWS
+                ? (int)$row['row_no'] : $i + 1;
             try {
                 must(is_array($row), 'Invalid trip entry.');
                 $key = strtolower(trim((string)($row['request_key'] ?? '')));
@@ -513,9 +518,6 @@ final class Trips {
                 if ($route !== null) must((bool)RouteDistance::selectable($p, $client, $type, $route), 'The chosen approved route cannot be used for this client and truck type.');
                 $mapRoute = trim((string)($row['route_option'] ?? '')) !== '' && $f['pickup_lat'] !== null && $f['delivery_lat'] !== null;
                 if ($isOps) must($route !== null || $mapRoute || ($f['distance_km'] !== null && $f['distance_km'] > 0), 'Enter the billable distance in km, or choose an approved route.');
-                $sig = implode('|', [$client, $type, substr((string)$f['scheduled_at'], 0, 16), mb_strtolower(trim((string)$f['pickup_point'])), mb_strtolower(trim((string)$f['delivery_point'])), $route]);
-                must(!isset($seenTrips[$sig]), 'Same client, truck type, schedule, pickup and delivery as row ' . ($seenTrips[$sig] ?? '') . '.');
-                $seenTrips[$sig] = $n;
                 $sched[$i] = strtotime((string)$f['scheduled_at']);
             } catch (BusinessRuleException $e) {
                 $errors[] = "Row $n: " . $e->getMessage();
@@ -530,16 +532,27 @@ final class Trips {
             try {
                 $r = self::create($u, $row);
                 $t = one($p, 'SELECT t.trip_ref, t.status, v.plate_number FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id WHERE t.id=?', [$r['trip_id']]);
-                $results[$i] = ['row' => $i + 1, 'result' => !empty($r['duplicate']) ? 'Already created' : 'Created', 'trip_id' => (int)$r['trip_id'],
+                $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => !empty($r['duplicate']) ? 'Already created' : 'Created', 'trip_id' => (int)$r['trip_id'],
                                 'trip_ref' => $t['trip_ref'], 'trip_status' => $t['status'], 'truck' => $t['plate_number'], 'message' => $r['message']];
             } catch (PDOException $e) {
                 // Same batch sent twice at the same moment: the other request inserted this form key first.
                 $dup = ($e->errorInfo[1] ?? 0) === 1062 ? one($p, 'SELECT id, trip_ref, status FROM trips WHERE request_key=? AND created_by=?', [strtolower((string)$row['request_key']), $u['id']]) : null;
-                if (!$dup) throw $e;
-                $results[$i] = ['row' => $i + 1, 'result' => 'Already created', 'trip_id' => (int)$dup['id'], 'trip_ref' => $dup['trip_ref'], 'trip_status' => $dup['status'], 'truck' => null,
+                if (!$dup) {
+                    error_log('Batch planning row ' . $label[$i] . ' failed: ' . $e->getMessage());
+                    $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => 'Not created', 'trip_id' => null, 'trip_ref' => null, 'trip_status' => null, 'truck' => null,
+                                    'message' => 'This row could not be saved (server error). Retry it; created rows are not affected.'];
+                    continue;
+                }
+                $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => 'Already created', 'trip_id' => (int)$dup['id'], 'trip_ref' => $dup['trip_ref'], 'trip_status' => $dup['status'], 'truck' => null,
                                 'message' => 'Trip ' . $dup['trip_ref'] . ' was already created from this row (sent twice). No second trip was made.'];
             } catch (BusinessRuleException $e) {
-                $results[$i] = ['row' => $i + 1, 'result' => 'Not created', 'trip_id' => null, 'trip_ref' => null, 'trip_status' => null, 'truck' => null, 'message' => $e->getMessage()];
+                $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => 'Not created', 'trip_id' => null, 'trip_ref' => null, 'trip_status' => null, 'truck' => null,
+                                'message' => $e->getMessage() . ' Fix the row if needed and retry it; created rows are not affected.'];
+            } catch (Throwable $e) {
+                // Unexpected failure of one row (database / server): keep the others, report this row, log the detail.
+                error_log('Batch planning row ' . $label[$i] . ' failed: ' . get_class($e) . ': ' . $e->getMessage());
+                $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => 'Not created', 'trip_id' => null, 'trip_ref' => null, 'trip_status' => null, 'truck' => null,
+                                'message' => 'This row could not be saved (server error). Retry it; created rows are not affected.'];
             }
         }
         ksort($results);
