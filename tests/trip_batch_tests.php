@@ -9,7 +9,8 @@
  *    A. Operations Head batch: separate trips, refs, auto-assignment, results, audit
  *    B. Not enough trucks / crew: Awaiting Resources, earliest schedule first
  *    C. All-or-nothing validation with per-row reasons
- *    D. Duplicate submissions (resend, same rows, keys, two processes at once)
+ *    D. Duplicate submissions (resend, keys, two processes at once); identical-looking trips allowed
+ *    D2. Partial failure during creation and retry of the failed row only
  *    E. Limits and malformed input (direct API)
  *    F. Dispatcher batch (Scenario B requests), team rules, roles
  *    G. Approved routes in a batch
@@ -122,7 +123,17 @@ ok($tripCount() === $n1 && array_column($again['results'], 'result') === ['Alrea
    'same batch sent again: no new trip, same trips reported "Already created"');
 $mixed = $batch($ops, [$rows[0], $row(['delivery_point' => 'DUP C', 'scheduled_at' => $at(170)])]);
 ok(array_column($mixed['results'], 'result') === ['Already created', 'Created'] && $tripCount() === $n1 + 1, 'resend with one new row: only the new row creates a trip');
-fails(fn() => $batch($ops, [$row(['delivery_point' => 'SAME']), $row(['delivery_point' => 'SAME'])]), 'two identical rows in one batch refused', 400, 'Row 2: Same client, truck type, schedule, pickup and delivery as row 1');
+// Two trucks for the same client, route and time are legitimate: two rows with the same details = two trips.
+$truck('Wing Van', 3);
+$same = ['delivery_point' => 'SAME PLANT', 'pickup_point' => 'SAME YARD', 'scheduled_at' => $at(175), 'consignee' => 'SAME CO'];
+$n3 = $tripCount();
+$r = $batch($ops, [$row($same), $row($same)]);
+ok(array_column($r['results'], 'result') === ['Created', 'Created'] && $tripCount() === $n3 + 2 && $r['results'][0]['trip_ref'] !== $r['results'][1]['trip_ref'],
+   'two identical-looking rows (same client, truck type, route, time) -> two separate trips', json_encode($r['results']));
+$a1 = $T($r['results'][0]['trip_id']); $a2 = $T($r['results'][1]['trip_id']);
+ok($a1['vehicle_id'] && $a2['vehicle_id'] && $a1['vehicle_id'] !== $a2['vehicle_id'], 'each identical-looking trip gets its own truck');
+$r2 = $batch($ops, [$row($same)]);
+ok($r2['results'][0]['result'] === 'Created' && $tripCount() === $n3 + 3, 'a third truck for the same route and time later: another trip (new key)');
 $k = uuid();
 fails(fn() => $batch($ops, [$row(['request_key' => $k, 'delivery_point' => 'K1']), $row(['request_key' => $k, 'delivery_point' => 'K2'])]), 'same form key twice refused', 400, 'Same form key as row 1');
 fails(fn() => $batch($wvd, [$rows[0]]), 'another user re-sending a key refused', 400, 'Invalid form key');
@@ -150,6 +161,29 @@ $ids = [];
 foreach ($outs as $o) if ($o['ok']) foreach ($o['results'] as $x) $ids[] = $x['trip_id'];
 ok($outs[0]['ok'] && $outs[1]['ok'], 'both simultaneous sends answered without an error', json_encode($outs));
 ok($tripCount() === $n2 + 2 && count(array_unique($ids)) === 2, 'only two trips exist (one per row) after two simultaneous sends', json_encode($ids));
+
+// ---------------------------------------------------------------------
+section('D2. Partial failure during creation, then retry of the failed row only');
+$truck('Wing Van', 4);
+// Simulate an unexpected database failure for one row (a trigger refuses that one insert).
+$p->exec("CREATE TRIGGER test_fail_one BEFORE INSERT ON trips FOR EACH ROW BEGIN IF NEW.delivery_point='FAIL ME' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='simulated failure'; END IF; END");
+$rows = [$row(['delivery_point' => 'PART A', 'scheduled_at' => $at(220)]), $row(['delivery_point' => 'FAIL ME', 'scheduled_at' => $at(225)]), $row(['delivery_point' => 'PART C', 'scheduled_at' => $at(230)])];
+$n4 = $tripCount();
+$r = $batch($ops, $rows);
+ok(array_column($r['results'], 'result') === ['Created', 'Not created', 'Created'] && $tripCount() === $n4 + 2, 'row 2 fails while saving: rows 1 and 3 created, row 2 "Not created"', json_encode(array_column($r['results'], 'result')));
+ok(str_contains($r['results'][1]['message'], 'could not be saved (server error)') && !str_contains($r['results'][1]['message'], 'simulated') && $r['results'][1]['request_key'] === strtolower($rows[1]['request_key']),
+   'failed row: plain message (no database detail), its key returned for the retry');
+ok(str_contains($r['message'], '2 created, 0 already created, 1 not created'), 'summary counts the three outcomes', $r['message']);
+$p->exec('DROP TRIGGER test_fail_one');
+$retry = $batch($ops, [$rows[1] + ['row_no' => '2']]);
+ok($retry['results'][0]['result'] === 'Created' && $retry['results'][0]['row'] === 2 && $tripCount() === $n4 + 3, 'retry of only the failed row (same key, same row number): created');
+$all = $batch($ops, $rows);
+ok(array_column($all['results'], 'result') === ['Already created', 'Already created', 'Already created'] && $tripCount() === $n4 + 3, 'sending all three again: nothing duplicated');
+ok(count(array_unique(array_column($all['results'], 'trip_id'))) === 3, 'three different trips, one per row');
+fails(fn() => $batch($ops, [$row(['distance_km' => '', 'row_no' => '5'])]), 'retry with a row problem names the screen row number', 400, 'Row 5:');
+$js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/operations/trips.js');
+ok(str_contains($js, "filter(tr => !tr.dataset.done)") && str_contains($js, 'Retry not-created row(s)') && str_contains($js, 'request_key: tr.dataset.key, row_no:'), 'screen: Retry sends only not-created rows with their original keys');
+ok(!str_contains($js, 'Nothing is created until every row is correct'), 'old all-or-nothing wording removed');
 
 // ---------------------------------------------------------------------
 section('E. Limits and malformed input');

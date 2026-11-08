@@ -3,8 +3,9 @@
 ## 2026-11-08 (Batch trip planning)
 - **Trips → Batch planning**: enter up to 20 trips on one page. Every row becomes its own trip with its own number, using
   the same rules as New trip (auto-assignment or Awaiting Resources for the Operations Head; Pending Review requests for a
-  dispatcher). Nothing is created if any row is wrong (each problem is listed by row); sending the same batch again never
-  makes duplicates. A result is shown for every row. No database change.
+  dispatcher). Nothing is created if any row is wrong (each problem is listed by row); sending again never makes
+  duplicates, while identical-looking rows (several trucks for the same route and time) are allowed. A result is shown
+  for every row; a row that fails while saving can be retried alone. No database change.
 
 ## 2026-11-08 (Checklist #44: Diesel PO and Supplier SOA attachments)
 - Trip Details: the dispatcher can attach the **Diesel PO** (optional). Complete Trip: optional **Supplier SOA** next to the
