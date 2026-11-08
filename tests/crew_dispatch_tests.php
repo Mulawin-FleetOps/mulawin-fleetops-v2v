@@ -18,6 +18,7 @@
  *    J. Readiness report and regression (active trips, checklist, time gates, billing)
  *    K. Manual reassignment (shift labels, Absent, Warn fallback, Enforce refusal)
  *    L. Required crew at Confirm Dispatch / Redispatch (both modes, direct API)
+ *    M. Car Carrier auto-assignment needs two eligible drivers (no partial reservation)
  * =====================================================================
  */
 declare(strict_types=1);
@@ -464,10 +465,11 @@ $lcheck = function (int $id, string $contains, string $name) use ($p, $wvd, $ccd
         ok($T($id) == $before && many($p, 'SELECT * FROM billings WHERE trip_id=?', [$id]) == $bills, "$m: nothing changed, no new / changed billing");
     }
 };
-// Auto-assignment with only one free driver leaves Driver 2 empty on a Car Carrier trip (planning allowed).
-$l1 = $person('Driver', 'Day', 'l');
-$lcc = $trip([$l1], 5, 'Car Carrier'); $ready($lcc); $present([$l1]);
-ok($T($lcc)['driver2_id'] === null && $T($lcc)['status'] === 'Ready for Dispatch', 'Car Carrier planned with one free driver (Driver 2 empty)');
+// Defence in depth: a Car Carrier trip whose Driver 2 is missing (e.g. data from before this rule) cannot leave.
+$l1 = $person('Driver', 'Day', 'l'); $l1b = $person('Driver', 'Day', 'l');
+$lcc = $trip([$l1, $l1b], 5, 'Car Carrier'); $ready($lcc); $present([$l1]);
+run($p, "UPDATE trips SET driver2_id=NULL WHERE id=?", [$lcc]);
+ok($T($lcc)['driver2_id'] === null && $T($lcc)['status'] === 'Ready for Dispatch', 'Car Carrier trip with Driver 2 removed (old data)');
 $det = Trips::action($ops, 'details', ['trip_id' => $lcc])['trip'];
 ok(str_contains(implode(' ', $det['crew_attendance']['missing']), 'No Driver 2 assigned'), 'trip details show the missing Driver 2');
 $lcheck($lcc, 'No Driver 2 assigned', 'Car Carrier without Driver 2 refused');
@@ -499,6 +501,66 @@ Trips::action($ccd, 'reschedule', ['trip_id' => $rcc, 'scheduled_at' => date('Y-
 run($p, 'UPDATE trips SET scheduled_at=?, driver2_id=NULL WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $rcc]);
 $ready($rcc);
 $lcheck($rcc, 'No Driver 2 assigned', 'Redispatch (attempt 2) without Driver 2 refused');
+
+// ---------------------------------------------------------------------
+section('M. Car Carrier auto-assignment needs two eligible drivers');
+$state = fn() => [
+    'holds' => many($p, 'SELECT resource_type, resource_id, trip_id FROM trip_assignments ORDER BY resource_type, resource_id'),
+    'vehicles' => many($p, "SELECT id, status FROM vehicles WHERE truck_type='Car Carrier' ORDER BY id"),
+    'crew' => many($p, 'SELECT id, availability FROM personnel ORDER BY id')];
+$evNote = fn(int $id) => (string)(one($p, 'SELECT notes FROM trip_events WHERE trip_id=? ORDER BY id DESC LIMIT 1', [$id])['notes'] ?? '');
+foreach (['Warn' => $warn, 'Enforce' => $enforce] as $m => $set) {
+    $set();
+    $m1 = $person('Driver', 'Day', 'm1' . $m);
+    $only([$m1]); $before = $state();
+    $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Car Carrier', 'pickup_point' => 'M', 'delivery_point' => 'N', 'scheduled_at' => date('Y-m-d\TH:i', time() + 1800), 'distance_km' => '20']);
+    $t = $T($r['trip_id']); $after = $state();
+    ok($t['status'] === 'Awaiting Resources' && $t['vehicle_id'] === null && $t['driver_id'] === null && $t['driver2_id'] === null, "$m: one free driver -> Awaiting Resources, nothing assigned");
+    ok(str_contains($evNote($t['id']), 'Car Carrier requires two available' . ($m === 'Enforce' ? ' Day-shift' : '') . ' drivers'), "$m: clear reason", $evNote($t['id']));
+    ok($after['holds'] == $before['holds'] && $after['vehicles'] == $before['vehicles'] && $after['crew'] == $before['crew'], "$m: no truck or driver reserved for the incomplete assignment");
+    Trips::action($ops, 'cancel', ['trip_id' => $t['id'], 'reason' => 'test']);
+}
+$warn();
+$m1 = $person('Driver', 'Day', 'mm'); $m2 = $person('Driver', 'Day', 'mm');
+$id = $trip([$m1, $m2], 30, 'Car Carrier', 30);
+$t = $T($id);
+ok($t['status'] === 'Pre-Assigned' && $t['driver_id'] && $t['driver2_id'] && (int)$t['driver_id'] !== (int)$t['driver2_id'] && !str_contains($evNote($id), 'fallback'), 'two free Day drivers: Driver 1 and Driver 2 assigned, no fallback');
+Trips::action($ops, 'cancel', ['trip_id' => $id, 'reason' => 'test']);
+$mN = $person('Driver', 'Night', 'mn');
+$id = $trip([$m1, $mN], 30, 'Car Carrier', 30);
+$t = $T($id);
+$ev = (string)one($p, "SELECT notes FROM trip_events WHERE trip_id=? AND event_type='system auto-assigned truck and crew'", [$id])['notes'];
+ok($t['status'] === 'Pre-Assigned' && (int)$t['driver_id'] === $m1 && (int)$t['driver2_id'] === $mN && str_contains($ev, '(Driver 2, Night shift)') && str_contains($ev, 'Shift fallback (Warn mode)'),
+   'Warn: one Day + one Night driver -> Night driver as flagged Driver 2', $ev);
+Trips::action($ops, 'cancel', ['trip_id' => $id, 'reason' => 'test']);
+$enforce();
+$before = $state();
+$id = $trip([$m1, $mN], 30, 'Car Carrier', 30);
+ok($T($id)['status'] === 'Awaiting Resources' && $T($id)['driver_id'] === null && str_contains($evNote($id), 'two available Day-shift drivers (Enforce mode'), 'Enforce: Night driver not used -> Awaiting Resources');
+ok($state()['holds'] == $before['holds'], 'Enforce: nothing reserved');
+Trips::action($ops, 'cancel', ['trip_id' => $id, 'reason' => 'test']);
+$warn();
+$mAbs = $person('Driver', 'Day', 'mabs');
+$mark($mAbs, $NOW['date'], 'Day', 'Absent');
+$before = $state();
+$id = $trip([$m1, $mAbs], 30, 'Car Carrier', 30);
+ok($T($id)['status'] === 'Awaiting Resources' && $state()['holds'] == $before['holds'], 'Warn: second driver Absent -> never picked; Awaiting Resources, nothing reserved');
+Trips::action($ops, 'cancel', ['trip_id' => $id, 'reason' => 'test']);
+$mX = $person('Driver', null, 'mx');
+$id = $trip([$mAbs, $mX], 30, 'Car Carrier', 30);
+ok($T($id)['status'] === 'Awaiting Resources', 'Warn: Absent driver + no-shift driver -> only one eligible, waits');
+Trips::action($ops, 'cancel', ['trip_id' => $id, 'reason' => 'test']);
+$id = $trip([$mN, $mX], 30, 'Car Carrier', 30);
+$t = $T($id);
+ok($t['status'] === 'Pre-Assigned' && in_array((int)$t['driver_id'], [$mN, $mX], true) && in_array((int)$t['driver2_id'], [$mN, $mX], true) && str_contains($evNote($id) . (string)one($p, "SELECT notes FROM trip_events WHERE trip_id=? AND event_type='system auto-assigned truck and crew'", [$id])['notes'], 'Shift fallback'),
+   'Warn: Night + no-shift drivers for a Day trip -> both flagged fallback');
+Trips::action($ops, 'cancel', ['trip_id' => $id, 'reason' => 'test']);
+// Awaiting trip is assigned once a second driver becomes free (retry).
+$id = $trip([$m1], 30, 'Car Carrier', 30);
+ok($T($id)['status'] === 'Awaiting Resources', 'one driver: waiting');
+$only([$m1, $m2]);
+Trips::action($ops, 'auto_assign', ['trip_id' => $id]);
+ok($T($id)['status'] === 'Pre-Assigned' && $T($id)['driver2_id'] !== null, 'second driver free: retry assigns both drivers');
 
 echo "\n----------------------------------------\n";
 echo "RESULT: $PASS passed, $FAIL failed\n";

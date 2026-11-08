@@ -79,13 +79,15 @@ touched. Tests: `tests/run_crew_attendance_tests.php` (89 checks). Other FleetOp
 | **Manual reassignment** (Operations Head): crew list labelled for the trip's planning shift (scheduled shift, or the current shift once overdue) — assigned shift, **Absent**, **Shift mismatch**, **No shift**, Not available. Absent: refused in both modes. Other shift / no shift: **Enforce** refuses (409); **Warn** allows with a visible warning, trip history entry, audit (`crew shift fallback`) and Ops Head notice. Availability, license, locking and the new-checklist rule unchanged. | `Trips::crewOptions` (`Trips.crew_options`), `Trips::reassign`, `trips.js` |
 | **Required crew** (`CHECKLIST_42_CREW_COMPLETENESS_V1`), both modes, at Confirm Dispatch / Redispatch: Car Carrier = two different active **drivers**; Container / Wing Van = one active driver + one active helper (right person type). Manual reassign of a Car Carrier now requires Driver 2. The database already refuses the same person twice (`chk_trip_crew`). | `CrewAttendance::crewCompleteness`, `Trips::dispatchBlockers`, `Trips::reassign` |
 
-Note: auto-assignment may still plan a Car Carrier trip with one free driver (existing planning rule); such a trip
-cannot be dispatched until the Operations Head adds Driver 2 (shown as "Crew required" in the trip details).
+Car Carrier auto-assignment (decision 2026-11-08): succeeds only with **two different eligible drivers**. With fewer,
+the trip stays **Awaiting Resources** ("Car Carrier requires two available drivers.") and no truck or driver is held.
+Warn mode may use a flagged other-shift / no-shift driver as the second driver; Enforce needs two planning-shift drivers.
+Absent drivers are never picked.
 
 Not changed: dispatched / in-transit trips, incident, completion, checklist rules (crew replacement still needs a new
 checklist), time gates, Finance release, billing, routing, Phase 1 attendance. No migration.
 
-Tests: `tests/run_crew_dispatch_tests.php` (133 checks, incl. a two-process test where Confirm Dispatch waits for an unsaved
+Tests: `tests/run_crew_dispatch_tests.php` (148 checks, incl. a two-process test where Confirm Dispatch waits for an unsaved
 Absent mark and then refuses).
 
 ### Admin rollout steps
