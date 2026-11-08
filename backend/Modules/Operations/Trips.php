@@ -574,7 +574,7 @@ final class Trips {
      *           fewest trips in the last 30 days first (fair rotation).
      *   Driver: the truck's regular driver when free; otherwise a free active driver (license not expired)
      *           with the fewest recent trips.
-     *   Car Carrier: a 2nd driver is added when one is free (DRIVER 1 / DRIVER 2 in the monitoring sheets).
+     *   Car Carrier: two different eligible drivers are required (DRIVER 1 / DRIVER 2); with fewer the trip waits (Awaiting Resources).
      *   Container / Wing Van: a helper is required (regular helper first).
      */
     private static function autoAssign(PDO $p, array $t): array {
@@ -631,6 +631,10 @@ final class Trips {
                 if ($others) $usedFallback['driver2'] = true;
             }
             $driver2 = $others[0] ?? null;
+            // CHECKLIST_42_CREW_COMPLETENESS_V1: a Car Carrier assignment needs TWO different eligible drivers.
+            // Nothing is held when only one is free (the caller leaves the trip Awaiting Resources).
+            if (!$driver2) return ['ok' => false, 'reason' => $warn ? 'Car Carrier requires two available drivers.'
+                : "Car Carrier requires two available $shiftWord drivers (Enforce mode; Absent crew are skipped)."];
         } else {
             $helper = in_array((int)$v['assigned_helper_id'], $helpers, true) ? (int)$v['assigned_helper_id'] : $helpers[0];
         }
