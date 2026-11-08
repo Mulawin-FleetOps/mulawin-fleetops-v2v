@@ -3,6 +3,7 @@
 declare(strict_types=1);
 core('Notify');
 core('Settings');
+core('CrewAttendance');
 
 final class Attendance {
     private static function dateValue(array $d): string {
@@ -19,9 +20,10 @@ final class Attendance {
     }
     private static function roster(PDO $p, string $kind, string $shift, string $date): array {
         if ($kind === 'Driver') {
-            return many($p, "SELECT pe.id, pe.full_name, pe.availability, am.status, am.marked_at
+            // CHECKLIST_42_ATTENDANCE_PHASE2_V1: the crew roster ('Driver' kind, kept for compatibility) lists drivers AND helpers.
+            return many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, am.status, am.marked_at
               FROM personnel pe LEFT JOIN attendance_marks am ON am.personnel_id=pe.id AND am.duty_date=? AND am.duty_shift=?
-              WHERE pe.active=1 AND pe.person_type='Driver' AND pe.duty_shift=? ORDER BY pe.full_name", [$date,$shift,$shift]);
+              WHERE pe.active=1 AND pe.person_type IN ('Driver','Helper') AND pe.duty_shift=? ORDER BY pe.person_type, pe.full_name", [$date,$shift,$shift]);
         }
         return many($p, "SELECT mc.id, mc.full_name, mc.availability, am.status, am.marked_at
           FROM mechanics mc LEFT JOIN attendance_marks am ON am.mechanic_id=mc.id AND am.duty_date=? AND am.duty_shift=?
@@ -39,7 +41,9 @@ final class Attendance {
         $date=self::dateValue($d); [$kind,$shift]=self::group($d);
         $rows=self::roster(db(),$kind,$shift,$date);
         return ['rows'=>$rows,'date'=>$date,'shift'=>$shift,'kind'=>$kind,
-          'marked'=>count(array_filter($rows,fn($r)=>$r['status']!==null)),'total'=>count($rows)];
+          'marked'=>count(array_filter($rows,fn($r)=>$r['status']!==null)),'total'=>count($rows),
+          // Phase 2 preparation: crew without a shift are in no roster; Admin assigns their shift in the Masterlist.
+          'unassigned'=>$kind==='Driver' ? CrewAttendance::unassignedCrew(db()) : []];
     }
     private static function save(array $u,array $d): array {
         $date=self::dateValue($d); [$kind,$shift]=self::group($d);
@@ -79,12 +83,15 @@ final class Attendance {
     public static function remind(PDO $p): void {
         $today=date('Y-m-d'); $now=date('H:i');
         $dayStart=self::hour('attendance_day_start_hour');
-        $nightStart=self::hour('attendance_night_start_hour');
-        // Keep the previous shift-start date when a Night shift crosses midnight.
+        // Today's Day shift once it has started, plus the current Night shift (a Night shift that crossed
+        // midnight keeps its start date). Shift boundaries: CrewAttendance::shiftFor (single source).
         $due=[];
         if ($now >= $dayStart) $due[]=['Day',$today];
-        if ($now >= $nightStart) $due[]=['Night',$today];
-        elseif ($now < $dayStart) $due[]=['Night',date('Y-m-d',strtotime('yesterday'))];
+        $cur=CrewAttendance::shiftFor();
+        if ($cur['shift']==='Night') $due[]=['Night',$cur['date']];
+        $noShift=count(CrewAttendance::unassignedCrew($p));
+        if ($noShift>0) Notify::roles($p,['admin'],'Shift not assigned',"$noShift active driver(s)/helper(s) have no Day/Night shift and cannot be marked in Attendance. Assign their shift in the Drivers & Helpers masterlist.",'crew','att-noshift');
+        else Notify::resolve($p,'att-noshift');
         foreach ($due as [$shift,$date]) {
             foreach (['Driver','Mechanic'] as $kind) {
                 $rows=self::roster($p,$kind,$shift,$date);
