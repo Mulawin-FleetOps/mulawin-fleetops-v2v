@@ -16,6 +16,9 @@
  *    G. Asia/Manila timezone
  *    H. Reschedule (second attempt) and schedule edits
  *    I. Regression: fund release window (#40), trip details lock (#27), incident, completion + DR, assignment
+ *    K. Completed checklist, then the schedule changes (revalidation)
+ *    L. Dispatch checks the checklist itself (current attempt and truck)
+ *    M. Known gap: late dispatch without a schedule edit (documented, policy pending)
  *    J. Screen data and code
  * =====================================================================
  */
@@ -92,7 +95,13 @@ $fundReleased = function (int $id) use ($p, $wvd) {
     insert($p, 'fund_requests', ['fund_ref' => 'FR-S-' . $id, 'trip_id' => $id, 'attempt_number' => (int)one($p, 'SELECT attempt_number FROM trips WHERE id=?', [$id])['attempt_number'],
         'amount' => '500.00', 'status' => 'Released', 'requested_by' => $wvd['id']]);
 };
-$ready = function (int $id) use ($p, $fundReleased) { run($p, "UPDATE trips SET status='Ready for Dispatch' WHERE id=?", [$id]); $fundReleased($id); };
+/** Shortcut to Ready for Dispatch: a completed checklist row for the current attempt and truck (the real checklist is tested in C) + Released fund. */
+$fakeChecklist = function (int $id, ?string $completedAt = null) use ($p, $wvd) {
+    $t = one($p, 'SELECT vehicle_id, attempt_number FROM trips WHERE id=?', [$id]);
+    insert($p, 'inspections', ['trip_id' => $id, 'vehicle_id' => $t['vehicle_id'], 'attempt_number' => $t['attempt_number'], 'kind' => 'Pre-Dispatch', 'items_json' => '{}',
+        'actor_id' => $wvd['id'], 'started_at' => $completedAt ?? date('Y-m-d H:i:s'), 'completed_at' => $completedAt ?? date('Y-m-d H:i:s')]);
+};
+$ready = function (int $id) use ($p, $fundReleased, $fakeChecklist) { $fakeChecklist($id); run($p, "UPDATE trips SET status='Ready for Dispatch' WHERE id=?", [$id]); $fundReleased($id); };
 
 // ---------------------------------------------------------------------
 section('A. Admin settings');
@@ -230,13 +239,13 @@ ok($T($id)['status'] === 'Ready for Dispatch', 'Operations Head moves attempt 2 
 fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'Confirm Redispatch 1 hour early refused', 409, 'Confirm Dispatch opens');
 $t = $T($id);
 Trips::action($ops, 'edit', ['trip_id' => $id, 'pickup_point' => $t['pickup_point'], 'delivery_point' => $t['delivery_point'], 'scheduled_at' => date('Y-m-d\TH:i', time() + 360), 'distance_km' => $t['distance_km']]);
-ok($T($id)['status'] === 'Ready for Dispatch', 'schedule edit after the checklist keeps Ready for Dispatch (no new checklist)');
+ok($T($id)['status'] === 'Ready for Dispatch', 'schedule moved earlier after the checklist keeps Ready for Dispatch (no new checklist)');
 $r = Trips::action($wvd, 'dispatch', ['trip_id' => $id]);
 ok($T($id)['status'] === 'Dispatched' && str_contains($r['message'], 'Redispatch confirmed'), 'Confirm Redispatch allowed inside the new window (redispatch fund optional)', $r['message']);
 $id = $newTrip(10); $ready($id);
 $t = $T($id);
 Trips::action($ops, 'edit', ['trip_id' => $id, 'pickup_point' => $t['pickup_point'], 'delivery_point' => $t['delivery_point'], 'scheduled_at' => date('Y-m-d\TH:i', time() + 4 * 3600), 'distance_km' => $t['distance_km']]);
-fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'Ready trip moved 4 hours later -> Confirm Dispatch closed again', 409, 'Confirm Dispatch opens');
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'Ready trip moved 4 hours later (outside the checklist window) -> reset and Confirm Dispatch refused', 409, 'Confirm Dispatch opens');
 
 // ---------------------------------------------------------------------
 section('I. Regression');
@@ -261,7 +270,99 @@ fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'checklist do
 fails(fn() => Trips::action($U('car_carrier_dispatcher'), 'dispatch', ['trip_id' => $id]), 'other dispatcher team still refused', 403);
 
 // ---------------------------------------------------------------------
+section('K. Completed checklist, then the schedule changes (revalidation)');
+$edit = function (int $id, string $when) use ($ops, $T) {
+    $t = $T($id);
+    return Trips::action($ops, 'edit', ['trip_id' => $id, 'pickup_point' => $t['pickup_point'], 'delivery_point' => $t['delivery_point'],
+        'scheduled_at' => date('Y-m-d\TH:i', strtotime($when)), 'distance_km' => $t['distance_km']]);
+};
+$snap = fn(int $id) => [
+    'trip' => array_intersect_key($T($id), array_flip(['vehicle_id', 'driver_id', 'driver2_id', 'helper_id', 'assignment_mode', 'distance_km', 'distance_source', 'route_option',
+        'distance_computed_km', 'client_route_id', 'booking_reference', 'pickup_point', 'delivery_point', 'attempt_number'])),
+    'fund' => many($p, 'SELECT id, status, amount, released_at FROM fund_requests WHERE trip_id=? ORDER BY id', [$id]),
+    'holds' => many($p, 'SELECT resource_type, resource_id FROM trip_assignments WHERE trip_id=? ORDER BY resource_type, resource_id', [$id]),
+    'inspection' => many($p, 'SELECT id, vehicle_id, completed_at FROM inspections WHERE trip_id=?', [$id])];
+$readyTrip = function (int $minutesAhead) use ($newTrip, $checklist, $fundReleased, $T) { $id = $newTrip($minutesAhead); $checklist($id); $fundReleased($id); return $id; };
+$id = $readyTrip(60);
+$before = $snap($id);
+$r = $edit($id, '+100 minutes');
+ok($T($id)['status'] === 'Ready for Dispatch' && !str_contains($r['message'], 'done again'), 'small later change inside the window (+40 min): checklist kept, still Ready for Dispatch', $r['message']);
+$edit($id, '+30 minutes');
+ok($T($id)['status'] === 'Ready for Dispatch', 'schedule moved EARLIER: checklist kept');
+$e0 = (int)one($p, "SELECT COUNT(*) AS n FROM trip_events WHERE trip_id=? AND event_type='pre-dispatch checklist reset after schedule change'", [$id])['n'];
+ok($e0 === 0, 'no reset recorded for the kept changes');
+$r = $edit($id, '+3 days');
+$t = $T($id);
+ok($t['status'] === 'Pre-Assigned' && str_contains($r['message'], 'must be done again'), 'moved 3 days later: back to Pre-Assigned, message says the checklist must be done again', $r['message']);
+$ev = one($p, "SELECT from_status, to_status, notes FROM trip_events WHERE trip_id=? AND event_type='pre-dispatch checklist reset after schedule change'", [$id]);
+ok($ev && $ev['from_status'] === 'Ready for Dispatch' && $ev['to_status'] === 'Pre-Assigned' && str_contains((string)$ev['notes'], 'Philippine time'), 'reset written to the trip history with the times', json_encode($ev));
+$after = $snap($id);
+ok($after['trip'] == $before['trip'], 'assignment, route distance, booking and attempt unchanged by the reset');
+ok($after['fund'] == $before['fund'] && $after['fund'][0]['status'] === 'Released', 'Released fund unchanged (same row, amount, release time)');
+ok($after['holds'] == $before['holds'], 'truck and crew holds unchanged');
+ok($after['inspection'] == $before['inspection'], 'old checklist record kept (not deleted)');
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'reset trip cannot be dispatched', 409, 'needs Ready for Dispatch');
+fails(fn() => Trips::action($wvd, 'checklist_start', ['trip_id' => $id, 'kind' => 'Pre-Dispatch']), 'new checklist only in the new window (3 days ahead -> closed)', 409, 'Too early');
+run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [$at(60), $id]);   // time passes: the new schedule is 1 hour away
+$checklist($id);
+ok($T($id)['status'] === 'Ready for Dispatch', 'new checklist in the new window -> Ready for Dispatch again');
+run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [$at(5), $id]);
+Trips::action($wvd, 'dispatch', ['trip_id' => $id]);
+ok($T($id)['status'] === 'Dispatched' && $snap($id)['fund'] == $before['fund'], 'then dispatched with the same Released fund');
+// Boundary: completed_at + 2 h is the latest schedule the checklist covers.
+$id = $readyTrip(60);
+$done = (string)one($p, "SELECT completed_at FROM inspections WHERE trip_id=?", [$id])['completed_at'];
+$edit($id, date('Y-m-d H:i', strtotime($done) + 7200 - 60));
+ok($T($id)['status'] === 'Ready for Dispatch', 'boundary: new schedule 1 min before (checklist time + 2 h) -> kept');
+$edit($id, date('Y-m-d H:i', strtotime($done) + 7200 + 120));
+ok($T($id)['status'] === 'Pre-Assigned', 'boundary: new schedule 2 min after (checklist time + 2 h) -> reset');
+$setting('checklist_lead_hours', 6);
+$id = $readyTrip(60);
+$edit($id, '+5 hours');
+ok($T($id)['status'] === 'Ready for Dispatch', 'Admin window 6 hours: moving 4 hours later stays inside -> kept (same setting, no extra duration)');
+$setting('checklist_lead_hours', null);
+// Edits that do not change the schedule never reset.
+$id = $readyTrip(60);
+$t = $T($id);
+Trips::action($ops, 'edit', ['trip_id' => $id, 'pickup_point' => 'MOVED GATE', 'delivery_point' => $t['delivery_point'], 'scheduled_at' => str_replace(' ', 'T', substr($t['scheduled_at'], 0, 16)), 'distance_km' => '30.00']);
+Trips::action($wvd, 'edit', ['trip_id' => $id, 'booking_reference' => 'BK-READY']);
+ok($T($id)['status'] === 'Ready for Dispatch', 'Ready trip: edits without a schedule change (Ops details, dispatcher booking) keep the checklist');
+$id = $newTrip(60);
+$edit($id, '+3 days');
+ok($T($id)['status'] === 'Pre-Assigned' && !one($p, "SELECT 1 AS x FROM trip_events WHERE trip_id=? AND event_type='pre-dispatch checklist reset after schedule change'", [$id]), 'Pre-Assigned trip (no checklist yet): schedule change has no reset event');
+
+section('L. Dispatch checks the checklist itself (current attempt and truck)');
+$id = $readyTrip(5);
+run($p, 'UPDATE trips SET attempt_number=2 WHERE id=?', [$id]);
+$det = Trips::action($wvd, 'details', ['trip_id' => $id]);
+ok(str_contains(implode(' ', $det['trip']['dispatch_blockers']), 'No pre-dispatch checklist for attempt #2'), 'Ready trip whose checklist is for attempt 1 only: blocked for attempt 2', implode(' ', $det['trip']['dispatch_blockers']));
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'dispatch refused (status alone is not enough)', 409, 'No pre-dispatch checklist');
+ok(!one($p, 'SELECT 1 AS x FROM billings WHERE trip_id=?', [$id]), 'no billing draft on the refused dispatch');
+$id = $readyTrip(5);
+$other = (int)one($p, "SELECT id FROM vehicles WHERE truck_type='Wing Van' AND id NOT IN (SELECT resource_id FROM trip_assignments WHERE resource_type='vehicle') LIMIT 1")['id'];
+run($p, 'UPDATE trips SET vehicle_id=? WHERE id=?', [$other, $id]);
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'checklist done for another truck: dispatch refused', 409, 'another truck');
+$id = $readyTrip(60);
+$t = $T($id);
+$free = (int)one($p, "SELECT id FROM vehicles WHERE truck_type='Wing Van' AND status='Available' AND id NOT IN (SELECT resource_id FROM trip_assignments WHERE resource_type='vehicle') LIMIT 1")['id'];
+Trips::action($ops, 'reassign', ['trip_id' => $id, 'vehicle_id' => $free, 'driver_id' => $t['driver_id'], 'helper_id' => $t['helper_id'], 'reason' => 'Truck swap']);
+ok($T($id)['status'] === 'Pre-Assigned', 'truck replacement after the checklist: back to Pre-Assigned (rule unchanged)');
+$id = $readyTrip(60);
+$t = $T($id);
+$h = (int)one($p, "SELECT id FROM personnel WHERE person_type='Helper' AND id NOT IN (SELECT resource_id FROM trip_assignments WHERE resource_type='person') LIMIT 1")['id'];
+Trips::action($ops, 'reassign', ['trip_id' => $id, 'vehicle_id' => $t['vehicle_id'], 'driver_id' => $t['driver_id'], 'helper_id' => $h, 'reason' => 'Helper sick']);
+ok($T($id)['status'] === 'Pre-Assigned', 'crew replacement after the checklist: back to Pre-Assigned (rule unchanged)');
+
+section('M. KNOWN GAP (documented, policy pending): late dispatch without a schedule edit');
+$id = $newTrip(-3 * 1440);                           // scheduled 3 days ago, never edited
+$fakeChecklist($id, $at(-3 * 1440 - 60));            // checklist done 1 hour before that schedule
+run($p, "UPDATE trips SET status='Ready for Dispatch' WHERE id=?", [$id]); $fundReleased($id);
+$r = Trips::action($wvd, 'dispatch', ['trip_id' => $id]);
+ok($T($id)['status'] === 'Dispatched' && str_contains($r['message'], 'after the scheduled time'),
+   'CURRENT BEHAVIOUR: 3-day-late dispatch still uses the 3-day-old checklist (logged as late). Proposed policy in docs/CLAUDE_38_40_TRIP_TIME_GATES.md', $r['message']);
+
 section('J. Screen data and code');
+$id = $newTrip(60);
 $det = Trips::action($ops, 'details', ['trip_id' => $id]);
 $g = $det['trip']['time_gates'] ?? [];
 ok(isset($g['scheduled_at'], $g['checklist_opens_at'], $g['dispatch_opens_at']) && $g['checklist_allowed_now'] === true && $g['dispatch_allowed_now'] === false && $g['late_minutes'] === 0,

@@ -21,10 +21,31 @@ Planning and approval stay allowed any time; **execution** waits for the trip's 
 | Incident report, resume, completion, arrival checklist | after dispatch | already status-gated; dispatch is now time-gated |
 
 - **Late dispatch** (after the schedule) is allowed; the trip history and the result say e.g. "Dispatched 1 h 30 min after the scheduled time".
-- **Schedule changed after the checklist** (trip already Ready for Dispatch): no new checklist; Confirm Dispatch follows the new time.
+- **Schedule changed after the checklist** (trip already Ready for Dispatch) — revalidation, approved 2026-11-08: the
+  completed checklist stays valid only if it was completed inside the **new** schedule's checklist window
+  (`completed_at >= new scheduled_at - checklist_lead_hours`). Moved earlier, or a small move that stays inside → kept.
+  Moved later outside the window → back to **Pre-Assigned** ("pre-dispatch checklist reset after schedule change" in the
+  history); the new checklist follows the new window. Assignment, holds, Released fund, route distance, booking details,
+  attempt and the old checklist record are not changed. No separate expiry duration: it reuses the Admin window.
+- **Confirm Dispatch checks the checklist itself** (not status only): a completed pre-dispatch checklist must exist for the
+  **current attempt** and the **currently assigned truck**.
+- Truck or crew replacement after the checklist → Pre-Assigned (existing rule). Second attempt → Pre-Assigned at reschedule
+  (existing rule), new checklist for attempt 2.
 - A checklist opened inside the window is refused on submit if the schedule was moved later (re-checked on submit).
 - **Second attempt**: the windows follow the new schedule set at reschedule (or by a later edit).
 - 12:30 AM trip: checklist opens 10:30 PM the evening before; Confirm Dispatch at 12:15 AM.
+
+## Known gap: late dispatch without a schedule edit (policy pending)
+
+A trip that was never re-scheduled can be dispatched days late with the checklist done before the original schedule
+(tested in `tests/trip_schedule_tests.php` section M as the current behaviour; the dispatch is logged as late).
+
+**Proposed smallest safe configurable policy (not implemented, needs approval):** one Admin setting
+`checklist_valid_after_schedule_hours` — *"Pre-dispatch checklist stays valid this many hours after the scheduled time"*,
+**default 0 = off** (today's behaviour, no number invented). When the Admin sets N > 0 and the trip is more than N hours past
+its schedule, Confirm Dispatch is refused with "The trip is more than N hours late: the Operations Head must set a new
+schedule." Setting the new schedule uses the existing revalidation above (back to Pre-Assigned, new checklist in the new
+window). No new status, table or migration; late-dispatch logging and the 15-minute allowance stay as they are.
 
 ## Admin settings (Administration > Settings; stored in `app_settings`, no migration)
 

@@ -5,6 +5,9 @@
   before (both set by the Admin in Settings). Planning and approval (create, review, edit, assignment, fund request and
   approval, reschedule, cancel) stay allowed any time. Enforced on the server; the trip screen shows the opening times and
   why a button is disabled. A late dispatch is allowed and noted in the trip history. No database change.
+  Changing the schedule of a checked trip keeps the checklist if the new time is still inside its window; otherwise the
+  trip goes back to Pre-Assigned for a new checklist (assignment, fund and distance kept). Confirm Dispatch now checks
+  that the checklist exists for the current attempt and the assigned truck.
   Tests: `tests/run_trip_schedule_tests.php`. Details: `docs/CLAUDE_38_40_TRIP_TIME_GATES.md`.
 
 ## 2026-11-07 (Checklist #5 Phase 3: road distance in Trip Management)

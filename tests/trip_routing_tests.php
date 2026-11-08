@@ -355,6 +355,7 @@ $id = $r['trip_id']; $t = $T($id);
 ok($t['status'] === 'Pre-Assigned' && (int)one($p, "SELECT COUNT(*) AS n FROM trip_assignments WHERE trip_id=?", [$id])['n'] >= 3, 'assignment holds truck, driver and helper');
 // Pre-dispatch checklist and fund release are not changed by Phase 3: set their results directly.
 run($p, "UPDATE trips SET status='Ready for Dispatch' WHERE id=?", [$id]);
+insert($p, 'inspections', ['trip_id' => $id, 'vehicle_id' => $t['vehicle_id'], 'attempt_number' => 1, 'kind' => 'Pre-Dispatch', 'items_json' => '{}', 'actor_id' => $wvd['id'], 'completed_at' => date('Y-m-d H:i:s')]);
 insert($p, 'fund_requests', ['fund_ref' => 'FR-T-1', 'trip_id' => $id, 'attempt_number' => 1, 'amount' => '1000.00', 'status' => 'Released', 'requested_by' => $wvd['id']]);
 // Confirm Dispatch opens 15 minutes before the schedule (Checklist #38/#40): departure in 5 minutes.
 run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $id]);
