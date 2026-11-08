@@ -199,13 +199,14 @@ final class Billing {
         });
     }
 
-    /** The requester (Billing) withdraws a request that is still pending. Nothing is deleted. */
+    /** The requester (only the Billing user who made it) withdraws a request that is still pending. Nothing is deleted. */
     private static function chargeWithdraw(array $u, array $d): array {
         requireRole($u, 'billing');
         $cid = idField($d, 'charge_id');
         return transaction(function (PDO $p) use ($u, $cid) {
             [$b, $c] = self::lockCharge($p, $cid);
             must($c['status'] === 'Pending Approval', 'Only a pending request can be withdrawn (this one is ' . $c['status'] . ').', 409);
+            must((int)$c['added_by'] === (int)$u['id'], 'Only the person who made this request can withdraw it.', 403);
             run($p, "UPDATE billing_charges SET status='Withdrawn', decided_by=?, decided_at=NOW() WHERE id=? AND status='Pending Approval'", [$u['id'], $cid]);
             Notify::resolve($p, 'billing-adj-' . $cid);
             auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $b['id'], 'billing adjustment request withdrawn', $b['trip_ref'] . ': ' . $c['request_type'] . ' ' . self::label($c),

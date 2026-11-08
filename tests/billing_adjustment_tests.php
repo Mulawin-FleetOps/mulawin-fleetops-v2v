@@ -89,48 +89,108 @@ $note = fn(int $userId, string $key) => one($p, 'SELECT * FROM notifications WHE
 $audit = fn(string $action, int $bid) => (int)one($p, 'SELECT COUNT(*) AS n FROM audit_events WHERE action=? AND record_ref=?', [$action, 'billing ' . $bid])['n'];
 
 // ---------------------------------------------------------------------
-section('A. Migration: grandfathered charges, fresh install = upgrade');
+section('A. Migration: safe order, recovery, grandfathered charges, fresh install = upgrade');
+$MIGSQL = test_sql('database/migrations/' . MIG . '.sql');
+$FINISH = test_sql('database/migrations/recovery/' . MIG . '_finish.sql');
+$CHECK = trim((string)preg_replace('/^\s*--.*$/m', '', test_sql('database/migrations/checks/' . MIG . '_check.sql')));
+$stmts = fn(string $sql) => array_values(array_filter(array_map('trim', preg_split('/;\s*\n/', (string)preg_replace('/^\s*--.*$/m', '', $sql)))));
+$state = fn(PDO $c) => $c->query(rtrim($CHECK, "; \n"))->fetch();
+$mst = $stmts($MIGSQL);
+ok(count($mst) === 4 && str_starts_with($mst[0], 'ALTER TABLE billing_charges') && str_starts_with($mst[3], 'INSERT INTO schema_migrations'), 'migration = 1 ALTER (all schema changes), backfill, default, and the schema_migrations marker LAST', json_encode(array_map(fn($x) => substr($x, 0, 40), $mst)));
+ok(substr_count($MIGSQL, 'ALTER TABLE billing_charges') === 2 && !str_contains($mst[1] . $mst[2], 'DROP') && !str_contains($mst[1] . $mst[2], 'ADD COLUMN'), 'every column / constraint change is inside the single step-1 ALTER');
+ok($state($p)['state'] === 'COMPLETE', 'check file: fresh install is COMPLETE', json_encode($state($p)));
 $baseSchema = __DIR__ . '/_base_schema.sql'; $baseExt = __DIR__ . '/_base_extension.sql';
 if (!is_file($baseSchema) || !is_file($baseExt)) {
-    echo "  NOTE  git history not available: upgrade check skipped (run from a git clone where the migration is committed)\n";
+    echo "  NOTE  git history not available: upgrade checks skipped (run from a git clone where the migration is committed)\n";
 } else {
-    test_recreate($UPGRADE);
-    $up = test_conn($UPGRADE);
-    test_import($up, (string)file_get_contents($baseSchema));
-    test_import($up, (string)file_get_contents($baseExt));
-    foreach (test_migrations_from('2026-11-08_08_attendance') as $m) if (strcmp($m, MIG) < 0 && !one($up, 'SELECT id FROM schema_migrations WHERE id=?', [$m])) test_import($up, test_sql("database/migrations/$m.sql"));
-    ok(!one($up, 'SELECT id FROM schema_migrations WHERE id=?', [MIG]), 'old database does not have the migration yet');
-    // Old data: users / client / trips copied from the fresh database (same tables before this migration).
     $tA = $billing('For Billing'); $tB = $billing('Invoiced'); $tC = $billing('Paid');
-    foreach (['users', 'clients', 'client_rates', 'trips'] as $tbl) $up->exec("INSERT INTO `$UPGRADE`.$tbl SELECT * FROM `$FRESH`.$tbl");
-    $up->exec("INSERT INTO billings SELECT * FROM `$FRESH`.billings");
     $oldCharges = [[$tA, 'Toll fees', '250.00'], [$tA, 'Waiting time', '300.00'], [$tB, 'Extra drop', '500.00'], [$tC, 'Toll', '120.00']];
-    foreach ($oldCharges as [$bid, $desc, $amt]) {
-        insert($up, 'billing_charges', ['billing_id' => $bid, 'description' => $desc, 'amount' => $amt, 'added_by' => $bil['id']]);
-        $up->prepare('UPDATE billings SET charges_total=charges_total+?, total_amount=total_amount+? WHERE id=?')->execute([$amt, $amt, $bid]);
-    }
-    $up->exec("UPDATE billings SET invoice_number=CONCAT('SI-OLD-', id), invoice_date=CURRENT_DATE(), due_date=CURRENT_DATE(), finalized_by={$bil['id']}, finalized_at=NOW() WHERE status IN ('Invoiced','Paid')");
-    $up->exec("UPDATE billings SET amount_paid=total_amount WHERE status='Paid'");
-    $billSum = $up->query('CHECKSUM TABLE billings')->fetch()['Checksum'];
-    $oldRows = many($up, 'SELECT id, billing_id, description, amount, added_by, created_at FROM billing_charges ORDER BY id');
-    test_import($up, test_sql('database/migrations/' . MIG . '.sql'));
-    ok(true, 'migration imports on the old schema');
-    ok($up->query('CHECKSUM TABLE billings')->fetch()['Checksum'] === $billSum, 'upgrade: billings (For Billing, Invoiced, Paid) unchanged: same totals and invoice data');
-    ok(many($up, 'SELECT id, billing_id, description, amount, added_by, created_at FROM billing_charges ORDER BY id') === $oldRows, 'upgrade: existing charge rows kept as they were');
-    $st = many($up, 'SELECT DISTINCT status, kind, request_type, replaces_id, decided_by FROM billing_charges');
-    ok(count($st) === 1 && $st[0]['status'] === 'Approved' && $st[0]['kind'] === 'Additional Charge' && $st[0]['request_type'] === 'New' && $st[0]['replaces_id'] === null && $st[0]['decided_by'] === null,
-        'upgrade: existing charges are Approved (grandfathered) additional charges', json_encode($st));
-    $sumCounted = one($up, "SELECT COALESCE(SUM(amount),0) AS s FROM billing_charges WHERE billing_id=? AND " . Billing::COUNTED, [$tA])['s'];
-    ok($sumCounted === '550.00' && one($up, 'SELECT charges_total FROM billings WHERE id=?', [$tA])['charges_total'] === '550.00', 'upgrade: approved-only sum equals the stored charges total');
-    $fa = test_fingerprint($p, $FRESH); $fb = test_fingerprint($up, $UPGRADE);
-    foreach ($fa as $k => $v) ok($v === $fb[$k], "fresh install and upgraded database have identical $k", json_encode([array_values(array_diff($v, $fb[$k])), array_values(array_diff($fb[$k], $v))]));
-    try { test_import($up, test_sql('database/migrations/' . MIG . '.sql')); ok(false, 'second import refused'); }
-    catch (PDOException $e) { ok(str_contains($e->getMessage(), 'Duplicate'), 'second import refused by schema_migrations (nothing changed)', $e->getMessage()); }
-    ok(test_fingerprint($up, $UPGRADE) === $fb && $up->query('CHECKSUM TABLE billings')->fetch()['Checksum'] === $billSum, 'refused second import changed nothing');
-    // The same records in the fresh database get the same old charges (for section I).
-    foreach ($oldCharges as [$bid, $desc, $amt]) {
-        insert($p, 'billing_charges', ['billing_id' => $bid, 'description' => $desc, 'amount' => $amt, 'status' => 'Approved', 'added_by' => $bil['id']]);
-    }
+    /** Old database (schema before this migration) with For Billing, Invoiced and Paid records and old charges. */
+    $oldDb = function () use ($UPGRADE, $FRESH, $baseSchema, $baseExt, $oldCharges, $bil): PDO {
+        test_recreate($UPGRADE);
+        $up = test_conn($UPGRADE);
+        test_import($up, (string)file_get_contents($baseSchema));
+        test_import($up, (string)file_get_contents($baseExt));
+        foreach (test_migrations_from('2026-11-08_08_attendance') as $m) if (strcmp($m, MIG) < 0 && !one($up, 'SELECT id FROM schema_migrations WHERE id=?', [$m])) test_import($up, test_sql("database/migrations/$m.sql"));
+        foreach (['users', 'clients', 'client_rates', 'trips', 'billings'] as $tbl) $up->exec("INSERT INTO `$UPGRADE`.$tbl SELECT * FROM `$FRESH`.$tbl");
+        foreach ($oldCharges as [$bid, $desc, $amt]) {
+            insert($up, 'billing_charges', ['billing_id' => $bid, 'description' => $desc, 'amount' => $amt, 'added_by' => $bil['id']]);
+            $up->prepare('UPDATE billings SET charges_total=charges_total+?, total_amount=total_amount+? WHERE id=?')->execute([$amt, $amt, $bid]);
+        }
+        $up->exec("UPDATE billings SET invoice_number=CONCAT('SI-OLD-', id), invoice_date=CURRENT_DATE(), due_date=CURRENT_DATE(), finalized_by={$bil['id']}, finalized_at=NOW() WHERE status IN ('Invoiced','Paid')");
+        $up->exec("UPDATE billings SET amount_paid=total_amount WHERE status='Paid'");
+        return $up;
+    };
+    $sum = fn(PDO $c) => $c->query('CHECKSUM TABLE billings')->fetch()['Checksum'];
+    $oldCols = 'id, billing_id, description, amount, added_by, created_at';
+    $fa = test_fingerprint($p, $FRESH);
+    $sameAsFresh = function (PDO $c, string $label) use ($fa, $UPGRADE): void {
+        $fb = test_fingerprint($c, $UPGRADE);
+        foreach ($fa as $k => $v) ok($v === $fb[$k], "$label: identical $k to a fresh install", json_encode([array_values(array_diff($v, $fb[$k])), array_values(array_diff($fb[$k], $v))]));
+    };
+
+    // A1. Normal upgrade: the whole file at once.
+    $up = $oldDb();
+    ok($state($up)['state'] === 'NOT APPLIED', 'check file: old database is NOT APPLIED', json_encode($state($up)));
+    $billSum = $sum($up); $oldRows = many($up, "SELECT $oldCols FROM billing_charges ORDER BY id");
+    test_import($up, $MIGSQL);
+    ok($state($up)['state'] === 'COMPLETE', 'normal upgrade: check file says COMPLETE');
+    ok($sum($up) === $billSum, 'normal upgrade: billings (For Billing, Invoiced, Paid) unchanged: same totals and invoice data');
+    ok(many($up, "SELECT $oldCols FROM billing_charges ORDER BY id") === $oldRows, 'normal upgrade: existing charge rows kept as they were');
+    $st = many($up, 'SELECT DISTINCT status, kind, request_type, replaces_id, decided_by, decision_notes FROM billing_charges');
+    ok(count($st) === 1 && $st[0]['status'] === 'Approved' && $st[0]['kind'] === 'Additional Charge' && $st[0]['request_type'] === 'New' && $st[0]['replaces_id'] === null
+        && $st[0]['decided_by'] === null && str_contains((string)$st[0]['decision_notes'], 'before the approval workflow'), 'existing charges are Approved (grandfathered) and noted', json_encode($st));
+    ok(one($up, 'SELECT COALESCE(SUM(amount),0) AS s FROM billing_charges WHERE billing_id=? AND ' . Billing::COUNTED, [$tA])['s'] === '550.00'
+        && one($up, 'SELECT charges_total FROM billings WHERE id=?', [$tA])['charges_total'] === '550.00', 'approved-only sum equals the stored charges total');
+    $sameAsFresh($up, 'normal upgrade');
+    $fb = test_fingerprint($up, $UPGRADE);
+    try { test_import($up, $MIGSQL); ok(false, 'second import refused'); }
+    catch (PDOException $e) { ok(str_contains($e->getMessage(), "Duplicate column name 'kind'"), 'second import stops at step 1 (Duplicate column) before changing anything', $e->getMessage()); }
+    ok(test_fingerprint($up, $UPGRADE) === $fb && $sum($up) === $billSum && $state($up)['state'] === 'COMPLETE', 'refused second import changed nothing (old CHECK not dropped twice)');
+    try { test_import($up, $FINISH); ok(false, 'recovery on a complete database refused'); }
+    catch (PDOException $e) { ok(str_contains($e->getMessage(), 'Duplicate entry'), 'recovery file on a COMPLETE database stops at the marker', $e->getMessage()); }
+    ok(test_fingerprint($up, $UPGRADE) === $fb && $sum($up) === $billSum, 'recovery file on a complete database changed nothing');
+
+    // A2. Step 1 fails (simulated name clash): nothing applied, nothing recorded.
+    $up = $oldDb();
+    $billSum = $sum($up); $before = test_fingerprint($up, $UPGRADE);
+    $up->exec('CREATE TABLE zz_block (id INT PRIMARY KEY, u INT, CONSTRAINT fk_bcharge_decider FOREIGN KEY (u) REFERENCES users(id))');
+    $blocked = test_fingerprint($up, $UPGRADE);
+    try { test_import($up, $MIGSQL); ok(false, 'step 1 failure simulated'); }
+    catch (PDOException $e) { ok(true, 'step 1 failed (simulated constraint name clash)'); }
+    ok(test_fingerprint($up, $UPGRADE) === $blocked, 'failed step 1 left the table exactly as before (old CHECK kept, no new column)');
+    ok(!one($up, 'SELECT id FROM schema_migrations WHERE id=?', [MIG]) && $state($up)['state'] === 'NOT APPLIED', 'failed migration NOT recorded; check file says NOT APPLIED');
+    $up->exec('DROP TABLE zz_block');
+    ok(test_fingerprint($up, $UPGRADE) === $before, 'cause removed: back to the old schema');
+    test_import($up, $MIGSQL);
+    ok($state($up)['state'] === 'COMPLETE' && $sum($up) === $billSum, 'after fixing the cause, importing the migration again completes it; totals unchanged');
+    $sameAsFresh($up, 'retry after a failed step 1');
+
+    // A3. Stopped after step 1 (connection lost): PARTIAL -> recovery file.
+    $up = $oldDb();
+    $billSum = $sum($up);
+    $up->exec($mst[0]);                                     // only step 1 ran
+    $s3 = $state($up);
+    ok($s3['state'] === 'PARTIAL' && (int)$s3['recorded'] === 0, 'stopped after step 1: check file says PARTIAL, not recorded', json_encode($s3));
+    ok($sum($up) === $billSum && (int)one($up, "SELECT COUNT(*) AS n FROM billing_charges WHERE status<>'Approved'")['n'] === 0, 'PARTIAL state: old charges already Approved, totals unchanged (safe meanwhile)');
+    $part = test_fingerprint($up, $UPGRADE);
+    try { test_import($up, $MIGSQL); ok(false, 'migration re-import refused in PARTIAL state'); }
+    catch (PDOException $e) { ok(str_contains($e->getMessage(), 'Duplicate column'), 'importing the migration again is refused at step 1 (nothing re-run)', $e->getMessage()); }
+    ok(test_fingerprint($up, $UPGRADE) === $part && $state($up)['state'] === 'PARTIAL', 'refused re-import changed nothing');
+    test_import($up, $FINISH);
+    ok($state($up)['state'] === 'COMPLETE' && $sum($up) === $billSum, 'recovery file finished steps 2-4: COMPLETE, totals unchanged');
+    ok((int)one($up, "SELECT COUNT(*) AS n FROM billing_charges WHERE decision_notes LIKE '%before the approval workflow%'")['n'] === count($oldCharges), 'recovery backfilled the grandfather note');
+    $sameAsFresh($up, 'PARTIAL + recovery');
+
+    // A4. Recovery file used by mistake on a database where step 1 never ran.
+    $up = $oldDb();
+    $before = test_fingerprint($up, $UPGRADE);
+    try { test_import($up, $FINISH); ok(false, 'recovery on an old database refused'); }
+    catch (PDOException $e) { ok(str_contains($e->getMessage(), 'Unknown column'), 'recovery file on a NOT APPLIED database fails at its first statement', $e->getMessage()); }
+    ok(test_fingerprint($up, $UPGRADE) === $before && $state($up)['state'] === 'NOT APPLIED', 'mistaken recovery changed and recorded nothing');
+
+    // The same old records in the fresh database (used by section I).
+    foreach ($oldCharges as [$bid, $desc, $amt]) insert($p, 'billing_charges', ['billing_id' => $bid, 'description' => $desc, 'amount' => $amt, 'status' => 'Approved', 'added_by' => $bil['id']]);
     run($p, "UPDATE billings b SET charges_total=(SELECT SUM(amount) FROM billing_charges c WHERE c.billing_id=b.id), total_amount=base_amount+(SELECT SUM(amount) FROM billing_charges c WHERE c.billing_id=b.id) WHERE b.id IN (?,?,?)", [$tA, $tB, $tC]);
     run($p, "UPDATE billings SET invoice_number=CONCAT('SI-OLD-', id), invoice_date=CURRENT_DATE(), due_date=CURRENT_DATE(), finalized_by=?, finalized_at=NOW() WHERE id IN (?,?)", [$bil['id'], $tB, $tC]);
     run($p, "UPDATE billings SET amount_paid=total_amount WHERE id=?", [$tC]);
@@ -233,8 +293,12 @@ ok($C($e2)['status'] === 'Removed' && $C($rm)['status'] === 'Approved' && $total
 ok((bool)$C($e2), 'removed line still in the database (history)');
 $w = (int)$act($bil, 'charge_add', ['billing_id' => $b1, 'description' => 'Typo request', 'amount' => '75'])['charge_id'];
 fails(fn() => $act($bil, 'charge_remove', ['charge_id' => $w, 'reason' => 'x']), 'a pending request is withdrawn, not removed', 409, 'Withdraw');
-$act($bil2, 'charge_withdraw', ['charge_id' => $w]);
-ok($C($w)['status'] === 'Withdrawn' && (int)$C($w)['decided_by'] === $bil2['id'] && $total($b1) === '900.00', 'withdrawn (kept as history), total unchanged');
+fails(fn() => $act($bil2, 'charge_withdraw', ['charge_id' => $w]), 'another Billing user cannot withdraw it (direct API)', 403, 'person who made');
+foreach (['admin', 'admin2', 'finance', 'operations_head', 'audit'] as $who)
+    fails(fn() => $act($U($who), 'charge_withdraw', ['charge_id' => $w]), "$who cannot withdraw it (direct API)", 403);
+ok($C($w)['status'] === 'Pending Approval', 'refused withdrawals changed nothing');
+$act($bil, 'charge_withdraw', ['charge_id' => $w]);
+ok($C($w)['status'] === 'Withdrawn' && (int)$C($w)['decided_by'] === $bil['id'] && $total($b1) === '900.00', 'the requester withdrew it (kept as history), total unchanged');
 ok($note($adm['id'], "billing-adj-$w")['state'] === 'Resolved', 'withdrawing resolves the Admin task');
 fails(fn() => $act($adm, 'charge_decide', ['charge_id' => $w, 'decision' => 'approve']), 'withdrawn request cannot be approved', 409);
 fails(fn() => $act($bil, 'charge_withdraw', ['charge_id' => $e2]), 'an approved / decided line cannot be withdrawn', 409);
@@ -356,6 +420,77 @@ ok($t9 > 0 && in_array(one($p, 'SELECT status FROM trips WHERE id=?', [$t9])['st
 BillingDraft::createFor($p, one($p, 'SELECT * FROM trips WHERE id=?', [$t9]));
 ok(one($p, 'SELECT total_amount FROM billings WHERE trip_id=?', [$t9])['total_amount'] === '1000.00', 'billing draft at dispatch unaffected (base only)');
 ok($C($pend)['status'] === 'Pending Approval', 'pending request untouched by other trip operations');
+
+// ---------------------------------------------------------------------
+section('L. Two processes at the same moment (approval / request / finalize)');
+// The parent runs a REAL Billing action inside an open transaction (transaction() reuses it), so it holds the
+// billing row lock without committing. The child process runs the other action and must wait for the lock.
+$child = __DIR__ . '/_billing_child.php';
+file_put_contents($child, '<?php
+declare(strict_types=1);
+require dirname(__DIR__) . "/backend/Actions.php";
+Actions::load("Billing");
+$u = json_decode($argv[1], true);
+try { $r = Billing::action($u, $argv[2], json_decode($argv[3], true)); echo json_encode(["ok" => true, "message" => $r["message"] ?? ""]); }
+catch (BusinessRuleException $e) { echo json_encode(["ok" => false, "code" => $e->httpStatus, "message" => $e->getMessage()]); }
+catch (Throwable $e) { echo json_encode(["ok" => false, "code" => 0, "message" => get_class($e) . ": " . $e->getMessage()]); }
+');
+$race = function (callable $parentAction, array $childUser, string $childAction, array $childData) use ($p, $child, $FRESH): array {
+    $p->beginTransaction();
+    try { $parentAction(); } catch (Throwable $e) { $p->rollBack(); throw $e; }
+    $pipes = [];
+    $proc = proc_open([PHP_BINARY, $child, json_encode($childUser), $childAction, json_encode($childData)], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    usleep(1500000);
+    $waiting = (int)$p->query("SELECT COUNT(*) FROM information_schema.processlist WHERE db='$FRESH' AND command IN ('Query','Execute') AND info LIKE '%FOR UPDATE%' AND id<>CONNECTION_ID()")->fetchColumn();
+    $p->commit();
+    $out = json_decode((string)stream_get_contents($pipes[1]), true) ?: ['ok' => false, 'code' => -1, 'message' => (string)stream_get_contents($pipes[2])];
+    proc_close($proc);
+    return [$waiting, $out];
+};
+$invoiceMatchesLines = fn(int $bid) => abs((float)$B($bid)['base_amount'] + (float)one($p, 'SELECT COALESCE(SUM(amount),0) AS s FROM billing_charges WHERE billing_id=? AND ' . Billing::COUNTED, [$bid])['s'] - (float)$B($bid)['total_amount']) < 0.001;
+
+// L1. A charge request is being saved while Billing finalizes: finalize waits, then sees the pending request.
+$l1 = $billing(); $act($bil, 'verify', ['billing_id' => $l1]);
+[$w1, $o1] = $race(fn() => $act($bil2, 'charge_add', ['billing_id' => $l1, 'description' => 'Race charge', 'amount' => '777']), $bil, 'finalize', ['billing_id' => $l1, 'invoice_date' => date('Y-m-d')]);
+ok($w1 >= 1, 'finalize waited for the request being saved', "waiting=$w1");
+ok(!$o1['ok'] && ($o1['code'] ?? 0) === 409 && str_contains($o1['message'], 'waiting for Admin approval'), 'finalize then refused: the pending amount cannot reach an invoice', json_encode($o1));
+ok($B($l1)['status'] === 'For Billing' && $B($l1)['invoice_number'] === null && $total($l1) === '1000.00', 'no invoice, total without the pending amount');
+
+// L2. The Admin is approving while Billing finalizes: finalize waits, then invoices the approved total.
+$l2 = $billing(); $act($bil, 'verify', ['billing_id' => $l2]);
+$rq = (int)$act($bil, 'charge_add', ['billing_id' => $l2, 'description' => 'Approved in race', 'amount' => '300'])['charge_id'];
+[$w2, $o2] = $race(fn() => $act($adm, 'charge_decide', ['charge_id' => $rq, 'decision' => 'approve']), $bil, 'finalize', ['billing_id' => $l2, 'invoice_date' => date('Y-m-d')]);
+ok($w2 >= 1, 'finalize waited for the approval', "waiting=$w2");
+ok($o2['ok'] && $B($l2)['status'] === 'Invoiced' && $B($l2)['total_amount'] === '1300.00' && $invoiceMatchesLines($l2), 'finalize then invoiced exactly base + approved lines (1300)', json_encode([$o2, $B($l2)['total_amount']]));
+
+// L3. The Admin is rejecting while Billing finalizes: the rejected amount never reaches the invoice.
+$l3 = $billing(); $act($bil, 'verify', ['billing_id' => $l3]);
+$rq3 = (int)$act($bil, 'charge_add', ['billing_id' => $l3, 'description' => 'Rejected in race', 'amount' => '450'])['charge_id'];
+[$w3, $o3] = $race(fn() => $act($adm, 'charge_decide', ['charge_id' => $rq3, 'decision' => 'reject', 'reason' => 'No basis']), $bil, 'finalize', ['billing_id' => $l3, 'invoice_date' => date('Y-m-d')]);
+ok($w3 >= 1 && $o3['ok'] && $B($l3)['total_amount'] === '1000.00' && $invoiceMatchesLines($l3), 'finalize after a concurrent rejection: invoice 1000, rejected 450 not included', json_encode($o3));
+
+// L4. Billing finalizes while another request arrives: the request waits, then is refused (invoice final).
+$l4 = $billing(); $act($bil, 'verify', ['billing_id' => $l4]);
+[$w4, $o4] = $race(fn() => $act($bil, 'finalize', ['billing_id' => $l4, 'invoice_date' => date('Y-m-d')]), $bil2, 'charge_add', ['billing_id' => $l4, 'description' => 'Too late', 'amount' => '50']);
+ok($w4 >= 1 && !$o4['ok'] && ($o4['code'] ?? 0) === 409, 'a request arriving during finalize waited and was refused', json_encode($o4));
+ok($B($l4)['total_amount'] === '1000.00' && !one($p, 'SELECT id FROM billing_charges WHERE billing_id=?', [$l4]), 'finalized invoice unchanged, no line added');
+
+// L5. Two Admins approve the same request at once: counted once.
+$l5 = $billing();
+$rq5 = (int)$act($bil, 'charge_add', ['billing_id' => $l5, 'description' => 'Double approve', 'amount' => '200'])['charge_id'];
+[$w5, $o5] = $race(fn() => $act($adm, 'charge_decide', ['charge_id' => $rq5, 'decision' => 'approve']), $adm2, 'charge_decide', ['charge_id' => $rq5, 'decision' => 'approve']);
+ok($w5 >= 1 && !$o5['ok'] && ($o5['code'] ?? 0) === 409 && str_contains($o5['message'], 'already decided'), 'second Admin waited and got "already decided"', json_encode($o5));
+ok($total($l5) === '1200.00' && (int)$C($rq5)['decided_by'] === $adm['id'], 'approved amount counted once (1200)');
+
+// L6. A change is approved while a removal of the same line is requested: the removal is refused (line no longer approved).
+$l6 = $billing();
+$base6 = (int)$act($bil, 'charge_add', ['billing_id' => $l6, 'description' => 'Line', 'amount' => '100'])['charge_id'];
+$act($adm, 'charge_decide', ['charge_id' => $base6, 'decision' => 'approve']);
+$chg6 = (int)$act($bil, 'charge_change', ['charge_id' => $base6, 'description' => 'Line', 'amount' => '150', 'reason' => 'x'])['charge_id'];
+[$w6, $o6] = $race(fn() => $act($adm, 'charge_decide', ['charge_id' => $chg6, 'decision' => 'approve']), $bil2, 'charge_remove', ['charge_id' => $base6, 'reason' => 'race']);
+ok($w6 >= 1 && !$o6['ok'] && ($o6['code'] ?? 0) === 409, 'removal request of a line being superseded waited and was refused', json_encode($o6));
+ok($total($l6) === '1150.00' && $C($base6)['status'] === 'Superseded' && $C($chg6)['status'] === 'Approved', 'one consistent result: changed line 150, total 1150');
+@unlink($child);
 
 echo "\n" . str_repeat('=', 60) . "\nPASSED: $PASS   FAILED: $FAIL\n";
 if ($FAILED) { echo "Failed:\n - " . implode("\n - ", $FAILED) . "\n"; }
