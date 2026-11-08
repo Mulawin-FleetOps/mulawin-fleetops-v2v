@@ -448,7 +448,31 @@ const App = {
     const [page, qs] = (location.hash.slice(1) || 'dashboard').split('?');
     const query = Object.fromEntries(new URLSearchParams(qs || ''));
     const nav = this.me.nav.find(n => n.id === page);
-    if (!nav) return this.go('dashboard');
+    // FLEETOPS_ACCESS_ANALYTICS_V1: render an explicit denial without requesting restricted page data.
+    // The server independently enforces Access::canOpen() and returns HTTP 403 for forbidden data.
+    if (!nav) {
+      this.current = { page: '_access_denied', query: {} };
+      document.querySelectorAll('[data-nav]').forEach(a => a.classList.remove('active'));
+      document.querySelectorAll('.offcanvas.app-drawer').forEach(o => {
+        bootstrap.Offcanvas.getInstance(o)?.hide(); o.remove();
+      });
+      document.getElementById('appSidebar')?.classList.remove('open');
+      document.getElementById('sidebarBackdrop')?.classList.remove('show');
+      document.title = 'Access denied · Mulawin FleetOps';
+      const crumbs = document.getElementById('crumbs');
+      if (crumbs) crumbs.textContent = 'Access denied';
+      const content = document.getElementById('pageContent');
+      if (content) {
+        content.innerHTML = `<section class="panel" role="alert" aria-live="polite" style="max-width:680px;margin:32px auto">
+          <div class="panel-body" style="padding:28px">
+            <h1 class="page-title"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Access denied</h1>
+            <p class="text-muted mt-2">Your account does not have permission to open this page. Contact your administrator if you need access.</p>
+            <button type="button" class="btn btn-primary mt-2" id="accessReturnHome"><i class="bi bi-house me-1" aria-hidden="true"></i> Return to dashboard</button>
+          </div></section>`;
+        content.querySelector('#accessReturnHome')?.addEventListener('click', () => this.go('dashboard'));
+      }
+      return;
+    }
     this.current = { page, query };
     document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === page));
     // Expand the supporting-tools group only when the current route is inside it.

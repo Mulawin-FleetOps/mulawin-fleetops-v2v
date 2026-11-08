@@ -40,6 +40,16 @@ App.page('reports', {
     ctx.tools.append(p1, p2);
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, keys.map(k => [k, d.sections[k].title, () => { current = k; const s = d.sections[k];
-      return (s.note ? `<div class="small text-muted mb-2"><i class="bi bi-info-circle"></i> ${UI.esc(s.note)}</div>` : '') + UI.blocks(s, { maxCharts: 3, key: 'rep-' + k }); }]));
+      // FLEETOPS_ACCESS_ANALYTICS_V1: explanatory observations based only on report aggregates.
+      const findings = (d.insights && d.insights[k]) || [];
+      const insightHtml = findings.length ? `<section class="panel mb-3" aria-label="Report insights">
+        <div class="panel-head"><h2 class="panel-title"><i class="bi bi-lightbulb" aria-hidden="true"></i> Descriptive and diagnostic insights</h2></div>
+        <div class="panel-body"><div class="row g-3">${findings.map(item => `<div class="col-12 col-lg-6"><div class="h-100 p-3 border rounded-3">
+          <div class="small text-muted mb-1">${item.type === 'diagnostic' ? 'Diagnostic signal' : item.type === 'descriptive' ? 'Descriptive finding' : 'Method / limitation'}</div>
+          <div class="fw-semibold mb-1">${UI.esc(item.title)}</div><p class="small mb-0">${UI.esc(item.text)}</p>
+        </div></div>`).join('')}</div>
+        <p class="small text-muted mt-3 mb-0">Diagnostic signals identify records to examine. They do not prove causes or predict future outcomes.</p></div>
+      </section>` : '';
+      return insightHtml + (s.note ? `<div class="small text-muted mb-2"><i class="bi bi-info-circle"></i> ${UI.esc(s.note)}</div>` : '') + UI.blocks(s, { maxCharts: 3, key: 'rep-' + k }); }]));
   },
 });

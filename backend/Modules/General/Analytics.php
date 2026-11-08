@@ -185,7 +185,9 @@ final class Analytics {
         if (in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true)) $sections['fleet'] = self::fleetReport($p, $q, $from, $to);
         if (in_array($r, ['admin', 'finance', 'billing', 'audit'], true)) $sections['money'] = self::moneyReport($p, $q, $from, $to, $pFrom, $pTo);
         if (in_array($r, ['admin', 'purchasing', 'motorpool', 'finance', 'audit'], true)) $sections['stock'] = self::stockReport($p, $from, $to);
-        return ['sections' => $sections, 'period' => ['from' => $from, 'to' => $to, 'prevFrom' => $pFrom, 'prevTo' => $pTo],
+        // FLEETOPS_ACCESS_ANALYTICS_V1: derive bounded observations from already-authorized aggregates.
+        $insights = self::reportInsights($sections);
+        return ['sections' => $sections, 'insights' => $insights, 'period' => ['from' => $from, 'to' => $to, 'prevFrom' => $pFrom, 'prevTo' => $pTo],
                 'filterOptions' => readSections([
                     'clients' => fn() => many($p, 'SELECT id, company_name FROM clients ORDER BY company_name'),
                     'trucks' => fn() => many($p, 'SELECT id, plate_number FROM vehicles ORDER BY plate_number'),
@@ -193,6 +195,56 @@ final class Analytics {
                     'dispatchers' => fn() => many($p, "SELECT id, full_name FROM users WHERE role IN ('car_carrier_dispatcher','container_wingvan_dispatcher') ORDER BY full_name"),
                 ]), 'statuses' => ['Completed', 'Cancelled', 'For Reschedule', 'Dispatched', 'In Transit', 'On Hold - Incident Reported', 'Pre-Assigned', 'Ready for Dispatch', 'Pending Review', 'Awaiting Resources', 'Rejected']];
     }
+    /** Evidence-based descriptive and diagnostic signals; never claim that correlation proves a cause.
+     * Uses only sections already authorized for this role; no extra SQL queries or permission widening.
+     */
+    private static function reportInsights(array $sections): array {
+        $out = [];
+        foreach ($sections as $key => $section) {
+            $cards = [];
+            foreach (($section['cards'] ?? []) as $card) $cards[(string)($card['label'] ?? '')] = (float)($card['value'] ?? 0);
+            $tables = [];
+            foreach (($section['tables'] ?? []) as $table) $tables[(string)($table['title'] ?? '')] = $table['rows'] ?? [];
+            $notes = [];
+            if ($key === 'trips') {
+                $total = $cards['Total trips'] ?? 0;
+                $completed = $cards['Completed trips'] ?? 0;
+                if ($total > 0) $notes[] = ['title' => 'Trip completion share', 'text' => number_format($completed / $total * 100, 1) . '% of trips scheduled in the period are marked Completed (' . (int)$completed . ' of ' . (int)$total . ').', 'type' => 'descriptive'];
+                $delays = $cards['Recorded delays'] ?? 0;
+                $incidents = $cards['Incidents'] ?? 0;
+                if ($total > 0 && ($delays > 0 || $incidents > 0)) $notes[] = ['title' => 'Investigate repeat disruptions', 'text' => (int)$delays . ' delay update(s) and ' . (int)$incidents . ' incident report(s) are associated with trips scheduled in the period. Review the Delays and incidents table for recorded explanations; counts can include multiple events per trip.', 'type' => 'diagnostic'];
+                $truckRows = $tables['Per truck'] ?? [];
+                usort($truckRows, static fn($a, $b) => ((int)($b['delays'] ?? 0) + (int)($b['incidents'] ?? 0)) <=> ((int)($a['delays'] ?? 0) + (int)($a['incidents'] ?? 0)));
+                if ($truckRows && ((int)($truckRows[0]['delays'] ?? 0) + (int)($truckRows[0]['incidents'] ?? 0)) > 0) {
+                    $top = $truckRows[0];
+                    $notes[] = ['title' => 'Most recorded truck disruptions', 'text' => (string)($top['name'] ?? 'Unknown truck') . ' has ' . (int)($top['delays'] ?? 0) . ' delay update(s) and ' . (int)($top['incidents'] ?? 0) . ' incident report(s). This identifies a review priority, not a proven root cause.', 'type' => 'diagnostic'];
+                }
+            } elseif ($key === 'fleet') {
+                $rows = $tables['Highest downtime'] ?? [];
+                if ($rows && (float)($rows[0]['downtime_days'] ?? 0) > 0) {
+                    $top = $rows[0];
+                    $notes[] = ['title' => 'Highest observed downtime', 'text' => (string)($top['name'] ?? 'Unknown truck') . ' recorded ' . (float)$top['downtime_days'] . ' truck-day(s) under maintenance. Examine its maintenance history and repair timeline to establish the reason.', 'type' => 'diagnostic'];
+                }
+                $expense = $cards['Maintenance expenses'] ?? 0;
+                $notes[] = ['title' => 'Recorded maintenance cost', 'text' => 'PHP ' . number_format($expense, 2) . ' in parts and other recorded maintenance costs for the selected period. Compare the per-truck cost table before drawing conclusions.', 'type' => 'descriptive'];
+            } elseif ($key === 'money') {
+                $outstanding = $cards['Outstanding receivables'] ?? 0;
+                $overdue = $cards['Overdue'] ?? 0;
+                if ($outstanding > 0) $notes[] = ['title' => 'Overdue share of receivables', 'text' => number_format($overdue / $outstanding * 100, 1) . '% of the current outstanding balance is overdue (PHP ' . number_format($overdue, 2) . ' of PHP ' . number_format($outstanding, 2) . '). Receivable balances are current snapshots, not limited to the selected date range.', 'type' => 'descriptive'];
+                if ($overdue > 0) $notes[] = ['title' => 'Investigate overdue balances', 'text' => 'Review the Overdue accounts and Receivables aging tables to identify which invoices and clients contribute to the unpaid balance. This report does not establish the cause of late payment.', 'type' => 'diagnostic'];
+                $notes[] = ['title' => 'Profit interpretation', 'text' => 'Trip profit here is billed amount minus recorded trip-linked expenses; diesel is also shown as a separate estimate. It is not audited net profit or cash collected.', 'type' => 'method'];
+            } elseif ($key === 'stock') {
+                $stockOut = $cards['Stock-out (units)'] ?? 0;
+                $notes[] = ['title' => 'Stock movement volume', 'text' => number_format($stockOut, 0) . ' unit(s) recorded as stock-out during the period. Use Movements per part to identify the items responsible.', 'type' => 'descriptive'];
+                $po = $cards['Partially received POs'] ?? 0;
+                if ($po > 0) $notes[] = ['title' => 'Pending receiving follow-up', 'text' => (int)$po . ' purchase order(s) are partially received. Open the purchase-order records to inspect remaining quantities; this count describes current PO status.', 'type' => 'diagnostic'];
+            }
+            if (!$notes) $notes[] = ['title' => 'Insufficient evidence', 'text' => 'No reliable observation is available from the current report aggregates. Try a wider date range or review the underlying records.', 'type' => 'method'];
+            $out[$key] = array_slice($notes, 0, 4);
+        }
+        return $out;
+    }
+
     private static function date($v): ?string { $v = trim((string)$v); return ($v !== '' && DateTimeImmutable::createFromFormat('!Y-m-d', $v)) ? $v : null; }
     private static function pct(float $now, float $before): ?float { return $before == 0.0 ? null : round(($now - $before) / $before * 100, 1); }
     private static function change(float $now, float $before): string {
