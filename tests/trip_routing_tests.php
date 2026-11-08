@@ -356,6 +356,8 @@ ok($t['status'] === 'Pre-Assigned' && (int)one($p, "SELECT COUNT(*) AS n FROM tr
 // Pre-dispatch checklist and fund release are not changed by Phase 3: set their results directly.
 run($p, "UPDATE trips SET status='Ready for Dispatch' WHERE id=?", [$id]);
 insert($p, 'fund_requests', ['fund_ref' => 'FR-T-1', 'trip_id' => $id, 'attempt_number' => 1, 'amount' => '1000.00', 'status' => 'Released', 'requested_by' => $wvd['id']]);
+// Confirm Dispatch opens 15 minutes before the schedule (Checklist #38/#40): departure in 5 minutes.
+run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $id]);
 $res = Trips::action($wvd, 'dispatch', ['trip_id' => $id]);
 $b = one($p, 'SELECT * FROM billings WHERE trip_id=?', [$id]);
 ok($b && $b['status'] === 'Ongoing' && $b['distance_km'] === '12.00' && $b['rate_per_km'] === '50.00' && $b['base_amount'] === '600.00',

@@ -607,6 +607,8 @@ try {
     Trips::action($D, 'checklist_start', ['trip_id' => $trip['id'], 'kind' => 'Pre-Dispatch']);
     Trips::action($D, 'checklist', ['trip_id' => $trip['id'], 'items' => $items, 'meta' => [], 'odometer_km' => '1000', 'fuel_level' => 'Full']);
     ok(one($p, 'SELECT status FROM trips WHERE id=?', [$trip['id']])['status'] === 'Ready for Dispatch', 'pre-dispatch checklist -> Ready for Dispatch as before');
+    // Confirm Dispatch opens 15 minutes before the schedule (Checklist #38/#40): move the departure to 5 minutes from now.
+    run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $trip['id']]);
     Trips::action($D, 'dispatch', ['trip_id' => $trip['id']]);
     $b = one($p, 'SELECT * FROM billings WHERE trip_id=?', [$trip['id']]);
     ok($b && $b['status'] === 'Ongoing' && $b['rate_per_km'] === '55.50' && $b['base_amount'] === '1110.00', 'billing draft still uses client_rates per km: 20 km x 55.50 = 1,110.00 (route rate ignored)', json_encode($b ? [$b['rate_per_km'], $b['base_amount']] : null));
