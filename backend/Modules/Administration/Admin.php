@@ -250,7 +250,15 @@ final class Admin {
         // (identical hours would leave no Night shift in CrewAttendance::shiftFor).
         $shiftKeys = ['attendance_day_start_hour' => 'attendance_night_start_hour', 'attendance_night_start_hour' => 'attendance_day_start_hour'];
         if (isset($shiftKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour (12:00 AM to 11:00 PM).");
+        if ($key === 'crew_attendance_dispatch_check') must(in_array($raw, ['1', '2'], true), "$label must be Warn (1) or Enforce (2).");
         return transaction(function (PDO $p) use ($u, $key, $raw, $label, $shiftKeys) {
+            if ($key === 'crew_attendance_dispatch_check' && $raw === '2') {
+                // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: Enforce only when every active driver / helper has a shift.
+                $missing = CrewAttendance::unassignedCrew($p);
+                must(!$missing, 'Enforce cannot be turned on yet: ' . count($missing) . ' active driver(s)/helper(s) have no assigned shift ('
+                    . implode(', ', array_map(fn($r) => $r['full_name'], array_slice($missing, 0, 10))) . (count($missing) > 10 ? ', ...' : '')
+                    . '). Assign their shift in the Drivers & Helpers masterlist first.', 409);
+            }
             if (isset($shiftKeys[$key])) {
                 Settings::clearCache();
                 must((int)$raw !== (int)Settings::value($shiftKeys[$key]), 'The Day and Night shift start hours cannot be the same.', 409);
@@ -260,10 +268,11 @@ final class Admin {
               ->execute([$key, $raw, $u['id']]);
             Settings::clearCache();
             // Shift start hours are shown as 12-hour times (stored value stays 0-23).
-            $show = fn($v) => isset($shiftKeys[$key]) && $v !== null && $v !== '' ? CrewAttendance::hourLabel((int)$v) : $v;
+            $show = fn($v) => $v === null || $v === '' ? $v : (isset($shiftKeys[$key]) ? CrewAttendance::hourLabel((int)$v)
+                : ($key === 'crew_attendance_dispatch_check' ? CrewAttendance::modeName((int)$v) : $v));
             auditWithChanges($p, $u['id'], 'Settings', $key, 'setting changed', "$label = " . $show($raw),
                 // A shift start hour never saved before was using its default: show that time as "before".
-                [$label => $show($previousSetting['setting_value'] ?? (isset($shiftKeys[$key]) ? (string)(int)Settings::default($key) : null))], [$label => $show($raw)]);
+                [$label => $show($previousSetting['setting_value'] ?? (isset($shiftKeys[$key]) || $key === 'crew_attendance_dispatch_check' ? (string)(int)Settings::default($key) : null))], [$label => $show($raw)]);
             return ['message' => "$label saved (" . $show($raw) . "). New records use the new value."];
         });
     }
