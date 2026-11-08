@@ -186,6 +186,7 @@ final class Trips {
             'reassign' => self::reassign($u, $d),
             'crew_options' => self::crewOptions($u, $d),
             'diesel_po' => self::attachDieselPo($u, $d),
+            'create_batch' => self::createBatch($u, $d),
             'checklist_start' => self::checklistStart($u, $d),
             'checklist' => self::checklist($u, $d),
             'dispatch' => self::dispatch($u, $d),
@@ -468,6 +469,87 @@ final class Trips {
             Notify::roles($p, ['operations_head'], 'Trip request', "New delivery request $ref from " . $u['full_name'] . ' is Pending Review.', 'trips', 'trip-review-' . $id);
             return ['trip_id' => $id, 'trip_ref' => $ref, 'message' => "Request $ref sent to the Operations Head (Pending Review)." . $distNote];
         });
+    }
+
+    /**
+     * BATCH_TRIP_PLANNING_V1 — several trips entered in one planning session.
+     *   Every row becomes its own trip through the SAME create() rules (client, rates, approved route, schedule,
+     *   distance, Scenario A auto-assignment / Awaiting Resources for the Operations Head, Scenario B Pending Review
+     *   for a dispatcher). No new approval rule, no new table.
+     *   1) All rows are checked first without writing anything; if any row is wrong, nothing is created and every
+     *      problem is listed by row number.
+     *   2) Then the rows are created one by one (earliest schedule first, so earlier trips get resources first).
+     *      Each row has its own form key (request_key), so sending the same batch again creates nothing new.
+     *   Returns one result per row, in the order entered.
+     */
+    public const BATCH_MAX_ROWS = 20;
+    private static function createBatch(array $u, array $d): array {
+        must(self::canCreate($u), 'Only the Operations Head or a dispatcher can create a trip.', 403);
+        $rows = $d['rows'] ?? null;
+        must(is_array($rows) && array_is_list($rows) && $rows, 'Add at least one trip to the batch.');
+        must(count($rows) <= self::BATCH_MAX_ROWS, 'A batch can have at most ' . self::BATCH_MAX_ROWS . ' trips. Split it into smaller batches.');
+        $isOps = hasRole($u, 'operations_head');
+        $p = db();
+        $errors = []; $seenKeys = []; $seenTrips = []; $sched = [];
+        foreach ($rows as $i => $row) {
+            $n = $i + 1;
+            try {
+                must(is_array($row), 'Invalid trip entry.');
+                $key = strtolower(trim((string)($row['request_key'] ?? '')));
+                must((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $key), 'Invalid form key. Reload the page.');
+                must(!isset($seenKeys[$key]), 'Same form key as row ' . ($seenKeys[$key] ?? '') . '. Reload the page.');
+                $seenKeys[$key] = $n;
+                $prev = one($p, 'SELECT trip_ref, created_by FROM trips WHERE request_key=?', [$key]);
+                must(!$prev || (int)$prev['created_by'] === $u['id'], 'Invalid form key. Reload the page.');
+                if ($prev) { $sched[$i] = PHP_INT_MAX; continue; }   // already created by an earlier send: reported as duplicate below
+                $f = self::deliveryFields($row, false);
+                $client = idField($row, 'client_id');
+                $type = choiceField($row, 'truck_type', TRUCK_TYPES, $isOps);
+                if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.');
+                $c = one($p, 'SELECT company_name, status FROM clients WHERE id=?', [$client]);
+                must($c && $c['status'] === 'Active', 'Choose an Active client.');
+                if ($type) must(self::hasRate($p, $client, $type), $c['company_name'] . ' has no billing rate for ' . $type . ' yet.');
+                $route = ($row['client_route_id'] ?? '') === '' || ($row['client_route_id'] ?? null) === null ? null : idField($row, 'client_route_id');
+                if ($route !== null) must((bool)RouteDistance::selectable($p, $client, $type, $route), 'The chosen approved route cannot be used for this client and truck type.');
+                $mapRoute = trim((string)($row['route_option'] ?? '')) !== '' && $f['pickup_lat'] !== null && $f['delivery_lat'] !== null;
+                if ($isOps) must($route !== null || $mapRoute || ($f['distance_km'] !== null && $f['distance_km'] > 0), 'Enter the billable distance in km, or choose an approved route.');
+                $sig = implode('|', [$client, $type, substr((string)$f['scheduled_at'], 0, 16), mb_strtolower(trim((string)$f['pickup_point'])), mb_strtolower(trim((string)$f['delivery_point'])), $route]);
+                must(!isset($seenTrips[$sig]), 'Same client, truck type, schedule, pickup and delivery as row ' . ($seenTrips[$sig] ?? '') . '.');
+                $seenTrips[$sig] = $n;
+                $sched[$i] = strtotime((string)$f['scheduled_at']);
+            } catch (BusinessRuleException $e) {
+                $errors[] = "Row $n: " . $e->getMessage();
+            }
+        }
+        must(!$errors, 'Nothing was created. Fix these rows: ' . implode(' ', $errors), 400);
+        $order = array_keys($rows);
+        usort($order, fn($a, $b) => [$sched[$a], $a] <=> [$sched[$b], $b]);   // earliest schedule first (stable)
+        $results = [];
+        foreach ($order as $i) {
+            $row = $rows[$i];
+            try {
+                $r = self::create($u, $row);
+                $t = one($p, 'SELECT t.trip_ref, t.status, v.plate_number FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id WHERE t.id=?', [$r['trip_id']]);
+                $results[$i] = ['row' => $i + 1, 'result' => !empty($r['duplicate']) ? 'Already created' : 'Created', 'trip_id' => (int)$r['trip_id'],
+                                'trip_ref' => $t['trip_ref'], 'trip_status' => $t['status'], 'truck' => $t['plate_number'], 'message' => $r['message']];
+            } catch (PDOException $e) {
+                // Same batch sent twice at the same moment: the other request inserted this form key first.
+                $dup = ($e->errorInfo[1] ?? 0) === 1062 ? one($p, 'SELECT id, trip_ref, status FROM trips WHERE request_key=? AND created_by=?', [strtolower((string)$row['request_key']), $u['id']]) : null;
+                if (!$dup) throw $e;
+                $results[$i] = ['row' => $i + 1, 'result' => 'Already created', 'trip_id' => (int)$dup['id'], 'trip_ref' => $dup['trip_ref'], 'trip_status' => $dup['status'], 'truck' => null,
+                                'message' => 'Trip ' . $dup['trip_ref'] . ' was already created from this row (sent twice). No second trip was made.'];
+            } catch (BusinessRuleException $e) {
+                $results[$i] = ['row' => $i + 1, 'result' => 'Not created', 'trip_id' => null, 'trip_ref' => null, 'trip_status' => null, 'truck' => null, 'message' => $e->getMessage()];
+            }
+        }
+        ksort($results);
+        $results = array_values($results);
+        $count = fn(string $r) => count(array_filter($results, fn($x) => $x['result'] === $r));
+        $summary = sprintf('%d created, %d already created, %d not created', $count('Created'), $count('Already created'), $count('Not created'));
+        $waiting = count(array_filter($results, fn($x) => $x['trip_status'] === 'Awaiting Resources'));
+        audit($p, $u['id'], 'Trips', 'trip batch', 'trip batch planned', count($rows) . ' row(s): ' . $summary . '. '
+            . implode(', ', array_filter(array_map(fn($x) => $x['trip_ref'] ? $x['trip_ref'] . ' ' . $x['trip_status'] : null, $results))));
+        return ['results' => $results, 'message' => 'Batch planning: ' . $summary . '.' . ($waiting ? " $waiting trip(s) are Awaiting Resources (no free truck or crew yet)." : '')];
     }
 
     // ---------- Ops Head reviews a dispatcher request (Scenario B step 3) ----------
