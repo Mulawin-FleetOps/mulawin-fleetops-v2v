@@ -6,27 +6,60 @@
 'use strict';
 const BillUI = {
   data: null,
+  /* BILLING_ADJUSTMENT_APPROVAL_V1: Billing requests charges / per-trip rate adjustments; Admin approves.
+     Only approved lines are in the total (r.charges). Requests and their history are r.requests. */
+  sign: (v) => (+v < 0 ? '− ' : '') + UI.money(Math.abs(+v)),
+  reqText(x) {
+    if (x.request_type === 'New') return `${UI.esc(x.kind)}: ${UI.esc(x.description)} <b>${BillUI.sign(x.amount)}</b>`;
+    if (x.request_type === 'Removal') return `Remove ${UI.esc(x.kind.toLowerCase())}: ${UI.esc(x.old_description ?? x.description)} <b>${BillUI.sign(x.old_amount ?? x.amount)}</b>`;
+    return `Change ${UI.esc(x.kind.toLowerCase())}: ${UI.esc(x.old_description)} ${BillUI.sign(x.old_amount)} → ${UI.esc(x.description)} <b>${BillUI.sign(x.amount)}</b>`;
+  },
+  decide(x, decision, after) {
+    const approve = decision === 'approve';
+    UI.confirmAction(approve ? 'Approve billing request' : 'Reject billing request',
+      `${UI.esc(x.trip_ref || '')} ${BillUI.reqText(x)}${x.reason ? `<br><span class="small text-muted">Reason: ${UI.esc(x.reason)}</span>` : ''}<br><span class="small">${approve ? 'Once approved it counts in the billing total.' : 'The billing total stays as it is.'}</span>`,
+      'Billing.charge_decide', { charge_id: x.id, decision },
+      { danger: !approve, submit: approve ? 'Approve' : 'Reject', fields: [approve ? { name: 'notes', label: 'Notes (optional)', col: 12 } : { name: 'reason', label: 'Reason for rejecting', required: true, col: 12 }], after });
+  },
+  amountFields(kind, x) {
+    const adj = kind === 'Rate Adjustment';
+    return [{ name: 'description', label: 'Description (shown on the invoice)', required: true, col: 8, value: x ? x.description : '' },
+      { name: 'amount', label: 'Amount (PHP)', type: 'money', required: true, col: 4, value: x ? Math.abs(+x.amount).toFixed(2) : '' },
+      { name: 'direction', label: 'Rate adjustment', type: 'select', options: [['Increase', 'Increase (add to the total)'], ['Decrease', 'Decrease / discount (less from the total)']], value: x && +x.amount < 0 ? 'Decrease' : 'Increase', placeholder: false, col: 6, attrs: adj ? '' : 'disabled' }];
+  },
   async open(id) {
     let r; try { r = await App.api('Billing.details', { billing_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
     const b = r.billing, t = r.trip, c = r.client, act = BillUI.data.can.act;
     const docOk = (cat) => r.documents.some(x => x.category === cat);
-    const acts = [];
+    const acts = [], decide = BillUI.data.can.decide, me = BillUI.data.can.me;
+    const pending = r.requests.filter(x => x.status === 'Pending Approval');
+    const busy = new Set(pending.filter(x => x.replaces_id).map(x => String(x.replaces_id)));
+    const pendingDelta = pending.reduce((a, x) => a + (x.request_type === 'New' ? +x.amount : x.request_type === 'Change' ? +x.amount - +x.old_amount : -x.old_amount), 0);
     if (act && b.status === 'For Billing') {
-      acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="charge"><i class="bi bi-plus"></i> Add charge</button>');
-      acts.push(b.docs_verified_at ? '<button class="btn btn-sm btn-primary" data-a="finalize"><i class="bi bi-receipt"></i> Finalize invoice</button>' : '<button class="btn btn-sm btn-primary" data-a="verify"><i class="bi bi-shield-check"></i> Verify documents</button>');
+      acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="charge"><i class="bi bi-plus"></i> Request charge / adjustment</button>');
+      acts.push(!b.docs_verified_at ? '<button class="btn btn-sm btn-primary" data-a="verify"><i class="bi bi-shield-check"></i> Verify documents</button>'
+        : pending.length ? `<button class="btn btn-sm btn-primary" disabled title="Waiting for Admin approval"><i class="bi bi-receipt"></i> Finalize invoice</button>`
+        : '<button class="btn btn-sm btn-primary" data-a="finalize"><i class="bi bi-receipt"></i> Finalize invoice</button>');
     }
     if (['Invoiced', 'Partially Paid', 'Paid'].includes(b.status)) acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="print"><i class="bi bi-printer"></i> Print invoice</button>');
     if (act && ['Invoiced', 'Partially Paid'].includes(b.status)) acts.push('<button class="btn btn-sm btn-success" data-a="pay"><i class="bi bi-cash-stack"></i> Record payment</button>');
     const html = `<div class="mb-2">${UI.badge(b.status)} ${b.invoice_number ? `<b>${UI.esc(b.invoice_number)}</b>` : ''}</div>
       ${b.status === 'Ongoing' ? '<div class="alert alert-info py-2 small">Billing draft made at dispatch. View only while the trip is ongoing; it moves to For Billing when the trip is completed.</div>' : ''}
-      ${acts.length ? `<div class="drawer-actions">${acts.join('')}${b.status === 'For Billing' && !b.docs_verified_at ? '<div class="why">Finalizing is allowed after the supporting documents are verified.</div>' : ''}</div>` : ''}
+      ${acts.length ? `<div class="drawer-actions">${acts.join('')}${b.status === 'For Billing' && !b.docs_verified_at ? '<div class="why">Finalizing is allowed after the supporting documents are verified.</div>' : ''}${b.status === 'For Billing' && pending.length ? `<div class="why">${pending.length} request(s) are waiting for Admin approval. The invoice can be finalized after the Admin decides.</div>` : ''}</div>` : ''}
       ${UI.h('Billing breakdown')}<table class="breakdown w-100">
         <tr><td>Trip ${UI.esc(t.trip_ref)}: ${UI.num(b.distance_km, 2)} km x ${UI.money(b.rate_per_km)} per km</td><td class="num">${UI.money(+b.distance_km * +b.rate_per_km)}</td></tr>
         ${+b.minimum_charge > 0 ? `<tr><td class="text-muted">Minimum charge ${UI.money(b.minimum_charge)} → base amount</td><td class="num">${UI.money(b.base_amount)}</td></tr>` : ''}
-        ${r.charges.map(x => `<tr><td>${UI.esc(x.description)} <span class="text-muted small">(${UI.esc(x.added_by_name)})</span>${act && b.status === 'For Billing' ? ` <button class="btn btn-link btn-sm p-0 text-danger" data-rmc="${x.id}">remove</button>` : ''}</td><td class="num">${UI.money(x.amount)}</td></tr>`).join('')}
-        <tr class="total"><td>Total amount</td><td class="num">${UI.money(b.total_amount)}</td></tr>
+        ${r.charges.map(x => `<tr><td>${UI.esc(x.description)} <span class="text-muted small">(${UI.esc(x.kind)}${x.decided_by_name ? ', approved by ' + UI.esc(x.decided_by_name) : ''})</span>${act && b.status === 'For Billing' ? (busy.has(String(x.id)) ? ' <span class="badge-s amber">change pending</span>' : ` <button class="btn btn-link btn-sm p-0" data-chg="${x.id}">change</button> <button class="btn btn-link btn-sm p-0 text-danger" data-rmc="${x.id}">remove</button>`) : ''}</td><td class="num">${BillUI.sign(x.amount)}</td></tr>`).join('')}
+        <tr class="total"><td>Total amount (approved)</td><td class="num">${UI.money(b.total_amount)}</td></tr>
+        ${pending.length ? `<tr><td class="text-muted small">Waiting for Admin approval (not in the total): ${pending.length} request(s)</td><td class="num text-muted small">${pendingDelta < 0 ? '− ' : '+ '}${UI.money(Math.abs(pendingDelta))}</td></tr>` : ''}
         ${+b.amount_paid ? `<tr><td>Paid</td><td class="num">${UI.money(b.amount_paid)}</td></tr><tr class="total"><td>Balance</td><td class="num">${UI.money(b.balance)}</td></tr>` : ''}</table>
+      ${r.requests.length ? UI.h('Charge and adjustment requests') + '<div data-reqbox>' + UI.table([['Request', 'id', (v, x) => BillUI.reqText(x) + (x.reason ? `<div class="small text-muted">${UI.esc(x.reason)}</div>` : '')],
+        ['Requested by', 'added_by_name', (v, x) => UI.esc(v) + '<div class="small text-muted">' + UI.datetime(x.created_at) + '</div>'], ['Status', 'status', 'badge'],
+        ['Decision', 'decided_by_name', (v, x) => x.status === 'Pending Approval' ? '—' : UI.esc(v || '') + (x.decision_notes ? `<div class="small text-muted">${UI.esc(x.decision_notes)}</div>` : '')],
+        ['', 'id', (v, x) => x.status !== 'Pending Approval' || b.status !== 'For Billing' ? '' : (decide && +x.added_by !== me ? `<button class="btn btn-sm btn-success" data-dec="approve" data-req="${v}">Approve</button> <button class="btn btn-sm btn-outline-danger" data-dec="reject" data-req="${v}">Reject</button>` : '')
+          + (decide && +x.added_by === me ? '<span class="small text-muted">Another Admin decides</span>' : '') + (act && +x.added_by === me ? `<button class="btn btn-sm btn-outline-secondary" data-wd="${v}">Withdraw</button>` : '')]], r.requests, { plain: true }) + '</div>' : ''}
       ${UI.h('Supporting documents')}<ul class="req-list mb-2"><li class="${docOk('Waybill') ? 'ok' : 'no'}"><i class="bi ${docOk('Waybill') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Waybill</li>
+        <li class="${docOk('Delivery Receipt') ? 'ok' : 'no'}"><i class="bi ${docOk('Delivery Receipt') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Delivery receipt</li>
         <li class="${docOk('Acknowledgement Receipt') ? 'ok' : 'no'}"><i class="bi ${docOk('Acknowledgement Receipt') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Acknowledgement receipt</li>
         <li class="${b.docs_verified_at ? 'ok' : 'no'}"><i class="bi ${b.docs_verified_at ? 'bi-check-circle-fill' : 'bi-hourglass'}"></i> ${b.docs_verified_at ? 'Verified by ' + UI.esc(b.verified_by_name) + ' · ' + UI.datetime(b.docs_verified_at) : 'Not verified yet'}</li></ul>${UI.docs(r.documents)}
       ${UI.h('Trip details')}${UI.kv([['Route', UI.esc(t.pickup_point) + ' → ' + UI.esc(t.delivery_point)], ['Truck / driver', UI.esc([t.plate_number, t.driver_name].filter(Boolean).join(' · '))],
@@ -38,12 +71,28 @@ const BillUI = {
         ['', 'id', (v) => `<button class="btn btn-sm btn-outline-secondary" data-ar="${v}"><i class="bi bi-printer"></i> Receipt</button>`]], r.collections, { plain: true }) : ''}`;
     const el = UI.drawer('Billing · ' + UI.esc(t.trip_ref), html, { subtitle: UI.esc(c.company_name) });
     el.querySelectorAll('[data-ar]').forEach(x => x.onclick = () => BillUI.printAR(r.collections.find(co => String(co.id) === x.dataset.ar), b, c));
-    el.querySelectorAll('[data-rmc]').forEach(x => x.onclick = () => UI.confirmAction('Remove additional charge', 'Remove this charge from the billing breakdown?', 'Billing.charge_remove', { charge_id: x.dataset.rmc }, { danger: true, submit: 'Remove charge', after: () => { BillUI.open(id); App.route(); } }));
+    const reopen = () => { BillUI.open(id); App.route(); };
+    const line = (cid) => r.charges.find(c => String(c.id) === String(cid));
+    el.querySelectorAll('[data-rmc]').forEach(x => x.onclick = () => UI.confirmAction('Request removal', `Ask the Admin to remove <b>${UI.esc(line(x.dataset.rmc).description)} ${BillUI.sign(line(x.dataset.rmc).amount)}</b>? The line stays in the total until the Admin approves.`, 'Billing.charge_remove', { charge_id: x.dataset.rmc },
+      { danger: true, submit: 'Send removal request', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }], after: reopen }));
+    el.querySelectorAll('[data-chg]').forEach(x => x.onclick = () => { const c = line(x.dataset.chg);
+      UI.formModal('Request change: ' + UI.esc(c.kind.toLowerCase()), [...BillUI.amountFields(c.kind, c), { name: 'reason', label: 'Reason for the change', required: true, col: 12 }], 'Billing.charge_change',
+        { extra: { charge_id: c.id }, intro: `Current approved amount ${BillUI.sign(c.amount)} stays in the total until the Admin approves the change.`, after: reopen }); });
+    // Delegated: the requests table can re-render (paging), so handlers are not bound to the buttons.
+    el.querySelector('[data-reqbox]')?.addEventListener('click', (e) => {
+      const wd = e.target.closest('[data-wd]'), dec = e.target.closest('[data-dec]');
+      if (wd) UI.confirmAction('Withdraw request', 'Withdraw this pending request? Nothing in the billing total changes.', 'Billing.charge_withdraw', { charge_id: wd.dataset.wd }, { submit: 'Withdraw', after: reopen });
+      if (dec) BillUI.decide({ ...r.requests.find(q => String(q.id) === dec.dataset.req), trip_ref: t.trip_ref }, dec.dataset.dec, reopen);
+    });
     el.querySelectorAll('[data-a]').forEach(x => x.onclick = () => {
       const a = x.dataset.a;
-      if (a === 'charge') UI.formModal('Add billing charge', [{ name: 'description', label: 'Charge description (e.g. toll fees, waiting time)', required: true, col: 8 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 4 }],
-        'Billing.charge_add', { extra: { billing_id: id }, after: () => { BillUI.open(id); App.route(); } });
-      if (a === 'verify') UI.confirmAction('Verify documents', 'Confirm that the waybill and the acknowledgement receipt match this trip and the billing information.', 'Billing.verify', { billing_id: id }, { submit: 'Verify documents', after: () => { BillUI.open(id); App.route(); } });
+      if (a === 'charge') UI.formModal('Request charge or rate adjustment', [{ name: 'kind', label: 'Type', type: 'select', options: ['Additional Charge', 'Rate Adjustment'], value: 'Additional Charge', placeholder: false, required: true, col: 6 },
+          { type: 'html', col: 6, html: '<div class="form-help mt-4">Rate adjustment = special per-trip peso amount (plus or minus). The client rate is not changed.</div>' },
+          ...BillUI.amountFields('Additional Charge'), { name: 'reason', label: 'Reason (required for rate adjustments)', col: 12 }],
+        'Billing.charge_add', { extra: { billing_id: id }, intro: 'The Admin must approve it before it counts in the billing total.', after: reopen,
+          onShow: (w, form) => { const k = form.querySelector('[name=kind]'), dir = form.querySelector('[name=direction]'), why = form.querySelector('[name=reason]');
+            const sync = () => { const adj = k.value === 'Rate Adjustment'; dir.disabled = !adj; why.required = adj; }; k.onchange = sync; sync(); } });
+      if (a === 'verify') UI.confirmAction('Verify documents', 'Confirm that the waybill, the delivery receipt and the acknowledgement receipt match this trip and the billing information.', 'Billing.verify', { billing_id: id }, { submit: 'Verify documents', after: () => { BillUI.open(id); App.route(); } });
       if (a === 'finalize') UI.formModal('Finalize invoice', [{ name: 'invoice_date', label: 'Invoice date', type: 'date', value: UI.today(), required: true, col: 6 },
           { name: 'invoice_number', label: 'Invoice number (optional)', col: 6, help: 'Leave blank for automatic numbering, or enter the pre-printed invoice number.' }],
         'Billing.finalize', { extra: { billing_id: id }, intro: `Total ${UI.money(b.total_amount)}. Due date = invoice date + client payment terms.`, after: () => { BillUI.open(id); App.route(); } });
@@ -124,7 +173,8 @@ App.page('billing', {
     const d = BillUI.data = ctx.data;
     const by = (s) => d.billings.filter(b => s.includes(b.status));
     const unpaid = by(['Invoiced', 'Partially Paid']);
-    ctx.el.innerHTML = (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.<a class="btn btn-sm btn-light" href="#clients?status=Pending%20Rate">Open clients</a></div>` : '') + UI.cards([
+    const adjBanner = d.adjustments.length && d.can.decide ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.adjustments.length} billing charge / adjustment request(s) are waiting for Admin approval.</div>` : '';
+    ctx.el.innerHTML = adjBanner + (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.<a class="btn btn-sm btn-light" href="#clients?status=Pending%20Rate">Open clients</a></div>` : '') + UI.cards([
       { label: 'Ongoing trips (drafts)', value: by(['Ongoing']).length, icon: 'bi-hourglass', color: 'gray' },
       { label: 'For billing', value: by(['For Billing']).length, icon: 'bi-receipt', color: 'amber' },
       { label: 'Unpaid invoices', value: unpaid.length, icon: 'bi-file-earmark-text', color: 'blue' },
@@ -137,14 +187,19 @@ App.page('billing', {
       ['ongoing', `Ongoing trips (${by(['Ongoing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Route', 'delivery_point'], ['Dispatched', 'dispatched_at', 'datetime'],
         ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
       ['for', `For billing (${by(['For Billing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Completed', 'completed_at', 'datetime'], ['Waybill', 'waybill_number'],
-        ['Documents', 'waybill_docs', (v, b) => `<span class="badge-s ${+b.waybill_docs && +b.ar_docs ? 'green' : 'red'}">${+b.waybill_docs && +b.ar_docs ? 'Complete' : 'Missing'}</span>`],
-        ['Verified', 'docs_verified_at', (v) => v ? '<span class="badge-s green">Yes</span>' : '<span class="badge-s amber">No</span>'], ['Amount', 'total_amount', 'money']], by(['For Billing']), { ...open, title: 'Completed trips to verify and invoice' })],
+        ['Documents', 'waybill_docs', (v, b) => { const okd = +b.waybill_docs && +b.dr_docs && +b.ar_docs; return `<span class="badge-s ${okd ? 'green' : 'red'}">${okd ? 'Complete' : 'Missing'}</span>`; }],
+        ['Verified', 'docs_verified_at', (v) => v ? '<span class="badge-s green">Yes</span>' : '<span class="badge-s amber">No</span>'],
+        ['Approvals', 'pending_adjustments', (v) => +v ? `<span class="badge-s amber">${v} pending</span>` : '—'], ['Amount', 'total_amount', 'money']], by(['For Billing']), { ...open, title: 'Completed trips to verify and invoice' })],
+      ['approvals', `Approvals (${d.adjustments.length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Request', 'id', (v, x) => BillUI.reqText(x)], ['Reason', 'reason'],
+        ['Requested by', 'added_by_name'], ['Requested', 'created_at', 'datetime'], ['Current total', 'total_amount', 'money']], d.adjustments,
+        { title: 'Charge and rate adjustment requests waiting for Admin approval', actions: (x) => (d.can.decide && +x.added_by !== d.can.me ? UI.btn('approve', 'Approve', 'success') + ' ' + UI.btn('reject', 'Reject', 'outline-danger') + ' ' : '') + UI.btn('view', 'Open', 'outline-secondary'),
+          onAction: (a, x) => a === 'view' ? BillUI.open(x.billing_id) : BillUI.decide(x, a, () => App.route()) })],
       ['invoices', `Unpaid invoices (${unpaid.length})`, () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Invoice date', 'invoice_date', 'date'], ['Due date', 'due_date', 'date'],
         ['Amount', 'total_amount', 'money'], ['Paid', 'amount_paid', 'money'], ['Balance', 'balance', 'money'], ['Overdue', 'days_overdue', (v) => +v > 0 ? `<span class="badge-s red">${v} days</span>` : '—'], ['Status', 'status', 'badge']], unpaid, { ...open, title: 'Invoices waiting for payment' })],
       ['paid', 'Paid', () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Invoice date', 'invoice_date', 'date'], ['Amount', 'total_amount', 'money']], by(['Paid']), { ...open, title: 'Paid invoices' })],
       ['collections', 'Collections', () => UI.table([['Payment date', 'payment_date', 'date'], ['Invoice', 'invoice_number'], ['Client', 'client'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number']], d.collections, { title: 'Payments received' })],
       ['ar', 'Receivables by client', () => UI.table([['Client', 'client'], ['Invoices', 'invoices', 'num'], ['Balance', 'balance', 'money'], ['Not yet due', 'not_due', 'money'], ['1-30 days', 'd1_30', 'money'], ['31-60 days', 'd31_60', 'money'], ['Over 60 days', 'd60', 'money']],
         d.receivables, { title: 'Outstanding balances and aging', actions: () => UI.btn('soa', 'Print SOA', 'outline-secondary'), onAction: (a, x) => BillUI.printSOA(x.id) })],
-    ], d.can.act && by(['For Billing']).length ? 'for' : null);
+    ], d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : null);
   },
 });
