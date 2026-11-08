@@ -282,21 +282,31 @@ const TripUI = {
         'Trips.edit', { extra: { trip_id: t.id }, after: () => { TripUI.open(t.id); App.route(); } });
     }
   },
-  reassign(t) {
+  async reassign(t) {
     const d = TripUI.data;
     const trucks = (d.trucks || []).filter(v => v.truck_type === t.truck_type);
     const label = (ok, txt, why) => ok ? txt : `${txt} — ${why}`;
     const truckOpts = trucks.map(v => { const mine = String(v.id) === String(t.vehicle_id); const ok = mine || (v.status === 'Available' && !v.on_trip);
       return [v.id, label(ok, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '') + (mine ? ' (current)' : ''), v.on_trip ? 'on ' + v.on_trip : v.status)]; });
-    const people = (type, cur) => (d.crew || []).filter(p => p.person_type === type).map(p => { const mine = [t.driver_id, t.driver2_id, t.helper_id].map(String).includes(String(p.id));
-      const ok = mine || (p.availability === 'Available' && !p.on_trip); return [p.id, label(ok, p.full_name + (mine ? ' (current)' : ''), p.on_trip ? 'on ' + p.on_trip : p.availability)]; });
+    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: crew labelled for the trip's shift by the server (which rechecks on save).
+    let co;
+    try { co = await App.api('Trips.crew_options', { trip_id: t.id }); } catch (e) { return UI.toast(e.message, 'error'); }
+    const people = (type) => co.crew.filter(p => p.type === type).map(p => {
+      const tags = [p.duty_shift ? p.duty_shift + ' shift' : 'No shift', ...p.labels.filter(l => l !== 'No shift')];
+      const text = `${p.name}${p.current ? ' (current)' : ''} — ${tags.join(' · ')}${p.blocker ? ' (' + p.blocker + ')' : ''}${p.allowed ? '' : ' — not allowed'}`;
+      return [p.id, text];
+    });
+    const rules = co.mode === 'Enforce'
+      ? `Enforce mode: only <b>${UI.esc(co.shift)}-shift</b> crew can be assigned. Crew marked <b>Absent</b>, on another shift or without a shift are refused.`
+      : `Warn mode: choose <b>${UI.esc(co.shift)}-shift</b> crew when possible. Other-shift or no-shift crew are allowed as a fallback (recorded in the history, audited and sent to the Operations Head). Crew marked <b>Absent</b> are refused.`;
     UI.formModal('Change assignment of ' + UI.esc(t.trip_ref), [
       { name: 'vehicle_id', label: 'Truck (' + t.truck_type + ')', type: 'select', options: truckOpts, value: t.vehicle_id, required: true, col: 12 },
-      { name: 'driver_id', label: 'Driver', type: 'select', options: people('Driver'), value: t.driver_id, required: true, col: 6 },
-      t.truck_type === 'Car Carrier' ? { name: 'driver2_id', label: 'Driver 2', type: 'select', options: people('Driver'), value: t.driver2_id, col: 6 }
+      { name: 'driver_id', label: t.truck_type === 'Car Carrier' ? 'Driver 1' : 'Driver', type: 'select', options: people('Driver'), value: t.driver_id, required: true, col: 6 },
+      t.truck_type === 'Car Carrier' ? { name: 'driver2_id', label: 'Driver 2', type: 'select', options: people('Driver'), value: t.driver2_id, required: true, col: 6 }
         : { name: 'helper_id', label: 'Helper', type: 'select', options: people('Helper'), value: t.helper_id, required: true, col: 6 },
       { name: 'reason', label: 'Reason for the change', required: true, col: 12 }],
-      'Trips.reassign', { extra: { trip_id: t.id }, intro: 'Busy or unavailable trucks and people are marked; the system refuses them.', after: () => { TripUI.open(t.id); App.route(); } });
+      'Trips.reassign', { extra: { trip_id: t.id }, intro: `Trip shift: <b>${UI.esc(co.shift_text)}</b>. ${rules}<br><span class="small text-muted">Busy or unavailable trucks and people are marked; the system refuses them. A new pre-dispatch checklist is needed after the change.</span>`,
+        after: () => { TripUI.open(t.id); App.route(); } });
   },
   /** Checklist modal. kind = 'Pre-Dispatch' (before departure) or 'Arrival' (truck is back; before = the pre-dispatch result). */
   async checklist(t, kind = 'Pre-Dispatch', before = null) {
@@ -497,6 +507,19 @@ const TripUI = {
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
     const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
     const crew = [['Driver', t.driver_name], ...(t.truck_type === 'Car Carrier' ? [['Driver 2', t.driver2_name]] : [['Helper', t.helper_name]])];
+    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: attendance per crew member for the shift of "dispatch now" (server data).
+    const att = t.crew_attendance;
+    const attBadge = (role) => {
+      const c = att && att.crew.find(x => x.role === role);
+      if (!c) return '';
+      const color = c.problem ? (att.mode === 'Enforce' ? 'red' : 'amber') : 'green';
+      return ` <span class="badge-s ${color}">${UI.esc(c.issue || 'Present')}</span>`
+        + (c.duty_shift ? ` <span class="small text-muted">${UI.esc(c.duty_shift)} shift</span>` : '')
+        + (c.outside_scheduled_shift ? ` <span class="badge-s amber" title="Assigned outside the trip's scheduled shift (Warn-mode fallback or manual choice)">Outside trip shift</span>` : '');
+    };
+    const missingRow = att && att.missing && att.missing.length ? ['Crew required', att.missing.map(m => `<div class="small text-danger"><i class="bi bi-exclamation-octagon"></i> ${UI.esc(m)}</div>`).join('')] : null;
+    const attRow = att && att.crew.length ? ['Crew attendance', `<span class="small">${UI.esc(att.mode)} mode · Confirm Dispatch now: ${UI.esc(att.dispatch_shift)} · Trip scheduled: ${UI.esc(att.scheduled_shift)}</span>`
+      + att.crew.filter(c => c.problem).map(c => `<div class="small ${att.mode === 'Enforce' ? 'text-danger' : 'text-warning-emphasis'}"><i class="bi bi-exclamation-triangle"></i> ${UI.esc(c.problem)}</div>`).join('')] : null;
     let checklistHtml = '<div class="text-muted small">Not done yet.</div>';
     if (ins) {
       const items = JSON.parse(ins.items_json || '{}').items || {};
@@ -519,7 +542,7 @@ const TripUI = {
           ? `<div class="small text-muted">Pre-dispatch checklist from ${UI.datetime(gates.checklist_opens_at)} · Confirm Dispatch from ${UI.datetime(gates.dispatch_opens_at)} (Philippine time)</div>`
             + (+gates.late_minutes > 0 ? `<div class="small text-danger">Past the scheduled time by ${UI.num(gates.late_minutes, 0)} min; a late dispatch is noted in the history.</div>` : '') : '')],
         ['Truck type', UI.e(t.truck_type)], ['Truck', t.plate_number ? `<b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ' #' + UI.esc(t.truck_number) : ''} ${UI.badge(t.truck_status)}` : '—'],
-        ...crew.map(([l, v]) => [l, UI.e(v)]), ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ['Dispatched by', UI.e(t.dispatcher_name)],
+        ...crew.map(([l, v]) => [l, UI.e(v) + (v ? attBadge(l) : '')]), missingRow, attRow, ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
         t.truck_type === 'Car Carrier' ? ['Units', UI.e(t.units_planned) + (t.units_delivered ? ' planned · ' + t.units_delivered + ' delivered' : '')] : ['Container / seal / shipment', [t.container_number, t.container_size, t.seal_number, t.shipment_number].filter(Boolean).map(UI.esc).join(' · ') || '—'],
         ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Cancel / reject reason', UI.esc(t.cancel_reason)] : null])}

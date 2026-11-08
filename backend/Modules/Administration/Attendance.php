@@ -33,6 +33,7 @@ final class Attendance {
         requireRole($u, 'admin');
         return match ($action) {
             'list' => self::listing($d),
+            'readiness' => CrewAttendance::readiness(db()),
             'save' => self::save($u,$d),
             default => throw new BusinessRuleException('Unknown attendance action.',404),
         };
@@ -43,7 +44,8 @@ final class Attendance {
         return ['rows'=>$rows,'date'=>$date,'shift'=>$shift,'kind'=>$kind,
           'marked'=>count(array_filter($rows,fn($r)=>$r['status']!==null)),'total'=>count($rows),
           // Phase 2 preparation: crew without a shift are in no roster; Admin assigns their shift in the Masterlist.
-          'unassigned'=>$kind==='Driver' ? CrewAttendance::unassignedCrew(db()) : []];
+          'unassigned'=>$kind==='Driver' ? CrewAttendance::unassignedCrew(db()) : [],
+          'readiness'=>$kind==='Driver' ? CrewAttendance::readiness(db()) : null];
     }
     private static function save(array $u,array $d): array {
         $date=self::dateValue($d); [$kind,$shift]=self::group($d);
@@ -71,6 +73,7 @@ final class Attendance {
                     run($p,"INSERT INTO attendance_marks (duty_date,duty_shift,$column,status,marked_by) VALUES (?,?,?,?,?)",[$date,$shift,$id,$value,$u['id']]);
                     auditWithChanges($p,$u['id'],'Attendance',strtolower($kind).' '.$id,'attendance marked',"$date $shift",[],['Status'=>$value]);
                 }
+                if ($kind==='Driver' && ($old['status']??null)!==$value) self::absentNotice($p,$id,$date,$shift,$value);
                 if($value!==null)$count++;
             }
             // A full roster must be submitted; otherwise partial saving might hide pending people.
@@ -79,6 +82,32 @@ final class Attendance {
             return ['message'=>"$kind $shift attendance saved ($count/".count($rows)." marked)."];
         });
     }
+    /**
+     * CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: Operations Head notice when crew assigned to a NOT-yet-dispatched trip is
+     * marked Absent for that trip's relevant shift: the trip's scheduled shift, or (trip already past its schedule) the
+     * current shift. One notice per person / shift / trip (re-opened if the absence is marked again after a correction);
+     * resolved when the mark is changed to Present or cleared. Trips and assignments are never changed here.
+     */
+    private static function absentNotice(PDO $p, int $personId, string $date, string $shift, ?string $value): void {
+        $prefix = 'att-absent-' . $personId . '-' . $date . '-' . $shift . '-';
+        if ($value !== 'Absent') { Notify::resolve($p, $prefix . '*'); return; }
+        $trips = many($p, "SELECT t.id, t.trip_ref, t.scheduled_at, a.role FROM trip_assignments a JOIN trips t ON t.id=a.trip_id
+                           WHERE a.resource_type='person' AND a.resource_id=? AND t.status IN ('Pre-Assigned','Ready for Dispatch','For Reschedule')", [$personId]);
+        if (!$trips) return;
+        $name = one($p, 'SELECT full_name FROM personnel WHERE id=?', [$personId])['full_name'] ?? 'Crew';
+        $now = CrewAttendance::shiftFor();
+        foreach ($trips as $t) {
+            $ts = strtotime((string)$t['scheduled_at']);
+            $rel = CrewAttendance::shiftFor($ts);
+            $relevant = ($rel['date'] === $date && $rel['shift'] === $shift) || ($ts < time() && $now['date'] === $date && $now['shift'] === $shift);
+            if (!$relevant) continue;
+            $key = $prefix . $t['id'];
+            run($p, "UPDATE notifications SET state='Unread', resolved_at=NULL, resolved_by=NULL WHERE dedupe_key=? AND state='Resolved'", [$key]);
+            Notify::roles($p, ['operations_head'], 'Assigned crew absent', $name . ' (' . (['driver' => 'Driver', 'driver2' => 'Driver 2', 'helper' => 'Helper'][$t['role']] ?? 'Crew') . ') is marked Absent for the ' . CrewAttendance::shiftText(['date' => $date, 'shift' => $shift])
+                . ' but is assigned to ' . $t['trip_ref'] . ' (scheduled ' . date('M j, g:i A', $ts) . '). Reassign the crew before Confirm Dispatch.', 'trips', $key);
+        }
+    }
+
     /** Refresh-safe bell reminder. Requires an Admin session and runs after configured shift start. */
     public static function remind(PDO $p): void {
         // Every shift that has started today plus the shift in progress (a shift that crossed midnight keeps

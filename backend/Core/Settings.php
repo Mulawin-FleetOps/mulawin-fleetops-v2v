@@ -43,6 +43,9 @@ final class Settings {
             'The dispatcher can open and submit the pre-dispatch checklist this many hours before the scheduled dispatch. 0 = not before the scheduled time.', 0, 24],
         'dispatch_early_minutes'      => ['Allow Confirm Dispatch before the scheduled time', 15, 'minutes before',
             'Confirm Dispatch / Redispatch is enabled this many minutes before the scheduled dispatch (it still needs Ready for Dispatch and a Released fund). 0 = only at the scheduled time.', 0, 240],
+        // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: 1 = Warn (default), 2 = Enforce (refused while crew lack a shift).
+        'crew_attendance_dispatch_check' => ['Crew attendance check at Confirm Dispatch', 1, 'mode',
+            'Warn: dispatch is allowed and missing / Absent / wrong-shift crew are noted in the trip history. Enforce: Confirm Dispatch and Redispatch need every assigned driver and helper Present on their own shift at the dispatch time.', 1, 2],
         // CHECKLIST_42_ATTENDANCE_PHASE1_V1: start hours are configurable by Admin (0-23, Philippine time).
         'attendance_day_start_hour' => ['Day shift attendance reminder starts', 6, 'Philippine time', 'Time when the Day shift starts (Admin bell reminder and duty shift). Must differ from the Night shift start.', 0, 23],
         'attendance_night_start_hour' => ['Night shift attendance reminder starts', 18, 'Philippine time', 'Time when the Night shift starts (Admin bell reminder and duty shift). Must differ from the Day shift start.', 0, 23],
@@ -97,7 +100,7 @@ final class Settings {
             $out[] = ['key' => $key, 'label' => $label, 'unit' => $unit, 'help' => $help, 'min' => $min, 'max' => $max,
                       'value' => self::value($key), 'default' => self::default($key),
                       // CHECKLIST_42_ATTENDANCE_PHASE2_V1: shown and chosen as 12-hour times; stored as hours 0-23.
-                      'format' => in_array($key, self::HOUR_OF_DAY, true) ? 'hour' : 'number'];
+                      'format' => in_array($key, self::HOUR_OF_DAY, true) ? 'hour' : ($key === 'crew_attendance_dispatch_check' ? 'attendance_mode' : 'number')];
         }
         return $out;
     }

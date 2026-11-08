@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-08 (Checklist #42 Phase 2: crew attendance at dispatch)
+- New Admin setting **Crew attendance check at Confirm Dispatch**: **Warn** (default) or **Enforce**. Enforce can only be
+  turned on when every driver and helper has a shift; the Admin sees a readiness list first.
+- Auto-assignment picks crew from the trip's scheduled shift and never picks crew marked Absent; in Warn mode it may use
+  other-shift crew when needed, clearly flagged in the trip history and to the Operations Head.
+- Enforce: Confirm Dispatch / Redispatch needs every driver and helper Present on their own shift at the actual dispatch
+  time (Philippine time). Warn: dispatch allowed, missing attendance noted. The Operations Head is notified when assigned
+  crew are marked Absent. Car Carrier trips are assigned only when two drivers are available (otherwise Awaiting
+  Resources); every trip needs its full crew before Confirm Dispatch. No database change. Tests: `tests/run_crew_dispatch_tests.php`.
+
 ## 2026-11-08 (Checklist #42 Phase 2 preparation: crew attendance roster)
 - Admin attendance for drivers now includes **helpers** ("Crew Attendance"); Admin assigns a Day/Night shift to helpers
   as well. Crew without a shift are listed in the attendance window and in the Admin bell so they can be backfilled.
