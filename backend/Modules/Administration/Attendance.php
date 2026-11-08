@@ -81,14 +81,9 @@ final class Attendance {
     }
     /** Refresh-safe bell reminder. Requires an Admin session and runs after configured shift start. */
     public static function remind(PDO $p): void {
-        $today=date('Y-m-d'); $now=date('H:i');
-        $dayStart=sprintf('%02d:00',CrewAttendance::startHours()[0]);
-        // Today's Day shift once it has started, plus the current Night shift (a Night shift that crossed
-        // midnight keeps its start date). Shift boundaries: CrewAttendance::shiftFor (single source).
-        $due=[];
-        if ($now >= $dayStart) $due[]=['Day',$today];
-        $cur=CrewAttendance::shiftFor();
-        if ($cur['shift']==='Night') $due[]=['Night',$cur['date']];
+        // Every shift that has started today plus the shift in progress (a shift that crossed midnight keeps
+        // its start date). Same boundaries as CrewAttendance::shiftFor for both start-hour orderings.
+        $due=CrewAttendance::dueShifts();
         $noShift=count(CrewAttendance::unassignedCrew($p));
         if ($noShift>0) Notify::roles($p,['admin'],'Shift not assigned',"$noShift active driver(s)/helper(s) have no Day/Night shift and cannot be marked in Attendance. Assign their shift in the Drivers & Helpers masterlist.",'crew','att-noshift');
         else Notify::resolve($p,'att-noshift');
@@ -96,7 +91,7 @@ final class Attendance {
             foreach (['Driver','Mechanic'] as $kind) {
                 $rows=self::roster($p,$kind,$shift,$date);
                 $missing=count(array_filter($rows,fn($r)=>$r['status']===null));
-                if($missing>0) Notify::roles($p,['admin'],'Attendance required',"$shift shift: $missing $kind attendance record(s) not marked for $date.",$kind==='Driver'?'crew':'mechanics','att-'.$date.'-'.$shift.'-'.$kind);
+                if($missing>0) Notify::roles($p,['admin'],'Attendance required',"$shift shift: $missing ".($kind==='Driver'?'crew (driver/helper)':$kind)." attendance record(s) not marked for $date.",$kind==='Driver'?'crew':'mechanics','att-'.$date.'-'.$shift.'-'.$kind);
                 else Notify::resolve($p,'att-'.$date.'-'.$shift.'-'.$kind);
             }
         }

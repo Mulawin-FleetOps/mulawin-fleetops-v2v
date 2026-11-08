@@ -52,6 +52,30 @@ final class CrewAttendance {
         return [$day, $night];
     }
 
+    /**
+     * Shifts the Admin bell reminds about at a moment: every shift that has STARTED on the current calendar date
+     * (Philippine time) plus the shift in progress (which may have started the previous date and crossed midnight).
+     * Works for both orderings of the start hours (Day before Night, or Day after Night), with the same duty
+     * dates as shiftFor(). Returns [['Day'|'Night', 'Y-m-d'], ...] without duplicates, earliest start first.
+     */
+    public static function dueShifts(?int $ts = null): array {
+        $ts ??= time();
+        [$day, $night] = self::startHours();
+        $today = date('Y-m-d', $ts); $h = (int)date('G', $ts);
+        $started = [];
+        foreach (['Day' => $day, 'Night' => $night] as $shift => $start) if ($h >= $start) $started[$start] = [$shift, $today];
+        ksort($started);
+        $due = array_values($started);
+        $cur = self::shiftFor($ts);
+        if (!in_array([$cur['shift'], $cur['date']], $due, true)) array_unshift($due, [$cur['shift'], $cur['date']]);
+        return $due;
+    }
+
+    /** 12-hour display of a start hour (0-23): 0 -> "12:00 AM", 6 -> "6:00 AM", 12 -> "12:00 PM", 18 -> "6:00 PM". */
+    public static function hourLabel(int $h): string {
+        return (($h % 12) ?: 12) . ':00 ' . ($h < 12 ? 'AM' : 'PM');
+    }
+
     /** Active drivers and helpers with no assigned shift (not in any attendance roster). */
     public static function unassignedCrew(PDO $p): array {
         return many($p, "SELECT id, full_name, person_type FROM personnel WHERE active=1 AND person_type IN ('Driver','Helper') AND duty_shift IS NULL
