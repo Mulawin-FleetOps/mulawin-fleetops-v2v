@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-08 (Checklist #36 / #37: cash-only trip fund release, Trip Fund tabs)
+- **Trip fund release is cash only** and the release date is the server's date (cannot be changed or backdated). The
+  release window, voucher, expense and audit trail are unchanged; other payments (Billing, Finance, Purchasing) still offer
+  all payment methods. Direct API calls with another method or date are refused.
+- **Trip Funds tabs**: "Ready for release" is now **To Release**; "For liquidation" keeps the Liquidate action.
+  ("All requests" was already removed.) No database change. Tests: `tests/run_fund_release_tests.php`.
+
 ## 2026-11-08 (Checklist #38 / #40: trip schedule restrictions)
 - **Pre-dispatch checklist** opens 2 hours before the scheduled dispatch and **Confirm Dispatch / Redispatch** 15 minutes
   before (both set by the Admin in Settings). Planning and approval (create, review, edit, assignment, fund request and
