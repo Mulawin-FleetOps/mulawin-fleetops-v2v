@@ -186,109 +186,254 @@ const TripUI = {
    * Map pins are not used here: choose an approved route or type the km (use New trip for map routing).
    */
   batchPage(ctx) {
+    // Visual workspace for existing Trips.create_batch. No new dispatch workflow, DB writes or draft endpoint.
     const d = TripUI.data, isOps = UI.role('operations_head');
     const mine = isOps ? App.me.truckTypes : App.me.truckTypes.filter(x => (x === 'Car Carrier') === (App.me.user.role === 'car_carrier_dispatcher'));
-    ctx.setTitle('Batch trip planning', isOps ? 'Enter several trips at once. Each one is created and auto-assigned like a New trip; trips without a free truck or crew wait in Awaiting Resources.'
-      : 'Enter several trip requests at once. Each one goes to the Operations Head for review, like a New trip request.');
-    const routes = {};   // client|truck -> approved routes
+    const routes = {};
     const loadRoutes = async (client, truck) => {
       const k = client + '|' + truck;
       if (!client || !truck) return [];
-      if (!routes[k]) { try { routes[k] = (await App.api('Routes.selectable', { client_id: client, truck_type: truck })).routes || []; } catch { routes[k] = []; } }
+      if (!routes[k]) {
+        try { routes[k] = (await App.api('Routes.selectable', { client_id: client, truck_type: truck })).routes || []; }
+        catch { routes[k] = []; }
+      }
       return routes[k];
     };
-    ctx.el.innerHTML = `${TripUI.datalists()}<div class="panel"><div class="small text-muted mb-2">Up to 20 trips per batch. Required: client, truck type, pickup, delivery, schedule and${isOps ? ' km (or an approved route)' : ' the other details you have'}. All rows are checked first: if a row has a problem, nothing is created and the problem is shown. If a row cannot be saved while the others are created, it is marked <b>Not created</b> and you can retry only that row. Need two trucks on the same route and time? Add two rows (use Copy).</div>
-      <div data-batch-alert></div>
-      <div class="table-wrap"><table class="data-table batch-table"><thead><tr><th>#</th><th>Client</th><th>Truck type</th><th>Approved route</th><th>Pickup</th><th>Delivery</th><th>Schedule</th><th>Km</th><th>Consignee</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
-      <div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-add><i class="bi bi-plus-lg"></i> Add row</button>
-        <span class="flex-grow-1"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-cancel>Back to trips</button>
-        <button type="button" class="btn btn-sm btn-primary" data-submit><i class="bi bi-send"></i> ${isOps ? 'Create trips' : 'Send requests'}</button></div>
-      <div data-results class="mt-3"></div></div>`;
-    const tbody = ctx.el.querySelector('[data-rows]'), alertBox = ctx.el.querySelector('[data-batch-alert]');
-    const clientOpts = (sel) => '<option value="">Choose…</option>' + d.clients.map(c => `<option value="${c.id}" ${String(sel) === String(c.id) ? 'selected' : ''}>${UI.esc(c.company_name)}</option>`).join('');
-    const typeOpts = (client, sel) => { const c = d.clients.find(x => String(x.id) === String(client)); const types = mine.filter(t => !c || (c.rate_types || '').split('|').includes(t));
-      return '<option value="">Choose…</option>' + types.map(t => `<option ${t === sel ? 'selected' : ''}>${UI.esc(t)}</option>`).join(''); };
-    const renumber = () => tbody.querySelectorAll('tr').forEach((tr, i) => { tr.querySelector('[data-n]').textContent = i + 1; });
-    const addRow = (v = {}) => {
+    const clientOpts = (sel) => '<option value="">Select client</option>' + (d.clients || []).map(c => `<option value="${c.id}" ${String(c.id) === String(sel) ? 'selected' : ''}>${UI.esc(c.company_name)}</option>`).join('');
+    const typeOpts = (client, sel) => {
+      const c = (d.clients || []).find(x => String(x.id) === String(client));
+      const types = mine.filter(t => !c || (c.rate_types || '').split('|').includes(t));
+      return '<option value="">Select truck type</option>' + types.map(t => `<option ${t === sel ? 'selected' : ''}>${UI.esc(t)}</option>`).join('');
+    };
+    ctx.setTitle('Batch Trip Planning', isOps ? 'Plan multiple client trips in one session. Each trip keeps its own assignment, checklist and dispatch.'
+      : 'Send several client trip requests to the Operations Head for individual review.');
+    ctx.el.innerHTML = `<style>
+      .bp-workspace{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(270px,1fr);gap:14px;align-items:start}
+      .bp-card{border:1px solid var(--bs-border-color,#dce2ea);background:var(--bs-body-bg,#fff);border-radius:12px;overflow:hidden;min-width:0}
+      .bp-head{padding:12px 16px;border-bottom:1px solid var(--bs-border-color,#e3e8ee);background:var(--bs-tertiary-bg,#f3f7fc);font-weight:700;display:flex;gap:8px;align-items:center;justify-content:space-between}
+      .bp-body{padding:16px}.bp-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.bp-field{min-width:0}
+      .bp-field label{display:block;font-size:.79rem;font-weight:600;margin-bottom:5px}.bp-field.wide{grid-column:1/-1}
+      .bp-field input,.bp-field select,.bp-field textarea{width:100%;max-width:100%}.bp-helper{font-size:.78rem;color:var(--bs-secondary-color,#667085)}
+      .bp-side-name{font-weight:700;font-size:1rem;margin-bottom:5px}.bp-route{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--bs-border-color,#e7ebef);font-size:.84rem}
+      .bp-route:last-child{border-bottom:0}.bp-layout-bottom{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(270px,1fr);gap:14px;margin-top:14px;align-items:start}
+      .bp-table{width:100%;border-collapse:collapse;font-size:.81rem}.bp-table th{background:var(--bs-tertiary-bg,#f8fafc);font-size:.73rem;color:var(--bs-secondary-color,#667085);font-weight:700}
+      .bp-table td,.bp-table th{padding:9px;border-bottom:1px solid var(--bs-border-color,#e7eaf0);text-align:left;vertical-align:middle}
+      .bp-table td input,.bp-table td select{min-width:95px}.bp-table tr.bp-failed{background:rgba(220,53,69,.08)}.bp-table tr.bp-done{opacity:.85}
+      .bp-stat{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--bs-border-color,#e9ecef)}.bp-stat:last-child{border-bottom:0}
+      .bp-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:15px}
+      .bp-pill{font-size:.72rem;font-weight:700;border-radius:100px;padding:3px 9px;background:var(--bs-tertiary-bg,#e9f1fd)}
+      @media(max-width:1000px){.bp-workspace,.bp-layout-bottom{grid-template-columns:minmax(0,1fr)}}
+      @media(max-width:560px){.bp-fields{grid-template-columns:1fr}.bp-body{padding:12px}.bp-actions .btn{flex:1}.bp-field.wide{grid-column:auto}}
+    </style>
+    ${TripUI.datalists()}
+    <div data-batch-alert aria-live="polite"></div>
+    <div class="bp-workspace">
+      <section class="bp-card">
+        <div class="bp-head"><span><i class="bi bi-plus-circle me-2"></i>Add Client Trip Request</span><span class="bp-pill">Up to 20 trips</span></div>
+        <div class="bp-body">
+          <div class="bp-fields" data-entry>
+            <div class="bp-field"><label for="bpClient">Client *</label><select id="bpClient" class="form-select" data-f="client_id">${clientOpts('')}</select></div>
+            <div class="bp-field"><label for="bpType">Truck type *</label><select id="bpType" class="form-select" data-f="truck_type">${typeOpts('', '')}</select></div>
+            <div class="bp-field wide"><label for="bpRoute">Approved client route (optional)</label><select id="bpRoute" class="form-select" data-f="client_route_id"><option value="">No approved route — enter pickup, delivery and km</option></select></div>
+            <div class="bp-field"><label for="bpPickup">Pickup point *</label><input id="bpPickup" class="form-control" data-f="pickup_point" list="dlPlaces" maxlength="200" placeholder="Pickup location"></div>
+            <div class="bp-field"><label for="bpDelivery">Delivery point *</label><input id="bpDelivery" class="form-control" data-f="delivery_point" list="dlPlaces" maxlength="200" placeholder="Delivery location"></div>
+            <div class="bp-field"><label for="bpSchedule">Scheduled date and time *</label><input id="bpSchedule" class="form-control" data-f="scheduled_at" type="datetime-local" min="${UI.nowManila()}"></div>
+            <div class="bp-field"><label for="bpKm">Billable distance (km) ${isOps ? '*' : ''}</label><input id="bpKm" class="form-control" data-f="distance_km" type="number" step="0.01" min="0" max="3000" placeholder="km"></div>
+            <div class="bp-field"><label for="bpConsignee">Consignee (optional)</label><input id="bpConsignee" class="form-control" data-f="consignee" list="dlConsignee" maxlength="120" placeholder="Consignee"></div>
+            <div class="bp-field"><label for="bpUnits">Units (Car Carrier only)</label><input id="bpUnits" class="form-control" data-f="units_planned" type="number" step="1" min="1" placeholder="Optional"></div>
+            <div class="bp-field wide"><label for="bpNotes">Delivery details / notes (optional)</label><textarea id="bpNotes" class="form-control" data-f="delivery_details" rows="2" placeholder="Existing trip delivery details"></textarea></div>
+          </div>
+          <p class="bp-helper mt-2 mb-2">Selecting an approved route fills the pickup, delivery and km. For map routing, use New Trip. Scheduled date and time are exact; this screen does not create pickup time windows.</p>
+          <div class="d-flex flex-wrap gap-2"><button type="button" class="btn btn-primary" data-add><i class="bi bi-plus-lg me-1"></i>Add to batch</button>
+            <button type="button" class="btn btn-outline-secondary" data-clear>Clear form</button></div>
+        </div>
+      </section>
+      <section class="bp-card">
+        <div class="bp-head"><span><i class="bi bi-building me-2"></i>Selected Client Details</span></div>
+        <div class="bp-body" data-client-panel><div class="bp-helper">Select a client to see its approved routes and truck types.</div></div>
+      </section>
+    </div>
+    <div class="bp-layout-bottom">
+      <section class="bp-card">
+        <div class="bp-head"><span><i class="bi bi-layers me-2"></i>Batch Requests for Dispatch</span><span class="bp-pill" data-row-count>0 trips</span></div>
+        <div class="bp-body"><div class="bp-helper mb-2">Each row creates a separate trip. Use Copy for two trucks on the same route and schedule. Review details before submitting.</div>
+          <div class="table-responsive"><table class="bp-table"><thead><tr><th>#</th><th>Client / route</th><th>Truck</th><th>Scheduled</th><th>Km</th><th>Status</th><th>Actions</th></tr></thead><tbody data-rows></tbody></table></div>
+          <div class="bp-helper py-3" data-empty>No trips added yet. Fill out the form above and choose Add to batch.</div>
+          <div data-results aria-live="polite" class="mt-2"></div>
+        </div>
+      </section>
+      <section class="bp-card"><div class="bp-head"><span><i class="bi bi-bar-chart me-2"></i>Planning Summary</span></div>
+        <div class="bp-body" data-plan-summary></div></section>
+    </div>
+    <div class="bp-actions"><button type="button" class="btn btn-outline-secondary" data-cancel>Back to trips</button>
+      <button type="button" class="btn btn-primary" data-submit disabled><i class="bi bi-send me-1"></i>${isOps ? 'Create trips' : 'Send requests'}</button></div>`;
+
+    const entry = ctx.el.querySelector('[data-entry]');
+    const f = name => entry.querySelector(`[data-f="${name}"]`);
+    const tbody = ctx.el.querySelector('[data-rows]');
+    const alertBox = ctx.el.querySelector('[data-batch-alert]');
+    const resultsBox = ctx.el.querySelector('[data-results]');
+    const submit = ctx.el.querySelector('[data-submit]');
+    let busy = false;
+    const currentEntry = () => {
+      const obj = {};
+      entry.querySelectorAll('[data-f]').forEach(x => { obj[x.dataset.f] = x.value.trim(); });
+      return obj;
+    };
+    const routeFor = (client, truck, rid) => (routes[client + '|' + truck] || []).find(x => String(x.id) === String(rid));
+    const applyRoute = () => {
+      const r = routeFor(f('client_id').value, f('truck_type').value, f('client_route_id').value);
+      ['pickup_point', 'delivery_point', 'distance_km'].forEach(name => { f(name).readOnly = !!r; });
+      if (r) {
+        f('pickup_point').value = r.origin_label;
+        f('delivery_point').value = r.destination_label;
+        f('distance_km').value = (+r.distance_km).toFixed(2);
+      }
+    };
+    let routeSequence = 0;
+    const refreshRoutes = async () => {
+      const token = ++routeSequence;
+      const client = f('client_id').value, truck = f('truck_type').value;
+      const list = await loadRoutes(client, truck);
+      if (token !== routeSequence) return;
+      f('client_route_id').innerHTML = '<option value="">No approved route — enter pickup, delivery and km</option>' + list.map(r =>
+        `<option value="${r.id}">${UI.esc(r.route_ref + ': ' + r.origin_label + ' → ' + r.destination_label + ' (' + UI.num(r.distance_km, 2) + ' km)')}</option>`).join('');
+      applyRoute();
+      renderClient();
+    };
+    const renderClient = () => {
+      const client = f('client_id').value, c = (d.clients || []).find(x => String(x.id) === client);
+      const panel = ctx.el.querySelector('[data-client-panel]');
+      if (!c) { panel.innerHTML = '<div class="bp-helper">Select a client to see its approved routes and truck types.</div>'; return; }
+      const typeList = (c.rate_types || '').split('|').filter(Boolean);
+      const type = f('truck_type').value;
+      const list = type ? (routes[client + '|' + type] || []) : [];
+      panel.innerHTML = `<div class="bp-side-name"><i class="bi bi-building me-1"></i>${UI.esc(c.company_name)}</div>
+        <div class="bp-helper mb-3">Active client from the Client Masterlist</div>
+        <div class="fw-semibold small">Available truck types</div>
+        <div class="mt-1 mb-3">${typeList.map(t => `<span class="bp-pill me-1">${UI.esc(t)}</span>`).join('') || '<span class="bp-helper">No rate-enabled truck types</span>'}</div>
+        <div class="fw-semibold small">Approved routes for selected truck type</div>
+        ${!type ? '<div class="bp-helper mt-2">Choose a truck type to view routes.</div>' : list.length ? list.map(r =>
+          `<div class="bp-route"><span>${UI.esc(r.origin_label)} → ${UI.esc(r.destination_label)}</span><span class="text-success text-nowrap"><i class="bi bi-check-circle-fill me-1"></i>${UI.num(r.distance_km, 2)} km</span></div>`).join('') : '<div class="bp-helper mt-2">No approved routes for this truck type. You can enter pickup, delivery and km manually.</div>'}`;
+    };
+    f('client_id').onchange = () => { f('truck_type').innerHTML = typeOpts(f('client_id').value, ''); refreshRoutes(); };
+    f('truck_type').onchange = refreshRoutes;
+    f('client_route_id').onchange = applyRoute;
+    const clearForm = () => {
+      editing = null;
+      ctx.el.querySelector('[data-add]').innerHTML = '<i class="bi bi-plus-lg me-1"></i>Add to batch';
+      entry.querySelectorAll('input,textarea').forEach(x => { x.value = ''; x.readOnly = false; });
+      f('client_id').value = ''; f('truck_type').innerHTML = typeOpts('', '');
+      f('client_route_id').innerHTML = '<option value="">No approved route — enter pickup, delivery and km</option>';
+      ++routeSequence; renderClient();
+    };
+    ctx.el.querySelector('[data-clear]').onclick = clearForm;
+    const rowNumber = tr => [...tbody.children].indexOf(tr) + 1;
+    const renderSummary = () => {
+      const all = [...tbody.children], pending = all.filter(tr => !tr.dataset.done);
+      const clients = new Set(all.map(tr => tr.details.client_id).filter(Boolean));
+      const scheduled = all.map(tr => tr.details.scheduled_at).filter(Boolean).sort();
+      ctx.el.querySelector('[data-row-count]').textContent = `${all.length} trip${all.length === 1 ? '' : 's'}`;
+      ctx.el.querySelector('[data-empty]').hidden = all.length > 0;
+      const stats = [['Clients in batch', clients.size], ['Individual trips', all.length], ['Not yet created', pending.length], ['Earliest schedule', scheduled[0] ? UI.datetime(scheduled[0].replace('T', ' ')) : '—']];
+      ctx.el.querySelector('[data-plan-summary]').innerHTML = stats.map(([k,v]) => `<div class="bp-stat"><span class="bp-helper">${k}</span><strong>${UI.esc(String(v))}</strong></div>`).join('') +
+        `<p class="bp-helper mt-3 mb-0">${isOps ? 'Assignments use existing availability rules; an unavailable truck or crew is marked Awaiting Resources.' : 'Requests remain Pending Review until approved individually by Operations Head.'}</p>`;
+      if (!busy) submit.disabled = pending.length === 0;
+    };
+    const createRow = (value = {}) => {
+      if (tbody.children.length >= 20) return UI.toast('A batch can have at most 20 trips.', 'error');
       const tr = document.createElement('tr');
       tr.dataset.key = UI.uuid();
-      tr.innerHTML = `<td data-n></td>
-        <td><select class="form-select form-select-sm" data-f="client_id">${clientOpts(v.client_id)}</select></td>
-        <td><select class="form-select form-select-sm" data-f="truck_type">${typeOpts(v.client_id, v.truck_type)}</select></td>
-        <td><select class="form-select form-select-sm" data-f="client_route_id"><option value="">None (type the km)</option></select></td>
-        <td><input class="form-control form-control-sm" data-f="pickup_point" list="dlPlaces" maxlength="200" value="${UI.esc(v.pickup_point || '')}"></td>
-        <td><input class="form-control form-control-sm" data-f="delivery_point" list="dlPlaces" maxlength="200" value="${UI.esc(v.delivery_point || '')}"></td>
-        <td><input class="form-control form-control-sm" type="datetime-local" data-f="scheduled_at" min="${UI.nowManila()}" value="${UI.esc(v.scheduled_at || '')}"></td>
-        <td><input class="form-control form-control-sm" type="number" step="0.01" min="0" max="3000" data-f="distance_km" style="width:6.5rem" value="${UI.esc(v.distance_km || '')}"></td>
-        <td><input class="form-control form-control-sm" data-f="consignee" list="dlConsignee" maxlength="120" value="${UI.esc(v.consignee || '')}"></td>
-        <td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-secondary" data-copy title="Copy row"><i class="bi bi-files"></i></button>
-          <button type="button" class="btn btn-sm btn-outline-danger" data-del title="Remove row"><i class="bi bi-trash"></i></button></td>`;
-      const f = (n) => tr.querySelector(`[data-f=${n}]`);
-      const refreshRoutes = async () => {
-        const list = await loadRoutes(f('client_id').value, f('truck_type').value), cur = f('client_route_id').value || v.client_route_id || '';
-        f('client_route_id').innerHTML = '<option value="">None (type the km)</option>' + list.map(r => `<option value="${r.id}" ${String(cur) === String(r.id) ? 'selected' : ''}>${UI.esc(r.route_ref + ': ' + r.origin_label + ' → ' + r.destination_label + ' (' + UI.num(r.distance_km, 2) + ' km)')}</option>`).join('');
-        applyRoute();
+      tr.details = { ...value };
+      const paint = () => {
+        const v = tr.details;
+        const c = (d.clients || []).find(x => String(x.id) === String(v.client_id));
+        const saved = !!tr.dataset.done;
+        tr.innerHTML = `<td>${rowNumber(tr)}</td><td><b>${UI.esc(c?.company_name || '—')}</b>
+          <div class="bp-helper">${UI.esc(v.pickup_point || '')} → ${UI.esc(v.delivery_point || '')}</div></td>
+          <td>${UI.esc(v.truck_type || '—')}</td><td class="text-nowrap">${UI.esc((v.scheduled_at || '').replace('T', ' '))}</td>
+          <td>${UI.esc(v.distance_km || '—')}</td><td>${tr.result ? `<span class="bp-pill">${UI.esc(tr.result.result)}</span>` : '<span class="text-success small fw-semibold">Ready</span>'}</td>
+          <td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-secondary" data-copy title="Copy trip"><i class="bi bi-files"></i></button>
+            ${saved ? '' : `<button type="button" class="btn btn-sm btn-outline-secondary" data-edit title="Edit trip"><i class="bi bi-pencil"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-danger" data-del title="Remove trip"><i class="bi bi-trash"></i></button>`}</td>`;
+        tr.querySelector('[data-copy]').onclick = () => createRow({ ...tr.details });
+        tr.querySelector('[data-del]')?.addEventListener('click', () => { tr.remove(); renumber(); renderSummary(); });
+        tr.querySelector('[data-edit]')?.addEventListener('click', () => editRow(tr));
+        tr.classList.toggle('bp-done', saved);
+        tr.classList.toggle('bp-failed', tr.result?.result === 'Not created');
       };
-      const applyRoute = () => {
-        const r = (routes[f('client_id').value + '|' + f('truck_type').value] || []).find(x => String(x.id) === f('client_route_id').value);
-        ['pickup_point', 'delivery_point', 'distance_km'].forEach(n => { f(n).readOnly = !!r; });
-        if (r) { f('pickup_point').value = r.origin_label; f('delivery_point').value = r.destination_label; f('distance_km').value = (+r.distance_km).toFixed(2); }
-      };
-      f('client_id').onchange = () => { f('truck_type').innerHTML = typeOpts(f('client_id').value, f('truck_type').value); refreshRoutes(); };
-      f('truck_type').onchange = refreshRoutes;
-      f('client_route_id').onchange = applyRoute;
-      tr.querySelector('[data-copy]').onclick = () => { const val = {}; tr.querySelectorAll('[data-f]').forEach(x => { val[x.dataset.f] = x.value; }); addRow(val); };
-      tr.querySelector('[data-del]').onclick = () => { if (tbody.children.length > 1) { tr.remove(); renumber(); } };
-      tbody.append(tr); renumber();
-      if (v.client_id && v.truck_type) refreshRoutes();
+      tr.paint = paint;
+      tbody.append(tr); paint(); renderSummary();
+      return tr;
     };
-    addRow(); addRow();
-    ctx.el.querySelector('[data-add]').onclick = () => { if (tbody.children.length >= 20) return UI.toast('A batch can have at most 20 trips.', 'error'); addRow(); };
+    const renumber = () => [...tbody.children].forEach(tr => { const cell = tr.querySelector('td'); if (cell) cell.textContent = rowNumber(tr); });
+    // Editing uses the same top form; save back to the row without changing its idempotency key.
+    let editing = null;
+    const editRow = async tr => {
+      editing = tr;
+      const v = tr.details;
+      f('client_id').value = v.client_id || '';
+      f('truck_type').innerHTML = typeOpts(v.client_id, v.truck_type);
+      f('truck_type').value = v.truck_type || '';
+      await refreshRoutes();
+      f('client_route_id').value = v.client_route_id || '';
+      applyRoute();
+      ['pickup_point','delivery_point','scheduled_at','distance_km','consignee','units_planned','delivery_details'].forEach(name => {
+        if (!f('client_route_id').value || !['pickup_point','delivery_point','distance_km'].includes(name)) f(name).value = v[name] || '';
+      });
+      ctx.el.querySelector('[data-add]').innerHTML = '<i class="bi bi-check-lg me-1"></i>Save row changes';
+      entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    ctx.el.querySelector('[data-add]').onclick = () => {
+      if (busy) return;
+      const v = currentEntry();
+      const need = ['client_id','truck_type','pickup_point','delivery_point','scheduled_at'];
+      const missing = need.find(k => !v[k]);
+      if (missing || (isOps && !(+v.distance_km > 0))) {
+        UI.toast(missing ? 'Complete client, truck type, pickup, delivery and schedule.' : 'Enter valid billable km or select an approved route.', 'error'); return;
+      }
+      if (v.scheduled_at < UI.nowManila(-5) || v.scheduled_at > UI.nowManila(365 * 1440)) {
+        UI.toast('Schedule must be within the allowed date range.', 'error'); return;
+      }
+      if (editing) { editing.details = v; editing.result = null; editing.paint(); editing = null; }
+      else if (!createRow(v)) return;
+      clearForm();
+      ctx.el.querySelector('[data-add]').innerHTML = '<i class="bi bi-plus-lg me-1"></i>Add to batch';
+      renderSummary();
+    };
     ctx.el.querySelector('[data-cancel]').onclick = () => App.go('trips');
-    const submit = ctx.el.querySelector('[data-submit]'), resultsBox = ctx.el.querySelector('[data-results]');
-    // A created row is locked (Copy stays available to add another truck for the same trip details).
-    const lockRow = (tr) => { tr.querySelectorAll('input,select,button:not([data-copy])').forEach(x => { x.disabled = true; }); tr.classList.add('table-success'); };
-    const drawResults = (message) => {
-      const trs = [...tbody.querySelectorAll('tr')].filter(tr => tr.result);
-      const color = (x) => x.result === 'Not created' ? 'red' : x.trip_status === 'Awaiting Resources' ? 'amber' : 'green';
+    const lockRow = tr => { tr.dataset.done = tr.result.trip_ref; tr.paint(); };
+    const drawResults = message => {
+      const items = [...tbody.children].filter(tr => tr.result);
       resultsBox.innerHTML = `<div class="alert alert-info py-2 small">${UI.esc(message)}</div>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>Row</th><th>Result</th><th>Trip</th><th>Status</th><th>Truck</th><th>Details</th></tr></thead><tbody>
-        ${trs.map(tr => { const x = tr.result; return `<tr><td>${tr.querySelector('[data-n]').textContent}</td><td><span class="badge-s ${color(x)}">${UI.esc(x.result)}</span></td>
-          <td>${x.trip_id ? `<a href="#" data-open="${x.trip_id}">${UI.esc(x.trip_ref)}</a>` : '—'}</td><td>${x.trip_status ? UI.badge(x.trip_status) : '—'}</td>
-          <td>${UI.esc(x.truck || '—')}</td><td class="small">${UI.esc(x.message)}</td></tr>`; }).join('')}</tbody></table></div>
-        <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-new-batch><i class="bi bi-plus-lg"></i> Plan another batch</button>`;
-      resultsBox.querySelectorAll('[data-open]').forEach(a => { a.onclick = (e) => { e.preventDefault(); TripUI.open(a.dataset.open); }; });
-      resultsBox.querySelector('[data-new-batch]').onclick = () => App.route();
+        <div class="table-responsive"><table class="bp-table"><thead><tr><th>Row</th><th>Result</th><th>Trip</th><th>Status</th><th>Truck</th><th>Message</th></tr></thead><tbody>
+        ${items.map(tr => { const x = tr.result; return `<tr><td>${rowNumber(tr)}</td><td>${UI.esc(x.result)}</td>
+          <td>${x.trip_id ? `<a href="#" data-open="${x.trip_id}">${UI.esc(x.trip_ref)}</a>` : '—'}</td>
+          <td>${x.trip_status ? UI.badge(x.trip_status) : '—'}</td><td>${UI.esc(x.truck || '—')}</td><td>${UI.esc(x.message)}</td></tr>`; }).join('')}</tbody></table></div>`;
+      resultsBox.querySelectorAll('[data-open]').forEach(a => { a.onclick = e => { e.preventDefault(); TripUI.open(a.dataset.open); }; });
     };
     submit.onclick = async () => {
-      if (submit.disabled) return;
-      // Only rows without a trip yet are sent; each keeps its original key, so a created trip is never made twice.
-      const pending = [...tbody.querySelectorAll('tr')].filter(tr => !tr.dataset.done);
+      if (busy || submit.disabled) return;
+      const pending = [...tbody.children].filter(tr => !tr.dataset.done);
       if (!pending.length) return;
-      const rows = pending.map(tr => { const r = { request_key: tr.dataset.key, row_no: tr.querySelector('[data-n]').textContent }; tr.querySelectorAll('[data-f]').forEach(x => { r[x.dataset.f] = x.value.trim(); }); return r; });
-      submit.disabled = true; alertBox.innerHTML = '';
+      const rows = pending.map(tr => ({ ...tr.details, request_key: tr.dataset.key, row_no: rowNumber(tr) }));
+      busy = true; submit.disabled = true; alertBox.innerHTML = '';
       try {
-        const r = await App.api('Trips.create_batch', { rows });
-        r.results.forEach(x => {
+        const res = await App.api('Trips.create_batch', { rows });
+        res.results.forEach(x => {
           const tr = pending.find(t => t.dataset.key === x.request_key);
           if (!tr) return;
           tr.result = x;
-          if (x.trip_id) { tr.dataset.done = x.trip_ref; lockRow(tr); } else tr.classList.add('table-danger');
+          if (x.trip_id) lockRow(tr); else tr.paint();
         });
-        const left = [...tbody.querySelectorAll('tr')].filter(tr => !tr.dataset.done).length;
-        if (left) {
-          submit.disabled = false;
-          submit.innerHTML = `<i class="bi bi-arrow-repeat"></i> Retry not-created row(s) (${left})`;
-        } else {
-          submit.textContent = 'All trips created';
-          ctx.el.querySelector('[data-add]').disabled = true;
-        }
-        drawResults(r.message + (left ? ` ${left} row(s) not created: fix them if needed and press Retry (created trips are not sent again).` : ''));
+        const left = [...tbody.children].filter(tr => !tr.dataset.done).length;
+        submit.innerHTML = left ? `<i class="bi bi-arrow-repeat me-1"></i>Retry not-created rows (${left})` : 'All trips created';
+        drawResults(res.message + (left ? ' Edit any failed rows and retry. Already created trips are not sent again.' : ''));
       } catch (e) {
-        alertBox.innerHTML = `<div class="alert alert-danger py-2 small">${UI.esc(e.message).replace(/ (Row \d+:)/g, '<br><b>$1</b>')}</div>`;
-        submit.disabled = false;   // same keys kept: a retry never duplicates a created trip
-      }
+        alertBox.innerHTML = `<div class="alert alert-danger small">${UI.esc(e.message).replace(/ (Row \d+:)/g, '<br><b>$1</b>')}</div>`;
+      } finally { busy = false; renderSummary(); }
     };
+    renderSummary();
   },
   /**
    * New Trip Request page (#trips?new=1): one page with numbered sections instead of a modal,
