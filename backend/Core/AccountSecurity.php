@@ -23,14 +23,22 @@ final class AccountSecurity {
         return !empty($row['locked_until']) && strtotime((string)$row['locked_until']) > time();
     }
 
-    /** Maling password: dagdagan ang bilang; sa ika-5, i-lock nang 15 minuto. Ibinabalik kung na-lock. */
+    /**
+     * Maling password: dagdagan ang bilang; sa ika-5, i-lock nang 15 minuto. Ibinabalik kung na-lock.
+     * The count goes up in ONE atomic UPDATE, so several requests at the same time cannot undercount it.
+     * Used by login, the login code, and the current-password check of password / email change.
+     */
     public static function failure(array $row): bool {
         try {
-            $n = (int)($row['failed_logins'] ?? 0) + 1;
-            $lock = $n >= self::MAX_TRIES ? date('Y-m-d H:i:s', time() + self::LOCK_MINUTES * 60) : null;
-            run(db(), 'UPDATE users SET failed_logins=?, locked_until=? WHERE id=?', [$lock ? 0 : $n, $lock, $row['id']]);
-            if ($lock) audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'account locked', self::MAX_TRIES . ' wrong passwords; locked for ' . self::LOCK_MINUTES . ' minutes');
-            return (bool)$lock;
+            $id = (int)$row['id'];
+            run(db(), 'UPDATE users SET failed_logins=failed_logins+1 WHERE id=?', [$id]);
+            $n = (int)(one(db(), 'SELECT failed_logins FROM users WHERE id=?', [$id])['failed_logins'] ?? 0);
+            if ($n < self::MAX_TRIES) return false;
+            $lock = date('Y-m-d H:i:s', time() + self::LOCK_MINUTES * 60);
+            if (run(db(), 'UPDATE users SET failed_logins=0, locked_until=? WHERE id=? AND failed_logins>=?', [$lock, $id, self::MAX_TRIES]) === 1) {
+                audit(db(), $id, 'Access', 'user ' . $id, 'account locked', self::MAX_TRIES . ' wrong passwords; locked for ' . self::LOCK_MINUTES . ' minutes');
+            }
+            return true;
         } catch (Throwable $e) { error_log('Account lock unavailable: ' . $e->getMessage()); return false; }
     }
 

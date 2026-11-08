@@ -2,8 +2,16 @@ DirectoryIndex index.php
 Options -Indexes
 <IfModule mod_rewrite.c>
  RewriteEngine On
- RewriteRule ^(backend|config|database|docs|scripts|storage|tests)(/|$) - [F,L,NC]
+ # SECURITY_DOTPATH_BLOCK_V1: dot-directories and dot-files (.git, .GIT, .Git, .github, .vscode, .env, ...) are never
+ # served. Any path segment that starts with a dot is blocked, in any letter case (Windows/XAMPP paths ignore case).
+ # /.well-known/ stays reachable (SSL certificate validation). All rules here ignore letter case (NC / (?i)).
+ RewriteRule (^|/)\.(?!well-known(/|$)) - [F,L,NC]
+ RewriteRule ^(backend|config|database|docs|scripts|storage|tests|automation)(/|$) - [F,L,NC]
 </IfModule>
-<FilesMatch "^(\.env.*|\.gitignore|.*\.sql|.*\.log|.*\.txt|.*\.md|.*\.csv|.*\.json|.*\.py|.*\.bat)$">
+# Same dot-path block when mod_rewrite is off (mod_alias). 403 = Forbidden, nothing is redirected.
+<IfModule mod_alias.c>
+ RedirectMatch 403 "(?i)/\.(?!well-known(/|$))"
+</IfModule>
+<FilesMatch "(?i)^(\.env.*|\.gitignore|.*\.sql|.*\.log|.*\.txt|.*\.md|.*\.csv|.*\.json|.*\.py|.*\.bat|.*\.bak)$">
  Require all denied
 </FilesMatch>

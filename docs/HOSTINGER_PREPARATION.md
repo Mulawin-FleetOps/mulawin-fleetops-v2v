@@ -2,11 +2,35 @@
 
 Tested only on: Apache 2.4 + PHP 8.3 + MariaDB 10.11 (local), with the `.htaccess` rules of this project.
 
-Option 1 (simplest): upload the whole `RP_Mulawin_FMS_V2` folder inside `public_html`. The `.htaccess` files block
-`backend`, `config`, `database`, `docs`, `scripts`, `storage`, `tests`, `.env` and `.sql`. Open `https://your-domain/RP_Mulawin_FMS_V2/`.
+## Safest deployment layout (SECURITY_DOTPATH_BLOCK_V1)
 
-Option 2 (better): upload the folder OUTSIDE `public_html` and set the domain document root to `RP_Mulawin_FMS_V2/public`
-(if the plan allows changing the document root).
+**Recommended — only `public/` on the web.** Put the project OUTSIDE `public_html` and point the domain's document
+root to its `public/` folder. Then `.env`, `.git`, `backend`, `storage`, backups and docs are simply not on the web.
+
+```
+/home/<account>/RP_Mulawin_FMS_V2/          <- project (NOT reachable from the web)
+    .env  backend/  config/  database/  storage/  ...
+    public/                                 <- domain document root (hPanel > Websites > Advanced / document root)
+```
+Hostinger Git deploy: deploy into `/home/<account>/RP_Mulawin_FMS_V2` (not into `public_html`), then set the
+document root to `RP_Mulawin_FMS_V2/public`.
+
+**Only if the plan cannot change the document root** — whole folder inside `public_html`. This works because the
+`.htaccess` files block every dot-path (`.git`, `.env`, `.github`, ...; `/.well-known/` stays open for SSL) and the
+folders `backend`, `config`, `database`, `docs`, `scripts`, `storage`, `tests`, `automation`, plus `.sql/.md/.bak/...`
+files. It depends on `.htaccess` being honoured, so:
+- Prefer uploading WITHOUT the `.git` folder (File Manager / zip upload). If you use Git deploy here, the `.git` folder
+  is on the web server and only `.htaccess` keeps it private.
+- Never leave copies like `RP_Mulawin_FMS_V2_old/` or `.zip` backups inside `public_html`.
+
+**Check after every deployment** (read-only GET requests, from your laptop):
+```
+TEST_BASE_URL=https://your-domain TEST_LAYOUT=public php tests/run_htaccess_tests.php            (recommended layout)
+TEST_BASE_URL=https://your-domain/RP_Mulawin_FMS_V2 php tests/run_htaccess_tests.php            (folder in public_html)
+```
+Every line must be PASS (for example `/.git/config`, `/.env`, `/storage/private/` not served; app and assets working).
+Tested locally on Apache 2.4 (with and without mod_rewrite). Hostinger uses LiteSpeed, which reads the same
+`.htaccess` rules — run the check there to confirm.
 
 Steps: PHP 8.2+ with pdo_mysql, fileinfo, mbstring → create a NEW empty database and a database user → import
 `database/schema.sql` then `database/extension.sql` → copy `.env.example` to `.env`, set `APP_ENV=production` and the
