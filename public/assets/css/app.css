@@ -1829,3 +1829,21 @@ button.docfm-folder:focus-visible {
   .docfm-modal-nav > div { width:100%; }
 }
 
+
+
+/* FLEETOPS_LIST_FIRST_UI_2026_11 — list-first Documents and icon-only Trips switch. */
+.rpm-trip-view-switch .rpm-trip-view-btn { width: 36px; justify-content: center; padding: 6px; font-size: 0; }
+.rpm-trip-view-switch .rpm-trip-view-btn .bi { font-size: 15px; }
+.docfm-type-tabs { display: flex; gap: 5px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 9px; margin: 10px 0 14px; }
+.docfm-type-tab { border: 1px solid transparent; background: transparent; color: var(--text-2); padding: 8px 12px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.docfm-type-tab.active, .docfm-type-tab[aria-selected="true"] { border-color: var(--border); background: var(--surface); color: var(--text); font-weight: 650; }
+.docfm-type-tab:hover { background: var(--surface-2); }
+.docfm-type-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.docfm-type-tab span { color: var(--text-3); font-size: 11px; margin-left: 3px; }
+.docfm-list-view .docfm-section { margin: 0; }
+.docfm-list-view .docfm-section-head { display: none; }
+.docfm-list-view .docfm-folders { display: flex; flex-direction: column; gap: 6px; padding: 0; }
+.docfm-list-view button.docfm-folder { display: flex; width: 100%; max-width: none; min-width: 0; box-shadow: none; border-radius: 7px; }
+.docfm-list-view .docfm-folder-title { padding: 10px 12px; }
+.docfm-list-view .docfm-folder-icon { font-size: 20px; }
+@media(max-width: 560px) { .docfm-type-tab { padding: 7px 9px; } .docfm-list-view .docfm-folder-meta { white-space: normal; } }
