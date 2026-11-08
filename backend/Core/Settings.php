@@ -44,11 +44,13 @@ final class Settings {
         'dispatch_early_minutes'      => ['Allow Confirm Dispatch before the scheduled time', 15, 'minutes before',
             'Confirm Dispatch / Redispatch is enabled this many minutes before the scheduled dispatch (it still needs Ready for Dispatch and a Released fund). 0 = only at the scheduled time.', 0, 240],
         // CHECKLIST_42_ATTENDANCE_PHASE1_V1: start hours are configurable by Admin (0-23, Philippine time).
-        'attendance_day_start_hour' => ['Day shift attendance reminder starts', 6, 'hour (0-23 PH time)', 'Hour when the Admin bell begins reminding for Day shift attendance.', 0, 23],
-        'attendance_night_start_hour' => ['Night shift attendance reminder starts', 18, 'hour (0-23 PH time)', 'Hour when the Admin bell begins reminding for Night shift attendance.', 0, 23],
+        'attendance_day_start_hour' => ['Day shift attendance reminder starts', 6, 'Philippine time', 'Time when the Day shift starts (Admin bell reminder and duty shift). Must differ from the Night shift start.', 0, 23],
+        'attendance_night_start_hour' => ['Night shift attendance reminder starts', 18, 'Philippine time', 'Time when the Night shift starts (Admin bell reminder and duty shift). Must differ from the Day shift start.', 0, 23],
         'inspection_min_minutes'      => ['Minimum checklist duration', 15, 'minutes',
             'Pre-dispatch and arrival checklists: the earliest a checklist can be submitted, counted from when the dispatcher opened it (PDF #11 section G). 0 = no minimum.', 0, 120],
     ];
+    /** Settings that are a time of day (whole hour 0-23, Philippine time). */
+    public const HOUR_OF_DAY = ['attendance_day_start_hour', 'attendance_night_start_hour'];
     private const FROM_CONFIG = ['purchase_approval_threshold', 'document_alert_days', 'license_alert_days',
                                  'default_payment_terms_days', 'km_per_liter', 'fuel_price_per_liter', 'units_per_trip',
                                  'inspection_min_minutes'];
@@ -93,7 +95,9 @@ final class Settings {
         $out = [];
         foreach (self::DEFS as $key => [$label, , $unit, $help, $min, $max]) {
             $out[] = ['key' => $key, 'label' => $label, 'unit' => $unit, 'help' => $help, 'min' => $min, 'max' => $max,
-                      'value' => self::value($key), 'default' => self::default($key)];
+                      'value' => self::value($key), 'default' => self::default($key),
+                      // CHECKLIST_42_ATTENDANCE_PHASE2_V1: shown and chosen as 12-hour times; stored as hours 0-23.
+                      'format' => in_array($key, self::HOUR_OF_DAY, true) ? 'hour' : 'number'];
         }
         return $out;
     }

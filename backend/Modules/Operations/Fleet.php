@@ -258,7 +258,8 @@ final class Fleet {
             'notes' => optField($d, 'notes', 255),
             'duty_shift' => choiceField($d, 'duty_shift', ['Day', 'Night'], false),
         ];
-        if ($row['person_type'] === 'Driver' && hasRole($u, 'admin')) must($row['duty_shift'] !== null, 'Choose a Day or Night shift for the driver.');
+        // CHECKLIST_42_ATTENDANCE_PHASE2_V1: drivers AND helpers need a shift when the Admin saves them (attendance roster).
+        if (hasRole($u, 'admin')) must($row['duty_shift'] !== null, 'Choose a Day or Night shift for the ' . strtolower($row['person_type']) . '.');
         // Every save of a DRIVER needs the license (new records, edits, and a helper changed to driver).
         // Old records without a license are not touched until someone edits them.
         if ($row['person_type'] === 'Driver') must($row['license_number'] !== null && $row['license_expiry'] !== null, "A driver needs the driver's license number and expiry date.");

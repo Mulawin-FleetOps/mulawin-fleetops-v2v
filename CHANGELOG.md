@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08 (Checklist #42 Phase 2 preparation: crew attendance roster)
+- Admin attendance for drivers now includes **helpers** ("Crew Attendance"); Admin assigns a Day/Night shift to helpers
+  as well. Crew without a shift are listed in the attendance window and in the Admin bell so they can be backfilled.
+  Trips, auto-assignment and Confirm Dispatch are unchanged in this step. No database change.
+  Tests: `tests/run_crew_attendance_tests.php`. Rollout plan: `docs/CLAUDE_42_PHASE2_ATTENDANCE.md`.
+
 ## 2026-11-08 (Checklist #36 / #37: cash-only trip fund release, Trip Fund tabs)
 - **Trip fund release is cash only** and the release date is the server's date (cannot be changed or backdated). The
   release window, voucher, expense and audit trail are unchanged; other payments (Billing, Finance, Purchasing) still offer

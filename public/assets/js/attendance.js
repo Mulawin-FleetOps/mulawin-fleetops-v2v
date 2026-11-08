@@ -5,9 +5,11 @@ const AttendanceUI = {
     const today = new Date();
     // Browser date in Philippine timezone regardless of device timezone.
     const date = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(today);
-    const title = `${kind} Attendance`;
+    // CHECKLIST_42_ATTENDANCE_PHASE2_V1: the 'Driver' roster now holds drivers AND helpers.
+    const title = kind === 'Driver' ? 'Crew Attendance (Drivers and Helpers)' : `${kind} Attendance`;
     const body = `<div class="row g-2 mb-3"><div class="col-sm-6"><label class="form-label">Attendance date</label><input type="date" class="form-control" name="duty_date" value="${date}" max="${date}" required></div>
       <div class="col-sm-6"><label class="form-label">Shift</label><select class="form-select" name="duty_shift"><option value="Day" ${initialShift==='Day'?'selected':''}>Day Shift</option><option value="Night" ${initialShift==='Night'?'selected':''}>Night Shift</option></select></div></div>
+      <div data-att-unassigned></div>
       <div data-att-info class="small text-muted mb-2">Loading attendance...</div>
       <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead><tr><th>Personnel</th><th class="text-center">Present</th><th class="text-center">Absent</th></tr></thead><tbody data-att-body></tbody></table></div>
       <p class="small text-muted">Blank = Not yet marked. Attendance does not automatically override operational availability.</p>`;
@@ -28,7 +30,9 @@ const AttendanceUI = {
           const result=await App.api('Attendance.list',{kind,duty_date:dateField.value,duty_shift:shiftField.value});
           if(seq!==request)return;
           roster=result.rows||[];
-          tbody.innerHTML=roster.map(r=>`<tr><td>${UI.esc(r.full_name)}<div class="small text-muted">Availability: ${UI.esc(r.availability)}</div></td>
+          const un=result.unassigned||[];
+          wrap.querySelector('[data-att-unassigned]').innerHTML=un.length?`<div class="alert alert-warning py-2 small mb-2"><b>${un.length} driver(s)/helper(s) have no assigned shift</b> and are not listed here: ${un.map(x=>UI.esc(x.full_name)+' ('+UI.esc(x.person_type)+')').join(', ')}. Assign their Day/Night shift in the Drivers &amp; Helpers masterlist.</div>`:'';
+          tbody.innerHTML=roster.map(r=>`<tr><td>${UI.esc(r.full_name)}<div class="small text-muted">${r.person_type?UI.esc(r.person_type)+' · ':''}Availability: ${UI.esc(r.availability)}</div></td>
             ${['Present','Absent'].map(v=>`<td class="text-center"><label class="d-inline-flex align-items-center justify-content-center p-2" style="min-width:42px;cursor:pointer"><input type="radio" name="att_${+r.id}" value="${v}" ${r.status===v?'checked':''} aria-label="${UI.esc(r.full_name)} ${v}"></label></td>`).join('')}</tr>`).join('')||'<tr><td colspan="3" class="text-muted">No staff assigned to this shift. Assign a shift in the Masterlist first.</td></tr>';
           info.textContent=`${result.marked} / ${result.total} marked · ${result.date} · ${result.shift} shift. Click the selected option again to clear.`;
           tbody.querySelectorAll('input[type="radio"]').forEach(el=>{el.dataset.wasChecked=el.checked?'1':'0';el.addEventListener('click',()=>{if(el.dataset.wasChecked==='1'){el.checked=false;el.dataset.wasChecked='0';}else{tbody.querySelectorAll(`input[name="${el.name}"]`).forEach(x=>x.dataset.wasChecked='0');el.dataset.wasChecked='1';}});});
