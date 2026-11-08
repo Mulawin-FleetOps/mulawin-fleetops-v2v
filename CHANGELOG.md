@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-08 (Checklist #44: Diesel PO and Supplier SOA attachments)
+- Trip Details: the dispatcher can attach the **Diesel PO** (optional). Complete Trip: optional **Supplier SOA** next to the
+  Waybill, Acknowledgement Receipt and DR (which stay required). Both are trip documents in Trip Details and the Documents
+  page; Finance can view and download them. Attachments only — no new approval or payment process. No database change.
+
 ## 2026-11-08 (Checklist #42 Phase 2: crew attendance at dispatch)
 - New Admin setting **Crew attendance check at Confirm Dispatch**: **Warn** (default) or **Enforce**. Enforce can only be
   turned on when every driver and helper has a shift; the Admin sees a readiness list first.
