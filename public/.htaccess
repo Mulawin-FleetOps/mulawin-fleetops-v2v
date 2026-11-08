@@ -3,11 +3,11 @@ DirectoryIndex index.php
 # SECURITY_DOTPATH_BLOCK_V1 (also when the domain's document root is this public/ folder).
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule (^|/)\.(?!well-known(/|$)) - [F,L]
+    RewriteRule (^|/)\.(?!well-known(/|$)) - [F,L,NC]
 </IfModule>
 <IfModule mod_alias.c>
-    RedirectMatch 403 "/\.(?!well-known(/|$))"
+    RedirectMatch 403 "(?i)/\.(?!well-known(/|$))"
 </IfModule>
-<FilesMatch "^(\.env.*|.*\.sql|.*\.log|.*\.txt|.*\.md)$">
+<FilesMatch "(?i)^(\.env.*|.*\.sql|.*\.log|.*\.txt|.*\.md)$">
     Require all denied
 </FilesMatch>

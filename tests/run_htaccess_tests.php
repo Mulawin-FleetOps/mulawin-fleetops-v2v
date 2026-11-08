@@ -45,23 +45,34 @@ function get(string $url): array {
 }
 // Text that must never appear in a response (git internals, .env keys, PHP source, SQL dumps).
 const LEAK_MARKERS = ['[core]', 'repositoryformatversion', 'ref: refs/', 'DIRC', 'DB_PASS', 'MAIL_PASSWORD', 'INSTALL_TOKEN', '<?php', 'CREATE TABLE', 'declare(strict_types'];
-function denied(string $path, string $label = ''): void {
+function denied(string $path, string $label = '', array $codes = [400, 401, 403, 404]): void {
     global $base;
     [$s, $body] = get($base . $path);
     $leak = array_values(array_filter(LEAK_MARKERS, fn($m) => str_contains($body, $m)));
-    ok(in_array($s, [400, 401, 403, 404], true) && !$leak, 'not served: ' . ($label ?: $path), "HTTP $s" . ($leak ? ', body contains ' . implode(', ', $leak) : ''));
+    ok(in_array($s, $codes, true) && !$leak, 'not served: ' . ($label ?: $path) . ($codes === [403] ? ' (403)' : ''), "HTTP $s" . ($leak ? ', body contains ' . implode(', ', $leak) : ''));
 }
+/** Dot-paths are refused by the rule itself (before any file lookup), so the answer must be exactly 403 in any letter case. */
+function blocked(string $path): void { denied($path, '', [403]); }
 
 echo "Layout: $layout ($base)\n\n== A. Git repository and other dot-paths ==\n";
 foreach (['/.git/config', '/.git/index', '/.git/HEAD', '/.git/logs/HEAD', '/.git/objects/info/packs', '/.git/', '/.git',
           '/.env', '/.env.example', '/.gitignore', '/.htaccess', '/.github/workflows/deploy.yml', '/.vscode/settings.json', '/.idea/workspace.xml', '/.DS_Store',
-          $app . '/.htaccess', $app . '/.git/config', $app . '/assets/.git/config', '/%2Egit/config', '/.GIT/config'] as $p) denied($p);
+          $app . '/.htaccess', $app . '/.git/config', $app . '/assets/.git/config', '/%2Egit/config', '/%2egit/config'] as $p) blocked($p);
+
+echo "\n== A2. Same dot-paths in UPPER and Mixed case (Windows / XAMPP paths ignore case) ==\n";
+foreach (['/.GIT/config', '/.GIT/INDEX', '/.Git/config', '/.Git/index', '/.gIt/HEAD', '/.GiT/logs/HEAD', '/.GIT/', '/.Git',
+          '/.ENV', '/.Env', '/.eNv.EXAMPLE', '/.GITIGNORE', '/.HTACCESS', '/.GitHub/workflows/deploy.yml', '/.VSCode/settings.json', '/.IDEA/workspace.xml', '/.ds_store',
+          $app . '/.GIT/config', $app . '/.Git/index', $app . '/.HTACCESS', $app . '/assets/.GIT/config', '/%2EGIT/config', '/%2eGit/index'] as $p) blocked($p);
 
 echo "\n== B. Private project folders and files ==\n";
 if ($layout === 'project') {
     foreach (['/backend/bootstrap.php', '/backend/Modules/Operations/Trips.php.pre_5h1.bak', '/config/', '/database/schema.sql', '/database/migrations/',
               '/docs/HOSTINGER_PREPARATION.md', '/scripts/create_user.php', '/storage/', '/storage/private/', '/storage/backups/', '/tests/_launcher.php',
               '/tests/README.md', '/automation/fmsauto.py', '/README.md', '/CHANGELOG.md'] as $p) denied($p);
+    echo "\n== B2. Private folders and files in UPPER and Mixed case ==\n";
+    foreach (['/BACKEND/bootstrap.php', '/Backend/bootstrap.php', '/STORAGE/private/', '/Storage/backups/', '/DATABASE/schema.sql', '/Docs/HOSTINGER_PREPARATION.md',
+              '/TESTS/_launcher.php', '/Automation/fmsauto.py', '/Config/', '/SCRIPTS/create_user.php', '/README.MD', '/ReadMe.Md', '/CHANGELOG.MD',
+              '/database/SCHEMA.SQL', '/backend/Modules/Operations/Trips.php.pre_5h1.BAK'] as $p) denied($p);
 } else {
     // Only public/ is on the web: everything else of the project simply does not exist here.
     foreach (['/../.env', '/backend/bootstrap.php', '/storage/private/', '/database/schema.sql'] as $p) denied($p);
@@ -82,8 +93,12 @@ if ($layout === 'project') {
     [$s, , , $loc] = get($base . '/');
     ok(in_array($s, [200, 301, 302], true), 'project root opens or forwards to the app', "HTTP $s $loc");
 }
-[$s] = get($base . '/.well-known/acme-challenge/mulawin-check');
-ok($s !== 403, '/.well-known/ is not blocked (SSL certificate validation)', "HTTP $s");
+foreach (['/.well-known/acme-challenge/mulawin-check', '/.WELL-KNOWN/acme-challenge/mulawin-check', '/.Well-Known/acme-challenge/mulawin-check'] as $p) {
+    [$s, $body] = get($base . $p);
+    $leak = array_values(array_filter(LEAK_MARKERS, fn($m) => str_contains($body, $m)));
+    ok($s !== 403 && !$leak, "$p is not blocked (SSL certificate validation)", "HTTP $s");
+}
+foreach (['/.well-known-evil/x', '/.well-knownx', '/.WELL-KNOWN.git/config'] as $p) blocked($p);   // look-alikes are still blocked
 
 echo "\n" . str_repeat('=', 60) . "\nRESULT: $pass passed, $fail failed\n";
 if ($failed) echo "Failed:\n - " . implode("\n - ", $failed) . "\n";
