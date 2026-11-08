@@ -39,6 +39,7 @@ core('Notify');
 core('Files');
 core('BillingDraft');
 core('RouteDistance');
+core('CrewAttendance');
 
 final class Trips {
     public const STATUSES = ['Pending Review', 'Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'Dispatched',
@@ -583,17 +584,36 @@ final class Trips {
               AND NOT EXISTS (SELECT 1 FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1)
             ORDER BY recent, v.id FOR UPDATE", [$t['truck_type']]);
         if (!$trucks) return ['ok' => false, 'reason' => 'No ' . $t['truck_type'] . ' truck is available.'];
-        $free = function (string $type) use ($p): array {
-            return many($p, "SELECT pe.id, pe.full_name, (SELECT COUNT(*) FROM trips x WHERE (x.driver_id=pe.id OR x.driver2_id=pe.id OR x.helper_id=pe.id) AND x.status='Completed' AND x.completed_at>=DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent
+        // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: shift-aware crew. The trip's SCHEDULED shift decides (planning);
+        // crew marked Absent for that shift are never picked; Not Yet Marked is allowed (future shifts cannot be marked).
+        // Same-shift crew first. Warn mode only: if none is free, other-shift / no-shift crew as a flagged fallback.
+        // All existing rules (active, Available, license, not held by another trip) still apply to every candidate.
+        $sched = CrewAttendance::shiftFor(strtotime((string)$t['scheduled_at']) ?: time());
+        $warn = CrewAttendance::mode() === CrewAttendance::MODE_WARN;
+        $free = function (string $type) use ($p, $sched): array {
+            return many($p, "SELECT pe.id, pe.full_name, pe.duty_shift, (SELECT COUNT(*) FROM trips x WHERE (x.driver_id=pe.id OR x.driver2_id=pe.id OR x.helper_id=pe.id) AND x.status='Completed' AND x.completed_at>=DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent
                 FROM personnel pe WHERE pe.active=1 AND pe.person_type=? AND pe.availability='Available'
                   AND (pe.person_type<>'Driver' OR pe.license_expiry IS NULL OR pe.license_expiry>=CURRENT_DATE())
                   AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.resource_type='person' AND a.resource_id=pe.id)
-                ORDER BY recent, pe.id FOR UPDATE", [$type]);
+                  AND NOT EXISTS (SELECT 1 FROM attendance_marks am WHERE am.personnel_id=pe.id AND am.duty_date=? AND am.duty_shift=? AND am.status='Absent')
+                ORDER BY recent, pe.id FOR UPDATE", [$type, $sched['date'], $sched['shift']]);
         };
-        $drivers = array_map(fn($r) => (int)$r['id'], $free('Driver'));
-        if (!$drivers) return ['ok' => false, 'reason' => 'No driver is available.'];
-        $helpers = $t['truck_type'] === 'Car Carrier' ? [] : array_map(fn($r) => (int)$r['id'], $free('Helper'));
-        if ($t['truck_type'] !== 'Car Carrier' && !$helpers) return ['ok' => false, 'reason' => 'No helper is available.'];
+        $pool = function (string $type) use ($free, $sched, $warn): array {
+            $rows = $free($type);
+            $same = array_values(array_filter($rows, fn($r) => $r['duty_shift'] === $sched['shift']));
+            $other = $warn ? array_values(array_filter($rows, fn($r) => $r['duty_shift'] !== $sched['shift'])) : [];
+            return [array_map(fn($r) => (int)$r['id'], $same), array_map(fn($r) => (int)$r['id'], $other)];
+        };
+        $shiftWord = $sched['shift'] . '-shift';
+        [$drivers, $fbDrivers] = $pool('Driver');
+        if (!$drivers && !$fbDrivers) return ['ok' => false, 'reason' => $warn ? 'No driver is available.' : "No $shiftWord driver is available (Enforce mode; Absent crew are skipped)."];
+        $usedFallback = [];
+        if (!$drivers) { $drivers = $fbDrivers; $usedFallback['driver'] = true; }
+        [$helpers, $fbHelpers] = $t['truck_type'] === 'Car Carrier' ? [[], []] : $pool('Helper');
+        if ($t['truck_type'] !== 'Car Carrier' && !$helpers) {
+            if (!$fbHelpers) return ['ok' => false, 'reason' => $warn ? 'No helper is available.' : "No $shiftWord helper is available (Enforce mode; Absent crew are skipped)."];
+            $helpers = $fbHelpers; $usedFallback['helper'] = true;
+        }
         // Prefer a truck whose regular driver (and helper) is free.
         usort($trucks, function ($a, $b) use ($drivers, $helpers) {
             $sa = (in_array((int)$a['assigned_driver_id'], $drivers, true) ? 2 : 0) + (in_array((int)$a['assigned_helper_id'], $helpers, true) ? 1 : 0);
@@ -605,11 +625,25 @@ final class Trips {
         $driver2 = null; $helper = null;
         if ($t['truck_type'] === 'Car Carrier') {
             $others = array_values(array_filter($drivers, fn($x) => $x !== $driver));
+            if (!$others && empty($usedFallback['driver'])) {   // Driver 2: same shift first, then (Warn) fallback
+                $others = array_values(array_filter($fbDrivers, fn($x) => $x !== $driver));
+                if ($others) $usedFallback['driver2'] = true;
+            }
             $driver2 = $others[0] ?? null;
         } else {
             $helper = in_array((int)$v['assigned_helper_id'], $helpers, true) ? (int)$v['assigned_helper_id'] : $helpers[0];
         }
-        return ['ok' => true, 'vehicle_id' => (int)$v['id'], 'plate' => $v['plate_number'], 'driver_id' => $driver, 'driver2_id' => $driver2, 'helper_id' => $helper];
+        // Flag every picked person who is not on the trip's scheduled shift (Warn-mode fallback; never "verified").
+        $fallback = [];
+        foreach (['Driver' => $driver, 'Driver 2' => $driver2, 'Helper' => $helper] as $role => $pid) {
+            if (!$pid) continue;
+            $pe = one($p, 'SELECT full_name, duty_shift FROM personnel WHERE id=?', [$pid]);
+            if ($pe['duty_shift'] !== $sched['shift']) $fallback[] = $pe['full_name'] . " ($role, " . ($pe['duty_shift'] ? $pe['duty_shift'] . ' shift' : 'no assigned shift') . ')';
+        }
+        $note = $fallback ? 'Shift fallback (Warn mode): no free ' . $shiftWord . ' crew for the ' . CrewAttendance::shiftText($sched) . ', so '
+            . implode(', ', $fallback) . ' was assigned. Attendance is NOT verified; reassign ' . $shiftWord . ' crew before Confirm Dispatch if possible.' : '';
+        return ['ok' => true, 'vehicle_id' => (int)$v['id'], 'plate' => $v['plate_number'], 'driver_id' => $driver, 'driver2_id' => $driver2, 'helper_id' => $helper,
+                'shift_fallback_note' => $note];
     }
 
     private static function applyAssignment(PDO $p, ?int $uid, array $t, array $res, string $mode, ?string $keepStatus = null): void {
@@ -623,7 +657,12 @@ final class Trips {
         $names = many($p, 'SELECT id, full_name FROM personnel WHERE id IN (?,?,?)', [$res['driver_id'], $res['driver2_id'] ?? 0, $res['helper_id'] ?? 0]);
         $nm = array_column($names, 'full_name', 'id');
         self::event($p, $uid, (int)$t['id'], $mode === 'Auto' ? 'system auto-assigned truck and crew' : 'truck and crew assigned manually', $t['status'], $to,
-            'Truck ' . $res['plate'] . '; driver ' . ($nm[$res['driver_id']] ?? '') . ($res['driver2_id'] ? '; driver 2 ' . ($nm[$res['driver2_id']] ?? '') : '') . ($res['helper_id'] ? '; helper ' . ($nm[$res['helper_id']] ?? '') : ''));
+            'Truck ' . $res['plate'] . '; driver ' . ($nm[$res['driver_id']] ?? '') . ($res['driver2_id'] ? '; driver 2 ' . ($nm[$res['driver2_id']] ?? '') : '') . ($res['helper_id'] ? '; helper ' . ($nm[$res['helper_id']] ?? '') : '')
+            . (!empty($res['shift_fallback_note']) ? '. ' . $res['shift_fallback_note'] : ''));
+        if (!empty($res['shift_fallback_note'])) {
+            audit($p, $uid, 'Trips', 'trip ' . $t['id'], 'crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note']);
+            Notify::roles($p, ['operations_head'], 'Crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note'], 'trips', 'trip-shift-fallback-' . $t['id'] . '-' . $t['attempt_number']);
+        }
         if ($to === 'Pre-Assigned') Notify::roles($p, [$t['dispatcher_role']], 'Pre-assigned trip', $t['trip_ref'] . ' is pre-assigned to truck ' . $res['plate'] . '. Submit the fund request and do the pre-dispatch checklist.', 'trips', 'trip-prep-' . $t['id'] . '-' . $t['attempt_number']);
     }
 
@@ -804,7 +843,7 @@ final class Trips {
      * Redispatch (Second Attempt): a new fund request is optional ("kung applicable");
      * when one exists it must be Released.
      */
-    public static function dispatchBlockers(PDO $p, array $t): array {
+    public static function dispatchBlockers(PDO $p, array $t, bool $lock = false): array {
         $why = [];
         if ($t['status'] !== 'Ready for Dispatch') $why[] = 'Trip status is ' . $t['status'] . ' (needs Ready for Dispatch).';
         else {
@@ -818,6 +857,14 @@ final class Trips {
         if (!$fund && (int)$t['attempt_number'] === 1) $why[] = 'No fund request yet (needs a Released fund).';
         $g = self::timeGates($t);
         if (!$g['dispatch_allowed_now']) $why[] = 'Scheduled dispatch is ' . self::phTime($g['scheduled_at']) . '; Confirm Dispatch opens ' . self::phTime($g['dispatch_opens_at']) . '.';
+        // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1 (Enforce): attendance for the ACTUAL dispatch time (now), every crew
+        // member Present on their own shift, and the existing availability rules (Present never bypasses them).
+        if (CrewAttendance::mode() === CrewAttendance::MODE_ENFORCE) {
+            foreach (CrewAttendance::dispatchFindings($p, $t, null, $lock)['crew'] as $c) {
+                if ($c['problem']) $why[] = $c['problem'];
+                elseif ($block = FleetState::personBlocker($p, $c['id'], (int)$t['id'])) $why[] = 'Crew not available: ' . $block . '.';
+            }
+        }
         return $why;
     }
 
@@ -826,8 +873,15 @@ final class Trips {
         return transaction(function (PDO $p) use ($u, $id) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
-            $why = self::dispatchBlockers($p, $t);
+            $why = self::dispatchBlockers($p, $t, true);
             must(!$why, 'Confirm Dispatch is not enabled yet. ' . implode(' ', $why), 409);
+            // Warn mode: dispatch goes ahead; unconfirmed attendance is recorded with the dispatch (never "verified").
+            $attNote = '';
+            if (CrewAttendance::mode() === CrewAttendance::MODE_WARN) {
+                $att = CrewAttendance::dispatchFindings($p, $t, null, true);
+                $issues = array_values(array_filter(array_column($att['crew'], 'problem')));
+                if ($issues) $attNote = 'Attendance not confirmed (Warn mode): ' . implode(' ', $issues);
+            }
             $v = one($p, 'SELECT status, plate_number FROM vehicles WHERE id=? FOR UPDATE', [$t['vehicle_id']]);
             must($v && $v['status'] === 'Assigned', 'The truck is ' . ($v['status'] ?? 'missing') . '.', 409);
             $redispatch = (int)$t['attempt_number'] > 1;
@@ -835,12 +889,12 @@ final class Trips {
             $lateNote = $late > 0 ? 'Dispatched ' . self::durationText($late) . ' after the scheduled time (' . substr((string)$t['scheduled_at'], 0, 16) . ').' : '';
             run($p, "UPDATE trips SET status='Dispatched', dispatched_at=NOW(), dispatcher_id=? WHERE id=?", [$u['id'], $id]);
             self::event($p, $u['id'], $id, $redispatch ? 'redispatch confirmed (Second Attempt)' : 'dispatch confirmed', $t['status'], 'Dispatched',
-                trim(($redispatch ? 'Attempt #' . $t['attempt_number'] . ', linked to the original trip and incident report. ' : '') . $lateNote));
+                trim(($redispatch ? 'Attempt #' . $t['attempt_number'] . ', linked to the original trip and incident report. ' : '') . $lateNote . ($attNote !== '' ? ' ' . $attNote : '')));
             FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Dispatched ' . $t['trip_ref']);
             BillingDraft::createFor($p, $t);
             Notify::resolve($p, 'trip-prep-' . $id . '-*');
             Notify::roles($p, ['operations_head', 'finance', 'billing'], $redispatch ? 'Trip redispatched' : 'Trip dispatched', $t['trip_ref'] . ' left with truck ' . $v['plate_number'] . '.', 'trips');
-            return ['message' => ($redispatch ? 'Redispatch confirmed (Second Attempt).' : 'Dispatch confirmed.') . ' The billing draft was generated.' . ($lateNote !== '' ? ' Note: ' . $lateNote : '')];
+            return ['message' => ($redispatch ? 'Redispatch confirmed (Second Attempt).' : 'Dispatch confirmed.') . ' The billing draft was generated.' . ($lateNote !== '' ? ' Note: ' . $lateNote : '') . ($attNote !== '' ? ' ' . $attNote : '')];
         });
     }
 
@@ -1088,6 +1142,14 @@ final class Trips {
         must((bool)$t, 'Trip not found.', 404);
         $t['dispatch_blockers'] = self::dispatchBlockers($p, $t);
         $t['time_gates'] = self::timeGates($t);
+        if (in_array($t['status'], ['Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], true)) {
+            $att = CrewAttendance::dispatchFindings($p, $t);
+            $sched = CrewAttendance::shiftFor(strtotime((string)$t['scheduled_at']) ?: time());
+            foreach ($att['crew'] as &$c) $c['outside_scheduled_shift'] = $c['duty_shift'] !== $sched['shift'];
+            unset($c);
+            $t['crew_attendance'] = ['mode' => CrewAttendance::modeName(), 'dispatch_shift' => CrewAttendance::shiftText($att['shift']),
+                'scheduled_shift' => CrewAttendance::shiftText($sched), 'crew' => $att['crew']];
+        }
         $t['fuel_estimate'] = $t['distance_km'] ? Settings::fuelEstimate((float)$t['distance_km']) : null;
         $t['route_geometry'] = one($p, 'SELECT geometry FROM trip_routes WHERE trip_id=?', [$id])['geometry'] ?? null;
         $t['client_route_ref'] = $t['client_route_id'] ? (one($p, 'SELECT route_ref FROM client_routes WHERE id=?', [$t['client_route_id']])['route_ref'] ?? null) : null;
