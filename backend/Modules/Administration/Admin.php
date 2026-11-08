@@ -17,6 +17,7 @@ core('Settings');
 core('AccountSecurity');
 core('Files');
 core('Notify');
+core('CrewAttendance');
 
 final class Admin {
     public static function read(array $u, string $page, array $q): array {
@@ -248,7 +249,7 @@ final class Admin {
         // CHECKLIST_42_ATTENDANCE_PHASE2_V1: shift start hours are whole hours and Day / Night must differ
         // (identical hours would leave no Night shift in CrewAttendance::shiftFor).
         $shiftKeys = ['attendance_day_start_hour' => 'attendance_night_start_hour', 'attendance_night_start_hour' => 'attendance_day_start_hour'];
-        if (isset($shiftKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour from $min to $max.");
+        if (isset($shiftKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour (12:00 AM to 11:00 PM).");
         return transaction(function (PDO $p) use ($u, $key, $raw, $label, $shiftKeys) {
             if (isset($shiftKeys[$key])) {
                 Settings::clearCache();
@@ -258,9 +259,12 @@ final class Admin {
             $p->prepare('INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)')
               ->execute([$key, $raw, $u['id']]);
             Settings::clearCache();
-            auditWithChanges($p, $u['id'], 'Settings', $key, 'setting changed', "$label = $raw",
-                [$label => $previousSetting['setting_value'] ?? null], [$label => $raw]);
-            return ['message' => "$label saved ($raw). New records use the new value."];
+            // Shift start hours are shown as 12-hour times (stored value stays 0-23).
+            $show = fn($v) => isset($shiftKeys[$key]) && $v !== null && $v !== '' ? CrewAttendance::hourLabel((int)$v) : $v;
+            auditWithChanges($p, $u['id'], 'Settings', $key, 'setting changed', "$label = " . $show($raw),
+                // A shift start hour never saved before was using its default: show that time as "before".
+                [$label => $show($previousSetting['setting_value'] ?? (isset($shiftKeys[$key]) ? (string)(int)Settings::default($key) : null))], [$label => $show($raw)]);
+            return ['message' => "$label saved (" . $show($raw) . "). New records use the new value."];
         });
     }
 
