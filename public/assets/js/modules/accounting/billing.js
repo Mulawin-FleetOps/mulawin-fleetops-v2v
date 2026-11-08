@@ -27,6 +27,7 @@ const BillUI = {
         <tr class="total"><td>Total amount</td><td class="num">${UI.money(b.total_amount)}</td></tr>
         ${+b.amount_paid ? `<tr><td>Paid</td><td class="num">${UI.money(b.amount_paid)}</td></tr><tr class="total"><td>Balance</td><td class="num">${UI.money(b.balance)}</td></tr>` : ''}</table>
       ${UI.h('Supporting documents')}<ul class="req-list mb-2"><li class="${docOk('Waybill') ? 'ok' : 'no'}"><i class="bi ${docOk('Waybill') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Waybill</li>
+        <li class="${docOk('Delivery Receipt') ? 'ok' : 'no'}"><i class="bi ${docOk('Delivery Receipt') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Delivery receipt</li>
         <li class="${docOk('Acknowledgement Receipt') ? 'ok' : 'no'}"><i class="bi ${docOk('Acknowledgement Receipt') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Acknowledgement receipt</li>
         <li class="${b.docs_verified_at ? 'ok' : 'no'}"><i class="bi ${b.docs_verified_at ? 'bi-check-circle-fill' : 'bi-hourglass'}"></i> ${b.docs_verified_at ? 'Verified by ' + UI.esc(b.verified_by_name) + ' · ' + UI.datetime(b.docs_verified_at) : 'Not verified yet'}</li></ul>${UI.docs(r.documents)}
       ${UI.h('Trip details')}${UI.kv([['Route', UI.esc(t.pickup_point) + ' → ' + UI.esc(t.delivery_point)], ['Truck / driver', UI.esc([t.plate_number, t.driver_name].filter(Boolean).join(' · '))],
@@ -43,7 +44,7 @@ const BillUI = {
       const a = x.dataset.a;
       if (a === 'charge') UI.formModal('Add billing charge', [{ name: 'description', label: 'Charge description (e.g. toll fees, waiting time)', required: true, col: 8 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 4 }],
         'Billing.charge_add', { extra: { billing_id: id }, after: () => { BillUI.open(id); App.route(); } });
-      if (a === 'verify') UI.confirmAction('Verify documents', 'Confirm that the waybill and the acknowledgement receipt match this trip and the billing information.', 'Billing.verify', { billing_id: id }, { submit: 'Verify documents', after: () => { BillUI.open(id); App.route(); } });
+      if (a === 'verify') UI.confirmAction('Verify documents', 'Confirm that the waybill, the delivery receipt and the acknowledgement receipt match this trip and the billing information.', 'Billing.verify', { billing_id: id }, { submit: 'Verify documents', after: () => { BillUI.open(id); App.route(); } });
       if (a === 'finalize') UI.formModal('Finalize invoice', [{ name: 'invoice_date', label: 'Invoice date', type: 'date', value: UI.today(), required: true, col: 6 },
           { name: 'invoice_number', label: 'Invoice number (optional)', col: 6, help: 'Leave blank for automatic numbering, or enter the pre-printed invoice number.' }],
         'Billing.finalize', { extra: { billing_id: id }, intro: `Total ${UI.money(b.total_amount)}. Due date = invoice date + client payment terms.`, after: () => { BillUI.open(id); App.route(); } });
@@ -137,7 +138,7 @@ App.page('billing', {
       ['ongoing', `Ongoing trips (${by(['Ongoing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Route', 'delivery_point'], ['Dispatched', 'dispatched_at', 'datetime'],
         ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
       ['for', `For billing (${by(['For Billing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Completed', 'completed_at', 'datetime'], ['Waybill', 'waybill_number'],
-        ['Documents', 'waybill_docs', (v, b) => `<span class="badge-s ${+b.waybill_docs && +b.ar_docs ? 'green' : 'red'}">${+b.waybill_docs && +b.ar_docs ? 'Complete' : 'Missing'}</span>`],
+        ['Documents', 'waybill_docs', (v, b) => { const okd = +b.waybill_docs && +b.dr_docs && +b.ar_docs; return `<span class="badge-s ${okd ? 'green' : 'red'}">${okd ? 'Complete' : 'Missing'}</span>`; }],
         ['Verified', 'docs_verified_at', (v) => v ? '<span class="badge-s green">Yes</span>' : '<span class="badge-s amber">No</span>'], ['Amount', 'total_amount', 'money']], by(['For Billing']), { ...open, title: 'Completed trips to verify and invoice' })],
       ['invoices', `Unpaid invoices (${unpaid.length})`, () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Invoice date', 'invoice_date', 'date'], ['Due date', 'due_date', 'date'],
         ['Amount', 'total_amount', 'money'], ['Paid', 'amount_paid', 'money'], ['Balance', 'balance', 'money'], ['Overdue', 'days_overdue', (v) => +v > 0 ? `<span class="badge-s red">${v} days</span>` : '—'], ['Status', 'status', 'badge']], unpaid, { ...open, title: 'Invoices waiting for payment' })],

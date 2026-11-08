@@ -34,7 +34,8 @@ final class Billing {
                     t.waybill_number, t.units_delivered, c.company_name AS client, c.payment_terms_days, v.plate_number,
                     (b.total_amount-b.amount_paid) AS balance, DATEDIFF(CURRENT_DATE(), b.due_date) AS days_overdue,
                     (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Waybill') AS waybill_docs,
-                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Acknowledgement Receipt') AS ar_docs
+                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Acknowledgement Receipt') AS ar_docs,
+                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Delivery Receipt') AS dr_docs
                 FROM billings b JOIN trips t ON t.id=b.trip_id JOIN clients c ON c.id=b.client_id LEFT JOIN vehicles v ON v.id=t.vehicle_id
                 ORDER BY b.id DESC LIMIT 2000"),
             'collections' => fn() => many($p, "SELECT co.*, b.invoice_number, c.company_name AS client, u.full_name AS recorded_by_name FROM collections co
@@ -118,7 +119,7 @@ final class Billing {
             must($b['status'] === 'For Billing', 'Only records in For Billing are verified.', 409);
             must($b['trip_status'] === 'Completed', 'The trip is not completed.', 409);
             $missing = [];
-            foreach (['Waybill', 'Acknowledgement Receipt'] as $cat) if (!Files::count($p, 'trip', (int)$b['trip_id'], $cat)) $missing[] = $cat;
+            foreach (['Waybill', 'Delivery Receipt', 'Acknowledgement Receipt'] as $cat) if (!Files::count($p, 'trip', (int)$b['trip_id'], $cat)) $missing[] = $cat;
             must(!$missing, 'Cannot verify. Missing supporting documents: ' . implode(', ', $missing) . '.', 422);
             run($p, 'UPDATE billings SET docs_verified_by=?, docs_verified_at=NOW() WHERE id=?', [$u['id'], $id]);
             auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $id, 'supporting documents verified', $b['trip_ref'],
