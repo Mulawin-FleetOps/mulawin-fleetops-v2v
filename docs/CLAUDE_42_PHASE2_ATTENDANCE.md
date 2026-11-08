@@ -28,9 +28,11 @@ double-booking, server-side enforcement.
 | Modal title "Crew Attendance (Drivers and Helpers)", crew type per row, warning listing crew without a shift | `public/assets/js/attendance.js` |
 | Masterlist form/column: shift for drivers and helpers ("Unassigned" badge) | `public/assets/js/modules/operations/fleet.js` |
 | Settings validation: Day / Night start hours must be whole hours and different (409); identical values already in the database fall back to 6 / 18 so a Night shift always exists | `backend/Modules/Administration/Admin.php`, `backend/Core/CrewAttendance.php` |
+| `CrewAttendance::dueShifts()` — Admin bell reminds for every shift started today plus the shift in progress; correct for **both** orderings (Day before Night, or Day after Night, e.g. Day 6:00 PM / Night 6:00 AM) and for shifts crossing midnight | `backend/Core/CrewAttendance.php`, `backend/Modules/Administration/Attendance.php` |
+| Shift start settings shown and chosen as **12-hour times** (6 → 6:00 AM, 18 → 6:00 PM) with a 24-option dropdown; still stored as 0–23; save message and Activity Log in AM/PM | `backend/Core/Settings.php` (`HOUR_OF_DAY`, `format`), `backend/Modules/Administration/Admin.php`, `public/assets/js/modules/administration/admin.js` |
 
 No migration (`personnel.duty_shift` already exists for helpers). Trips, auto-assignment and Confirm Dispatch are not
-touched. Tests: `tests/run_crew_attendance_tests.php` (56 checks).
+touched. Tests: `tests/run_crew_attendance_tests.php` (89 checks). Other FleetOps time displays are unchanged (later simplification phase).
 
 ## Step 2 — Rollout strategy (approved 2026-11-08; separate follow-up PR)
 

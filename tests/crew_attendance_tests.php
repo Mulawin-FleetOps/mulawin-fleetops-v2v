@@ -90,6 +90,58 @@ $setting('attendance_night_start_hour', 6); $setting('attendance_day_start_hour'
 ok(CrewAttendance::startHours() === [6, 18] && $at('2026-11-08 20:00:00') === ['date' => '2026-11-08', 'shift' => 'Night'], 'identical hours already in the database -> safe defaults 6 / 18 (a Night shift still exists)');
 $setting('attendance_day_start_hour', null); $setting('attendance_night_start_hour', null);
 
+section('A2. Bell reminder shifts follow shiftFor() for both start-hour orderings');
+$due = fn(string $local) => CrewAttendance::dueShifts(strtotime($local));
+ok($due('2026-11-08 03:00:00') === [['Night', '2026-11-07']], 'normal 6 AM / 6 PM, 3:00 AM: last night\'s Night shift only', json_encode($due('2026-11-08 03:00:00')));
+ok($due('2026-11-08 10:00:00') === [['Day', '2026-11-08']], 'normal, 10:00 AM: today\'s Day shift');
+ok($due('2026-11-08 20:00:00') === [['Day', '2026-11-08'], ['Night', '2026-11-08']], 'normal, 8:00 PM: today\'s Day and Night shifts');
+// Reversed: Day starts 6 PM, Night starts 6 AM (set through Admin Settings, which allows it when the hours differ).
+Actions::load('Admin');
+Admin::action($adm, 'setting_save', ['key' => 'attendance_night_start_hour', 'value' => '7']);
+Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '18']);
+Admin::action($adm, 'setting_save', ['key' => 'attendance_night_start_hour', 'value' => '6']);
+ok(CrewAttendance::startHours() === [18, 6], 'reversed start hours accepted (Day 6:00 PM, Night 6:00 AM)');
+foreach (['2026-11-08 03:00:00' => ['2026-11-07', 'Day'], '2026-11-08 05:59:59' => ['2026-11-07', 'Day'], '2026-11-08 06:00:00' => ['2026-11-08', 'Night'],
+          '2026-11-08 17:59:59' => ['2026-11-08', 'Night'], '2026-11-08 18:00:00' => ['2026-11-08', 'Day'], '2026-11-09 00:30:00' => ['2026-11-08', 'Day']] as $local => [$date, $shift])
+    ok($at($local) === ['date' => $date, 'shift' => $shift], "reversed: $local -> $shift shift of $date", json_encode($at($local)));
+ok($due('2026-11-08 03:00:00') === [['Day', '2026-11-07']], 'reversed, 3:00 AM: the Day shift that started yesterday 6 PM (old reminder said Night of yesterday)', json_encode($due('2026-11-08 03:00:00')));
+ok($due('2026-11-08 10:00:00') === [['Night', '2026-11-08']], 'reversed, 10:00 AM: today\'s Night shift');
+ok($due('2026-11-08 20:00:00') === [['Night', '2026-11-08'], ['Day', '2026-11-08']], 'reversed, 8:00 PM: today\'s Night and Day shifts');
+foreach (['2026-11-08 03:00:00', '2026-11-08 10:00:00', '2026-11-08 20:00:00', '2026-11-09 00:30:00'] as $local) {
+    $cur = $at($local);
+    ok(in_array([$cur['shift'], $cur['date']], $due($local), true), "reversed, $local: the shift in progress is always reminded");
+}
+// remind() itself uses dueShifts(now): one Day and one Night crew member, nothing marked -> bells exactly for the due shifts.
+$rd = $person('REMIND, DAY', 'Driver', 'Day'); $rn = $person('REMIND, NIGHT', 'Driver', 'Night');
+require_once dirname(__DIR__) . '/backend/Modules/Administration/Attendance.php';
+Attendance::remind($p);
+$keys = array_column(many($p, "SELECT dedupe_key FROM notifications WHERE user_id=? AND dedupe_key LIKE 'att-%-Driver' AND state<>'Resolved' ORDER BY dedupe_key", [$adm['id']]), 'dedupe_key');
+$expect = array_map(fn($x) => 'att-' . $x[1] . '-' . $x[0] . '-Driver', CrewAttendance::dueShifts());
+sort($expect);
+ok($keys === $expect, 'remind() (reversed hours, real clock) creates crew bells exactly for dueShifts()', json_encode([$keys, $expect]));
+run($p, "DELETE FROM notifications"); run($p, 'DELETE FROM personnel WHERE id IN (?,?)', [$rd, $rn]);
+$setting('attendance_day_start_hour', null); $setting('attendance_night_start_hour', null);
+
+section('A3. 12-hour (AM/PM) display of the shift start settings');
+foreach ([0 => '12:00 AM', 4 => '4:00 AM', 6 => '6:00 AM', 11 => '11:00 AM', 12 => '12:00 PM', 13 => '1:00 PM', 18 => '6:00 PM', 23 => '11:00 PM'] as $h => $label)
+    ok(CrewAttendance::hourLabel($h) === $label, "$h -> $label");
+$all = array_column(Settings::all(), null, 'key');
+ok($all['attendance_day_start_hour']['format'] === 'hour' && $all['attendance_night_start_hour']['format'] === 'hour' && $all['attendance_day_start_hour']['value'] === 6.0 && $all['attendance_night_start_hour']['value'] === 18.0,
+   'both shift settings flagged as time of day; stored values still 6 and 18');
+ok($all['fund_release_lead_hours']['format'] === 'number' && $all['checklist_lead_hours']['format'] === 'number', 'other settings unchanged (number)');
+$r = Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '4']);
+ok(str_contains($r['message'], '(4:00 AM)') && Settings::value('attendance_day_start_hour') === 4.0, 'saving 4 says "4:00 AM" and stores 4', $r['message']);
+$a = one($p, "SELECT a.details, c.changes_json FROM audit_events a LEFT JOIN audit_event_changes c ON c.audit_event_id=a.id WHERE a.action='setting changed' ORDER BY a.id DESC LIMIT 1");
+ok(str_contains((string)$a['details'], '4:00 AM') && str_contains((string)$a['changes_json'], '6:00 AM') && str_contains((string)$a['changes_json'], '4:00 AM'), 'Activity Log shows 6:00 AM -> 4:00 AM', json_encode($a));
+fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '6:00 AM']), 'text "6:00 AM" is not a stored value (the dropdown sends 6)', 400);
+$setting('attendance_day_start_hour', null);
+$js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/administration/admin.js');
+ok(preg_match('/const hour12 = \(h\) => (`[^`]+`);/', $js, $mm) === 1 && str_contains($js, "Array.from({ length: 24 }") && str_contains($js, "type: 'select'"), 'settings screen: 24-option AM/PM dropdown');
+if (($node = trim((string)shell_exec('command -v node'))) !== '') {
+    $out = shell_exec(escapeshellarg($node) . ' -e ' . escapeshellarg('const hour12 = (h) => ' . $mm[1] . '; console.log(JSON.stringify([0,4,6,12,13,18,23].map(hour12)))'));
+    ok(trim((string)$out) === '["12:00 AM","4:00 AM","6:00 AM","12:00 PM","1:00 PM","6:00 PM","11:00 PM"]', 'screen labels match the server labels (node)', (string)$out);
+} else echo "  NOTE  node not found: screen label check skipped\n";
+
 // ---------------------------------------------------------------------
 section('B. Crew roster: drivers and helpers');
 $dDay = $person('DAY, DRIVER', 'Driver', 'Day'); $hDay = $person('DAY, HELPER', 'Helper', 'Day');
