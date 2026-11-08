@@ -14,6 +14,7 @@ Automated tests. This folder is blocked from the web by the root `.htaccess`.
 | `php tests/run_crew_attendance_tests.php` | #42 Phase 2 preparation: shift boundaries (overnight, Admin hours), crew roster with helpers, helper shifts, unassigned-shift warning and bell, Phase 1 behaviour, no trip effect yet |
 | `php tests/run_crew_dispatch_tests.php` | #42 Phase 2 enforcement: Warn/Enforce + guard, Present/Absent/Not Yet Marked/shift mismatch at dispatch, overnight dates, cross-shift early dispatch, shift-aware auto-assign and fallback, Absent notice, redispatch, two-process concurrency |
 | `php tests/run_trip_documents_tests.php` | #44 Diesel PO / Supplier SOA attachments: upload, file checks, nothing left on failure, roles and statuses, required completion documents unchanged, Finance view/download rights |
+| `php tests/run_trip_batch_tests.php` | Batch trip planning: separate trips, Awaiting Resources, all-or-nothing validation, duplicate sends (incl. two processes), limits, dispatcher requests, approved routes, existing trips untouched, normal dispatch afterwards |
 
 Both need `TEST_DB_USER` / `TEST_DB_PASS` (see below). The shared launcher is `tests/_launcher.php`.
 
