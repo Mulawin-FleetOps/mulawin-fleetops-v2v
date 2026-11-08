@@ -228,9 +228,8 @@ $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing V
 $t = one($p, 'SELECT * FROM trips WHERE id=?', [$r['trip_id']]);
 ok($t['status'] === 'Pre-Assigned' && (int)$t['driver_id'] === $dNight && (int)$t['helper_id'] === $hNight, 'future trip still planned and auto-assigned (no attendance needed for planning)');
 $det = Trips::action($ops, 'details', ['trip_id' => $t['id']]);
-ok(!preg_grep('/attendance/i', $det['trip']['dispatch_blockers']), 'Confirm Dispatch has no attendance blocker yet (pending rollout review)');
-$src = (string)file_get_contents(dirname(__DIR__) . '/backend/Modules/Operations/Trips.php');
-ok(!str_contains($src, 'CrewAttendance'), 'trip assignment and dispatch code untouched in this step');
+ok(!preg_grep('/attendance|Present|shift/i', $det['trip']['dispatch_blockers']), 'Warn mode (default): attendance never blocks Confirm Dispatch');
+ok(CrewAttendance::mode() === CrewAttendance::MODE_WARN, 'default attendance check is Warn (enforcement suite: run_crew_dispatch_tests.php)');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/attendance.js');
 ok(str_contains($js, 'Crew Attendance (Drivers and Helpers)') && str_contains($js, 'data-att-unassigned'), 'attendance modal: crew title and unassigned warning');
 $fjs = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/operations/fleet.js');

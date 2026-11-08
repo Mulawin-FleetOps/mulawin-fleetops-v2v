@@ -63,3 +63,26 @@ touched. Tests: `tests/run_crew_attendance_tests.php` (89 checks). Other FleetOp
    trip's scheduled shift while inside the early allowance?
 4. **Absent notice scope:** notify when the Absent shift (date + shift) is the trip's scheduled shift, or the current
    shift for a trip already past its schedule — proposed. Any wider scope?
+
+## Step 2 — Enforcement (implemented; marker `CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1`)
+
+| Behaviour | Where |
+| --- | --- |
+| Admin setting `crew_attendance_dispatch_check`: **Warn** (1, default) / **Enforce** (2); Admin-only; audited "Warn → Enforce" | `Settings.php`, `Admin.php`, `admin.js` |
+| Enforce refused (409, names listed) while any active driver / helper has no shift; switching back to Warn always allowed | `Admin.php` |
+| Readiness shown before switching (crew without shift + upcoming trips that Enforce would block) and in the Crew Attendance window | `CrewAttendance::readiness`, `Attendance.readiness`, `admin.js`, `attendance.js` |
+| Auto-assignment uses the trip's **scheduled** shift: same-shift crew first; crew marked **Absent** for that shift never picked; Not Yet Marked allowed. **Warn**: if none free, other-shift / no-shift crew as a fallback — written in the trip history ("Shift fallback (Warn mode) … Attendance is NOT verified"), audited (`crew shift fallback`), Ops Head notified, badge "Outside trip shift". **Enforce**: no fallback → Awaiting Resources ("No Day-shift helper is available (Enforce mode …)"). All existing availability / license / hold rules unchanged. | `Trips::autoAssign`, `applyAssignment` |
+| Confirm Dispatch / Redispatch uses the **actual dispatch time** (Philippine time): duty date + shift from `shiftFor(now)`. **Enforce**: every assigned Driver / Driver 2 / Helper must be on that shift and **Present**, and pass `FleetState::personBlocker` (Unavailable, other trip, expired license) — otherwise 409 with the reason. **Warn**: dispatch allowed; the dispatch history and message say "Attendance not confirmed (Warn mode): …". Attendance rows are read `LOCK IN SHARE MODE` inside the dispatch transaction, so an Admin change at the same moment is never half-seen. | `Trips::dispatchBlockers`, `Trips::dispatch`, `CrewAttendance::dispatchFindings` |
+| Trip details: per crew member Present / Absent / Not Yet Marked / Shift mismatch / No shift, shift, "Outside trip shift", mode, dispatch-now shift vs scheduled shift, reasons | `Trips::details`, `trips.js` |
+| Ops Head notice when crew of a Pre-Assigned / Ready / For Reschedule trip is marked Absent for that trip's scheduled shift (or the current shift for an overdue trip). One notice per person / shift / trip, re-opened if marked Absent again, resolved when corrected. Trips and assignments never changed. | `Attendance::absentNotice` |
+
+Not changed: dispatched / in-transit trips, incident, completion, checklist rules (crew replacement still needs a new
+checklist), time gates, Finance release, billing, routing, Phase 1 attendance. No migration.
+
+Tests: `tests/run_crew_dispatch_tests.php` (79 checks, incl. a two-process test where Confirm Dispatch waits for an unsaved
+Absent mark and then refuses).
+
+### Admin rollout steps
+1. Deploy (mode stays **Warn**). 2. Assign a shift to every driver and helper until the Crew Attendance warning is gone.
+3. Mark attendance every shift for a while; check trip histories for "Attendance not confirmed" / "Shift fallback".
+4. Settings → Crew attendance check → review the readiness list → **Enforce**. 5. Rollback: set **Warn** again.
