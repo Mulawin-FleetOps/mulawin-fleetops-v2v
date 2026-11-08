@@ -505,6 +505,18 @@ const TripUI = {
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
     const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
     const crew = [['Driver', t.driver_name], ...(t.truck_type === 'Car Carrier' ? [['Driver 2', t.driver2_name]] : [['Helper', t.helper_name]])];
+    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: attendance per crew member for the shift of "dispatch now" (server data).
+    const att = t.crew_attendance;
+    const attBadge = (role) => {
+      const c = att && att.crew.find(x => x.role === role);
+      if (!c) return '';
+      const color = c.problem ? (att.mode === 'Enforce' ? 'red' : 'amber') : 'green';
+      return ` <span class="badge-s ${color}">${UI.esc(c.issue || 'Present')}</span>`
+        + (c.duty_shift ? ` <span class="small text-muted">${UI.esc(c.duty_shift)} shift</span>` : '')
+        + (c.outside_scheduled_shift ? ` <span class="badge-s amber" title="Assigned outside the trip's scheduled shift (Warn-mode fallback or manual choice)">Outside trip shift</span>` : '');
+    };
+    const attRow = att && att.crew.length ? ['Crew attendance', `<span class="small">${UI.esc(att.mode)} mode · Confirm Dispatch now: ${UI.esc(att.dispatch_shift)} · Trip scheduled: ${UI.esc(att.scheduled_shift)}</span>`
+      + att.crew.filter(c => c.problem).map(c => `<div class="small ${att.mode === 'Enforce' ? 'text-danger' : 'text-warning-emphasis'}"><i class="bi bi-exclamation-triangle"></i> ${UI.esc(c.problem)}</div>`).join('')] : null;
     let checklistHtml = '<div class="text-muted small">Not done yet.</div>';
     if (ins) {
       const items = JSON.parse(ins.items_json || '{}').items || {};
@@ -527,7 +539,7 @@ const TripUI = {
           ? `<div class="small text-muted">Pre-dispatch checklist from ${UI.datetime(gates.checklist_opens_at)} · Confirm Dispatch from ${UI.datetime(gates.dispatch_opens_at)} (Philippine time)</div>`
             + (+gates.late_minutes > 0 ? `<div class="small text-danger">Past the scheduled time by ${UI.num(gates.late_minutes, 0)} min; a late dispatch is noted in the history.</div>` : '') : '')],
         ['Truck type', UI.e(t.truck_type)], ['Truck', t.plate_number ? `<b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ' #' + UI.esc(t.truck_number) : ''} ${UI.badge(t.truck_status)}` : '—'],
-        ...crew.map(([l, v]) => [l, UI.e(v)]), ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ['Dispatched by', UI.e(t.dispatcher_name)],
+        ...crew.map(([l, v]) => [l, UI.e(v) + (v ? attBadge(l) : '')]), attRow, ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
         t.truck_type === 'Car Carrier' ? ['Units', UI.e(t.units_planned) + (t.units_delivered ? ' planned · ' + t.units_delivered + ' delivered' : '')] : ['Container / seal / shipment', [t.container_number, t.container_size, t.seal_number, t.shipment_number].filter(Boolean).map(UI.esc).join(' · ') || '—'],
         ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Cancel / reject reason', UI.esc(t.cancel_reason)] : null])}

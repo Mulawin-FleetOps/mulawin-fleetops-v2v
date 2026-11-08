@@ -100,13 +100,28 @@ App.page('admin', {
       // CHECKLIST_42_ATTENDANCE_PHASE2_V1: time-of-day settings (format 'hour') are shown and chosen as 12-hour
       // times (6 -> 6:00 AM, 18 -> 6:00 PM); the value sent and stored is still the hour 0-23.
       const hour12 = (h) => `${(+h % 12) || 12}:00 ${+h < 12 ? 'AM' : 'PM'}`;
-      const settingText = (v, s) => s.format === 'hour' ? `${hour12(v)} <span class="small text-muted">${UI.esc(s.unit)}</span>` : `${UI.num(v, 2)} ${UI.esc(s.unit)}`;
+      const modeName = (v) => +v === 2 ? 'Enforce' : 'Warn';
+      const settingText = (v, s) => s.format === 'hour' ? `${hour12(v)} <span class="small text-muted">${UI.esc(s.unit)}</span>`
+        : s.format === 'attendance_mode' ? `<b>${modeName(v)}</b>` : `${UI.num(v, 2)} ${UI.esc(s.unit)}`;
       const settingField = (s) => s.format === 'hour'
         ? { name: 'value', label: `Time (${s.unit})`, type: 'select', options: Array.from({ length: 24 }, (_, h) => [String(h), hour12(h)]), value: String(Math.round(+s.value)), required: true, col: 12 }
+        : s.format === 'attendance_mode'
+        ? { name: 'value', label: 'Mode', type: 'select', options: [['1', 'Warn (dispatch allowed; attendance noted)'], ['2', 'Enforce (dispatch needs Present crew on their shift)']], value: String(Math.round(+s.value)), required: true, col: 12 }
         : { name: 'value', label: `Value (${s.unit}, ${s.min} to ${s.max})`, type: 'number', step: 'any', value: s.value, required: true, col: 12 };
+      // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: show readiness before the Admin switches Warn / Enforce.
+      const readinessHtml = (r) => {
+        const un = r.unassigned || [], tr = r.trips || [];
+        if (!un.length && !tr.length) return '<div class="alert alert-success py-2 small mb-0">Ready: every active driver and helper has a shift, and no upcoming trip has crew on another shift.</div>';
+        return `<div class="alert alert-warning py-2 small mb-0">${un.length ? `<b>${un.length} driver(s)/helper(s) have no shift</b> (Enforce is refused until they have one): ${un.slice(0, 15).map(x => UI.esc(x.full_name)).join(', ')}${un.length > 15 ? ', ...' : ''}.<br>` : ''}`
+          + `${tr.length ? `<b>${tr.length} upcoming trip(s)</b> would be blocked under Enforce:<ul class="mb-0">${tr.slice(0, 10).map(x => `<li>${UI.esc(x.trip_ref)} · ${UI.datetime(x.scheduled_at)}: ${x.issues.map(UI.esc).join('; ')}</li>`).join('')}</ul>` : ''}</div>`;
+      };
+      const settingModal = async (s) => {
+        const intro = s.format === 'attendance_mode' ? readinessHtml(await App.api('Attendance.readiness', {})) : undefined;
+        UI.formModal(UI.esc(s.label), [settingField(s)], 'Admin.setting_save', { extra: { key: s.key }, size: '', intro });
+      };
       tabs.push(['settings', 'Settings', () => UI.table([['Setting', 'label', (v, s) => `<b>${UI.esc(v)}</b>${s.help ? `<div class="small text-muted">${UI.esc(s.help)}</div>` : ''}`], ['Value', 'value', settingText],
           ['Default', 'default', settingText]], d.settings, { title: 'System settings', actions: () => UI.btn('edit', 'Change'),
-          onAction: (a, s) => UI.formModal(UI.esc(s.label), [settingField(s)], 'Admin.setting_save', { extra: { key: s.key }, size: '' }) })
+          onAction: (a, s) => settingModal(s) })
         + UI.table([['Category', 'name'], ['Preset amount', 'amount', 'money'], ['Display order', 'sort_order', 'num'], ['Active', 'active', 'yes']], d.fundCategories, { title: 'Fund request categories (preset amounts the dispatcher picks)',
           tools: '<button class="btn btn-sm btn-primary" data-addcat><i class="bi bi-plus"></i> Add category</button>', actions: () => UI.btn('edit', 'Edit'), onAction: (a, c) => catForm(c) })]);
       tabs.push(['backup', 'Backup', () => `<div class="card"><div class="card-body-custom"><p class="small">A backup saves all database records into one .sql file. Keep a copy outside this computer together with the <code>storage/private</code> folder (uploaded files).
