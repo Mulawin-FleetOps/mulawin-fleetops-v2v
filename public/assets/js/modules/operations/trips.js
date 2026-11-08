@@ -180,8 +180,10 @@ const TripUI = {
   /**
    * BATCH_TRIP_PLANNING_V1 — Batch planning page (#trips?batch=1): several trips in one session.
    * Each row becomes its own trip through Trips.create_batch (same rules as New trip). Each row keeps its own
-   * form key, so sending the same batch again (double click, retry) creates nothing new. Map pins are not used
-   * here: choose an approved route or type the km (use New trip for map routing).
+   * form key, so sending again (double click, retry) creates nothing new. Rows are checked first (any problem: nothing
+   * is created); a row that fails while saving is shown "Not created" and only those rows are sent on Retry.
+   * Identical-looking rows are allowed (a client may need several trucks on the same route and time).
+   * Map pins are not used here: choose an approved route or type the km (use New trip for map routing).
    */
   batchPage(ctx) {
     const d = TripUI.data, isOps = UI.role('operations_head');
@@ -195,7 +197,7 @@ const TripUI = {
       if (!routes[k]) { try { routes[k] = (await App.api('Routes.selectable', { client_id: client, truck_type: truck })).routes || []; } catch { routes[k] = []; } }
       return routes[k];
     };
-    ctx.el.innerHTML = `${TripUI.datalists()}<div class="panel"><div class="small text-muted mb-2">Up to 20 trips per batch. Required: client, truck type, pickup, delivery, schedule and${isOps ? ' km (or an approved route)' : ' the other details you have'}. Nothing is created until every row is correct.</div>
+    ctx.el.innerHTML = `${TripUI.datalists()}<div class="panel"><div class="small text-muted mb-2">Up to 20 trips per batch. Required: client, truck type, pickup, delivery, schedule and${isOps ? ' km (or an approved route)' : ' the other details you have'}. All rows are checked first: if a row has a problem, nothing is created and the problem is shown. If a row cannot be saved while the others are created, it is marked <b>Not created</b> and you can retry only that row. Need two trucks on the same route and time? Add two rows (use Copy).</div>
       <div data-batch-alert></div>
       <div class="table-wrap"><table class="data-table batch-table"><thead><tr><th>#</th><th>Client</th><th>Truck type</th><th>Approved route</th><th>Pickup</th><th>Delivery</th><th>Schedule</th><th>Km</th><th>Consignee</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
       <div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-add><i class="bi bi-plus-lg"></i> Add row</button>
@@ -243,25 +245,45 @@ const TripUI = {
     addRow(); addRow();
     ctx.el.querySelector('[data-add]').onclick = () => { if (tbody.children.length >= 20) return UI.toast('A batch can have at most 20 trips.', 'error'); addRow(); };
     ctx.el.querySelector('[data-cancel]').onclick = () => App.go('trips');
-    const submit = ctx.el.querySelector('[data-submit]');
+    const submit = ctx.el.querySelector('[data-submit]'), resultsBox = ctx.el.querySelector('[data-results]');
+    // A created row is locked (Copy stays available to add another truck for the same trip details).
+    const lockRow = (tr) => { tr.querySelectorAll('input,select,button:not([data-copy])').forEach(x => { x.disabled = true; }); tr.classList.add('table-success'); };
+    const drawResults = (message) => {
+      const trs = [...tbody.querySelectorAll('tr')].filter(tr => tr.result);
+      const color = (x) => x.result === 'Not created' ? 'red' : x.trip_status === 'Awaiting Resources' ? 'amber' : 'green';
+      resultsBox.innerHTML = `<div class="alert alert-info py-2 small">${UI.esc(message)}</div>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Row</th><th>Result</th><th>Trip</th><th>Status</th><th>Truck</th><th>Details</th></tr></thead><tbody>
+        ${trs.map(tr => { const x = tr.result; return `<tr><td>${tr.querySelector('[data-n]').textContent}</td><td><span class="badge-s ${color(x)}">${UI.esc(x.result)}</span></td>
+          <td>${x.trip_id ? `<a href="#" data-open="${x.trip_id}">${UI.esc(x.trip_ref)}</a>` : '—'}</td><td>${x.trip_status ? UI.badge(x.trip_status) : '—'}</td>
+          <td>${UI.esc(x.truck || '—')}</td><td class="small">${UI.esc(x.message)}</td></tr>`; }).join('')}</tbody></table></div>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-new-batch><i class="bi bi-plus-lg"></i> Plan another batch</button>`;
+      resultsBox.querySelectorAll('[data-open]').forEach(a => { a.onclick = (e) => { e.preventDefault(); TripUI.open(a.dataset.open); }; });
+      resultsBox.querySelector('[data-new-batch]').onclick = () => App.route();
+    };
     submit.onclick = async () => {
       if (submit.disabled) return;
-      const rows = [...tbody.querySelectorAll('tr')].map(tr => { const r = { request_key: tr.dataset.key }; tr.querySelectorAll('[data-f]').forEach(x => { r[x.dataset.f] = x.value.trim(); }); return r; });
+      // Only rows without a trip yet are sent; each keeps its original key, so a created trip is never made twice.
+      const pending = [...tbody.querySelectorAll('tr')].filter(tr => !tr.dataset.done);
+      if (!pending.length) return;
+      const rows = pending.map(tr => { const r = { request_key: tr.dataset.key, row_no: tr.querySelector('[data-n]').textContent }; tr.querySelectorAll('[data-f]').forEach(x => { r[x.dataset.f] = x.value.trim(); }); return r; });
       submit.disabled = true; alertBox.innerHTML = '';
       try {
         const r = await App.api('Trips.create_batch', { rows });
-        tbody.querySelectorAll('input,select,button').forEach(x => { x.disabled = true; });
-        ctx.el.querySelector('[data-add]').disabled = true;
-        const color = (x) => x.result === 'Not created' ? 'red' : x.trip_status === 'Awaiting Resources' ? 'amber' : 'green';
-        ctx.el.querySelector('[data-results]').innerHTML = `<div class="alert alert-info py-2 small">${UI.esc(r.message)}</div>
-          <div class="table-wrap"><table class="data-table"><thead><tr><th>Row</th><th>Result</th><th>Trip</th><th>Status</th><th>Truck</th><th>Details</th></tr></thead><tbody>
-          ${r.results.map(x => `<tr><td>${x.row}</td><td><span class="badge-s ${color(x)}">${UI.esc(x.result)}</span></td>
-            <td>${x.trip_id ? `<a href="#" data-open="${x.trip_id}">${UI.esc(x.trip_ref)}</a>` : '—'}</td><td>${x.trip_status ? UI.badge(x.trip_status) : '—'}</td>
-            <td>${UI.esc(x.truck || '—')}</td><td class="small">${UI.esc(x.message)}</td></tr>`).join('')}</tbody></table></div>
-          <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-new-batch><i class="bi bi-plus-lg"></i> Plan another batch</button>`;
-        ctx.el.querySelectorAll('[data-open]').forEach(a => { a.onclick = (e) => { e.preventDefault(); TripUI.open(a.dataset.open); }; });
-        ctx.el.querySelector('[data-new-batch]').onclick = () => App.route();
-        submit.textContent = 'Sent';
+        r.results.forEach(x => {
+          const tr = pending.find(t => t.dataset.key === x.request_key);
+          if (!tr) return;
+          tr.result = x;
+          if (x.trip_id) { tr.dataset.done = x.trip_ref; lockRow(tr); } else tr.classList.add('table-danger');
+        });
+        const left = [...tbody.querySelectorAll('tr')].filter(tr => !tr.dataset.done).length;
+        if (left) {
+          submit.disabled = false;
+          submit.innerHTML = `<i class="bi bi-arrow-repeat"></i> Retry not-created row(s) (${left})`;
+        } else {
+          submit.textContent = 'All trips created';
+          ctx.el.querySelector('[data-add]').disabled = true;
+        }
+        drawResults(r.message + (left ? ` ${left} row(s) not created: fix them if needed and press Retry (created trips are not sent again).` : ''));
       } catch (e) {
         alertBox.innerHTML = `<div class="alert alert-danger py-2 small">${UI.esc(e.message).replace(/ (Row \d+:)/g, '<br><b>$1</b>')}</div>`;
         submit.disabled = false;   // same keys kept: a retry never duplicates a created trip
