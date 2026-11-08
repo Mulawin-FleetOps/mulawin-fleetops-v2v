@@ -75,6 +75,20 @@ $setting('attendance_day_start_hour', 7); $setting('attendance_night_start_hour'
 ok($at('2026-11-08 06:30:00') === ['date' => '2026-11-07', 'shift' => 'Night'] && $at('2026-11-08 18:30:00') === ['date' => '2026-11-08', 'shift' => 'Day'] && $at('2026-11-08 19:00:00')['shift'] === 'Night',
    'Admin start hours 7 / 19 are used (no separate boundaries)');
 $setting('attendance_day_start_hour', null); $setting('attendance_night_start_hour', null);
+Actions::load('Admin');
+fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_night_start_hour', 'value' => '6']), 'Night start = Day start (6) refused', 409, 'cannot be the same');
+fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '18']), 'Day start = Night start (18) refused', 409, 'cannot be the same');
+fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '6.5']), 'half hour refused (whole hours only)', 400, 'whole hour');
+fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '24']), 'hour 24 refused (range kept)', 400);
+ok(Settings::value('attendance_day_start_hour') === 6.0 && Settings::value('attendance_night_start_hour') === 18.0, 'refused saves left the hours unchanged');
+Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '5']);
+Admin::action($adm, 'setting_save', ['key' => 'attendance_night_start_hour', 'value' => '17']);
+ok($at('2026-11-08 05:00:00')['shift'] === 'Day' && $at('2026-11-08 17:00:00')['shift'] === 'Night', 'valid different hours (5 / 17) saved and used');
+$aud = one($p, "SELECT details FROM audit_events WHERE action='setting changed' ORDER BY id DESC LIMIT 1");
+ok($aud !== null, 'setting change still audited');
+$setting('attendance_night_start_hour', 6); $setting('attendance_day_start_hour', 6);   // bad value written outside the app
+ok(CrewAttendance::startHours() === [6, 18] && $at('2026-11-08 20:00:00') === ['date' => '2026-11-08', 'shift' => 'Night'], 'identical hours already in the database -> safe defaults 6 / 18 (a Night shift still exists)');
+$setting('attendance_day_start_hour', null); $setting('attendance_night_start_hour', null);
 
 // ---------------------------------------------------------------------
 section('B. Crew roster: drivers and helpers');

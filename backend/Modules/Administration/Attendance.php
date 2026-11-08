@@ -82,7 +82,7 @@ final class Attendance {
     /** Refresh-safe bell reminder. Requires an Admin session and runs after configured shift start. */
     public static function remind(PDO $p): void {
         $today=date('Y-m-d'); $now=date('H:i');
-        $dayStart=self::hour('attendance_day_start_hour');
+        $dayStart=sprintf('%02d:00',CrewAttendance::startHours()[0]);
         // Today's Day shift once it has started, plus the current Night shift (a Night shift that crossed
         // midnight keeps its start date). Shift boundaries: CrewAttendance::shiftFor (single source).
         $due=[];
@@ -100,9 +100,5 @@ final class Attendance {
                 else Notify::resolve($p,'att-'.$date.'-'.$shift.'-'.$kind);
             }
         }
-    }
-    private static function hour(string $key): string {
-        $hour=(int)Settings::value($key);
-        return sprintf('%02d:00',$hour);
     }
 }

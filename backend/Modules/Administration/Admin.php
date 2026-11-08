@@ -245,7 +245,15 @@ final class Admin {
         [$label, , $unit, , $min, $max] = Settings::DEFS[$key];
         $raw = trim((string)($d['value'] ?? ''));
         must(is_numeric($raw) && (float)$raw >= $min && (float)$raw <= $max, "$label must be a number from $min to $max.");
-        return transaction(function (PDO $p) use ($u, $key, $raw, $label) {
+        // CHECKLIST_42_ATTENDANCE_PHASE2_V1: shift start hours are whole hours and Day / Night must differ
+        // (identical hours would leave no Night shift in CrewAttendance::shiftFor).
+        $shiftKeys = ['attendance_day_start_hour' => 'attendance_night_start_hour', 'attendance_night_start_hour' => 'attendance_day_start_hour'];
+        if (isset($shiftKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour from $min to $max.");
+        return transaction(function (PDO $p) use ($u, $key, $raw, $label, $shiftKeys) {
+            if (isset($shiftKeys[$key])) {
+                Settings::clearCache();
+                must((int)$raw !== (int)Settings::value($shiftKeys[$key]), 'The Day and Night shift start hours cannot be the same.', 409);
+            }
             $previousSetting = one($p, 'SELECT setting_value FROM app_settings WHERE setting_key=?', [$key]);
             $p->prepare('INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)')
               ->execute([$key, $raw, $u['id']]);

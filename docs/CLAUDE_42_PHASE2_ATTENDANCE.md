@@ -27,11 +27,12 @@ double-booking, server-side enforcement.
 | Admin must pick a shift when saving a driver **or helper**; others still cannot change shifts | `backend/Modules/Operations/Fleet.php` |
 | Modal title "Crew Attendance (Drivers and Helpers)", crew type per row, warning listing crew without a shift | `public/assets/js/attendance.js` |
 | Masterlist form/column: shift for drivers and helpers ("Unassigned" badge) | `public/assets/js/modules/operations/fleet.js` |
+| Settings validation: Day / Night start hours must be whole hours and different (409); identical values already in the database fall back to 6 / 18 so a Night shift always exists | `backend/Modules/Administration/Admin.php`, `backend/Core/CrewAttendance.php` |
 
 No migration (`personnel.duty_shift` already exists for helpers). Trips, auto-assignment and Confirm Dispatch are not
-touched. Tests: `tests/run_crew_attendance_tests.php` (48 checks).
+touched. Tests: `tests/run_crew_attendance_tests.php` (56 checks).
 
-## Step 2 — Proposed rollout strategy (for review; NOT implemented)
+## Step 2 — Rollout strategy (approved 2026-11-08; separate follow-up PR)
 
 **One Admin setting, no migration:** `crew_attendance_dispatch_check` in the existing `app_settings` table.
 

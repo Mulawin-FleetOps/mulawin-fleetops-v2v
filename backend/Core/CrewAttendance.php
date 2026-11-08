@@ -24,8 +24,7 @@ final class CrewAttendance {
     /** ['date' => 'Y-m-d', 'shift' => 'Day'|'Night'] for a Unix time (default: now). */
     public static function shiftFor(?int $ts = null): array {
         $ts ??= time();
-        $day = (int)Settings::value('attendance_day_start_hour');
-        $night = (int)Settings::value('attendance_night_start_hour');
+        [$day, $night] = self::startHours();
         $h = (int)date('G', $ts);
         // Normal setup: Day start < Night start (default 6 and 18). If an Admin sets them the other way
         // round, the Day shift is the part from the Day start that wraps past midnight.
@@ -37,6 +36,20 @@ final class CrewAttendance {
         // Night: before the Night start hour (early morning) it belongs to the previous date's Night shift.
         $date = $h >= $night ? date('Y-m-d', $ts) : date('Y-m-d', strtotime('-1 day', $ts));
         return ['date' => $date, 'shift' => 'Night'];
+    }
+
+    /**
+     * Day and Night start hours (Admin settings). Saving identical hours is refused (Admin settings); if an old or
+     * manually edited value is identical anyway, the defaults 6 / 18 are used so a Night shift always exists.
+     */
+    public static function startHours(): array {
+        $day = (int)Settings::value('attendance_day_start_hour');
+        $night = (int)Settings::value('attendance_night_start_hour');
+        if ($day === $night) {
+            error_log('CrewAttendance: Day and Night shift start hours are identical (' . $day . '); using 6 and 18.');
+            return [6, 18];
+        }
+        return [$day, $night];
     }
 
     /** Active drivers and helpers with no assigned shift (not in any attendance roster). */
