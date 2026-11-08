@@ -178,6 +178,97 @@ const TripUI = {
       { submit: isOps ? 'Create trip and auto-assign' : 'Send request', onShow: (w, f) => TripUI.wireForm(w, f) });
   },
   /**
+   * BATCH_TRIP_PLANNING_V1 — Batch planning page (#trips?batch=1): several trips in one session.
+   * Each row becomes its own trip through Trips.create_batch (same rules as New trip). Each row keeps its own
+   * form key, so sending the same batch again (double click, retry) creates nothing new. Map pins are not used
+   * here: choose an approved route or type the km (use New trip for map routing).
+   */
+  batchPage(ctx) {
+    const d = TripUI.data, isOps = UI.role('operations_head');
+    const mine = isOps ? App.me.truckTypes : App.me.truckTypes.filter(x => (x === 'Car Carrier') === (App.me.user.role === 'car_carrier_dispatcher'));
+    ctx.setTitle('Batch trip planning', isOps ? 'Enter several trips at once. Each one is created and auto-assigned like a New trip; trips without a free truck or crew wait in Awaiting Resources.'
+      : 'Enter several trip requests at once. Each one goes to the Operations Head for review, like a New trip request.');
+    const routes = {};   // client|truck -> approved routes
+    const loadRoutes = async (client, truck) => {
+      const k = client + '|' + truck;
+      if (!client || !truck) return [];
+      if (!routes[k]) { try { routes[k] = (await App.api('Routes.selectable', { client_id: client, truck_type: truck })).routes || []; } catch { routes[k] = []; } }
+      return routes[k];
+    };
+    ctx.el.innerHTML = `${TripUI.datalists()}<div class="panel"><div class="small text-muted mb-2">Up to 20 trips per batch. Required: client, truck type, pickup, delivery, schedule and${isOps ? ' km (or an approved route)' : ' the other details you have'}. Nothing is created until every row is correct.</div>
+      <div data-batch-alert></div>
+      <div class="table-wrap"><table class="data-table batch-table"><thead><tr><th>#</th><th>Client</th><th>Truck type</th><th>Approved route</th><th>Pickup</th><th>Delivery</th><th>Schedule</th><th>Km</th><th>Consignee</th><th></th></tr></thead><tbody data-rows></tbody></table></div>
+      <div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-primary" data-add><i class="bi bi-plus-lg"></i> Add row</button>
+        <span class="flex-grow-1"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-cancel>Back to trips</button>
+        <button type="button" class="btn btn-sm btn-primary" data-submit><i class="bi bi-send"></i> ${isOps ? 'Create trips' : 'Send requests'}</button></div>
+      <div data-results class="mt-3"></div></div>`;
+    const tbody = ctx.el.querySelector('[data-rows]'), alertBox = ctx.el.querySelector('[data-batch-alert]');
+    const clientOpts = (sel) => '<option value="">Choose…</option>' + d.clients.map(c => `<option value="${c.id}" ${String(sel) === String(c.id) ? 'selected' : ''}>${UI.esc(c.company_name)}</option>`).join('');
+    const typeOpts = (client, sel) => { const c = d.clients.find(x => String(x.id) === String(client)); const types = mine.filter(t => !c || (c.rate_types || '').split('|').includes(t));
+      return '<option value="">Choose…</option>' + types.map(t => `<option ${t === sel ? 'selected' : ''}>${UI.esc(t)}</option>`).join(''); };
+    const renumber = () => tbody.querySelectorAll('tr').forEach((tr, i) => { tr.querySelector('[data-n]').textContent = i + 1; });
+    const addRow = (v = {}) => {
+      const tr = document.createElement('tr');
+      tr.dataset.key = UI.uuid();
+      tr.innerHTML = `<td data-n></td>
+        <td><select class="form-select form-select-sm" data-f="client_id">${clientOpts(v.client_id)}</select></td>
+        <td><select class="form-select form-select-sm" data-f="truck_type">${typeOpts(v.client_id, v.truck_type)}</select></td>
+        <td><select class="form-select form-select-sm" data-f="client_route_id"><option value="">None (type the km)</option></select></td>
+        <td><input class="form-control form-control-sm" data-f="pickup_point" list="dlPlaces" maxlength="200" value="${UI.esc(v.pickup_point || '')}"></td>
+        <td><input class="form-control form-control-sm" data-f="delivery_point" list="dlPlaces" maxlength="200" value="${UI.esc(v.delivery_point || '')}"></td>
+        <td><input class="form-control form-control-sm" type="datetime-local" data-f="scheduled_at" min="${UI.nowManila()}" value="${UI.esc(v.scheduled_at || '')}"></td>
+        <td><input class="form-control form-control-sm" type="number" step="0.01" min="0" max="3000" data-f="distance_km" style="width:6.5rem" value="${UI.esc(v.distance_km || '')}"></td>
+        <td><input class="form-control form-control-sm" data-f="consignee" list="dlConsignee" maxlength="120" value="${UI.esc(v.consignee || '')}"></td>
+        <td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-secondary" data-copy title="Copy row"><i class="bi bi-files"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-danger" data-del title="Remove row"><i class="bi bi-trash"></i></button></td>`;
+      const f = (n) => tr.querySelector(`[data-f=${n}]`);
+      const refreshRoutes = async () => {
+        const list = await loadRoutes(f('client_id').value, f('truck_type').value), cur = f('client_route_id').value || v.client_route_id || '';
+        f('client_route_id').innerHTML = '<option value="">None (type the km)</option>' + list.map(r => `<option value="${r.id}" ${String(cur) === String(r.id) ? 'selected' : ''}>${UI.esc(r.route_ref + ': ' + r.origin_label + ' → ' + r.destination_label + ' (' + UI.num(r.distance_km, 2) + ' km)')}</option>`).join('');
+        applyRoute();
+      };
+      const applyRoute = () => {
+        const r = (routes[f('client_id').value + '|' + f('truck_type').value] || []).find(x => String(x.id) === f('client_route_id').value);
+        ['pickup_point', 'delivery_point', 'distance_km'].forEach(n => { f(n).readOnly = !!r; });
+        if (r) { f('pickup_point').value = r.origin_label; f('delivery_point').value = r.destination_label; f('distance_km').value = (+r.distance_km).toFixed(2); }
+      };
+      f('client_id').onchange = () => { f('truck_type').innerHTML = typeOpts(f('client_id').value, f('truck_type').value); refreshRoutes(); };
+      f('truck_type').onchange = refreshRoutes;
+      f('client_route_id').onchange = applyRoute;
+      tr.querySelector('[data-copy]').onclick = () => { const val = {}; tr.querySelectorAll('[data-f]').forEach(x => { val[x.dataset.f] = x.value; }); addRow(val); };
+      tr.querySelector('[data-del]').onclick = () => { if (tbody.children.length > 1) { tr.remove(); renumber(); } };
+      tbody.append(tr); renumber();
+      if (v.client_id && v.truck_type) refreshRoutes();
+    };
+    addRow(); addRow();
+    ctx.el.querySelector('[data-add]').onclick = () => { if (tbody.children.length >= 20) return UI.toast('A batch can have at most 20 trips.', 'error'); addRow(); };
+    ctx.el.querySelector('[data-cancel]').onclick = () => App.go('trips');
+    const submit = ctx.el.querySelector('[data-submit]');
+    submit.onclick = async () => {
+      if (submit.disabled) return;
+      const rows = [...tbody.querySelectorAll('tr')].map(tr => { const r = { request_key: tr.dataset.key }; tr.querySelectorAll('[data-f]').forEach(x => { r[x.dataset.f] = x.value.trim(); }); return r; });
+      submit.disabled = true; alertBox.innerHTML = '';
+      try {
+        const r = await App.api('Trips.create_batch', { rows });
+        tbody.querySelectorAll('input,select,button').forEach(x => { x.disabled = true; });
+        ctx.el.querySelector('[data-add]').disabled = true;
+        const color = (x) => x.result === 'Not created' ? 'red' : x.trip_status === 'Awaiting Resources' ? 'amber' : 'green';
+        ctx.el.querySelector('[data-results]').innerHTML = `<div class="alert alert-info py-2 small">${UI.esc(r.message)}</div>
+          <div class="table-wrap"><table class="data-table"><thead><tr><th>Row</th><th>Result</th><th>Trip</th><th>Status</th><th>Truck</th><th>Details</th></tr></thead><tbody>
+          ${r.results.map(x => `<tr><td>${x.row}</td><td><span class="badge-s ${color(x)}">${UI.esc(x.result)}</span></td>
+            <td>${x.trip_id ? `<a href="#" data-open="${x.trip_id}">${UI.esc(x.trip_ref)}</a>` : '—'}</td><td>${x.trip_status ? UI.badge(x.trip_status) : '—'}</td>
+            <td>${UI.esc(x.truck || '—')}</td><td class="small">${UI.esc(x.message)}</td></tr>`).join('')}</tbody></table></div>
+          <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-new-batch><i class="bi bi-plus-lg"></i> Plan another batch</button>`;
+        ctx.el.querySelectorAll('[data-open]').forEach(a => { a.onclick = (e) => { e.preventDefault(); TripUI.open(a.dataset.open); }; });
+        ctx.el.querySelector('[data-new-batch]').onclick = () => App.route();
+        submit.textContent = 'Sent';
+      } catch (e) {
+        alertBox.innerHTML = `<div class="alert alert-danger py-2 small">${UI.esc(e.message).replace(/ (Row \d+:)/g, '<br><b>$1</b>')}</div>`;
+        submit.disabled = false;   // same keys kept: a retry never duplicates a created trip
+      }
+    };
+  },
+  /**
    * New Trip Request page (#trips?new=1): one page with numbered sections instead of a modal,
    * because this is the main form of the system (client -> pickup/destination -> cargo -> assignment).
    */
@@ -604,7 +695,10 @@ App.page('trips', {
   render(ctx) {
     const d = TripUI.data = ctx.data;
     if (ctx.query.new && d.can.create) return TripUI.newPage(ctx);
+    if (ctx.query.batch && d.can.create) return TripUI.batchPage(ctx);
     if (d.can.create) {
+      const bb = document.createElement('button'); bb.className = 'btn btn-sm btn-outline-primary me-1';
+      bb.innerHTML = '<i class="bi bi-list-check"></i> Batch planning'; bb.onclick = () => App.go('trips', { batch: 1 }); ctx.tools.append(bb);
       const b = document.createElement('button'); b.className = 'btn btn-sm btn-primary';
       b.innerHTML = `<i class="bi bi-plus-lg"></i> ${UI.role('operations_head') ? 'New trip' : 'New trip request'}`; b.onclick = () => App.go('trips', { new: 1 }); ctx.tools.append(b);
     }
