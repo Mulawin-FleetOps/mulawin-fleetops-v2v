@@ -599,11 +599,60 @@ UI.card = (title, body, tools = '') => `<section class="panel">${title || tools 
  * columns: [[label, key, format]] ; opts: {title, actions(row) -> html, onAction, rowClick(row), empty, tools, limit, plain}
  *  plain = compact table without panel and toolbar (inside drawers).
  */
+
+/* FLEETOPS_SYSTEMWIDE_OVERVIEW_V3
+ * Every non-plain UI.table uses an essential-data overview; hidden fields remain
+ * in a per-row View panel. Financial/status fields get priority. Nothing is removed
+ * from source data and each table keeps its own state and existing API actions.
+ */
+UI.overviewColumns = (columns, opts = {}) => {
+  if (opts.plain || opts.showAllColumns || opts.showDates || columns.length <= 1) return columns;
+  const date = c => c[2] === 'date' || c[2] === 'datetime' || /(?:date|time|expiry|expires|last login|last_login)/i.test(String(c[0]) + ' ' + String(c[1]));
+  const secondary = c => /^(?:email|phone|contact number|address|e-signature|last login|username|registered|registration|insurance|license expiry|notes|remarks|updated by|created by|display order)$/i.test(String(c[0]).trim());
+  const score = (c, i) => {
+    const label = String(c[0]).toLowerCase(), key = String(c[1]).toLowerCase();
+    if (date(c)) return -200;
+    if (secondary(c)) return -35;
+    if (/status|availability|active|priority|severity|approval|warning/.test(label+' '+key)) return 110;
+    if (/amount|total|balance|cost|price|paid|rate|quantity|qty|units|delays|incident/.test(label+' '+key) || c[2] === 'money') return 95;
+    if (/client|customer|truck|driver|crew|role|shift|route|trip|name|type|supplier|category|assigned|reference|invoice|plate|request/.test(label+' '+key)) return 85;
+    return 55 - i * 2;
+  };
+  const candidates = columns.map((c, i) => ({c, i, rank:score(c,i)})).filter(x => x.rank > -100);
+  if (!candidates.length) return columns.slice(0, Math.min(3,columns.length));
+  const chosen = new Set();
+  // Keep the record identity as long as the first column is not itself a date.
+  if (!date(columns[0])) chosen.add(0);
+  for (const x of [...candidates].sort((a,b) => b.rank - a.rank || a.i - b.i)) {
+    if (chosen.size >= 5) break;
+    if (x.rank >= 0) chosen.add(x.i);
+  }
+  if (chosen.size < 2 && candidates.length > 1) for (const x of candidates) {
+    if (chosen.size >= Math.min(3,candidates.length)) break;
+    chosen.add(x.i);
+  }
+  return columns.filter((_,i) => chosen.has(i));
+};
+UI.overviewActions = (id, row) => {
+  const t = UI._tables[id];
+  let html = t.opts.actions ? (t.opts.actions(row) || '') : '';
+  const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(html);
+  if (t.columns.length < t.allColumns.length && !hasView) html += '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details><i class="bi bi-eye" aria-hidden="true"></i> View</button>';
+  const n = (html.match(/<button\b/gi) || []).length;
+  if (n > 1) return `<button type="button" class="btn btn-sm btn-outline-primary fleet-manage-btn" data-fleet-manage aria-label="Manage record"><i class="bi bi-three-dots" aria-hidden="true"></i> Manage</button>`;
+  return html;
+};
+UI.overviewDetails = (id, row) => {
+  const t = UI._tables[id];
+  if (!t) return;
+  const details = t.allColumns.map(([label,key,fmt]) => [UI.esc(UI.columnLabel(label, fmt)), UI.fmt(fmt,row[key],row)]);
+  UI.modal('Record details', UI.kv(details), null, {size:'modal-lg'});
+};
+
 UI.table = (columns, rows, opts = {}) => {
   const id = opts.id || 'tbl' + Math.random().toString(36).slice(2, 8);
-  // FLEETOPS_LIST_FIRST_UI_2026_11: list overview omits date columns; detail tables retain them.
-  const visibleColumns = (opts.plain || opts.showDates) ? columns : columns.filter(c => c[2] !== 'date' && c[2] !== 'datetime');
-  UI._tables[id] = { columns: visibleColumns, rows: rows || [], opts, limit: opts.limit || (opts.plain ? 8 : 15), page: 0, filter: '' };
+  const visibleColumns = UI.overviewColumns(columns, opts);
+  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: opts.limit || (opts.plain ? 8 : 15), page: 0, filter: '' };
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   const head = `<div class="table-tools">
       <div class="table-search"><i class="bi bi-search"></i><input class="form-control" type="search" placeholder="Search this list" aria-label="Search this list" data-tsearch="${id}"></div>
@@ -615,7 +664,7 @@ UI._tables = {};
 UI.tableRows = (id) => {
   const t = UI._tables[id]; if (!t) return [];
   const f = t.filter.toLowerCase();
-  return f ? t.rows.filter(r => t.columns.some(([, k]) => String(r[k] ?? '').toLowerCase().includes(f))) : t.rows;
+  return f ? t.rows.filter(r => t.allColumns.some(([, k]) => String(r[k] ?? '').toLowerCase().includes(f))) : t.rows;
 };
 /** Draws one page of a table, with page numbers. */
 /** Consistent, formal labels across every table in FleetOps. */
@@ -655,8 +704,8 @@ UI.drawTable = (id) => {
   const first = t.page * t.limit, shown = rows.slice(first, first + t.limit);
   const num = (f) => f === 'money' || f === 'num';
   const cellClass = (f) => f === 'money' ? 'num money-col' : f === 'num' ? 'count-col' : (f === 'badge' || f === 'yes') ? 'status-col' : '';
-  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${cellClass(f)}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.opts.actions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
-    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f]) => `<td class="${cellClass(f)}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.opts.actions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${t.opts.actions(r) || ''}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
+  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${cellClass(f)}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
+    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f]) => `<td class="${cellClass(f)}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
   if (pager && pages > 1) {
     const nums = [];
     for (let i = 0; i < pages; i++) if (i === 0 || i === pages - 1 || Math.abs(i - t.page) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
@@ -666,6 +715,35 @@ UI.drawTable = (id) => {
       <button type="button" class="pg" data-tpg="${t.page + 1}" ${t.page >= pages - 1 ? 'disabled' : ''} aria-label="Next page"><i class="bi bi-chevron-right"></i></button></nav>`;
     pager.querySelectorAll('[data-tpg]').forEach(b => b.onclick = () => { t.page = +b.dataset.tpg; UI.drawTable(id); });
   }
+
+  // FLEETOPS_SYSTEMWIDE_OVERVIEW_V3: one compact Manage control for multi-action rows.
+  // Existing handlers are invoked only after the chooser closes, to avoid stacked modals.
+  box.querySelectorAll('[data-fleet-manage]').forEach(button => button.addEventListener('click', event => {
+    event.stopPropagation();
+    const rowElement = button.closest('tr[data-ri]');
+    const row = t.rows[Number(rowElement?.dataset.ri)];
+    if (!row) return;
+    const raw = (t.opts.actions ? t.opts.actions(row) : '') || '';
+    const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(raw);
+    const more = t.columns.length < t.allColumns.length && !hasView
+      ? '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details>View details</button>' : '';
+    const dialog = UI.modal('Manage record', `<div class="fleet-action-chooser">${more}${raw}</div>`, null, {size:''});
+    dialog.querySelectorAll('[data-act], [data-fleet-details]').forEach(action => action.addEventListener('click', e => {
+      e.stopPropagation();
+      const act = action.dataset.act;
+      dialog.addEventListener('hidden.bs.modal', () => {
+        if (action.hasAttribute('data-fleet-details')) UI.overviewDetails(id,row);
+        else t.opts.onAction?.(act,row,action);
+      }, {once:true});
+      bootstrap.Modal.getInstance(dialog)?.hide();
+    }));
+  }));
+  box.querySelectorAll('[data-fleet-details]').forEach(button => button.addEventListener('click', event => {
+    event.stopPropagation();
+    const row = t.rows[Number(button.closest('tr[data-ri]')?.dataset.ri)];
+    if (row) UI.overviewDetails(id,row);
+  }));
+
   if (t.opts.onAction) box.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', (e) => {
     e.stopPropagation();
     const idx = +b.closest('[data-row]').dataset.row.split(':')[1]; t.opts.onAction(b.dataset.act, t.rows[idx], b);
@@ -1445,8 +1523,8 @@ UI.signatureModal = () => {
     const marker = 'rpmview' + Math.random().toString(36).slice(2, 9);
     const actions = `<div class="rpm-record-controls no-print" data-rpm-controls="${marker}" aria-label="Record view and page size">
       <div class="rpm-record-toggle" role="group" aria-label="View records as">
-        <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i> List</button>
-        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i> Cards</button>
+        <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">List</span></button>
+        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">Cards</span></button>
       </div>
       <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
     </div>`;
@@ -1454,7 +1532,7 @@ UI.signatureModal = () => {
     const result = oldTable(columns, rows, { ...opts, tools: originalTools + actions });
     const t = Object.values(UI._tables).find(table => table.opts && table.opts.tools && table.opts.tools.includes(marker));
     if (t) {
-      t.rpmView = getPref();
+      t.rpmView = 'list';
       t.rpmMarker = marker;
       t.limit = 12;
     }
@@ -1507,7 +1585,7 @@ UI.signatureModal = () => {
         fields.appendChild(field);
       });
       card.appendChild(fields);
-      if (t.opts.actions) {
+      if (t.hasActions) {
         const actions = cells[cells.length - 1]?.querySelector('.row-actions');
         if (actions) {
           const area = document.createElement('div');
@@ -1541,14 +1619,13 @@ UI.signatureModal = () => {
       const entry = () => Object.entries(UI._tables).find(([, t]) => t.rpmMarker === marker);
       ctrl.querySelectorAll('[data-rpm-view]').forEach(b => b.addEventListener('click', () => {
         const choice = b.dataset.rpmView;
-        savePref(choice);
-        // Sync all visible eligible lists in the current module, not just one.
-        Object.entries(UI._tables).forEach(([id, t]) => {
-          if (!t.rpmMarker || !document.querySelector(`[data-tbody="${id}"]`)) return;
-          t.rpmView = choice;
-          t.page = 0;
-          UI.drawTable(id);
-        });
+        // Only this table responds to its own view switch.
+        const result = entry();
+        if (!result) return;
+        const [id, t] = result;
+        t.rpmView = choice;
+        t.page = 0;
+        UI.drawTable(id);
       }));
       ctrl.querySelector('[data-rpm-size]')?.addEventListener('change', e => {
         const result = entry();
