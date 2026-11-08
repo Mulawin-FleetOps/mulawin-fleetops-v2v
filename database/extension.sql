@@ -18,7 +18,8 @@ INSERT INTO schema_migrations (id) VALUES
   ('2026-11-06_02_client_routes'), ('2026-11-06_03_audit_changes'),
   ('2026-11-06_04_maps_routing'),
   ('2026-11-06_05_account_ownership'), ('2026-11-06_06_trusted_devices_email'),
-  ('2026-11-07_07_trip_routing'), ('2026-11-08_08_attendance');
+  ('2026-11-07_07_trip_routing'), ('2026-11-08_08_attendance'),
+  ('2026-11-09_09_billing_adjustments');
 
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
@@ -650,17 +651,34 @@ CREATE TABLE billings (
   CONSTRAINT chk_billing_amounts CHECK (total_amount >= 0 AND amount_paid >= 0 AND amount_paid <= total_amount)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Additional charges added by Billing before the invoice is finalized.
+-- Additional charges and per-trip rate adjustments (peso amounts) requested by Billing before the
+-- invoice is finalized. Only status 'Approved' rows of request_type New/Change count in the billing
+-- total; Admin approves or rejects (not the requester). A Change or Removal request points to the
+-- approved row it replaces (replaces_id); approving it supersedes / removes that row.
 CREATE TABLE billing_charges (
   id INT AUTO_INCREMENT PRIMARY KEY,
   billing_id INT NOT NULL,
+  kind VARCHAR(20) NOT NULL DEFAULT 'Additional Charge',
+  request_type VARCHAR(10) NOT NULL DEFAULT 'New',
+  replaces_id INT NULL,
   description VARCHAR(150) NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'Pending Approval',
+  reason VARCHAR(300) NULL,
   added_by INT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_by INT NULL,
+  decided_at DATETIME NULL,
+  decision_notes VARCHAR(300) NULL,
   FOREIGN KEY (billing_id) REFERENCES billings(id),
   FOREIGN KEY (added_by) REFERENCES users(id),
-  CONSTRAINT chk_bcharge_amount CHECK (amount > 0)
+  CONSTRAINT fk_bcharge_replaces FOREIGN KEY (replaces_id) REFERENCES billing_charges(id),
+  CONSTRAINT fk_bcharge_decider FOREIGN KEY (decided_by) REFERENCES users(id),
+  CONSTRAINT chk_bcharge_amount CHECK (amount <> 0 AND (kind = 'Rate Adjustment' OR amount > 0)),
+  CONSTRAINT chk_bcharge_kind CHECK (kind IN ('Additional Charge','Rate Adjustment')),
+  CONSTRAINT chk_bcharge_request CHECK (request_type IN ('New','Change','Removal') AND ((request_type = 'New') = (replaces_id IS NULL))),
+  CONSTRAINT chk_bcharge_status CHECK (status IN ('Pending Approval','Approved','Rejected','Superseded','Removed','Withdrawn')),
+  CONSTRAINT chk_bcharge_decision CHECK (status <> 'Pending Approval' OR (decided_by IS NULL AND decided_at IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Client payments (needs the acknowledgement receipt file before it is accepted).
