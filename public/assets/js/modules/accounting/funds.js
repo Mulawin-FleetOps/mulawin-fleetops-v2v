@@ -46,7 +46,7 @@ App.page('funds', {
     const history = d.funds.filter(f => !['Pending Approval', 'Ready for Release'].includes(f.status) && !toLiq.includes(f) && !needsRevision.includes(f));
     ctx.el.innerHTML = UI.cards([
       { label: 'Pending approval', value: n('Pending Approval'), icon: 'bi-hourglass-split', color: 'amber' },
-      { label: 'Ready for release', value: n('Ready for Release'), icon: 'bi-cash-coin', color: 'blue' },
+      { label: 'To release', value: n('Ready for Release'), icon: 'bi-cash-coin', color: 'blue' },
       { label: 'Rejected (to revise)', value: n('Rejected'), icon: 'bi-arrow-counterclockwise', color: 'red' },
       { label: 'Released', value: n('Released'), icon: 'bi-check-circle', color: 'green' },
       { label: 'For liquidation', value: toLiq.length, icon: 'bi-receipt', color: 'gray' },
@@ -71,8 +71,11 @@ App.page('funds', {
       if (a === 'reject') UI.confirmAction('Reject ' + UI.esc(f.fund_ref), 'The dispatcher must revise the request and submit it again.', 'Funds.decide', { fund_id: f.id, decision: 'reject' }, { danger: true, submit: 'Reject', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
       if (a === 'release') {
         if (!f.release_allowed_now) return UI.toast('Release is not yet allowed. Refresh this page when the release window opens.', 'error');
-        UI.formModal('Confirm release of ' + UI.esc(f.fund_ref), UI.payFields(d.methods), 'Funds.release', { extra: { fund_id: f.id }, submit: 'Confirm Release',
-          intro: `Release <b>${UI.money(f.amount)}</b> for ${UI.esc(f.trip_ref)} (${UI.esc(f.breakdown)}). Available from ${UI.datetime(f.release_opens_at)} (Philippine time), even if the pre-dispatch checklist is pending.` });
+        // CHECKLIST_36_CASH_ONLY_TRIP_FUND_RELEASE_V1: cash only; the server records today's date (nothing to choose here).
+        UI.confirmAction('Confirm release of ' + UI.esc(f.fund_ref),
+          `Release <b>${UI.money(f.amount)}</b> in <b>cash</b> for ${UI.esc(f.trip_ref)} (${UI.esc(f.breakdown)}).`
+          + `<br><span class="small text-muted">Payment method: Cash · Release date: recorded automatically as today (Philippine time). A payment voucher is generated.</span>`,
+          'Funds.release', { fund_id: f.id }, { submit: 'Confirm Release' });
       }
       if (a === 'liquidate') UI.formModalFiles('Liquidation of ' + UI.esc(f.fund_ref), [
         { name: 'liquidated_amount', label: 'Actual expenses (₱)', type: 'money', required: true, col: 6, value: f.amount },
@@ -86,7 +89,9 @@ App.page('funds', {
     const def = UI.role('operations_head') ? 'pending' : UI.role('finance') ? 'release' : d.can.submit ? 'revision' : 'history';
     UI.tabs(box, [
       ['pending', `Pending approval (${n('Pending Approval')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Pending Approval'), { actions, onAction, empty: 'Nothing waiting for approval.' })],
-      ['release', `Ready for release (${n('Ready for Release')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Ready for Release'), { actions, onAction, empty: 'Nothing to release.' })],
+      // CHECKLIST_37_TRIP_FUND_TABS_V1: "To Release" = approved requests (status Ready for Release) waiting for Finance.
+      // Liquidation keeps its own tab so the Liquidate action is never hidden. "All requests" stays retired.
+      ['release', `To Release (${n('Ready for Release')})`, () => UI.table(cols, d.funds.filter(f => f.status === 'Ready for Release'), { actions, onAction, empty: 'Nothing to release.' })],
       ['liquidate', `For liquidation (${toLiq.length})`, () => UI.table([...cols, ['Release date', 'released_at', 'date'], ['Voucher', 'voucher_number']], toLiq, { actions, onAction, empty: 'Nothing for liquidation.' })],
       ['revision', `Needs revision (${needsRevision.length})`, () => UI.table(cols, needsRevision, { actions, onAction, empty: 'No fund requests need revision.' })],
       ['history', `History (${history.length})`, () => UI.table([...cols, ['Liquidation', 'liquidation_status', 'badge'], ['Voucher', 'voucher_number']], history, { title: 'Fund request history', actions, onAction, empty: 'No historical fund requests.' })],

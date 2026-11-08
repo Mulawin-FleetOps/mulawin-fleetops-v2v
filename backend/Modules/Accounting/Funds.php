@@ -62,7 +62,7 @@ final class Funds {
         unset($fund);
         $data['releaseLeadHours'] = Settings::value('fund_release_lead_hours');
         $data['categories'] = many($p, 'SELECT name, amount FROM fund_categories WHERE active=1 ORDER BY sort_order, name');
-        $data['methods'] = Money::METHODS;
+        $data['methods'] = ['Cash'];   // #36: trip fund release is cash only (shared Money::METHODS unchanged)
         $data['can'] = ['submit' => roleIsDispatcher($u['role']), 'approve' => hasRole($u, 'operations_head'), 'release' => hasRole($u, 'finance')];
         return $data;
     }
@@ -175,7 +175,7 @@ final class Funds {
     private static function release(array $u, array $d): array {
         requireRole($u, 'finance');
         $id = idField($d, 'fund_id');
-        $pay = Money::paymentFields($d);
+        $pay = self::cashReleaseFields($d);
         return transaction(function (PDO $p) use ($u, $id, $pay) {
             $f = one($p, 'SELECT f.*, t.trip_ref, t.status AS trip_status, t.scheduled_at, t.vehicle_id, d.full_name AS driver_name FROM fund_requests f JOIN trips t ON t.id=f.trip_id
                           LEFT JOIN personnel d ON d.id=t.driver_id WHERE f.id=? FOR UPDATE', [$id]);
@@ -191,6 +191,7 @@ final class Funds {
                 $leadHours . ' hour(s) before dispatch (' . date('M j, Y g:i A', $opensAt) .
                 ' Philippine time).', 409);
             $payee = $f['driver_name'] ?: 'Trip ' . $f['trip_ref'];
+            $pay['released_on'] = date('Y-m-d');   // actual server date at release time (after any lock wait)
             $disb = Money::disburse($p, $u, 'fund_request', $id, $payee, $f['amount'], $pay);
             run($p, "UPDATE fund_requests SET status='Released', released_by=?, released_at=NOW(), disbursement_id=? WHERE id=?", [$u['id'], $disb, $id]);
             Money::expense($p, $u, 'Trip Allowance', $f['amount'], $pay['released_on'], 'Fund Release', $id, (int)$f['trip_id'], $f['vehicle_id'] ? (int)$f['vehicle_id'] : null, $payee, $f['fund_ref'], 'Trip fund ' . $f['trip_ref']);
@@ -203,6 +204,25 @@ final class Funds {
             $v = one($p, 'SELECT voucher_number FROM disbursements WHERE id=?', [$disb])['voucher_number'];
             return ['message' => "Release confirmed (voucher $v). Fund status: Released."];
         });
+    }
+
+    /**
+     * CHECKLIST_36_CASH_ONLY_TRIP_FUND_RELEASE_V1 — trip funds are released in cash only, dated by the server.
+     *   - payment method: Cash (anything else sent by a browser or API call is refused);
+     *   - release date: today's server date (Philippine time); a date sent by the caller is refused unless it IS today
+     *     (it is never used), so the release cannot be backdated or post-dated;
+     *   - cheque number / bank / reference fields do not apply to cash and are refused when filled in.
+     *   Shared payment methods (Money::METHODS / paymentFields) used by Billing, Finance payments and Purchasing are unchanged.
+     */
+    private static function cashReleaseFields(array $d): array {
+        $method = $d['payment_method'] ?? null;
+        must($method === null || $method === '' || $method === 'Cash', 'Trip funds are released in cash only.');
+        $date = $d['released_on'] ?? null;
+        $today = date('Y-m-d');
+        must($date === null || $date === '' || $date === $today, 'The release date is recorded automatically (today, ' . $today . '). It cannot be changed.');
+        foreach (['cheque_number' => 'Cheque number', 'bank_name' => 'Bank name', 'reference_number' => 'Reference number'] as $k => $label)
+            must(!isset($d[$k]) || (is_string($d[$k]) && trim($d[$k]) === ''), $label . ' does not apply: trip funds are released in cash only.');
+        return ['payment_method' => 'Cash', 'released_on' => $today, 'reference_number' => null, 'cheque_number' => null, 'bank_name' => null];
     }
 
     /** Liquidation after the trip: actual amount spent and cash returned. */
