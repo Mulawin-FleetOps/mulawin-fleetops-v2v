@@ -42,6 +42,7 @@ final class Maintenance {
 
     public static function read(array $u, string $page, array $q): array {
         $p = db();
+        if ($page === 'maintenance_overview') return self::overview($u, $p);
         $data = readSections([
             'jobs' => fn() => many($p, "SELECT m.id, m.job_ref, m.vehicle_id, m.source, m.problem, m.reported_on, m.priority, m.severity, m.status, m.mechanic_id, m.trip_id, m.incident_id,
                     m.expected_completion, m.completed_on, m.verified_at, m.created_at, mc.full_name AS mechanic, mc.mechanic_code,
@@ -52,16 +53,141 @@ final class Maintenance {
                 FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id
                 LEFT JOIN incidents i ON i.id=m.incident_id LEFT JOIN trips t ON t.id=m.trip_id
                 ORDER BY FIELD(m.status,'Reported','Under Inspection','Under Repair','Completed','Cancelled'), m.id DESC LIMIT 1000"),
+        ] + self::formSections($p));
+        $data['costTypes'] = self::COST_TYPES;
+        $data['priorities'] = self::PRIORITIES;
+        $data['can'] = ['act' => hasRole($u, ...self::ACT)];
+        return $data;
+    }
+
+    /** Trucks and mechanics for the "Report a truck problem" form (Repair Management and Overview). */
+    private static function formSections(PDO $p): array {
+        return [
             'trucks' => fn() => many($p, "SELECT v.id, v.plate_number, v.truck_number, v.truck_type, v.status,
                     (SELECT m.job_ref FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1 LIMIT 1) AS open_job,
                     (SELECT t.trip_ref FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='vehicle' AND a.resource_id=v.id AND t.status IN ('Dispatched','On Hold - Incident Reported','In Transit') LIMIT 1) AS on_road
                 FROM vehicles v WHERE v.active=1 ORDER BY v.plate_number"),
             'mechanics' => fn() => many($p, "SELECT id, mechanic_code, full_name, specialization, availability FROM mechanics WHERE active=1 ORDER BY full_name"),
-        ]);
-        $data['costTypes'] = self::COST_TYPES;
-        $data['priorities'] = self::PRIORITIES;
-        $data['can'] = ['act' => hasRole($u, ...self::ACT)];
+        ];
+    }
+
+    /*
+     * MAINTENANCE_OVERVIEW_PHASE1_V1 — read-only landing page for the Motorpool Custodian.
+     * Uses only existing statuses and records; nothing is written here.
+     *   - "For verification" = status Completed with verified_at still empty (the existing
+     *     Verify & return to service step; it is not a separate status value).
+     *   - Parts request data is included only for roles that may open Parts & Purchasing.
+     *   - Recent activity = maintenance_events (+ parts requests and stock-out releases).
+     */
+    private const OVERVIEW_ATTENTION_LIMIT = 25;
+    private const OVERVIEW_ACTIVITY_LIMIT = 15;
+
+    private static function overview(array $u, PDO $p): array {
+        $parts = Access::canOpen($u, 'purchasing');
+        $data = readSections([
+            'summary' => fn() => self::overviewSummary($p, $parts),
+            'attention' => fn() => self::overviewAttention($p, $parts),
+            'activity' => fn() => self::overviewActivity($p, $parts),
+        ] + self::formSections($p));
+        $data['can'] = ['act' => hasRole($u, ...self::ACT), 'parts' => $parts, 'requestParts' => hasRole($u, 'motorpool')];
+        $data['limits'] = ['attention' => self::OVERVIEW_ATTENTION_LIMIT, 'activity' => self::OVERVIEW_ACTIVITY_LIMIT];
         return $data;
+    }
+
+    /** One row per maintenance record / parts request, so related events are never counted twice. */
+    private static function overviewSummary(PDO $p, bool $parts): array {
+        $j = one($p, "SELECT COALESCE(SUM(status='Reported'),0) AS new_reports,
+                COALESCE(SUM(status='Reported' AND source='Incident'),0) AS new_incidents,
+                COALESCE(SUM(status='Under Inspection'),0) AS under_inspection,
+                COALESCE(SUM(status='Under Repair'),0) AS under_repair,
+                COALESCE(SUM(status='Completed' AND verified_at IS NULL),0) AS for_verification
+            FROM maintenance_jobs WHERE open_key=1");
+        $out = array_map('intval', $j);
+        if ($parts) {
+            $r = one($p, "SELECT COALESCE(SUM(status='Requested'),0) AS requested, COALESCE(SUM(status='Partially Released'),0) AS partially_released
+                FROM part_requests WHERE status IN ('Requested','Partially Released')");
+            $out['parts_requested'] = (int)$r['requested'];
+            $out['parts_partially_released'] = (int)$r['partially_released'];
+            $out['pending_parts'] = (int)$r['requested'] + (int)$r['partially_released'];
+        }
+        return $out;
+    }
+
+    /** Records that wait for an action of the Motorpool Custodian, longest waiting first. */
+    private static function overviewAttention(PDO $p, bool $parts): array {
+        $lim = self::OVERVIEW_ATTENTION_LIMIT + 1;   // one extra row tells the screen that the list is cut
+        $rows = many($p, "SELECT 'job' AS kind, m.id AS job_id, m.job_ref, NULL AS request_id, NULL AS request_ref, m.source, m.status, m.problem AS issue,
+                    v.plate_number, v.truck_number, i.incident_ref, t.trip_ref,
+                    CASE WHEN m.status='Completed' THEN m.completed_at ELSE m.created_at END AS since,
+                    CASE WHEN m.status='Completed' THEN 'verify' WHEN m.source='Incident' THEN 'assess' ELSE 'assign' END AS next_action
+                FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN incidents i ON i.id=m.incident_id LEFT JOIN trips t ON t.id=m.trip_id
+                WHERE m.open_key=1 AND (m.status='Reported' OR (m.status='Completed' AND m.verified_at IS NULL))
+                ORDER BY since, m.id LIMIT $lim");
+        if ($parts) {
+            // Parts the Purchasing Officer marked Not Available, for a repair that is still open (or no repair record).
+            $rows = array_merge($rows, many($p, "SELECT 'parts' AS kind, m.id AS job_id, m.job_ref, r.id AS request_id, r.request_ref, m.source, r.status, r.purpose AS issue,
+                        v.plate_number, v.truck_number, NULL AS incident_ref, NULL AS trip_ref, COALESCE(r.processed_at, r.created_at) AS since, 'parts_follow_up' AS next_action
+                    FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
+                    WHERE r.status='Not Available' AND (r.maintenance_job_id IS NULL OR m.open_key=1)
+                    ORDER BY since, r.id LIMIT $lim"));
+            usort($rows, fn($a, $b) => [(string)$a['since'], $a['kind'], (int)($a['job_id'] ?? 0)] <=> [(string)$b['since'], $b['kind'], (int)($b['job_id'] ?? 0)]);
+        }
+        foreach ($rows as &$r) $r['issue'] = cut((string)$r['issue'], 160);
+        unset($r);
+        return $rows;
+    }
+
+    /** Latest maintenance events in plain words. Parts entries only for roles that may open Parts & Purchasing. */
+    private static function overviewActivity(PDO $p, bool $parts): array {
+        $lim = self::OVERVIEW_ACTIVITY_LIMIT;
+        $sql = "SELECT 'job' AS kind, e.created_at AS at, e.from_status, e.to_status, e.details, m.id AS job_id, m.job_ref, NULL AS request_id, NULL AS request_ref,
+                    v.plate_number, u.full_name AS actor, mc.full_name AS mechanic, NULL AS units, e.id AS sort_id
+                FROM maintenance_events e JOIN maintenance_jobs m ON m.id=e.maintenance_job_id JOIN vehicles v ON v.id=m.vehicle_id
+                LEFT JOIN users u ON u.id=e.actor_id LEFT JOIN mechanics mc ON mc.id=e.mechanic_id";
+        if ($parts) {
+            $sql = "($sql ORDER BY e.id DESC LIMIT $lim)
+                UNION ALL
+                (SELECT 'parts_requested', r.created_at, NULL, r.status, r.purpose, m.id, m.job_ref, r.id, r.request_ref, v.plate_number, u.full_name, NULL,
+                    (SELECT SUM(l.quantity) FROM part_request_lines l WHERE l.part_request_id=r.id), r.id
+                 FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users u ON u.id=r.requested_by
+                 ORDER BY r.id DESC LIMIT $lim)
+                UNION ALL
+                (SELECT 'parts_released', g.at, NULL, NULL, NULL, m.id, m.job_ref, r.id, r.request_ref, v.plate_number, u.full_name, NULL, g.units, g.last_id
+                 FROM (SELECT reference_id, actor_id, created_at AS at, -SUM(quantity_delta) AS units, MAX(id) AS last_id FROM stock_movements
+                       WHERE reference_type='part_request' AND movement_type='Stock Out' GROUP BY reference_id, actor_id, created_at) g
+                 JOIN part_requests r ON r.id=g.reference_id JOIN vehicles v ON v.id=r.vehicle_id
+                 LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users u ON u.id=g.actor_id
+                 ORDER BY g.last_id DESC LIMIT $lim)
+                ORDER BY at DESC, sort_id DESC LIMIT $lim";
+        } else {
+            $sql .= " ORDER BY e.created_at DESC, e.id DESC LIMIT $lim";
+        }
+        $rows = many($p, $sql);
+        foreach ($rows as &$r) {
+            $r['label'] = self::activityLabel($r);
+            $r['details'] = $r['details'] === null ? null : cut((string)$r['details'], 160);
+            unset($r['from_status'], $r['sort_id']);
+        }
+        unset($r);
+        return $rows;
+    }
+
+    /** Plain-language name of an event. The detail prefixes are the ones written by this module and by Trips. */
+    private static function activityLabel(array $e): string {
+        if ($e['kind'] === 'parts_requested') return 'Parts request submitted';
+        if ($e['kind'] === 'parts_released') return 'Parts released';
+        $from = $e['from_status']; $to = $e['to_status']; $det = (string)$e['details'];
+        if ($to === 'Cancelled') return 'Record cancelled';
+        if ($from === null && $to === 'Reported') return str_starts_with($det, 'from incident') ? 'Trip incident reported' : 'Truck issue reported';
+        if (str_starts_with($det, 'mechanic changed')) return 'Mechanic changed';
+        if (str_starts_with($det, 'mechanic assigned')) return 'Mechanic assigned';
+        if (str_starts_with($det, 'assessed ')) return 'Incident assessed, mechanic assigned';
+        if (str_starts_with($det, 'Arrival checklist findings')) return 'Arrival checklist findings added';
+        if ($from === 'Under Inspection' && $to === 'Under Repair') return 'Inspection findings recorded';
+        if ($from === 'Under Repair' && $to === 'Completed') return 'Repair completed';
+        if ($from === 'Completed' && $to === 'Under Repair') return 'Verification failed, back to repair';
+        if ($from === 'Completed' && $to === 'Completed' && str_starts_with($det, 'verified')) return 'Verified, returned to service';
+        return $to;
     }
 
     public static function action(array $u, string $action, array $d): array {

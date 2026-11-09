@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-10 (Maintenance Overview, Phase 1)
+- New **Maintenance Overview** page (`#maintenance_overview`), first in the Motorpool Custodian's menu: four counts
+  (New reports, Under repair, For verification, Pending parts requests), **Needs attention** (records waiting for an action:
+  assign a mechanic, assess an incident, verify a completed repair, parts Not Available), quick actions (the existing
+  Report a truck problem form, Repair Management, completed repairs, parts inventory) and **Recent maintenance activity**
+  (from the existing repair status history, parts requests and stock-out releases). Read-only; same roles as Corrective
+  Maintenance; parts data only for roles that may open Parts & Purchasing.
+- Motorpool menu wording: Overview, Repair Management (`#maintenance`, unchanged), Parts Inventory (`#purchasing`, unchanged).
+  Repair Management accepts `?view=reported|in_progress|verify` to narrow the Open records list. Existing links still work.
+- No change to repair statuses, verification, truck availability, incidents or permissions. No database change.
+  Tests: `tests/run_maintenance_overview_tests.php`.
+
 ## 2026-11-08 (Batch trip planning)
 - **Trips → Batch planning**: enter up to 20 trips on one page. Every row becomes its own trip with its own number, using
   the same rules as New trip (auto-assignment or Awaiting Resources for the Operations Head; Pending Review requests for a

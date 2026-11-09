@@ -2026,3 +2026,35 @@ button.docfm-folder:focus-visible {
   .rpm-trip-table th, .rpm-trip-table td { font-size: 13px; padding: 9px 10px; }
 }
 
+
+/* MAINTENANCE_OVERVIEW_PHASE1_V1 — Maintenance Overview (scoped: .maint-overview and .mo-*) */
+.maint-overview .mo-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.maint-overview .mo-grid .panel { margin-bottom: 16px; }
+.maint-overview .mo-list, .maint-overview .mo-acts { list-style: none; margin: 0; padding: 0; }
+.maint-overview .mo-item { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.maint-overview .mo-item:last-child { border-bottom: 0; }
+.maint-overview .mo-item-main { min-width: 0; flex: 1; }
+.maint-overview .mo-item-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--fs-md); }
+.maint-overview .mo-ref { color: var(--text-3); font-size: var(--fs-sm); }
+.maint-overview .mo-tag { font-size: var(--fs-xs); padding: 1px 7px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }
+.maint-overview .mo-item-issue { margin-top: 3px; color: var(--text-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maint-overview .mo-item-next { margin-top: 5px; font-size: var(--fs-sm); font-weight: 550; }
+.maint-overview .mo-since { font-weight: 400; color: var(--text-3); }
+.maint-overview .mo-item-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: none; }
+.maint-overview .mo-more, .maint-overview .mo-empty { padding: 14px 16px; font-size: var(--fs-sm); color: var(--text-3); }
+.maint-overview .mo-more { border-top: 1px solid var(--border); }
+.maint-overview .mo-quick { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.maint-overview .mo-quick .mo-quick-link { text-align: left; padding: 2px 0; font-size: var(--fs-sm); }
+.maint-overview .mo-act { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+.maint-overview .mo-act:last-child { border-bottom: 0; }
+.maint-overview .mo-act.clickable { cursor: pointer; }
+.maint-overview .mo-act.clickable:hover, .maint-overview .mo-act.clickable:focus-visible { background: var(--surface-2); }
+.maint-overview .mo-act-label { font-weight: 600; }
+.maint-overview .mo-act-what { color: var(--text-2); }
+.maint-overview .mo-act-details { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maint-overview .mo-act-when { color: var(--text-3); font-size: var(--fs-xs); margin-top: 2px; }
+@media (max-width: 991.98px) { .maint-overview .mo-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 575.98px) { .maint-overview .mo-item { flex-direction: column; align-items: stretch; } .maint-overview .mo-item-side { flex-direction: row; align-items: center; } }
+/* Repair Management: filter coming from the Overview cards */
+.mo-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; margin-bottom: 10px; border-radius: var(--r); background: var(--blue-bg); border: 1px solid var(--blue-bd); font-size: var(--fs-sm); }
+.mo-filter-bar a { margin-left: auto; }

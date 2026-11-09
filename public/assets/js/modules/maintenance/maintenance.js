@@ -8,6 +8,12 @@
 const MaintUI = {
   data: null,
   STAGES: ['Reported', 'Under Inspection', 'Under Repair', 'Completed', 'Returned to service'],
+  /** Filters of the Open records list (Overview cards link here). Same rules as the backend overview counts. */
+  VIEWS: {
+    reported: ['New reports', (j) => j.status === 'Reported'],
+    in_progress: ['Under inspection or repair', (j) => ['Under Inspection', 'Under Repair'].includes(j.status)],
+    verify: ['Awaiting verification', (j) => j.status === 'Completed' && !j.verified_at],
+  },
   stageOf(j) {
     if (j.status === 'Cancelled') return [0, true];
     if (j.verified_at) return [5, false];
@@ -153,14 +159,119 @@ App.page('maintenance', {
       ['Mechanic', 'mechanic', (v) => v ? UI.esc(v) : '<span class="text-muted">Not assigned</span>'],
       ['Status', 'display_status', 'badge'], ['Date reported', 'reported_on', 'date']];
     const opt = { actions: () => UI.btn('view', 'Open'), onAction: (a, j) => MaintUI.open(j.id), rowClick: (j) => MaintUI.open(j.id) };
+    // MAINTENANCE_OVERVIEW_PHASE1_V1: ?view= comes from the Overview cards. It only narrows the Open records list.
+    const view = MaintUI.VIEWS[ctx.query.view];
+    const openShown = view ? open.filter(view[1]) : open;
+    const viewBar = view ? `<div class="mo-filter-bar"><i class="bi bi-funnel"></i> Showing <b>${UI.esc(view[0])}</b> (${openShown.length} of ${open.length} open records) <a href="#maintenance">Show all open records</a></div>` : '';
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, [
-      ['open', `Open records <span class="tab-count">${open.length}</span>`, () => UI.table(cols, open, { ...opt, empty: 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
+      ['open', `Open records <span class="tab-count">${open.length}</span>`, () => viewBar + UI.table(cols, openShown, { ...opt, empty: view ? 'No open record matches this filter.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
       ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
       ['all', 'All records', () => UI.table(cols, jobs, { ...opt })],
-    ], null);
+    ], view ? 'open' : null, { forceActive: !!view });
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report);
     if (once.open) MaintUI.open(once.open);
+  },
+});
+
+/* MAINTENANCE_OVERVIEW_PHASE1_V1 — Maintenance Overview (landing page for the Motorpool Custodian).
+   Read-only: every number and row comes from Maintenance::read('maintenance_overview').
+   Actions reuse the existing screens: Report a truck problem (MaintUI.report), Repair Management
+   (#maintenance, with ?view= filters and ?open=<id>), Parts requests (Parts & Purchasing page). */
+const MaintOverview = {
+  ACTIONS: {
+    assess: 'Assess the incident (Minor or Major)',
+    assign: 'Assign a mechanic',
+    verify: 'Verify and return to service',
+    parts_follow_up: 'Parts not available: follow up with Purchasing',
+  },
+  statusOf(r) {
+    if (r.kind === 'parts') return r.status;
+    return r.status === 'Completed' ? 'Awaiting verification' : r.status;
+  },
+  truck(r) { return `<b>${UI.esc(r.plate_number)}</b>${r.truck_number ? ` <span class="text-muted">#${UI.esc(r.truck_number)}</span>` : ''}`; },
+  attentionItem(r, can) {
+    const ref = r.kind === 'parts' ? [r.request_ref, r.job_ref].filter(Boolean).join(' · ') : r.job_ref;
+    const tag = r.source === 'Incident' && r.kind === 'job' ? `<span class="mo-tag">Trip incident${r.incident_ref ? ' ' + UI.esc(r.incident_ref) : ''}</span>` : '';
+    const viewBtn = r.job_id
+      ? `<button type="button" class="btn btn-sm btn-outline-primary" data-open-job="${+r.job_id}">View repair</button>`
+      : (can.parts ? `<button type="button" class="btn btn-sm btn-outline-primary" data-go="purchasing#_=requests">View request</button>` : '');
+    return `<li class="mo-item">
+      <div class="mo-item-main">
+        <div class="mo-item-top">${MaintOverview.truck(r)} <span class="mo-ref">${UI.esc(ref)}</span> ${tag}</div>
+        <div class="mo-item-issue" title="${UI.esc(r.issue)}">${UI.esc(r.issue)}</div>
+        <div class="mo-item-next"><i class="bi bi-arrow-right-circle"></i> ${UI.esc(MaintOverview.ACTIONS[r.next_action] || 'Open the record')}
+          <span class="mo-since">· waiting since ${UI.datetime(r.since)}</span></div>
+      </div>
+      <div class="mo-item-side">${UI.badge(MaintOverview.statusOf(r))}${viewBtn}</div></li>`;
+  },
+  activityItem(e) {
+    const what = [e.job_ref || e.request_ref, e.plate_number].filter(Boolean).map(UI.esc).join(' · ');
+    const extra = e.kind === 'parts_released' || e.kind === 'parts_requested' ? (e.units ? `${UI.num(+e.units)} unit(s)` : '') : (e.mechanic ? 'Mechanic: ' + UI.esc(e.mechanic) : '');
+    const open = e.job_id ? ` data-open-job="${+e.job_id}" role="button" tabindex="0"` : '';
+    return `<li class="mo-act${e.job_id ? ' clickable' : ''}"${open}>
+      <div class="mo-act-label">${UI.esc(e.label)}</div>
+      <div class="mo-act-what">${what}${extra ? ' · ' + extra : ''}</div>
+      ${e.details && e.kind === 'job' ? `<div class="mo-act-details">${UI.esc(e.details)}</div>` : ''}
+      <div class="mo-act-when">${UI.datetime(e.at)} · ${UI.esc(e.actor || 'System')}</div></li>`;
+  },
+};
+
+App.page('maintenance_overview', {
+  title: 'Maintenance Overview',
+  subtitle: 'What is happening now, what needs your action, and the latest maintenance activity.',
+  render(ctx) {
+    const d = MaintUI.data = ctx.data, can = d.can || {};
+    const s = Array.isArray(d.summary) ? null : d.summary;   // a failed read section comes back as []
+
+    const n = (k) => s ? +s[k] || 0 : '—';
+    const cards = [
+      { label: 'New reports', value: n('new_reports'), note: s ? `${n('new_incidents')} from trip incidents` : '', color: s && s.new_reports ? 'amber' : '', go: 'maintenance?view=reported' },
+      { label: 'Under repair', value: s ? n('under_inspection') + n('under_repair') : '—', note: s ? `${n('under_inspection')} under inspection · ${n('under_repair')} under repair` : '', color: s && (s.under_inspection + s.under_repair) ? 'blue' : '', go: 'maintenance?view=in_progress' },
+      { label: 'For verification', value: n('for_verification'), note: 'repair completed, truck still out of service', color: s && s.for_verification ? 'amber' : '', go: 'maintenance?view=verify' },
+    ];
+    if (can.parts) cards.push({ label: 'Pending parts requests', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partially released` : '', color: s && s.pending_parts ? 'blue' : '', go: 'purchasing#_=requests' });
+
+    const att = Array.isArray(d.attention) ? d.attention : [];
+    const lim = (d.limits && d.limits.attention) || 25;
+    const attShown = att.slice(0, lim);
+    const act = Array.isArray(d.activity) ? d.activity : [];
+    const failed = d._errors || {};
+
+    const attentionBody = failed.attention ? '<div class="mo-empty text-danger">The list could not be loaded. Reload the page.</div>'
+      : attShown.length ? `<ul class="mo-list">${attShown.map(r => MaintOverview.attentionItem(r, can)).join('')}</ul>`
+        + (att.length > lim ? `<div class="mo-more">Showing the ${lim} records waiting the longest. <a href="#maintenance">Open Repair Management</a> for the rest.</div>` : '')
+      : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> Nothing needs your action right now.</div>';
+    const activityBody = failed.activity ? '<div class="mo-empty text-danger">Recent activity could not be loaded. Reload the page.</div>'
+      : act.length ? `<ul class="mo-acts">${act.map(MaintOverview.activityItem).join('')}</ul>`
+      : '<div class="mo-empty">No maintenance activity recorded yet.</div>';
+
+    ctx.el.innerHTML = `<div class="maint-overview">
+      ${UI.statusStrip(cards)}
+      <div class="mo-grid">
+        <section class="panel mo-attention"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-flag"></i> Needs attention</h2>
+          <span class="text-muted small">${failed.attention ? '' : att.length > lim ? lim + '+ records' : att.length + ' record' + (att.length === 1 ? '' : 's')}</span></div>
+          <div class="panel-body flush">${attentionBody}</div></section>
+        <div class="mo-side">
+          <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-lightning"></i> Quick actions</h2></div>
+            <div class="panel-body mo-quick">
+              ${can.act ? '<button type="button" class="btn btn-primary" data-q="report"><i class="bi bi-plus-lg"></i> Report truck issue</button>' : ''}
+              <button type="button" class="btn btn-outline-secondary" data-go="maintenance"><i class="bi bi-wrench-adjustable"></i> Repair management</button>
+              <button type="button" class="btn btn-link mo-quick-link" data-go="maintenance#_=done"><i class="bi bi-clock-history"></i> Maintenance history (completed repairs)</button>
+              ${can.parts ? '<button type="button" class="btn btn-link mo-quick-link" data-go="purchasing#_=inventory"><i class="bi bi-box-seam"></i> Parts inventory</button>' : ''}
+            </div></section>
+          <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-activity"></i> Recent maintenance activity</h2></div>
+            <div class="panel-body flush">${activityBody}</div></section>
+        </div>
+      </div></div>`;
+
+    const root = ctx.el.querySelector('.maint-overview');
+    root.querySelector('[data-q="report"]')?.addEventListener('click', () => MaintUI.report());
+    root.querySelectorAll('[data-open-job]').forEach(x => {
+      const go = () => App.go('maintenance', { open: x.dataset.openJob });
+      x.addEventListener('click', go);
+      if (x.tagName !== 'BUTTON') x.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    });
   },
 });

@@ -27,7 +27,7 @@ final class Access {
      */
     private const NAV_SECTIONS = [
         'operations_head' => [
-            'funds' => 'Operations', 'maintenance' => 'Operations', 'mechanics' => 'Operations',
+            'funds' => 'Operations', 'maintenance_overview' => 'Operations', 'maintenance' => 'Operations', 'mechanics' => 'Operations',
         ],
         'car_carrier_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
         'container_wingvan_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
@@ -38,7 +38,7 @@ final class Access {
         'audit' => [
             'trips' => 'Records', 'trucks' => 'Records', 'crew' => 'Records',
             'clients' => 'Records', 'routes' => 'Records', 'mechanics' => 'Records',
-            'maintenance' => 'Records', 'purchasing' => 'Records', 'funds' => 'Records',
+            'maintenance_overview' => 'Records', 'maintenance' => 'Records', 'purchasing' => 'Records', 'funds' => 'Records',
             'billing' => 'Records', 'finance' => 'Records', 'admin' => 'Records',
             'reports' => 'Records',
         ],
@@ -47,6 +47,8 @@ final class Access {
         'audit' => ['admin' => 'Activity Log'],
         'car_carrier_dispatcher' => ['funds' => 'My Trip Funds'],
         'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
+        // MAINTENANCE_OVERVIEW_PHASE1_V1: Motorpool wording (labels only; same pages and permissions).
+        'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management', 'purchasing' => 'Parts Inventory'],
     ];
 
     public static function pages(): array {
@@ -70,6 +72,9 @@ final class Access {
             'mechanics'   => ['Mechanic Masterlist', 'bi-person-gear', 'Masterlists', 'Mechanics', 'maintenance/mechanics',
                               ['admin', 'operations_head', 'motorpool', 'audit']],
 
+            // MAINTENANCE_OVERVIEW_PHASE1_V1: read-only landing page; same roles as Corrective Maintenance.
+            'maintenance_overview' => ['Maintenance Overview', 'bi-speedometer2', 'Maintenance', 'Maintenance', 'maintenance/maintenance',
+                              ['admin', 'operations_head', 'motorpool', 'audit']],
             'maintenance' => ['Corrective Maintenance', 'bi-wrench-adjustable', 'Maintenance', 'Maintenance', 'maintenance/maintenance',
                               ['admin', 'operations_head', 'motorpool', 'audit']],
             'purchasing'  => ['Parts & Purchasing', 'bi-box-seam', 'Maintenance', 'Purchasing', 'maintenance/purchasing',

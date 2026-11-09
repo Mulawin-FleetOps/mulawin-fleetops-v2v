@@ -311,7 +311,8 @@ const App = {
       operations_head: ['dashboard', 'trips', 'trucks', 'crew', 'clients', 'routes', 'funds'],
       car_carrier_dispatcher: ['dashboard', 'trips', 'funds'],
       container_wingvan_dispatcher: ['dashboard', 'trips', 'funds'],
-      motorpool: ['dashboard', 'maintenance', 'trucks', 'mechanics', 'purchasing'],
+      // MAINTENANCE_OVERVIEW_PHASE1_V1: Overview, Repair Management, Parts Inventory first (same permitted pages).
+      motorpool: ['dashboard', 'maintenance_overview', 'maintenance', 'purchasing', 'trucks', 'mechanics'],
       purchasing: ['dashboard', 'purchasing'],
       finance: ['dashboard', 'funds', 'finance', 'purchasing'],
       billing: ['dashboard', 'billing', 'clients', 'routes'],
@@ -319,16 +320,19 @@ const App = {
     };
     const shortNames = {
       trips: 'Trips', trucks: 'Trucks', crew: 'Drivers', clients: 'Clients',
-      routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance',
+      routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance', maintenance_overview: 'Maintenance overview',
       purchasing: 'Parts & purchasing', funds: 'Trip funds', billing: 'Billing',
       finance: 'Finance', reports: 'Reports', admin: 'Users & settings',
     };
+    // Role-specific menu wording (labels only).
+    const roleShortNames = { motorpool: { maintenance: 'Repair management', purchasing: 'Parts inventory' } };
+    const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
     const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
-    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : shortNames[n.id] || n.label)}</span></a>`;
+    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : nameOf(n.id) || n.label)}</span></a>`;
     let nav = `<div class="nav-section">My workspace</div>${primary.map(link).join('')}`;
     if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
     document.getElementById('app').innerHTML = `
