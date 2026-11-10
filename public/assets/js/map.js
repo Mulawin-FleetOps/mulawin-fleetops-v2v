@@ -122,7 +122,10 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
       setActive(kind);
       if (address.trim() && searchReady) {
         const target = opts.searchResultsTarget?.(kind);
-        if (target) target.appendChild(res);
+        if (target) {
+          target.classList.remove('d-none');
+          target.appendChild(res);
+        }
         q.value = address.trim();
         runSearch();
       } else if (address.trim() && !searchReady) {
