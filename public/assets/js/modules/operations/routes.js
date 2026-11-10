@@ -21,21 +21,34 @@ const RouteUI = {
 
   request(d) {
     const fields = [
-      { type: 'html', col: 12, html: '<section class="rpm-route-garage" aria-label="Fixed company initial point"><strong>Company garage · Fixed initial point</strong><div>R.P. Mulawin Trucking Service — Purok 2, 86-A, Luyos, Tanauan City, Batangas</div><small>The initial point is shared by all trucks. Route billing distance remains pickup to destination.</small></section>' },
+      { type: 'html', col: 12, html: `<section class="rpm-route-garage" aria-label="Fixed company initial point">
+        <div class="rpm-route-garage-icon"><i class="bi bi-house-door" aria-hidden="true"></i></div>
+        <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><strong>Company garage</strong><span><i class="bi bi-lock" aria-hidden="true"></i> Fixed initial point</span></div>
+        <div>R.P. Mulawin Trucking Service</div><small>Purok 2, 86-A, Luyos, Tanauan City, Batangas</small></div>
+      </section>` },
       { name: 'client_id', label: 'Client', type: 'select', required: true, col: 8, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
       { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes) },
-      { name: 'origin', label: 'Origin (pickup point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
-      { name: 'destination', label: 'Destination (delivery point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
-      { type: 'html', col: 12, html: '<div data-routemapbox></div>' },
+      { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
+      { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
+      { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
+        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route map</div><span>Select pickup and delivery on the map</span></div>
+        <div data-routemapbox></div>
+        <div class="rpm-route-legend"><span><i class="rpm-legend-dot garage"></i> Garage (reference)</span><span><i class="rpm-legend-dot pickup"></i> Pickup</span><span><i class="rpm-legend-dot delivery"></i> Delivery</span></div>
+      </section>` },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
       // Route option, km, distance info and override reason: shared widget (assets/js/map.js), same as Trip Management.
       ...UI.distanceFieldDefs().filter(f => f.name === 'route_option'),
-      { name: 'distance_km', label: 'Distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
+      { name: 'distance_km', label: 'Pickup → delivery distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
         help: d.routing ? 'Filled in from the road distance when both points are pinned. You may change it (a reason is required).' : 'Type the km (automatic road distance is not set up on the server).' },
       ...UI.distanceFieldDefs().filter(f => f.name !== 'route_option'),
+      { type: 'html', col: 12, html: `<div class="rpm-route-distances" aria-label="Distance summary">
+        <div><span>Garage → Pickup</span><strong data-garage-km>Not available</strong></div>
+        <div><span>Pickup → Delivery (billable)</span><strong data-client-km>Enter distance</strong></div>
+        <div><span>Total operational distance</span><strong data-total-km>Not available</strong></div>
+      </div><p class="rpm-route-distance-note" data-garage-note>Garage distance is optional operational information. The client's billable route remains pickup to delivery.</p>` },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    UI.modal('Request a new route', '<p class="modal-intro">Pin the origin and the destination on the map (or search them). The road distance fills in the km. Origin to destination is one direction: the return trip is a separate route. The route is sent to Billing for the rate, then to the Admin for approval.</p>'
+    UI.modal('Request a new route', '<p class="rpm-route-intro">Select a client and truck type, then pin pickup and delivery points. The company garage is fixed. The client route covers pickup to delivery only; return trips are separate.</p>'
       + UI.fields(fields), async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
       if (form._distance) form._distance.clean(f);
@@ -49,7 +62,7 @@ const RouteUI = {
         throw new Error('Similar route already exists: ' + similar.map(r => `${r.route_ref} ${RouteUI.name(r)} (${r.status})`).join('; ') + '. Check it first. Click "Send request" again to continue anyway.');
       }
       const r = await App.api('Routes.request', f); UI.result(r); App.route();
-    }, { submit: 'Send request', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form) });
+    }, { submit: 'Send request', size: 'rpm-route-dialog', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form), extraFooter: '<small class="rpm-route-footer-note">Next: Billing rate → Admin approval</small>' });
   },
 
   /** Map, route option, automatic km and manual override of the Request route form (Checklist #5; shared widget in map.js). */
@@ -57,10 +70,64 @@ const RouteUI = {
     const w = UI.distanceWidget(form, {
       mapBox: form.querySelector('[data-routemapbox]'),
       fields: { pickup: { addr: 'origin', lat: 'origin_lat', lng: 'origin_lng' }, delivery: { addr: 'destination', lat: 'destination_lat', lng: 'destination_lng' } },
-      labels: { pickup: 'Origin', delivery: 'Destination' },
+      labels: { pickup: 'Pickup', delivery: 'Destination' },
       footNote: UI.Map.serviceReady() ? 'Road distance by openrouteservice (estimate). Check it before sending.' : 'Type the km.',
     });
-    wrap.addEventListener('shown.bs.modal', () => w.map && w.map.invalidateSize());
+    // A local, reference-only garage pin: coordinates are provisional until the
+    // actual yard entrance has been verified. Never submit these to the route API.
+    const garage = [14.126449, 121.070384];
+    if (w.map && typeof L !== 'undefined') {
+      L.circleMarker(garage, { radius: 8, color: '#34526a', fillColor: '#34526a', fillOpacity: 0.95, weight: 2, interactive: true })
+        .addTo(w.map).bindTooltip('R.P. Mulawin garage (approximate; entrance not verified)');
+    }
+    const billable = form.querySelector('[name="distance_km"]');
+    const clientKm = form.querySelector('[data-client-km]');
+    const garageKm = form.querySelector('[data-garage-km]');
+    const totalKm = form.querySelector('[data-total-km]');
+    const garageNote = form.querySelector('[data-garage-note]');
+    let operationalKm = null, lastPickup = '';
+    const updateDistances = () => {
+      const value = billable && billable.value !== '' && +billable.value > 0 ? +billable.value : null;
+      clientKm.textContent = value === null ? 'Enter distance' : value.toFixed(2) + ' km';
+      totalKm.textContent = value !== null && operationalKm !== null ? (value + operationalKm).toFixed(2) + ' km' : 'Not available';
+    };
+    billable?.addEventListener('input', updateDistances);
+    updateDistances();
+    let requestSeq = 0;
+    const updateGarageDistance = async () => {
+      if (!w.map || !w.map.picker) return;
+      const pickup = w.map.picker.points().pickup;
+      const key = pickup ? pickup.lat.toFixed(6) + ',' + pickup.lng.toFixed(6) : '';
+      if (key === lastPickup) return;
+      lastPickup = key;
+      const seq = ++requestSeq;
+      operationalKm = null;
+      garageKm.textContent = pickup ? 'Checking…' : 'Pin pickup first';
+      garageNote.textContent = 'Garage location on the map is approximate. Verify the garage entrance before using operational distance estimates.';
+      updateDistances();
+      if (!pickup || !UI.Map.serviceReady()) {
+        garageKm.textContent = UI.Map.serviceReady() ? 'Pin pickup first' : 'Routing unavailable';
+        return;
+      }
+      try {
+        const r = await UI.Map.route(L.latLng(garage), pickup, form.querySelector('[name="route_option"]')?.value || UI.Map.cfg().defaultRouteOption);
+        if (seq !== requestSeq) return;
+        if (r.available && Number.isFinite(+r.distance_km)) {
+          operationalKm = +r.distance_km;
+          garageKm.textContent = operationalKm.toFixed(2) + ' km (estimate)';
+        } else garageKm.textContent = 'Route unavailable';
+      } catch (e) {
+        if (seq === requestSeq) garageKm.textContent = 'Route unavailable';
+      }
+      updateDistances();
+    };
+    w.map?.on('click', () => setTimeout(updateGarageDistance, 0));
+    w.map?.on('mouseup', () => setTimeout(updateGarageDistance, 0));
+    form.querySelector('[name="route_option"]')?.addEventListener('change', () => { lastPickup = ''; updateGarageDistance(); });
+    wrap.addEventListener('shown.bs.modal', () => {
+      w.map?.invalidateSize();
+      updateGarageDistance();
+    });
   },
 
   rate(route, d) {
