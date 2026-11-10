@@ -2139,3 +2139,18 @@ button.docfm-folder:focus-visible {
 .rpm-address-pin-status { color: #637568; font-size: 11px; min-height: 0; margin-top: 3px; }
 .rpm-address-pin-status:empty { display: none; }
 @media (max-width: 575.98px) { .rpm-address-pin-btn { min-width: 44px; padding: 7px 9px; } .rpm-address-pin-btn span { display: none; } }
+
+
+/* Route address fields: pin controls and geocoding suggestions stay within each column. */
+.rpm-route-dialog .rpm-address-pin-control { max-width: 100%; }
+.rpm-route-dialog .loc-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; width: 100%; margin: 6px 0 0; padding: 7px 10px; border: 1px solid #dce9e0; border-radius: 7px; background: #f7faf8; font-size: 11px; overflow-wrap: anywhere; }
+.rpm-route-dialog .loc-suggest > span { flex: 1 1 180px; min-width: 0; }
+.rpm-route-dialog .loc-suggest .btn { flex: 0 0 auto; white-space: nowrap; }
+.rpm-route-dialog .rpm-address-search-results { position: relative; min-width: 0; }
+.rpm-route-dialog .rpm-address-search-results:empty { display: none; }
+.rpm-route-dialog .rpm-address-search-results > .loc-results { margin: 6px 0 0; width: 100%; max-height: 190px; overflow: auto; border: 1px solid #d4e4db; border-radius: 8px; box-shadow: 0 3px 12px rgba(22, 58, 36, .08); }
+.rpm-route-dialog .rpm-address-search-results .loc-res { align-items: flex-start; white-space: normal; overflow-wrap: anywhere; }
+.rpm-route-dialog .rpm-address-search-results .loc-res:last-child { border-bottom: 0; }
+.rpm-route-dialog .rpm-address-pin-status { line-height: 1.35; overflow-wrap: anywhere; }
+.rpm-route-map-shell .loc-toolbar { justify-content: flex-start; }
+.rpm-route-map-shell .loc-toolbar .seg { flex: 0 0 auto; }
