@@ -132,6 +132,12 @@ const RouteUI = {
       labels: { pickup: 'Pickup', delivery: 'Destination' },
       scrollWheelZoom: true,
       hideStraightLine: true,
+      hideSearchBar: true,
+      searchResultsTarget: (kind) => form.querySelector('[data-pin-results="' + kind + '"]'),
+      onSearchSelect: (kind) => {
+        form.querySelector('[data-pin-results="' + kind + '"]')?.classList.add('d-none');
+        form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      },
       // Clear stale geometry as soon as the user moves either pin.
       onPointsChange: () => {
         clientRoad = null;
@@ -171,6 +177,10 @@ const RouteUI = {
       status.setAttribute('role', 'status');
       status.setAttribute('aria-live', 'polite');
       controls.after(status);
+      const results = document.createElement('div');
+      results.className = 'rpm-address-search-results';
+      results.dataset.pinResults = kind;
+      status.after(results);
       const showStatus = (message) => { status.textContent = message; };
       button.addEventListener('click', () => {
         if (!w.map?.picker) { showStatus('Map unavailable. Enter the address manually.'); return; }
@@ -179,7 +189,9 @@ const RouteUI = {
         showStatus(searching
           ? 'Choose the correct search result below, or click the map to place this pin.'
           : 'Click the map to place the ' + title.toLowerCase() + ' pin.');
-        form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Show matching locations below the corresponding address field.
+        // Only scroll to the map when the user needs to place the point manually.
+        if (!searching) form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
       address.addEventListener('input', (event) => {
         // Only a person editing the address should invalidate its old position.
