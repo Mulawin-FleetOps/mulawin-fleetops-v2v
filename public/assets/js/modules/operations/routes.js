@@ -71,7 +71,9 @@ const RouteUI = {
       mapBox: form.querySelector('[data-routemapbox]'),
       fields: { pickup: { addr: 'origin', lat: 'origin_lat', lng: 'origin_lng' }, delivery: { addr: 'destination', lat: 'destination_lat', lng: 'destination_lng' } },
       labels: { pickup: 'Pickup', delivery: 'Destination' },
-      footNote: UI.Map.serviceReady() ? 'Road distance by openrouteservice (estimate). Check it before sending.' : 'Type the km.',
+      scrollWheelZoom: true,
+      hideStraightLine: true,
+      footNote: UI.Map.serviceReady() ? 'Use mouse wheel, +/−, or pinch to zoom. Blue road route is calculated by openrouteservice.' : 'Use mouse wheel, +/−, or pinch to zoom. Road routing is not configured; type the verified road km.',
     });
     // A local, reference-only garage pin: coordinates are provisional until the
     // actual yard entrance has been verified. Never submit these to the route API.
