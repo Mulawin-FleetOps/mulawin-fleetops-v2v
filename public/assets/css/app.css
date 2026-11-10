@@ -2078,3 +2078,18 @@ button.docfm-folder:focus-visible {
   .rpm-route-distances > div { padding: 9px 12px; }
   .rpm-route-footer-note { width: 100%; }
 }
+
+
+/* Route sequence clarity: distinguish starting garage, pickup and delivery. */
+.rpm-route-steps { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 9px 12px; background: #f4faf6; border-bottom: 1px solid var(--border); color: #355949; font-size: 12px; }
+.rpm-route-steps span { display: inline-flex; align-items: center; gap: 6px; }
+.rpm-route-steps b { display: inline-grid; place-items: center; width: 21px; height: 21px; color: #fff; background: #326d51; border-radius: 50%; font-size: 11px; }
+.rpm-route-steps .bi-arrow-right { color: #6b8e7c; }
+.rpm-route-stop-label { background: transparent; border: 0; pointer-events: none; }
+.rpm-route-stop-label span { display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid #fff; border-radius: 50%; background: #1f3144; color: #fff; font-size: 12px; font-weight: 750; box-shadow: 0 1px 5px #0006; }
+.rpm-route-arrow-icon { background: none; border: 0; pointer-events: none; }
+.rpm-route-arrow-icon span { display: block; width: 24px; height: 24px; font-size: 22px; font-weight: 800; line-height: 24px; text-align: center; -webkit-text-stroke: 1px white; filter: drop-shadow(0 1px 2px #0009); }
+@media (max-width: 767.98px) {
+  .rpm-route-steps { gap: 6px; font-size: 11px; }
+  .rpm-route-steps b { width: 18px; height: 18px; font-size: 10px; }
+}
