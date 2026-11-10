@@ -93,7 +93,7 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
           <button type="button" class="seg-btn active" data-pin="pickup"><span class="pin-dot pickup"></span> ${UI.esc(LBL.pickup)}</button>
           <button type="button" class="seg-btn" data-pin="delivery"><span class="pin-dot delivery"></span> ${UI.esc(LBL.delivery)}</button>
         </div>
-        <div class="loc-search"><i class="bi bi-search"></i><input type="search" class="form-control" placeholder="Search a place or address in the Philippines" aria-label="Search a place" data-locq>
+        <div class="loc-search ${opts.hideSearchBar ? 'd-none' : ''}"><i class="bi bi-search"></i><input type="search" class="form-control" placeholder="Search a place or address in the Philippines" aria-label="Search a place" data-locq>
           <button type="button" class="btn btn-sm btn-outline-secondary" data-locgo>Search</button></div>
       </div>
       <div class="loc-results d-none" data-locres></div>
@@ -121,6 +121,8 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
       if (kind !== 'pickup' && kind !== 'delivery') return;
       setActive(kind);
       if (address.trim() && searchReady) {
+        const target = opts.searchResultsTarget?.(kind);
+        if (target) target.appendChild(res);
         q.value = address.trim();
         runSearch();
       } else if (address.trim() && !searchReady) {
@@ -175,7 +177,8 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
     tip.innerHTML = `<span>Map address for the ${UI.esc(label(k))}: <b></b></span><button type="button" class="btn btn-sm btn-link p-0">Use it</button>`;
     tip.querySelector('b').textContent = addr;
     tip.querySelector('button').onclick = () => { f.value = addr; f.dispatchEvent(new Event('input', { bubbles: true })); tip.remove(); };
-    f.parentElement.querySelectorAll('.loc-suggest').forEach(x => x.remove()); f.parentElement.append(tip);
+    const host = f.closest('.rpm-address-pin-control')?.parentElement || f.parentElement;
+    host.querySelectorAll('.loc-suggest').forEach(x => x.remove()); host.append(tip);
   };
   const place = (k, latlng, name = '', fly = false, silent = false) => {
     if (pins[k]) pins[k].setLatLng(latlng);
@@ -191,16 +194,27 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
   map.on('click', (e) => { place(active, e.latlng); if (active === 'pickup' && !pins.delivery) setActive('delivery'); });
   // address search (button or Enter only: no search-as-you-type, to protect the daily quota)
   const q = box.querySelector('[data-locq]'), res = box.querySelector('[data-locres]');
+  let searchSeq = 0;
   const runSearch = async () => {
     if (!searchReady) return;
+    const kind = active, seq = ++searchSeq;
     if (q.value.trim().length < 3) { res.innerHTML = '<div class="loc-res-msg">Type at least 3 letters.</div>'; res.classList.remove('d-none'); return; }
     res.innerHTML = '<div class="loc-res-msg"><span class="spinner-border spinner-border-sm"></span> Searching…</div>'; res.classList.remove('d-none');
     try {
       const list = await UI.Map.search(q.value);
+      if (seq !== searchSeq) return;
       res.innerHTML = list.length ? list.map((r, i) => `<button type="button" class="loc-res" data-ri="${i}"><i class="bi bi-geo-alt"></i> <span></span></button>`).join('') : '<div class="loc-res-msg">No place found. Try another name, or type the address in the field below.</div>';
       res.querySelectorAll('[data-ri]').forEach(b => { const r = list[+b.dataset.ri]; b.querySelector('span').textContent = r.name;
-        b.onclick = () => { place(active, L.latLng(r.lat, r.lng), r.name, true); res.classList.add('d-none'); q.value = ''; if (active === 'pickup' && !pins.delivery) setActive('delivery'); }; });
-    } catch (e) { res.innerHTML = `<div class="loc-res-msg text-danger">${UI.esc(e.message)} Type the address in the field below.</div>`; }
+        b.onclick = () => {
+          place(kind, L.latLng(r.lat, r.lng), r.name, true);
+          res.classList.add('d-none'); q.value = '';
+          if (kind === 'pickup' && !pins.delivery) setActive('delivery');
+          opts.onSearchSelect?.(kind);
+        }; });
+    } catch (e) {
+      if (seq !== searchSeq) return;
+      res.innerHTML = `<div class="loc-res-msg text-danger">${UI.esc(e.message)} You can still pin the location manually on the map.</div>`;
+    }
   };
   box.querySelector('[data-locgo]').onclick = runSearch;
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
@@ -322,7 +336,8 @@ UI.distanceWidget = (form, opts = {}) => {
       ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}${useBtn('Use the computed km')}`);
     wireUse();
   };
-  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, scrollWheelZoom: opts.scrollWheelZoom, hideStraightLine: opts.hideStraightLine, onChange: (pts) => {
+  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, scrollWheelZoom: opts.scrollWheelZoom, hideStraightLine: opts.hideStraightLine,
+    hideSearchBar: opts.hideSearchBar, searchResultsTarget: opts.searchResultsTarget, onSearchSelect: opts.onSearchSelect, onChange: (pts) => {
     if (opts.onPointsChange) opts.onPointsChange(pts);
     compute(pts);
   },
