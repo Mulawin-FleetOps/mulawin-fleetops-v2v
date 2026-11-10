@@ -2093,3 +2093,37 @@ button.docfm-folder:focus-visible {
   .rpm-route-steps { gap: 6px; font-size: 11px; }
   .rpm-route-steps b { width: 18px; height: 18px; font-size: 10px; }
 }
+
+
+/* Client route map polish: compact hierarchy, subtle direction, readable stop labels. */
+.rpm-route-map-shell { border-color: #dbe7df; box-shadow: 0 1px 3px rgba(20, 55, 38, .04); }
+.rpm-route-map-heading { padding: 12px 16px; background: #fff; }
+.rpm-route-map-heading > div { font-size: 14px; letter-spacing: -.01em; }
+.rpm-route-map-heading > span { font-size: 12px; }
+.rpm-route-steps { justify-content: flex-start; padding: 9px 16px; gap: 9px; background: #f8fbf9; }
+.rpm-route-steps span { gap: 7px; font-size: 12px; font-weight: 600; color: #465c4f; }
+.rpm-route-steps b { width: 22px; height: 22px; background: #405d70; border-radius: 7px; font-weight: 700; }
+.rpm-route-steps .rpm-step-pickup b { background: #24834d; }
+.rpm-route-steps .rpm-step-delivery b { background: #c54748; }
+.rpm-route-steps .bi-chevron-right { color: #a1b3aa; font-size: 11px; }
+.rpm-route-map-shell .loc-toolbar { background: #fff; }
+.rpm-route-map-shell .map-canvas { height: 320px; }
+.rpm-route-legend { background: #fff; gap: 18px; padding: 10px 16px; }
+.rpm-route-legend > span { gap: 8px; }
+.rpm-route-line-key { width: 26px; border-top-width: 4px; }
+.rpm-route-legend-note { color: #788880; margin-left: auto; font-size: 11px; }
+.rpm-route-stop-label { width: auto !important; height: auto !important; overflow: visible; }
+.rpm-route-stop-label > span { display: inline-flex; align-items: center; gap: 5px; width: max-content; max-width: 120px; height: 26px; padding: 3px 8px 3px 4px; border: 1px solid #d7e1e4; border-radius: 7px; background: rgba(255,255,255,.96); color: #334e61; font-size: 11px; font-weight: 650; box-shadow: 0 2px 7px rgba(24, 39, 51, .15); white-space: nowrap; }
+.rpm-route-stop-label > span b { display: grid; place-items: center; flex: 0 0 17px; width: 17px; height: 17px; border-radius: 5px; color: white; background: #405d70; font-size: 10px; border: 0; box-shadow: none; }
+.rpm-route-stop-label.rpm-stop-2 > span b { background: #24834d; }
+.rpm-route-stop-label.rpm-stop-3 > span b { background: #c54748; }
+.rpm-route-arrow-icon > span { display: grid; place-items: center; width: 20px; height: 20px; color: var(--route-arrow-color); background: rgba(255,255,255,.93); border: 1px solid rgba(255,255,255,.95); border-radius: 50%; font-size: 13px; line-height: 19px; -webkit-text-stroke: 0; filter: drop-shadow(0 1px 2px #0004); }
+@media (max-width: 767.98px) {
+  .rpm-route-map-heading { padding: 10px 12px; }
+  .rpm-route-steps { justify-content: center; gap: 5px; padding: 8px 7px; }
+  .rpm-route-steps span { font-size: 11px; gap: 4px; }
+  .rpm-route-steps b { width: 18px; height: 18px; font-size: 10px; }
+  .rpm-route-map-shell .map-canvas { height: 260px; }
+  .rpm-route-legend { gap: 9px; padding: 9px 12px; }
+  .rpm-route-legend-note { flex: 1 1 100%; margin-left: 0; }
+}
