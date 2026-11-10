@@ -278,7 +278,7 @@ final class Routing {
         curl_setopt_array($h, $opts);
         $raw = curl_exec($h);
         $status = $raw === false ? 0 : (int)curl_getinfo($h, CURLINFO_RESPONSE_CODE);
-        curl_close($h);
+        // The cURL handle is released automatically; curl_close() is deprecated in PHP 8.5+.
         return [$status, $raw === false ? '' : (string)$raw];
     }
 }
