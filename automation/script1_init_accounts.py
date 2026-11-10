@@ -3,12 +3,12 @@
 automation/script1_init_accounts.py  -  SCRIPT 1: account initialization through the Admin screens
 
 What it does (guide H):
-  1. Logs in as the Admin with the password + the 6-digit code emailed to the Admin (you type the code).
+  1. Logs in as the Admin with username + password (no emailed code).
   2. Opens User Management and, for every role in automation/config.json:
-       - account missing   -> creates it with "New account" (a strong random password is generated)
+       - account missing   -> creates it with "New account" (the system generates a one-time temporary password; it is saved in .credentials.json)
        - account exists    -> checks role, email and active status; does NOT create a duplicate
   3. Reloads the user list from the server and confirms every account is really saved.
-  4. Optional: logs in once as each new account (password + emailed code) to prove the login works.
+  4. Optional: logs in once as each new account to prove the login works; this performs the forced first-login password change.
   5. Writes the report in automation/reports/script1_<date>/report.html
 
 Safe to run again and again (idempotent): existing accounts are reused, never duplicated.
@@ -40,38 +40,35 @@ def user_row(page, username):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='Script 1: create / check user accounts through the Admin screens (with emailed login codes).')
+    ap = argparse.ArgumentParser(description='Script 1: create / check user accounts through the Admin screens (login is username + password; new accounts get a one-time temporary password).')
     ap.add_argument('--headed', action='store_true', help='Show the browser window while it works')
     ap.add_argument('--slow', type=int, default=0, help='Slow down each browser action (milliseconds), useful with --headed')
-    ap.add_argument('--verify-logins', choices=['ask', 'yes', 'no'], default='ask', help='Log in once as each NEW account (needs each code)')
+    ap.add_argument('--verify-logins', choices=['ask', 'yes', 'no'], default='ask', help='Log in once as each NEW account (this also performs the forced first-login password change)')
     ap.add_argument('--set-missing-passwords', action='store_true',
                     help='For accounts that exist but whose password is not in .credentials.json: set a new password through the Admin screen')
-    ap.add_argument('--otp-source', choices=['manual', 'mailpit'], default='manual',
-                    help='manual = you type the emailed code (default). mailpit = local test computer with Mailpit only')
     args = ap.parse_args()
 
     cfg = F.load_config()
     base = cfg['base_url']
     creds = F.Credentials()
     rec = F.Recorder('Script 1 - Account initialization', 'script1')
-    rec.context.update({'System link': base, 'Login codes': 'typed by the operator from the email inbox' if args.otp_source == 'manual' else 'read from local Mailpit (test computer)'})
+    rec.context.update({'System link': base, 'Login': 'username + password; temporary passwords are replaced at first login'})
 
     admin_user = cfg.get('admin_username') or 'admin'
     admin_email = cfg.get('admin_email') or ''
     admin_pw = creds.ask(base, admin_user, 'the Admin')
-    otp = F.OtpSource(args.otp_source, cfg.get('mailpit_url', 'http://127.0.0.1:8025'))
-    br = F.Browser(base, rec, otp, headed=args.headed, slow=args.slow)
+    br = F.Browser(base, rec, creds, headed=args.headed, slow=args.slow)
     created = []
     try:
-        rec.set_section('Admin login (password + emailed code)')
+        rec.set_section('Admin login (username + password)')
         try:
             page = br.login(admin_user, admin_pw, admin_email, 'Admin')
         except Exception as e:
-            rec.failed('S1-01', '4.1', 'Admin logs in with password and emailed code', str(e))
+            rec.failed('S1-01', '4.1', 'Admin logs in with username and password', str(e))
             return finish(rec, br)
         role = page.evaluate('() => App.me.user.role')
-        rec.check('S1-01', '4.1', 'Admin logs in with password and emailed code', role == 'admin',
-                  'signed in as ' + admin_user + (' (code from email accepted)' if args.otp_source == 'manual' else ' (code from local Mailpit)'),
+        rec.check('S1-01', '4.1', 'Admin logs in with username and password', role == 'admin',
+                  'signed in as ' + admin_user,
                   'signed in but the role is ' + str(role), [br.shot(page, 's1_01_admin_dashboard')])
 
         rec.set_section('Accounts in User Management')
@@ -106,18 +103,17 @@ def main():
                     problems.append('was inactive - activated now')
                 if not creds.get(base, username):
                     if args.set_missing_passwords:
-                        pw = F.strong_password()
                         br.go(page, 'admin')
                         row = user_row(page, username)
                         row.locator('button[data-act=pw]').click()
                         page.wait_for_timeout(500)
-                        br.modal(page).locator('[name=password]').fill(pw)
                         err = br.submit_modal(page)
                         if err:
-                            rec.failed(item, '4.1', f'{label} account "{username}"', 'set new password refused: ' + err)
+                            rec.failed(item, '4.1', f'{label} account "{username}"', 'password reset refused: ' + err)
                             continue
+                        pw = br.read_temp_password(page)     # shown once by the system; the user must change it at first login
                         creds.set(base, username, pw)
-                        problems.append('new password set and saved in .credentials.json')
+                        problems.append('temporary password saved in .credentials.json (replaced at first login)')
                     else:
                         problems.append('password not in .credentials.json (run with --set-missing-passwords to set one)')
                 fatal = [p for p in problems if p.startswith('role is')]
@@ -128,8 +124,6 @@ def main():
                     rec.passed(item, '4.1', f'{label} account "{username}" ready', detail)
                 continue
             # --- create through the "New account" form
-            pw = F.strong_password()
-            creds.set(base, username, pw)          # saved first, so a password is never lost
             br.go(page, 'admin')
             page.locator('[data-adduser]').click()
             page.wait_for_timeout(500)
@@ -137,7 +131,6 @@ def main():
             m.locator('[name=full_name]').fill(full)
             m.locator('[name=username]').fill(username)
             m.locator('[name=email]').fill(email)
-            m.locator('[name=password]').fill(pw)
             m.locator('[name=role]').select_option(role_key)
             if 'dispatcher' in role_key:
                 m.locator('[name=shift]').select_option(acc.get('shift', 'Day'))
@@ -147,11 +140,13 @@ def main():
                 rec.failed(item, '4.1', f'Create {label} account "{username}"', 'form refused: ' + err, [ev])
                 br.modal(page).locator('[data-bs-dismiss=modal]').first.click()
                 continue
+            pw = br.read_temp_password(page)       # shown once by the system (the screenshot above was taken before saving)
+            creds.set(base, username, pw)          # temporary until the account's first login
             # persistence: read the list again from the server
             users = br.data(page, 'admin').get('users', [])
             u = find_user(users, username)
             ok = bool(u) and u.get('role') == role_key and (u.get('email') or '').lower() == email.lower() and int(u.get('active') or 0) == 1
-            rec.check(item, '4.1', f'Create {label} account "{username}"', ok, f'saved; email {F.mask_email(email)}; password in .credentials.json',
+            rec.check(item, '4.1', f'Create {label} account "{username}"', ok, f'saved; email {F.mask_email(email)}; temporary password in .credentials.json',
                       'not found with the right role/email after reloading', [ev, br.shot(page, f's1_{n:02d}_saved_{role_key}')])
             if ok:
                 created.append((role_key, username, email))
@@ -170,7 +165,7 @@ def main():
         # --- optional: log in as each new account
         verify = args.verify_logins
         if verify == 'ask' and created:
-            verify = 'yes' if input(f'\nLog in once as each of the {len(created)} new account(s) to prove it works? Each needs its emailed code. (y/N): ').strip().lower() == 'y' else 'no'
+            verify = 'yes' if input(f'\nLog in once as each of the {len(created)} new account(s) to prove it works? This also does the forced first-login password change. (y/N): ').strip().lower() == 'y' else 'no'
         rec.set_section('Login check of new accounts')
         for i, (role_key, username, email) in enumerate(created, start=1):
             item = f'S1-L{i:02d}'
@@ -180,7 +175,7 @@ def main():
             try:
                 p = br.login(username, creds.get(base, username), email)
                 r = p.evaluate('() => App.me.user.role')
-                rec.check(item, '4.1', f'Login as new {F.ROLE_LABEL[role_key]} "{username}" (password + emailed code)', r == role_key,
+                rec.check(item, '4.1', f'Login as new {F.ROLE_LABEL[role_key]} "{username}" (first login: temporary password replaced)', r == role_key,
                           'signed in; screens follow the role', 'wrong role ' + str(r), [br.shot(p, f's1_login_{role_key}')])
             except Exception as e:
                 rec.failed(item, '4.1', f'Login as new {F.ROLE_LABEL[role_key]} "{username}"', str(e))

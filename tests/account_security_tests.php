@@ -20,7 +20,6 @@ require_once dirname(__DIR__) . '/backend/Actions.php';
 require_once __DIR__ . '/_launcher.php';
 core('AccountSecurity');
 core('SecurityPasswordChange');
-core('TrustedDevices');
 
 $FRESH = envValue('DB_NAME');
 test_guard([$FRESH]);

@@ -28,6 +28,24 @@
 - No change to repair statuses, verification, truck availability, incidents or permissions. No database change.
   Tests: `tests/run_maintenance_overview_tests.php`.
 
+## 2026-11-10 (Authentication: no email OTP, Admin-generated temporary passwords)
+- **Login is now username (or email) + password only.** The emailed login code, its screen, endpoints and the "Trusted devices"
+  feature (which only existed to skip that code) are removed. Kept: password hashing, 5-wrong-password account lock and per-session
+  limit, CSRF, session-id regeneration at login, logout, idle timeout, sessions signed out after any password change.
+- **New accounts:** the Admin no longer types a password. The system generates a random one-time temporary password
+  (`random_bytes()`, 16 characters), stores only its `password_hash`, and shows it to the Admin **once** after saving.
+  It is never emailed, logged or audited. **Reset password** (Admin only, not for yourself) generates a new one the same way;
+  an existing password can never be viewed.
+- **First login:** accounts created or reset this way are flagged `must_change_password`. The server blocks every page, module,
+  document and API call until the user replaces the temporary password (`Admin.password_change_force`: temporary + new password,
+  no email code); the flag is cleared only after the new hash is saved, then the user lands on their role's start page.
+  Existing accounts are NOT flagged and keep working.
+- Normal (voluntary) password change and email change keep their emailed verification codes. Audit: account created,
+  password reset by Admin, password changed at first login.
+- While a password change is pending the server also withholds the menu, notifications and settings (`?api=me`), email change,
+  and the test-data loader page. `automation/*.py` now use the new login and read the one-time password from the Admin screen.
+- No database change. Tables `login_otps` and `trusted_login_devices` stay in the database, unused. Tests: `tests/auth_no_otp_tests.php`.
+
 ## 2026-11-08 (Batch trip planning)
 - **Trips → Batch planning**: enter up to 20 trips on one page. Every row becomes its own trip with its own number, using
   the same rules as New trip (auto-assignment or Awaiting Resources for the Operations Head; Pending Review requests for a

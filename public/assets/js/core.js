@@ -58,7 +58,6 @@ const App = {
       const w = await this.request('index.php?api=whoami');
       this.csrf = w.csrf;
       if (w.signedIn) return await this.loadMe();
-      if (w.otp) return this.otpScreen(w.otp);
       this.loginScreen();
     } catch (e) { this.loginScreen(e.message); }
   },
@@ -77,7 +76,7 @@ const App = {
     return this.request('index.php?api=' + api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, csrf: this.csrf }) });
   },
 
-  /** Two-column sign-in frame used by the password, code and recovery screens. */
+  /** Two-column sign-in frame used by the password and recovery screens. */
   authFrame(inner) {
     document.getElementById('app').innerHTML = `
     <div class="auth-page"><div class="auth-shell">
@@ -106,10 +105,7 @@ const App = {
         <div class="mb-4"><label class="form-label" for="lgP">Password</label>
           <div class="input-group"><input class="form-control" type="password" id="lgP" name="password" autocomplete="current-password" required>
           <button class="btn btn-outline-secondary" type="button" id="lgEye" aria-label="Show password"><i class="bi bi-eye"></i></button></div></div>
-        <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="remember_device" value="1" id="rememberDevice">
-          <label class="form-check-label small" for="rememberDevice">Trust this device for 30 days (private computer only)</label></div>
         <button class="btn btn-primary w-100 auth-btn" type="submit">Sign in</button>
-        <p class="auth-note">A verification code is required on new or untrusted devices. Do not trust shared computers.</p>
         <div class="auth-links"><span>Forgot your password? Contact the Admin or authorized IT support.</span></div>
       </form>`);
     document.getElementById(username ? 'lgP' : 'lgU').focus();
@@ -119,47 +115,8 @@ const App = {
       const f = Object.fromEntries(new FormData(e.target));
       if (!f.username || !f.password) return this.loginScreen('Enter your username and password.', f.username || '');
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking credentials…';
-      try { const r = await this.postAuth('login', f); if (r.otp) this.otpScreen(r.otp, r.notice || '', !!r.notice); else await this.loadMe(); }
+      try { await this.postAuth('login', f); location.hash = ''; await this.loadMe(); }
       catch (err) { this.loginScreen(err.message, f.username || ''); }
-    };
-  },
-
-  /** Step 2: the code sent to the user's email. */
-  otpScreen(otp, message = '', ok = false) {
-    this.authFrame(`
-      <div class="auth-head"><h1>Check your email</h1><p>Step 2 of 2 · We sent a 6-digit code to <b>${UI.esc(otp.email)}</b>. It expires in ${UI.esc(otp.minutes)} minutes.</p></div>
-      ${this.authAlert(message, ok)}
-      <form id="otpForm" novalidate>
-        <label class="form-label" for="otpCode">Verification code</label>
-        <input class="form-control otp-input" id="otpCode" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
-        <button class="btn btn-primary w-100 auth-btn mt-3" type="submit">Verify and sign in</button>
-        <div class="auth-links mt-3"><button type="button" class="btn btn-link btn-sm p-0" id="otpResend" disabled>Send a new code</button>
-          <button type="button" class="btn btn-link btn-sm p-0" id="otpBack">Use a different account</button></div>
-        <p class="auth-note">Not in your inbox? Check the Spam folder. Only the newest code works.</p>
-      </form>`);
-    const input = document.getElementById('otpCode'); input.focus();
-    input.oninput = () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); };
-    const resend = document.getElementById('otpResend');
-    let wait = +otp.resend_in || 0;
-    clearInterval(this._otpTimer);
-    const tick = () => { resend.disabled = wait > 0; resend.textContent = wait > 0 ? `Send a new code (${wait}s)` : 'Send a new code'; wait--; if (wait < -1) clearInterval(this._otpTimer); };
-    tick(); this._otpTimer = setInterval(tick, 1000);
-    resend.onclick = async () => {
-      resend.disabled = true;
-      try { const r = await this.postAuth('otp_resend', {}); this.otpScreen(r.otp, r.data?.message || 'A new code was sent.', true); }
-      catch (err) { if (/expired|log in again|username and password/i.test(err.message)) this.loginScreen(err.message); else this.otpScreen({ ...otp, resend_in: 0 }, err.message); }
-    };
-    document.getElementById('otpBack').onclick = async () => { clearInterval(this._otpTimer); try { await this.postAuth('otp_cancel', {}); } catch { } this.loginScreen(); };
-    document.getElementById('otpForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const code = input.value.trim();
-      if (!/^\d{6}$/.test(code)) return this.otpScreen({ ...otp, resend_in: Math.max(0, wait) }, 'Enter the 6-digit code from the email.');
-      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
-      try { await this.postAuth('otp_verify', { code }); clearInterval(this._otpTimer); location.hash = ''; await this.loadMe(); }
-      catch (err) {
-        if (/expired\. Enter|log in again|username and password|locked/i.test(err.message)) { clearInterval(this._otpTimer); return this.loginScreen(err.message); }
-        this.otpScreen({ ...otp, resend_in: Math.max(0, wait) }, err.message);
-      }
     };
   },
 
@@ -220,33 +177,43 @@ const App = {
     };
   },
 
-  /** Security S1: email-verified password ownership; first setup cannot be skipped. */
+  /**
+   * Password change. First login / after an Admin reset (firstSetup): temporary password + new password, no email code;
+   * the server blocks every other screen and API until this succeeds. Normal change: current password + code emailed to the registered address.
+   */
   passwordScreen(firstSetup = false, message = '', stage = 'request') {
-    const intro = firstSetup ? 'Your temporary password must be replaced before accessing FleetOps.' : 'Confirm your current password, then verify the code sent to your registered email.';
+    const intro = firstSetup ? 'Your temporary password must be replaced before you can use FleetOps.' : 'Confirm your current password, then verify the code sent to your registered email.';
     const fields = stage === 'request' ? UI.fields([
-      { name: 'current_password', label: 'Current / temporary password', type: 'password', required: true, col: 12, attrs: 'autocomplete="current-password"' },
+      { name: 'current_password', label: firstSetup ? 'Temporary password' : 'Current password', type: 'password', required: true, col: 12, attrs: 'autocomplete="current-password"' },
       { name: 'new_password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"', help: (this.me?.passwordMin || 8) + '+ characters with letters and numbers.' },
       { name: 'confirm', label: 'Confirm new password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password"' }
     ]) : UI.fields([{ name: 'code', label: '6-digit email verification code', required: true, col: 12, attrs: 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"' }]);
+    const submitLabel = firstSetup ? 'Save new password' : (stage === 'request' ? 'Send verification code' : 'Verify and save password');
     this.authFrame(`<div class="auth-head"><h1>${firstSetup ? 'Set up your account' : 'Change password'}</h1><p>${UI.esc(intro)}</p></div>
       ${this.authAlert(message, stage === 'confirm')}
       <form id="securePwForm" novalidate>${fields}
-        <button class="btn btn-primary w-100 mt-3" type="submit">${stage === 'request' ? 'Send verification code' : 'Verify and save password'}</button>
-        ${firstSetup ? '' : '<button class="btn btn-link w-100 mt-2" type="button" id="pwCancel">Back to dashboard</button>'}
+        <button class="btn btn-primary w-100 mt-3" type="submit">${submitLabel}</button>
+        ${firstSetup ? '<button class="btn btn-link w-100 mt-2" type="button" id="pwLogout">Sign out</button>' : '<button class="btn btn-link w-100 mt-2" type="button" id="pwCancel">Back to dashboard</button>'}
       </form>`);
     this.securityPasswordEyes('securePwForm');
     document.getElementById('pwCancel')?.addEventListener('click', () => this.loadMe());
+    document.getElementById('pwLogout')?.addEventListener('click', () => this.logout());
     document.getElementById('securePwForm').onsubmit = async (e) => {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target));
       if (stage === 'request' && f.new_password !== f.confirm) return this.passwordScreen(firstSetup, 'New passwords do not match.', 'request');
-      if (!await UI.confirmProceed('Confirm password change', stage === 'request' ?
+      if (!firstSetup && !await UI.confirmProceed('Confirm password change', stage === 'request' ?
           'Send a verification code before changing your password?' :
           'Verify the code and save your new password?',
           stage === 'request' ? 'Send code' : 'Change password')) return;
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
       try {
-        if (stage === 'request') {
+        if (firstSetup) {
+          await this.api('Admin.password_change_force', f);
+          location.hash = ''; // land on the role's own start page
+          await this.loadMe();
+          UI.toast('Your password was updated.');
+        } else if (stage === 'request') {
           const r = await this.api('Admin.password_change_request', f);
           this.passwordScreen(firstSetup, r.message || 'Enter the code from your email.', 'confirm');
         } else {
@@ -256,43 +223,6 @@ const App = {
         }
       } catch (err) { this.passwordScreen(firstSetup, err.message, stage); }
     };
-  },
-
-  /** Security S3: list only trusted-device metadata; revoke requires current password. */
-  async trustedDevicesScreen() {
-    let devices;
-    try { devices = (await this.api('Admin.trusted_devices_list', {})).devices || []; }
-    catch (e) { UI.toast(e.message, 'error'); return; }
-    const dt = (v) => v ? UI.datetime(v) : 'Never';
-    const body = `<p class="small text-muted">Remembered devices skip email OTP for up to 30 days, but still require your password. Each row is a trusted-browser record; browser names are not collected. Revoking a device affects its NEXT login, not the session already open.</p>
-      ${devices.length ? `<div class="list-group mb-3">${devices.map(d => `<div class="list-group-item d-flex justify-content-between align-items-start gap-2">
-        <div class="small"><strong>${d.current ? 'This browser' : 'Other / unrecognized browser'}</strong><br>
-        <span class="text-muted">Created: ${UI.esc(dt(d.created_at))}<br>Last used: ${UI.esc(dt(d.last_used_at))}<br>Expires: ${UI.esc(dt(d.expires_at))}</span></div>
-        <button type="button" class="btn btn-sm btn-outline-danger" data-revoke-device="${Number(d.id)}">Revoke</button></div>`).join('')}</div>` : '<p class="small">No active remembered devices.</p>'}
-      <label class="form-label" for="tdPassword">Current password (required to revoke)</label>
-      <div class="input-group mb-3"><input class="form-control form-control-sm" type="password" id="tdPassword" autocomplete="current-password">
-        <button class="btn btn-sm btn-outline-secondary" type="button" id="tdEye" aria-label="Show password"><i class="bi bi-eye"></i></button></div>
-      ${devices.length ? '<button type="button" class="btn btn-sm btn-outline-danger" id="tdRevokeAll">Revoke all remembered devices</button>' : ''}`;
-    UI.modal('Trusted devices', body, null, { size: '', onShow: (wrap) => {
-      const inp = wrap.querySelector('#tdPassword');
-      wrap.querySelector('#tdEye').onclick = () => {
-        inp.type = inp.type === 'password' ? 'text' : 'password';
-        wrap.querySelector('#tdEye').setAttribute('aria-label', inp.type === 'password' ? 'Show password' : 'Hide password');
-      };
-      const revoke = async (action, payload) => {
-        if (!inp.value) { UI.toast('Enter your current password first.', 'error'); inp.focus(); return; }
-        if (!await UI.confirmProceed('Revoke trusted device', 'This remembered device will no longer bypass email verification on its next sign-in.', 'Revoke device')) return;
-        const btns = wrap.querySelectorAll('[data-revoke-device], #tdRevokeAll');
-        btns.forEach(b => b.disabled = true);
-        try {
-          const result = await this.api(action, { ...payload, current_password: inp.value });
-          bootstrap.Modal.getInstance(wrap)?.hide();
-          UI.toast(result.message || 'Device trust removed.');
-        } catch(e) { UI.toast(e.message, 'error'); btns.forEach(b => b.disabled = false); }
-      };
-      wrap.querySelectorAll('[data-revoke-device]').forEach(button => button.onclick = () => revoke('Admin.trusted_devices_revoke', { device_id: Number(button.dataset.revokeDevice) }));
-      wrap.querySelector('#tdRevokeAll')?.addEventListener('click', () => revoke('Admin.trusted_devices_revoke_all', {}));
-    }});
   },
 
   async logout() {
@@ -367,7 +297,6 @@ const App = {
                 <button class="dropdown-item" id="mySig"><i class="bi bi-pen"></i> My e-signature${u.has_signature ? '' : ' <span class="badge-s amber">not set</span>'}</button>
                 <button class="dropdown-item" id="chgPw"><i class="bi bi-key"></i> Change password</button>
                 <button class="dropdown-item" id="chgEmail"><i class="bi bi-envelope-check"></i> Change email</button>
-                <button class="dropdown-item" id="trustDevices"><i class="bi bi-laptop"></i> Trusted devices</button>
                 <div class="dropdown-divider"></div>
                 <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>
               </div>
@@ -400,7 +329,6 @@ const App = {
     document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
     document.getElementById('chgPw').onclick = () => this.passwordScreen();
     document.getElementById('chgEmail').onclick = () => this.emailScreen();
-    document.getElementById('trustDevices').onclick = () => this.trustedDevicesScreen();
     document.getElementById('mySig').onclick = () => UI.signatureModal();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
