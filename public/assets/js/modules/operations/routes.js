@@ -43,9 +43,9 @@ const RouteUI = {
         help: d.routing ? 'Filled in from the road distance when both points are pinned. You may change it (a reason is required).' : 'Type the km (automatic road distance is not set up on the server).' },
       ...UI.distanceFieldDefs().filter(f => f.name !== 'route_option'),
       { type: 'html', col: 12, html: `<div class="rpm-route-distances" aria-label="Distance summary">
-        <div><span>Garage → Pickup</span><strong data-garage-km>Not available</strong></div>
-        <div><span>Pickup → Delivery (billable)</span><strong data-client-km>Enter distance</strong></div>
-        <div><span>Total operational distance</span><strong data-total-km>Not available</strong></div>
+        <div><span>Empty-truck travel · Garage → Pickup</span><strong data-garage-km>Not available</strong></div>
+        <div><span>Loaded delivery · Pickup → Destination (billable)</span><strong data-client-km>Enter distance</strong></div>
+        <div><span>Estimated total journey</span><strong data-total-km>Not available</strong></div>
       </div><p class="rpm-route-distance-note" data-garage-note>Garage distance is optional operational information. The client's billable route remains pickup to delivery.</p>` },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
@@ -215,7 +215,7 @@ const RouteUI = {
     const garageKm = form.querySelector('[data-garage-km]');
     const totalKm = form.querySelector('[data-total-km]');
     const garageNote = form.querySelector('[data-garage-note]');
-    let operationalKm = null, lastPickup = '';
+    let operationalKm = null, lastPickup = '', lastOption = '';
     const updateDistances = () => {
       const value = billable && billable.value !== '' && +billable.value > 0 ? +billable.value : null;
       clientKm.textContent = value === null ? 'Enter distance' : value.toFixed(2) + ' km';
@@ -227,9 +227,11 @@ const RouteUI = {
     updateGarageDistance = async () => {
       if (!w.map || !w.map.picker) return;
       const pickup = w.map.picker.points().pickup;
+      const option = form.querySelector('[name="route_option"]')?.value || UI.Map.cfg().defaultRouteOption;
       const key = pickup ? pickup.lat.toFixed(6) + ',' + pickup.lng.toFixed(6) : '';
-      if (key === lastPickup) return;
+      if (key === lastPickup && option === lastOption) return;
       lastPickup = key;
+      lastOption = option;
       const seq = ++requestSeq;
       if (garageLine) { garageLine.remove(); garageLine = null; }
       clearMarkers(garageArrows);
@@ -243,7 +245,7 @@ const RouteUI = {
         return;
       }
       try {
-        const r = await UI.Map.route(L.latLng(garage), pickup, form.querySelector('[name="route_option"]')?.value || UI.Map.cfg().defaultRouteOption);
+        const r = await UI.Map.route(L.latLng(garage), pickup, option);
         if (seq !== requestSeq) return;
         if (r.available && Number.isFinite(+r.distance_km) && r.geometry) {
           const points = UI.Map.decode(r.geometry);
@@ -264,8 +266,9 @@ const RouteUI = {
     };
     // The picker change callback covers clicks and dragged markers. Do not
     // request on every map mouseup: that wastes routing quota while panning.
+    // The shared widget recalculates the billable leg on this same option
+    // change; this listener independently refreshes the empty-truck leg.
     form.querySelector('[name="route_option"]')?.addEventListener('change', () => {
-      lastPickup = '';
       clientRoad = null;
       clearMarkers(clientArrows);
       updateGarageDistance();
