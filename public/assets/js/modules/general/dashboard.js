@@ -131,6 +131,11 @@ App.page('dashboard', {
     btn.innerHTML = '<i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh';
     btn.onclick = () => ctx.reload();
     ctx.tools.append(stamp, btn);
+    if (role === 'operations_head' || UI.isDispatcher()) {
+      const create = document.createElement('button'); create.type = 'button'; create.className = 'btn btn-sm btn-primary';
+      create.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i> New Trip';
+      create.onclick = () => App.go('trips', { new: 1 }); ctx.tools.append(create);
+    }
 
     const cards = d.cards || [], alerts = d.alerts || [], charts = d.charts || [], tables = d.tables || [];
     const breakdown = RPMDashboard.breakdown(cards, role);

@@ -246,5 +246,5 @@ ok(str_contains($js, 'BATCH_TRIP_PLANNING_V1') && str_contains($js, "'Trips.crea
 echo "\n----------------------------------------\n";
 echo "RESULT: $PASS passed, $FAIL failed\n";
 if ($FAILED) { echo "Failed:\n"; foreach ($FAILED as $f) echo "  - $f\n"; }
-test_server()->exec("DROP DATABASE IF EXISTS `$FRESH`");
+test_drop($FRESH);
 exit($FAIL === 0 ? 0 : 1);

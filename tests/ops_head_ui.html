@@ -1,0 +1,148 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Operations Head UI verification</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css"><link rel="stylesheet" href="../public/assets/css/ops-head.css">
+<div id="app"></div><div id="fixture" style="padding:20px"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/js/core.js"></script><script src="../public/assets/js/map.js"></script>
+<script src="../public/assets/js/modules/general/dashboard.js"></script><script src="../public/assets/js/modules/operations/trips.js"></script><script src="../public/assets/js/modules/operations/trip-planner.js"></script><script src="../public/assets/js/modules/operations/fleet.js"></script><script src="../public/assets/js/modules/operations/clients.js"></script><script src="../public/assets/js/modules/operations/routes.js"></script><script src="../public/assets/js/modules/accounting/funds.js"></script><script src="../public/assets/js/modules/general/reports.js"></script><script src="../public/assets/js/modules/general/documents.js"></script><script src="../public/assets/js/modules/operations/ops-head.js"></script>
+<script src="../public/assets/js/modules/operations/trip-approvals.js"></script>
+<script>
+// Database-free browser fixture. All API responses below are test data, never production records.
+(async () => {
+  const output = document.querySelector('#results'), mount = document.querySelector('#fixture'), checks = [], calls = [];
+  sessionStorage.removeItem('fleetops:operations-planning:1');
+  const assert = (value, name) => { if (!value) throw new Error(name); checks.push('PASS ' + name); };
+  const pause = () => new Promise(resolve => setTimeout(resolve, 30));
+  const clients = [{id: 1, company_name: 'Fixture Client A', rate_types: 'Container|Wing Van|Car Carrier'}, {id: 2, company_name: 'Fixture Client B', rate_types: 'Container'}];
+  const route = client => ({id: +client + 8, route_ref: 'R-' + client, origin_label: 'Fixture Origin ' + client, destination_label: 'Fixture Destination ' + client, distance_km: 75, route_option: 'recommended'});
+  const trip = {id: 10, trip_ref: 'TR-0010', status: 'Pending Review', client: clients[0].company_name, client_id: 1, created_by_name: 'Fixture Dispatcher', truck_type: 'Container', scheduled_at: UI.nowManila(90), pickup_point: 'Fixture Origin', delivery_point: 'Fixture Destination', created_at: UI.nowManila(), attempt_number: 1, dispatch_blockers: [], time_gates: {}, distance_km: 75, intake_source: 'Dispatcher'};
+  const data = {can: {create: true, review: true, manage: true}, clients, trucks: [], crew: [], active: [trip, {...trip, id:11, trip_ref:'TR-0011', status:'Completed', awaiting_arrival:1, plate_number:'AAA-111', vehicle_id:1}, {...trip, id:12, trip_ref:'TR-0012', status:'In Transit', truck_type:'Wing Van'}], history: [{...trip, id:11, trip_ref:'TR-0011', status:'Completed', awaiting_arrival:1}], incidents:[{id:1, incident_ref:'INC-001', trip_ref:trip.trip_ref, trip_id:10, plate_number:'AAA-111', status:'Reported', problem:'Fixture breakdown', location:'Fixture depot', trip_status:'On Hold - Incident Reported', severity:'Minor'}, {id:2, incident_ref:'INC-002', trip_ref:'TR-2', trip_id:11, status:'Resolved', problem:'Fixture tire', location:'Fixture yard', trip_status:'Completed'}], statuses:['Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','In Transit','Completed'], filterOptions:{clients,trucks:[{id:1,plate_number:'AAA-111'}],drivers:[],dispatchers:[]}, checklist:[], fundCategories:[], updateTypes:[], delayCauses:[], incidentTypes:[], fuelLevels:[]};
+  App.me = {user:{id:1,role:'operations_head',full_name:'Fixture Operations Head',username:'fixture',role_label:'Operations Head'},truckTypes:['Car Carrier','Container','Wing Van'],map:{routing:false},notifications:[],unread:0, nav:['dashboard','trips','funds','trucks','crew','clients','routes','maintenance','mechanics','reports','documents'].map(id => ({id,label:id,icon:'bi-grid'}))};
+  document.body.classList.add('operations-head');
+  App.current = {page:'trips',query:{}};
+  App.me.roles = { operations_head: 'Operations Head', container_wingvan_dispatcher: 'Container / Wing Van Dispatcher' };
+  UI.toast = () => {}; UI.confirmProceed = async () => true; UI.routeMap = () => {};
+  const logo = UI.logoTag; UI.logoTag = (...args) => logo(...args).replace('src="assets/', 'src="../public/assets/');
+  bootstrap.Modal.prototype._isAnimated = () => false; bootstrap.Offcanvas.prototype._isAnimated = () => false;
+  let submission = 0, networkFail = false, routeFail = false, batchReject = false, detailStatus = 'Pending Review', fundClosed = false;
+  const routeTypes = ['Container'];
+  App.data = async page => { if (page !== 'trips') throw new Error('Unexpected page'); return data; };
+  App.api = async (action, payload) => {
+    calls.push({action, payload:structuredClone(payload)});
+    if (action === 'Routes.selectable') { if (routeFail) throw new Error('Route service unavailable'); return {routes: routeTypes.includes(payload.truck_type) ? [route(payload.client_id)] : []}; }
+    if (action === 'Trips.create_batch') {
+      submission++; if (networkFail) { networkFail = false; throw new Error('Response interrupted'); }
+      if (batchReject) { batchReject = false; throw Object.assign(new Error('Nothing was created. Route no longer eligible.'), {status:400}); }
+      return {message:'Fixture results returned', results:payload.rows.map((r,i) => ({request_key:r.request_key,result: submission === 1 && i === 1 ? 'Not created' : submission > 2 ? 'Already created' : 'Created',trip_id:submission === 1 && i === 1 ? null : 100+i,trip_ref:'TR-'+(100+i),trip_status:i === 0 ? 'Awaiting Resources' : 'Pre-Assigned',message:'Fixture row result'}))};
+    }
+    if (action === 'Trips.details') return {trip:{...trip, id:+payload.trip_id,status:detailStatus}, funds:[],inspections:[],incidents:[],documents:[],updates:[],events:[],billing:null};
+    if (action === 'Funds.details') return {fund:{id:+payload.fund_id,fund_ref:'FR-1',trip_id:10,trip_ref:'TR-0010',trip_status:fundClosed?'Completed':'Pre-Assigned',status:'Pending Approval',amount:1200,lines:[{category_name:'Fuel',amount:1200}],documents:[],history:[{action:'fund request submitted',created_at:UI.nowManila(),actor:'Fixture Dispatcher'}]}};
+    throw new Error('Unexpected API: '+action);
+  };
+  const ctx = {el:mount,tools:document.createElement('div'),data,query:{new:'1'},page:'trips',setTitle(){},reload(){},setQuery(){}};
+  const render = (page, query={}, source=data) => { ctx.query=query;ctx.data=source;ctx.page=page;App.current={page,query};TripUI.data=data;ctx.tools.innerHTML='';App.pages[page].render(ctx); };
+  const entry = index => mount.querySelectorAll('[data-entry]')[index];
+  const set = (index,name,value) => { const input=entry(index).querySelector('[name='+name+']'); input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true})); };
+  const fill = async (index,client='1',qty=1,assignment='container_wingvan_dispatcher:Day') => { set(index,'client_id',client);set(index,'truck_type','Container');await pause();set(index,'client_route_id',String(+client+8));set(index,'scheduled_at',UI.nowManila(120));set(index,'quantity',qty);set(index,'dispatcher_assignment',assignment);set(index,'delivery_details','Fixture delivery instruction '+client); };
+  const review = () => mount.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+  const confirm = async () => { review();await pause(); };
+  const dashboard = {counts:{pending:2,awaiting:3,road:4},incidents:{open:1},funds:{pending:2},fleet:[{status:'Available',count:5},{status:'Assigned',count:2},{status:'On Trip',count:4},{status:'Under Maintenance',count:1}],schedule:[trip],activity:[{trip_id:10,reference:'TR-0010',action:'trip request created',actor:'Fixture Dispatcher',created_at:UI.nowManila()}]};
+  const preview = new URLSearchParams(location.search).get('preview');
+  if (preview) {
+    App.shell(); const pageContent=document.querySelector('#pageContent');pageContent.innerHTML='<div class="page-head"><div><h1 id="pageTitle" class="page-title"></h1><p id="pageSubtitle" class="page-subtitle"></p></div><div id="pageTools"></div></div><div id="previewBody"></div>';
+    ctx.el=document.querySelector('#previewBody');ctx.tools=document.querySelector('#pageTools');ctx.setTitle=(title,subtitle)=>{document.querySelector('#pageTitle').textContent=title;document.querySelector('#pageSubtitle').textContent=subtitle;};
+    ctx.data=preview==='dashboard'?dashboard:data;ctx.query=preview.startsWith('planner')?{new:1}:{tab:preview==='incidents'?'incidents':'active'};TripUI.data=data;
+    App.pages[preview==='dashboard'?'dashboard':'trips'].render(ctx);output.hidden=true;mount.hidden=true;
+    if(['planner-filled','planner-review'].includes(preview)){
+      routeTypes.push('Car Carrier','Wing Van');
+      for(const [index,type,shift,quantity,client] of [[0,'Wing Van','Day',3,'1'],[1,'Container','Night',2,'2'],[2,'Car Carrier','Day',4,'1']]){
+        if(index)ctx.el.querySelector('[data-add]').click();
+        const put=(name,value)=>{const input=ctx.el.querySelectorAll('[data-entry]')[index].querySelector(`[name=${name}]`);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));};
+        put('client_id',client);put('truck_type',type);await pause();put('client_route_id',String(+client+8));put('scheduled_at',UI.nowManila(120));put('quantity',quantity);put('dispatcher_assignment',(type==='Car Carrier'?'car_carrier_dispatcher':'container_wingvan_dispatcher')+':'+shift);put('delivery_details','Fixture planning instructions');
+      }
+      if(preview==='planner-review')ctx.el.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+    }
+    setTimeout(() => { output.textContent='LAYOUT '+JSON.stringify({viewport:innerWidth,document:document.documentElement.scrollWidth,main:document.querySelector('.main').getBoundingClientRect().width,overflow:[...document.querySelectorAll('#pageContent *')].filter(e=>e.getBoundingClientRect().right>innerWidth+2).slice(0,8).map(e=>[e.tagName,e.className,e.getBoundingClientRect().width])}); },100);
+    return;
+  }
+  try {
+    render('trips',{new:1}); assert(mount.querySelectorAll('[data-entry]').length===1,'Planning starts with one card');
+    assert(entry(0).querySelector('[name=dispatcher_assignment]').disabled&&!entry(0).querySelector('[name=dispatcher_assignment]').value,'No dispatcher or shift selected before truck type');
+    set(0,'truck_type','Container');await pause();let dispatcher=entry(0).querySelector('[name=dispatcher_assignment]');
+    assert(dispatcher.options.length===3&&dispatcher.options[1].text==='Container / Wing Van Dispatcher (Day)'&&dispatcher.options[2].text==='Container / Wing Van Dispatcher (Night)'&&!dispatcher.value,'Container offers exactly Day and Night with an empty placeholder');
+    set(0,'dispatcher_assignment','container_wingvan_dispatcher:Night');set(0,'scheduled_at',UI.nowManila(60));assert(dispatcher.value==='container_wingvan_dispatcher:Night','Changing schedule never changes manual dispatcher shift');
+    set(0,'truck_type','Wing Van');await pause();assert(dispatcher.value==='container_wingvan_dispatcher:Night'&&dispatcher.options.length===3,'Wing Van retains compatible selection and only its two group shifts');
+    set(0,'truck_type','Car Carrier');await pause();assert(!dispatcher.value&&dispatcher.options.length===3&&dispatcher.options[1].text==='Car Carrier Dispatcher (Day)'&&dispatcher.options[2].text==='Car Carrier Dispatcher (Night)','Incompatible type clears selection and offers only Car Carrier shifts');
+    assert(entry(0).textContent.includes('Number of Required Trucks')&&!entry(0).textContent.includes('Number of Trips'),'Quantity label describes required trucks');
+    assert(!mount.textContent.includes('Pickup & Delivery')&&!mount.textContent.includes('Request New Route'),'Planner omits route request and pickup panels');
+    await fill(0,'1',3);set(0,'dispatcher_assignment','');review();assert(!mount.querySelector('[data-review-form]')&&!entry(0).querySelector('[data-dispatcher-error]').hidden,'Missing dispatcher blocks review with inline validation');set(0,'dispatcher_assignment','container_wingvan_dispatcher:Day');
+    assert(mount.querySelector('[data-total]').textContent==='Total Required Trucks: 3','Quantity updates total immediately');
+    mount.querySelector('[data-add]').click();await fill(1,'2',2,'container_wingvan_dispatcher:Night');assert(mount.querySelector('[data-total]').textContent==='Total Required Trucks: 5','Independent entries combine quantities');
+    assert(entry(0).querySelector('[name=dispatcher_assignment]').value==='container_wingvan_dispatcher:Day'&&entry(1).querySelector('[name=dispatcher_assignment]').value==='container_wingvan_dispatcher:Night','Each entry retains its independent single dispatcher');
+    assert(mount.querySelector('[data-entry-count]').textContent.includes('Planning Entries: 2')&&mount.querySelector('[data-entry-count]').textContent.includes('Individual Trip Records to Create: 5'),'Planning summary distinguishes entries, required trucks, and generated records');
+    entry(0).open=false;assert(entry(0).querySelector('summary').textContent.includes('Fixture Client A'),'Collapsed card summarizes client');
+    review(); assert(mount.querySelectorAll('.oh-draft').length===5,'Review expands quantities into separate drafts');
+    assert([...mount.querySelectorAll('[data-review-dispatcher]')].map(e=>e.textContent).join('|')==='Container / Wing Van Dispatcher (Day)|Container / Wing Van Dispatcher (Night)','Review shows the selected group and shift per entry');
+    assert(calls.filter(c=>c.action==='Trips.create_batch').length===0,'Review creates no records');
+    assert(mount.textContent.includes('Fixture delivery instruction 2'),'Review retains grouped instructions');
+    assert(mount.querySelectorAll('[name=container_number]').length===5,'Container overrides available for each draft');
+    const override=mount.querySelector('[name=container_number]');override.value='TEST-001';override.dispatchEvent(new Event('input'));
+    mount.querySelector('[data-back]').click();assert(mount.querySelectorAll('[data-entry]').length===2,'Back to Planning preserves entries');review();
+    assert(mount.querySelector('[name=container_number]').value==='TEST-001','Per-trip override survives planning return');
+    const button=mount.querySelector('[data-confirm]');button.click();button.click();await pause();
+    const sends=calls.filter(c=>c.action==='Trips.create_batch');assert(sends.length===1,'Double click sends only one batch');
+    assert(new Set(sends[0].payload.rows.map(r=>r.request_key)).size===5,'Drafts have unique request keys');
+    assert(sends[0].payload.rows.slice(0,3).every(r=>r.dispatcher_assignment==='container_wingvan_dispatcher:Day')&&sends[0].payload.rows.slice(3).every(r=>r.dispatcher_assignment==='container_wingvan_dispatcher:Night'),'Every generated record inherits its parent dispatcher assignment');
+    assert(sends[0].payload.rows.every(r=>!r.vehicle_id&&!r.driver_id&&!r.helper_id&&!r.driver2_id),'Selecting dispatcher does not copy trucks or crew into generated records');
+    assert(sends[0].payload.rows[0].container_number==='TEST-001'&&!sends[0].payload.rows[1].container_number,'Override affects only its individual trip');
+    assert(sends[0].payload.rows[3].client_id==='2','Independent client reaches batch payload');
+    assert(sends[0].payload.rows[0].pickup_point==='Fixture Origin 1'&&sends[0].payload.rows[0].distance_km===75,'Route API supplies required distance and addresses');
+    assert(mount.textContent.includes('Awaiting Resources')&&mount.textContent.includes('Not created'),'Review displays actual mixed results');
+    const failedKey=sends[0].payload.rows[1].request_key;await confirm();const retry=calls.filter(c=>c.action==='Trips.create_batch').at(-1);
+    assert(retry.payload.rows.length===1&&retry.payload.rows[0].request_key===failedKey,'Retry sends only failed row with original key');
+    assert(mount.querySelector('[data-confirm]').disabled,'Confirm disabled after all rows created');
+    render('trips',{new:1});await fill(0,'1',2);review();networkFail=true;await confirm();
+    assert(mount.querySelector('[data-plan-error]').textContent.includes('Response interrupted'),'Uncertain network response remains visible');
+    assert(mount.querySelector('[name=container_number]').disabled,'Uncertain drafts cannot change before safe retry');
+    const uncertainKeys=calls.filter(c=>c.action==='Trips.create_batch').at(-1).payload.rows.map(r=>r.request_key).join();
+    render('trips',{new:1});assert(mount.querySelector('[data-review-form]')&&mount.querySelector('[name=container_number]').disabled,'Uncertain submission restores after leaving and returning');await confirm();
+    assert(calls.filter(c=>c.action==='Trips.create_batch').at(-1).payload.rows.map(r=>r.request_key).join()===uncertainKeys,'Network retry preserves every request key');
+    assert(mount.textContent.includes('Already created'),'Existing submissions are reported without false creation');
+    render('trips',{new:1});await fill(0);review();batchReject=true;await confirm();assert(!mount.querySelector('[data-back]').disabled,'Server preflight refusal allows planning corrections');assert(mount.querySelector('[data-plan-error]').textContent.includes('Nothing was created'),'Server validation failure stays visible');
+    mount.querySelector('[data-back]').click();assert(mount.querySelector('[data-planning]'),'Planning entries remain editable after verified refusal');
+    render('trips',{new:1});await fill(0,'1',20);entry(0).querySelector('[data-plus]').click();assert(mount.querySelector('[data-total]').textContent==='Total Required Trucks: 20','Stepper respects combined 20-trip limit');
+    assert(mount.querySelector('[data-add]').disabled,'Add Entry disabled at limit');set(0,'quantity',21);review();assert(!mount.querySelector('[data-review-form]'),'Over-limit quantities cannot reach review');
+    set(0,'quantity',1);set(0,'truck_type','Wing Van');await pause();assert(!entry(0).querySelector('[name=client_route_id]').value,'Changing truck type clears incompatible route');
+    assert(entry(0).textContent.includes('No approved routes'),'Empty route state is visible');set(0,'truck_type','Container');await pause();set(0,'client_route_id','9');set(0,'client_id','2');await pause();assert(!entry(0).querySelector('[name=client_route_id]').value,'Changing client clears incompatible route');
+    mount.querySelector('[data-add]').click();assert(mount.querySelectorAll('[data-entry]').length===2,'Additional card can be added');entry(1).querySelector('[data-remove]').click();assert(mount.querySelectorAll('[data-entry]').length===1,'Additional card can be removed');
+    routeFail=true;set(0,'client_id','1');await pause();assert(entry(0).textContent.includes('Route service unavailable'),'Route server errors are visible');routeFail=false;
+    routeTypes.push('Car Carrier','Wing Van');render('trips',{new:1});await fill(0);set(0,'truck_type','Car Carrier');await pause();set(0,'client_route_id','9');set(0,'dispatcher_assignment','car_carrier_dispatcher:Night');review();assert(mount.querySelector('[name=units_planned]')&&!mount.querySelector('[name=container_number]'),'Car Carrier shows cargo units without container fields');
+    const units=mount.querySelector('[name=units_planned]');units.value='8';units.dispatchEvent(new Event('input'));mount.querySelector('[data-back]').click();set(0,'truck_type','Wing Van');await pause();set(0,'client_route_id','9');set(0,'dispatcher_assignment','container_wingvan_dispatcher:Day');review();assert(mount.querySelector('[name=shipment_number]')&&!mount.querySelector('[name=units_planned]'),'Wing Van shows supported shipment fields');await confirm();assert(!calls.filter(c=>c.action==='Trips.create_batch').at(-1).payload.rows[0].units_planned,'Changing type drops incompatible per-trip overrides');
+    render('trips',{tab:'active',group:'pending'});assert(mount.textContent.includes('TR-0010')&&!mount.textContent.includes('TR-0011'),'Approval shortcut filters Pending Review only');
+    assert(mount.textContent.includes('Fixture Dispatcher')&&mount.textContent.includes('Review'),'Approval records show requester and Review action');
+    render('trips',{tab:'active',group:'arrival'});assert(mount.textContent.includes('TR-0011')&&!mount.textContent.includes('TR-0010'),'Completed returning trip appears in Arrival Pending');
+    render('trips',{tab:'history'});assert(mount.textContent.includes('TR-0011'),'Same returning trip remains in History');
+    render('trips',{tab:'active'});const search=mount.querySelector('[name=search]');search.value='Wing Van';search.dispatchEvent(new Event('input',{bubbles:true}));assert(mount.textContent.includes('0 result(s)'),'Active search matches requested essential fields');search.value='TR-0012';search.dispatchEvent(new Event('input',{bubbles:true}));assert(mount.textContent.includes('1 result(s)'),'Active search filters reference');
+    render('trips',{tab:'incidents',incident:'open'});assert(mount.textContent.includes('INC-001')&&!mount.textContent.includes('INC-002'),'Incident queue filters open records');
+    mount.querySelector('[data-incident]').click();assert(document.querySelector('.app-drawer').textContent.includes('Maintenance personnel'),'Incident details preserve maintenance responsibility');
+    render('dashboard',{},dashboard);assert(ctx.tools.textContent.includes('Refresh')&&!ctx.tools.textContent.includes('New Trip'),'Dashboard header omits New Trip');assert(mount.textContent.includes("Today's Trip Schedule")&&mount.textContent.includes('Recent Activity'),'Dashboard renders schedule and real event payload');
+    assert(mount.querySelector('a[href="#trips?view=approvals"]'),'Dashboard count targets dedicated approvals');
+    render('dashboard',{}, {counts:{pending:0,awaiting:0,road:0},incidents:{open:0},funds:{pending:0},fleet:[],schedule:[],activity:[]});assert(mount.textContent.includes('No trips scheduled today.')&&mount.textContent.includes('No operational activity recorded.'),'Dashboard handles genuinely empty data');
+    render('dashboard',{}, {});assert(mount.textContent.includes('Unavailable')&&mount.textContent.includes('Schedule unavailable'),'Dashboard errors do not invent zero counts');
+    TripUI.data=null;await TripUI.open(10);assert(TripUI.data===data,'Dashboard can open a drawer before Trip Management is loaded');
+    render('funds',{}, {funds:[{id:1,status:'Pending Approval',fund_ref:'FR-1',trip_ref:'TR-0010',amount:1200,created_at:UI.nowManila(),requested_by_name:'Fixture Dispatcher'}]});await OpsHead.openFund(1);let drawer=document.querySelector('.app-drawer');
+    assert(drawer.querySelector('[data-approve]')&&drawer.querySelector('[data-reject]'),'Fund drawer has approval and rejection controls');assert(!drawer.textContent.includes('Confirm Release'),'Fund drawer does not grant Finance release');
+    fundClosed=true;await OpsHead.openFund(1);assert(!document.querySelector('.app-drawer [data-approve]'),'Closed trip funds do not expose approval');fundClosed=false;
+    render('routes',{}, {routes:[{id:9,client:'Client A',truck_type:'Container',origin_label:'Origin',destination_label:'Destination',status:'Approved',rate_type:'Flat',rate_amount:1200,distance_km:75},{id:10,client:'Client B',truck_type:'Container',origin_label:'Other',destination_label:'Destination',status:'Pending Rate'}],can:{request:true}});assert(mount.textContent.includes('Client A')&&!mount.textContent.includes('Client B'),'Approved routes exclude pending requests');
+    await TripUI.open(10);drawer=document.querySelector('.app-drawer');assert(drawer.querySelectorAll('.oh-detail-section').length===11,'Trip drawer has eleven collapsible detail sections');assert(drawer.textContent.includes('Operational Readiness')&&drawer.textContent.includes('Trip Progress'),'Readiness is separate from visual progress');assert(drawer.querySelector('.oh-drawer-footer [data-tact=review]'),'Existing contextual action moves to sticky footer');assert(!drawer.querySelector('[data-tact=dispatch]')&&!drawer.querySelector('[data-tact=arrival]'),'Operations Head drawer omits Dispatcher actions');
+    detailStatus='Completed';await TripUI.open(11);assert(!document.querySelector('.app-drawer [data-tact=review]')&&!document.querySelector('.app-drawer [data-tact=reassign]'),'Completed trip drawer suppresses active management actions');detailStatus='Pending Review';
+    render('crew',{}, {can:{edit:false},crew:[{id:1,full_name:'Fixture Driver',person_type:'Driver',active:1,duty_shift:'Day',availability:'Available',regular_truck:'AAA-111'}],attendanceContext:{shift:'Day',date:'2026-11-10'},attendance:[{personnel_id:1,status:'Present'}]});assert(mount.textContent.includes('Present')&&mount.textContent.includes('AAA-111'),'Personnel lists assigned truck and actual attendance readiness');
+    render('trucks',{}, {can:{edit:false},alertDays:30,trucks:[{id:1,plate_number:'AAA-111',truck_type:'Container',status:'Available',active:1,reg_days:null,ins_days:null}]});assert(mount.textContent.includes('AAA-111')&&mount.querySelector('[data-act=view]'),'Truck Masterlist retains searchable records and details action');
+    render('clients',{}, {can:{edit:false,rate:false},clients:[{id:1,company_name:'Fixture Client A',status:'Active',client_code:'C-1'}],defaultTerms:30});assert(mount.textContent.includes('Fixture Client A')&&mount.querySelector('[data-act=view]'),'Client Masterlist retains records and authorized profile access');
+    render('documents',{}, {documents:[],entityLabels:{trip:'Trips'},alertDays:30});assert(mount.querySelector('[data-docfm-search-input]')&&mount.textContent.includes('No documents match'),'Documents retains search and empty-state behavior');
+    render('reports',{}, {period:{from:'2026-11-01',to:'2026-11-10',prevFrom:'2026-10-22',prevTo:'2026-10-31'},filterOptions:{clients:[],trucks:[],people:[],dispatchers:[]},statuses:[],sections:{trips:{title:'Trip Summary',tables:[],cards:[],charts:[]}}});assert(mount.querySelector('.oh-report-category select')&&ctx.tools.textContent.includes('Print'),'Reports retains filters/printing and adds category selection');
+    App.shell();assert(document.querySelectorAll('.sidebar-nav [data-ops-section]').length===4,'Sidebar provides four trip workspace shortcuts');assert(document.querySelector('.sidebar-nav').textContent.includes('Monitoring & Records')&&document.querySelector('.sidebar-nav').textContent.includes('Trip Fund Approvals'),'Sidebar uses requested sections and labels');assert(!document.querySelector('#sidebarMore')&&!document.querySelector('.sidebar-nav [data-nav=maintenance]')&&!document.querySelector('.sidebar-nav [data-nav=mechanics]'),'Operations Head omits More Tools and standalone maintenance pages');
+    document.querySelector('.oh-collapse-nav').click();assert(document.body.classList.contains('oh-nav-collapsed'),'Desktop navigation collapses');document.querySelector('.oh-collapse-nav').click();
+    App.me.user.role='container_wingvan_dispatcher';App.shell();assert(!document.body.classList.contains('operations-head')&&document.querySelectorAll('[data-trip-section]').length===4,'Dispatcher retains existing navigation');
+    output.textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+  } catch(ex) { output.textContent=checks.join('\n')+'\nFAIL '+ex.stack+'\nRESULT: '+checks.length+' passed, 1 failed'; }
+})();
+</script></html>

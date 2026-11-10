@@ -1,0 +1,104 @@
+<!doctype html><meta charset="utf-8"><title>Operations UI smoke tests</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css">
+<div id="fixture"></div><pre id="results">RUNNING</pre>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../public/assets/js/core.js"></script>
+<script src="../public/assets/js/map.js"></script>
+<script src="../public/assets/js/modules/operations/trips.js"></script>
+<script src="../public/assets/js/modules/operations/trip-planner.js"></script>
+<script>
+// Browser-only fixture: every API is mocked; no network, account, map provider or database.
+(async () => {
+  const output = document.querySelector('#results'), checks = [], calls = [];
+  const assert = (ok, label) => { if (!ok) throw new Error(label); checks.push('PASS ' + label); };
+  const pause = () => new Promise(resolve => setTimeout(resolve, 40));
+  const mount = document.querySelector('#fixture');
+  let attempt = 0;
+  App.me = { user: { id: 1, role: 'operations_head' }, truckTypes: ['Car Carrier', 'Container', 'Wing Van'], map: { routing: false } };
+  App.current = { page: 'trips', query: {new: '1'} };
+  UI.mapPicker = () => null;
+  UI.toast = () => {};
+  bootstrap.Modal.prototype._isAnimated = () => false; // Deterministic headless fixture, no transition scheduling.
+  UI.confirmProceed = async () => true;
+  App.api = async (action, payload) => {
+    if (action === 'Routes.selectable') return {routes: payload.client_id === '1' && payload.truck_type === 'Container' ? [{id: 9, route_ref: 'R-9', origin_label: 'Approved origin', destination_label: 'Approved destination', distance_km: 50}] : []};
+    if (action !== 'Trips.create_batch') throw new Error('Unexpected API: ' + action);
+    calls.push(structuredClone(payload)); attempt++;
+    return {message: 'Mock submission', results: payload.rows.map((r, i) => ({request_key: r.request_key, result: attempt === 1 && i === 1 ? 'Not created' : 'Created', trip_id: attempt === 1 && i === 1 ? null : 100 + i, trip_ref: 'TR-' + i, message: 'Mock result'}))};
+  };
+  TripUI.data = {clients: [{id: 1, company_name: 'Client A', rate_types: 'Container|Wing Van'}, {id: 2, company_name: 'Client B', rate_types: 'Container'}]};
+  const ctx = {el: mount, tools: document.createElement('div'), setTitle() {}};
+  const form = () => mount.querySelector('form');
+  const field = n => form().querySelector('[name="' + n + '"]');
+  const set = (n, v) => { const f = field(n); f.value = v; f.dispatchEvent(new Event('change', {bubbles:true})); };
+  const fill = async (client, type, approved, qty) => {
+    set('client_id', client); set('truck_type', type); await pause();
+    if (approved) { set('client_route_id', '9'); await pause(); }
+    else { set('pickup_point', 'Manual origin'); set('delivery_point', 'Manual destination'); set('distance_km', '75'); }
+    set('scheduled_at', UI.nowManila(120));
+    form().querySelector('#tripQuantity').value = qty;
+    form().querySelector('#tripAddresses').checked = true;
+  };
+  const submitEntry = () => form().dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
+  const queueRows = () => mount.querySelectorAll('[data-queue] tbody tr');
+  const submitReview = async () => {
+    mount.querySelector('[data-review]').click();
+    await new Promise(resolve => setTimeout(resolve, 400));
+    const modal = document.querySelector('.modal');
+    assert(!!modal, 'Review step opens');
+    modal.querySelector('#tripsReviewed').checked = true;
+    modal.querySelector('form').dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
+    await new Promise(resolve => setTimeout(resolve, 400));
+  };
+  try {
+    TripUI.newPage(ctx); await pause();
+    await fill('1', 'Container', true, 2); submitEntry();
+    assert(queueRows().length === 2, 'Quantity expands into two independent trip rows');
+    assert(mount.querySelector('[data-queue]').textContent.includes('Approved route selected'), 'Approved route is labeled');
+    await fill('2', 'Container', false, 1); submitEntry();
+    assert(queueRows().length === 3, 'Another client adds an independent entry');
+    assert(mount.querySelector('[data-queue]').textContent.includes('follow-up required'), 'Manual fallback carries approval warning');
+    mount.querySelector('[data-edit]').click(); await pause();
+    assert(form().querySelector('#tripQuantity').disabled, 'Expanded trip is edited independently');
+    form().querySelector('#tripAddresses').checked = true; submitEntry();
+    assert(queueRows().length === 3, 'Editing retains trip count');
+    await submitReview();
+    assert(calls.length === 1 && calls[0].rows.length === 3, 'Review submits all three trips through existing batch API');
+    assert(new Set(calls[0].rows.map(r => r.request_key)).size === 3, 'Expanded trips have unique retry keys');
+    assert(calls[0].rows[0].client_route_id === '9' && calls[0].rows[2].client_id === '2', 'Client and approved route survive serialization');
+    await submitReview();
+    assert(calls[1].rows.length === 1, 'Retry sends only the failed trip (' + calls.map(c => c.rows.length).join(',') + ')');
+    assert(calls[1].rows[0].request_key === calls[0].rows[1].request_key, 'Retry preserves the failed trip key');
+    assert(mount.querySelector('[data-review]').disabled, 'All-created queue cannot submit again');
+    TripUI.newPage(ctx); await fill('2', 'Container', false, 21); submitEntry();
+    assert(queueRows().length === 0 && calls.length === 2, 'Invalid quantity creates no entries or requests');
+    App.me.user.role = 'car_carrier_dispatcher'; TripUI.newPage(ctx); await pause();
+    assert([...field('truck_type').options].filter(o => o.value).every(o => o.value === 'Car Carrier'), 'Dispatcher truck types stay role-scoped');
+    assert(mount.textContent.includes('Operations Head for approval'), 'Dispatcher sees request approval workflow');
+    App.me.user.role = 'operations_head';
+    const trip = {id: 1, trip_ref: 'T-1', status: 'Pending Review', client: 'Client A', truck_type: 'Container', scheduled_at: UI.nowManila(120), pickup_point: 'A', delivery_point: 'B'};
+    ctx.data = {can: {create: true}, clients: TripUI.data.clients, active: [trip, {...trip, id: 2, trip_ref: 'T-2', status: 'In Transit', truck_type: 'Wing Van'}], history: [], incidents: [{id: 1, status: 'Reported', incident_ref: 'INC-1', incident_at: UI.nowManila(), trip_id: 1}, {id: 2, status: 'Resolved', incident_ref: 'INC-2', incident_at: UI.nowManila(), trip_id: 2}], filterOptions: {clients: [], trucks: [], drivers: [], dispatchers: []}};
+    ctx.query = {tab: 'active'};
+    App.pages.trips.render(ctx);
+    const status = mount.querySelector('#tbStatus'); status.value = 'Pending Review'; status.dispatchEvent(new Event('change'));
+    assert(mount.querySelector('#tbCount').textContent.includes('of 1'), 'Active Trips filters by status');
+    const type = mount.querySelector('#tbType'); type.value = 'Wing Van'; type.dispatchEvent(new Event('change'));
+    assert(mount.querySelector('#tbCount').textContent === '0 trip(s)', 'Active filters combine');
+    ctx.query = {tab: 'history'}; App.pages.trips.render(ctx);
+    assert(mount.querySelector('[data-tab="history"]').getAttribute('aria-selected') === 'true', 'Trip History deep link selects correct screen');
+    ctx.query = {tab: 'incidents'}; App.pages.trips.render(ctx);
+    const incidentStatus = mount.querySelector('#incidentStatus'); incidentStatus.value = 'open'; incidentStatus.dispatchEvent(new Event('change'));
+    assert(mount.querySelector('[data-incident-table]').textContent.includes('INC-1') && !mount.querySelector('[data-incident-table]').textContent.includes('INC-2'), 'Incidents filter excludes resolved records');
+    const app = document.createElement('div'); app.id = 'app'; document.body.append(app);
+    App.me.user.full_name = 'Fixture User'; App.me.user.username = 'fixture'; App.me.notifications = []; App.me.unread = 0;
+    const nav = ['dashboard', 'trips', 'funds', 'trucks', 'crew', 'clients', 'routes', 'documents', 'reports'].map(id => ({id, label:id, icon:'bi-grid'}));
+    App.me.nav = nav; App.shell();
+    assert(app.querySelectorAll('[data-trip-section]').length === 4, 'Operations Head sidebar has four trip workflow links');
+    assert(!!app.querySelector('a[href="#routes"]'), 'Operations Head keeps Client Routes');
+    App.me.user.role = 'container_wingvan_dispatcher'; App.me.nav = nav.filter(n => !['routes', 'reports'].includes(n.id)); App.shell();
+    assert(app.querySelectorAll('[data-trip-section]').length === 4, 'Dispatcher sidebar has four trip workflow links');
+    assert(!app.querySelector('a[href="#routes"]') && app.textContent.includes('My Trip Funds'), 'Dispatcher sidebar preserves permissions and personal fund label');
+    output.textContent = checks.join('\n') + '\nRESULT: ' + checks.length + ' passed, 0 failed';
+  } catch (e) { output.textContent = checks.join('\n') + '\nFAIL ' + e.stack; }
+})();
+</script>

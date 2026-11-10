@@ -31,6 +31,7 @@ core('Access');
 
 const NAME_RULE = '/^[a-z0-9_]+_test$/';
 $FRESH = envValue('DB_NAME'); $UPGRADE = envValue('TEST_DB_UPGRADE'); $PARTIAL = envValue('TEST_DB_PARTIAL');
+test_guard([$FRESH, $UPGRADE, $PARTIAL]);
 foreach ([$FRESH, $UPGRADE, $PARTIAL] as $n) {
     if (!preg_match(NAME_RULE, $n)) { fwrite(STDERR, "Refused: database name '$n' does not end with _test. Use tests/run_route_tests.php.\n"); exit(2); }
 }
@@ -71,25 +72,9 @@ function fails(callable $fn, string $name, ?int $code = null, string $contains =
 function section(string $t): void { echo "\n== $t ==\n"; }
 
 /** Raw connection without a selected database (only used for the _test databases). */
-function server(): PDO {
-    static $s = null;
-    if ($s) return $s;
-    return $s = new PDO('mysql:host=' . envValue('DB_HOST') . ';port=' . envValue('DB_PORT') . ';charset=utf8mb4', envValue('DB_USER'), envValue('DB_PASS'),
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
-}
-function conn(string $db): PDO {
-    must((bool)preg_match(NAME_RULE, $db), 'refused');
-    $p = new PDO('mysql:host=' . envValue('DB_HOST') . ';port=' . envValue('DB_PORT') . ';dbname=' . $db . ';charset=utf8mb4', envValue('DB_USER'), envValue('DB_PASS'),
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]);
-    must($p->query('SELECT DATABASE()')->fetchColumn() === $db, 'connected to the wrong database');
-    return $p;
-}
-/** Drops and re-creates ONE disposable test database (guarded by the _test name rule). */
-function recreate(string $db): void {
-    if (!preg_match(NAME_RULE, $db)) { fwrite(STDERR, "Refused to reset $db\n"); exit(2); }
-    server()->exec("DROP DATABASE IF EXISTS `$db`");
-    server()->exec("CREATE DATABASE `$db` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-}
+function server(): PDO { return test_server(); }
+function conn(string $db): PDO { return test_conn($db); }
+function recreate(string $db): void { test_recreate($db); }
 /** Imports SQL text (same splitting rule as scripts/seed_test_data.php). */
 function importSql(PDO $p, string $sql): void {
     $sql = (string)preg_replace('/^\s*--.*$/m', '', $sql);

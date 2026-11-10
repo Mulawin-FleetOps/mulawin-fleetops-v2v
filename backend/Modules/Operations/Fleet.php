@@ -17,6 +17,7 @@ declare(strict_types=1);
 core('FleetState');
 core('Settings');
 core('Files');
+core('DispatcherAttendance');
 
 final class Fleet {
     private const EDIT = ['admin', 'operations_head'];
@@ -26,6 +27,14 @@ final class Fleet {
     // READ
     // =================================================================
     public static function read(array $u, string $page, array $q): array {
+        if(roleIsDispatcher($u['role'])){
+            if(($q['view']??'')==='attendance')return DispatcherAttendance::read($u,$q);
+            return self::dispatcherAvailability($u);
+        }
+        if (($q['view'] ?? '') === 'availability') {
+            must(roleIsDispatcher($u['role']), 'Only dispatchers can open this availability view.', 403);
+            return self::dispatcherAvailability($u);
+        }
         $p = db();
         if ($page === 'trucks') {
             $data = readSections([
@@ -61,6 +70,50 @@ final class Fleet {
         ]);
         $data['alertDays'] = Settings::value('license_alert_days');
         $data['can'] = ['edit' => hasRole($u, ...self::EDIT)];
+        if ($u['role'] === 'operations_head') {
+            core('CrewAttendance');
+            $shift = CrewAttendance::shiftFor();
+            $data['attendanceContext'] = $shift;
+            $data = mergeSections($data, [
+                'attendance' => fn() => many($p, 'SELECT personnel_id, status FROM attendance_marks WHERE duty_date=? AND duty_shift=? AND personnel_id IS NOT NULL', [$shift['date'], $shift['shift']]),
+            ]);
+        }
+        return $data;
+    }
+
+    /** Read-only operational projection; no unverified shared personnel pool. */
+    private static function dispatcherAvailability(array $u): array {
+        $p = db(); core('CrewAttendance');
+        $types = $u['role'] === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container', 'Wing Van'];
+        $marks = implode(',', array_fill(0, count($types), '?'));
+        $shift = CrewAttendance::shiftFor();
+        [$tripScope,$tripArgs]=DispatcherScope::tripSql($u);
+        $data = readSections([
+            'trucks' => fn() => many($p, "SELECT v.id, v.plate_number, v.truck_type, v.status, v.status_reason, v.assigned_driver_id, v.assigned_helper_id,
+                t.trip_ref, t.status AS trip_status, d.full_name AS driver_name, h.full_name AS helper_name,
+                (SELECT m.job_ref FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1 LIMIT 1) AS open_job,
+                (SELECT m.status FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1 LIMIT 1) AS open_job_status
+                FROM vehicles v LEFT JOIN trip_assignments a ON a.resource_type='vehicle' AND a.resource_id=v.id
+                LEFT JOIN trips t ON t.id=a.trip_id $tripScope LEFT JOIN personnel d ON d.id=v.assigned_driver_id LEFT JOIN personnel h ON h.id=v.assigned_helper_id
+                WHERE v.active=1 AND v.truck_type IN ($marks) ORDER BY v.plate_number", [...$tripArgs,...$types]),
+            'personnel' => function() use($p,$u,$shift,$tripScope,$tripArgs){[$personScope,$personArgs]=DispatcherScope::personnelSql($u);return many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, pe.duty_shift, pe.license_expiry,
+                (SELECT GROUP_CONCAT(vr.plate_number ORDER BY vr.plate_number SEPARATOR ', ') FROM vehicles vr WHERE vr.active=1 AND ((pe.person_type='Driver' AND vr.assigned_driver_id=pe.id) OR (pe.person_type='Helper' AND vr.assigned_helper_id=pe.id))) AS regular_truck,
+                t.trip_ref, v.plate_number, am.status AS attendance_status
+                FROM personnel pe LEFT JOIN trip_assignments a ON a.resource_type='person' AND a.resource_id=pe.id
+                LEFT JOIN trips t ON t.id=a.trip_id $tripScope LEFT JOIN vehicles v ON v.id=t.vehicle_id
+                LEFT JOIN attendance_marks am ON am.personnel_id=pe.id AND am.duty_date=? AND am.duty_shift=?
+                WHERE pe.active=1 $personScope ORDER BY pe.person_type,pe.full_name", [...$tripArgs,$shift['date'], $shift['shift'], ...$personArgs]);},
+        ]);
+        $data['attendanceContext'] = $shift;
+        $allowed=array_map('intval',array_column($data['personnel']??[],'id'));
+        foreach($data['trucks']??[] as $index=>$truck)foreach(['driver','helper'] as $role){$key='assigned_'.$role.'_id';if(!empty($truck[$key])&&!in_array((int)$truck[$key],$allowed,true)){$data['trucks'][$index][$key]=null;$data['trucks'][$index][$role.'_name']=null;}}
+        foreach($data['trucks']??[] as $index=>$truck){$why=FleetState::truckBlocker($p,(int)$truck['id']);
+            if($why&&str_contains($why,' is already on '))$why=$truck['plate_number'].' is held by another active trip.';
+            $driver=$data['trucks'][$index]['assigned_driver_id'];
+            if(!$why&&!$driver)$why='No verified regular driver is linked.';
+            if(!$why){try{$why=DispatcherAttendance::blocker($p,$u,(int)$driver);}catch(BusinessRuleException $e){$why='Regular driver operational scope needs verification.';}}
+            $data['trucks'][$index]['assignment_reason']=$why;$data['trucks'][$index]['assignment_available']=$why===null;
+        }
         return $data;
     }
 
@@ -222,6 +275,7 @@ final class Fleet {
     private static function truckDetails(array $u, array $d): array {
         must(Access::canOpen($u, 'trucks'), 'Not allowed.', 403);
         $id = idField($d, 'id'); $p = db();
+        if(roleIsDispatcher($u['role'])){DispatcherScope::truck($p,$u,$id);$data=self::dispatcherAvailability($u);return ['truck'=>array_values(array_filter($data['trucks'],fn($r)=>(int)$r['id']===$id))[0]??null];}
         $v = one($p, 'SELECT v.*, d.full_name AS driver_name, h.full_name AS helper_name FROM vehicles v LEFT JOIN personnel d ON d.id=v.assigned_driver_id LEFT JOIN personnel h ON h.id=v.assigned_helper_id WHERE v.id=?', [$id]);
         must((bool)$v, 'Truck not found.', 404);
         return [
@@ -339,6 +393,7 @@ final class Fleet {
     private static function crewDetails(array $u, array $d): array {
         must(Access::canOpen($u, 'crew') || Access::canOpen($u, 'trucks'), 'Not allowed.', 403);
         $id = idField($d, 'id'); $p = db();
+        if(roleIsDispatcher($u['role'])){DispatcherScope::person($p,$u,$id);$data=self::dispatcherAvailability($u);return ['person'=>array_values(array_filter($data['personnel'],fn($r)=>(int)$r['id']===$id))[0]??null];}
         $pe = one($p, 'SELECT * FROM personnel WHERE id=?', [$id]);
         must((bool)$pe, 'Person not found.', 404);
         return [

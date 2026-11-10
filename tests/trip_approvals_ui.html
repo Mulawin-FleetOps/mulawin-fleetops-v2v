@@ -1,0 +1,127 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trip Approvals fixture</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css"><link rel="stylesheet" href="../public/assets/css/ops-head.css">
+<div id="app"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/js/core.js"></script><script src="../public/assets/js/map.js"></script>
+<script src="../public/assets/js/modules/general/dashboard.js"></script><script src="../public/assets/js/modules/operations/trips.js"></script><script src="../public/assets/js/modules/operations/trip-planner.js"></script><script src="../public/assets/js/modules/operations/fleet.js"></script><script src="../public/assets/js/modules/operations/clients.js"></script><script src="../public/assets/js/modules/operations/routes.js"></script><script src="../public/assets/js/modules/accounting/funds.js"></script><script src="../public/assets/js/modules/general/reports.js"></script><script src="../public/assets/js/modules/general/documents.js"></script><script src="../public/assets/js/modules/operations/ops-head.js"></script><script src="../public/assets/js/modules/operations/trip-approvals.js"></script>
+<script>
+// Local test data only. This fixture replaces every application API/data request.
+(async()=>{
+  const output=document.querySelector('#results'), checks=[], writes=[], runtimeErrors=[];
+  window.addEventListener('unhandledrejection',event=>runtimeErrors.push(String(event.reason?.stack||event.reason)));
+  const assert=(condition,label)=>{if(!condition)throw new Error(label);checks.push('PASS '+label);};
+  const pause=()=>new Promise(resolve=>setTimeout(resolve,35));
+  const wait=async predicate=>{for(let i=0;i<120;i++){if(predicate())return;await pause();}throw new Error('UI did not settle');};
+  const base={client_id:1,client:'Fixture Alpha Logistics',truck_type:'Container',pickup_point:'Fixture Tanauan',delivery_point:'Fixture Malvar',scheduled_at:UI.nowManila(180),created_at:'2026-11-10 08:00:00',created_by:2,created_by_name:'Fixture Container Dispatcher',intake_source:'Dispatcher',status:'Pending Review',distance_km:25,attempt_number:1,delivery_details:'Fixture delivery instructions',booking_reference:'BOOK-1',container_number:'TEST-123',container_size:'20 ft',seal_number:'SEAL-1',consignee:'Fixture consignee',time_gates:{},dispatch_blockers:[]};
+  const confirmed={event_type:'trip details confirmed by Operations Head',to_status:'Pending Review',created_at:'2026-11-10 09:00:00',actor:'Fixture Operations Head'};
+  const rejected={event_type:'trip request rejected',to_status:'Rejected',created_at:'2026-11-10 09:10:00',notes:'Fixture incomplete details',actor:'Fixture Operations Head'};
+  const records=[
+    {...base,id:1,trip_ref:'REQ-PENDING',events:[]},
+    {...base,id:2,trip_ref:'REQ-COMPLETED',status:'Completed',approved_by:1,approved_at:'2026-11-10 09:00:00',events:[confirmed]},
+    {...base,id:3,trip_ref:'REQ-REJECTED',status:'Rejected',cancel_reason:'Fixture incomplete details',events:[rejected]},
+    {...base,id:4,trip_ref:'OPS-AUTO',intake_source:'Operations Head',approved_by:1,approved_at:'2026-11-10 09:00:00',status:'Pre-Assigned',events:[]},
+    {...base,id:5,trip_ref:'REQ-WAITING',status:'Awaiting Resources',approved_by:1,approved_at:'2026-11-10 09:00:00',events:[confirmed]},
+    {...base,id:6,trip_ref:'REQ-UNCLASSIFIED',status:'Cancelled',events:[]},
+  ];
+  const options={clients:[{id:1,company_name:base.client}],requesters:[{id:2,full_name:base.created_by_name}]};
+  App.me={user:{id:1,role:'operations_head',full_name:'Fixture Operations Head',username:'fixture',role_label:'Operations Head'},roles:{operations_head:'Operations Head',container_wingvan_dispatcher:'Container Dispatcher'},truckTypes:['Car Carrier','Container','Wing Van'],map:{routing:false},notifications:[],unread:0,nav:['dashboard','trips','funds','trucks','crew','clients','routes','maintenance','mechanics','reports','documents'].map(id=>({id,label:id,icon:'bi-grid'}))};
+  UI.mapPicker=()=>null;UI.routeMap=()=>{};UI.toast=()=>{};
+  const logo=UI.logoTag;UI.logoTag=(...args)=>logo(...args).replace('src="assets/','src="../public/assets/');
+  bootstrap.Modal.prototype._isAnimated=()=>false;bootstrap.Offcanvas.prototype._isAnimated=()=>false;
+  let serverError=false, concurrent=false;
+  App.api=async(action,payload)=>{
+    if(action==='Routes.selectable')return {routes:[]};
+    const t=records.find(t=>t.id===+payload.trip_id);
+    if(action==='Trips.details')return {trip:{...t},events:structuredClone(t.events||[]),documents:[],inspections:[],funds:[],incidents:[],updates:[]};
+    if(action==='Trips.review'){
+      writes.push(structuredClone(payload));await pause();
+      if(serverError){serverError=false;throw Object.assign(new Error('Fixture server validation failed'),{status:400});}
+      if(concurrent){concurrent=false;t.status='Awaiting Resources';t.approved_by=1;t.approved_at='2026-11-10 09:00:00';t.events=[confirmed];throw Object.assign(new Error('Cannot review: already processed by another request'),{status:409});}
+      if(t.status!=='Pending Review')throw Object.assign(new Error('Already processed'),{status:409});
+      if(payload.decision==='approve'){t.status='Awaiting Resources';t.approved_by=1;t.approved_at='2026-11-10 09:00:00';t.events.push(confirmed);}
+      else{t.status='Rejected';t.cancel_reason=payload.reason;t.events.push({...rejected,notes:payload.reason});}
+      return {message:payload.decision==='approve'?'No free resources yet. The trip is "Awaiting Resources".':'Request rejected.'};
+    }
+    throw new Error('Unexpected API '+action);
+  };
+  App.data=async(page,q={})=>{
+    if(q.view!=='approvals')return {active:[],history:[],incidents:[],can:{create:true},statuses:[],filterOptions:{clients:[],trucks:[]}};
+    let filtered=records.filter(t=>t.intake_source==='Dispatcher');
+    filtered=filtered.filter(t=>(!q.q||[t.trip_ref,t.client,t.pickup_point,t.delivery_point,t.created_by_name].join(' ').toLowerCase().includes(q.q.toLowerCase()))&&(!q.client_id||+q.client_id===t.client_id)&&(!q.requester_id||+q.requester_id===t.created_by)&&(!q.truck_type||q.truck_type===t.truck_type)&&(!q.request_from||t.created_at.slice(0,10)>=q.request_from)&&(!q.request_to||t.created_at.slice(0,10)<=q.request_to));
+    const counts={pending:0,approved:0,rejected:0,unclassified:0};filtered.forEach(t=>counts[OpsHead.approvalCategory(t,t.events)||'unclassified']++);
+    const category=q.approval||'pending', rows=filtered.filter(t=>OpsHead.approvalCategory(t,t.events)===category),pages=Math.max(1,Math.ceil(rows.length/12)),pageNumber=Math.min(+(q.approval_page||1),pages);
+    return {approval:{category,counts,total:rows.length,page:pageNumber,pages,pageSize:12,rows:rows.slice((pageNumber-1)*12,pageNumber*12).map(t=>({...t,approval_category:category}))},filterOptions:options};
+  };
+  App.shell();
+  const go=async q=>{history.replaceState(null,'','#trips?'+new URLSearchParams(q));await App.route();};
+  App.go=(page,q={})=>{history.replaceState(null,'','#'+page+'?'+new URLSearchParams(q));return App.route();};
+  const root=()=>document.querySelector('#pageBody');
+  const open=async id=>{await OpsHead.openApproval(id,OpsHead.approvalContext);await pause();return document.querySelector('.app-drawer');};
+  const preview=new URLSearchParams(location.search).get('preview');
+  if(preview){await go({view:'approvals'});if(preview==='drawer')await open(1);output.hidden=true;output.textContent='PREVIEW READY';return;}
+  try{
+    await go({view:'approvals'});
+    assert(document.querySelector('#pageTitle').textContent==='Trip Approvals','Approval route has dedicated page title');
+    assert(document.title.startsWith('Trip Approvals')&&document.querySelector('#crumbs').textContent==='Trip Approvals','Browser title and breadcrumb identify approval workspace');
+    assert(document.querySelector('#pageSubtitle').textContent==='Review and process dispatcher-submitted trip requests.','Approval subtitle is exact');
+    assert(!root().querySelector('.oh-tabs')&&!root().textContent.includes('Arrival Pending'),'Monitoring tabs and groups omitted');
+    assert(!document.querySelector('#pageTools').textContent.includes('New Trip'),'Approval header omits New Trip');
+    assert(root().querySelectorAll('.oh-metric').length===3,'Exactly three approval cards');
+    assert(root().querySelector('.oh-metric.selected').textContent.includes('Pending Review'),'Pending Review selected by default');
+    assert([...root().querySelectorAll('.oh-metric strong')].map(e=>e.textContent).join()==='1,2,1','Decision counts exclude Operations Head trips and retain completed approvals');
+    assert(root().textContent.includes('incomplete historical evidence'),'Unclassified historical requests are disclosed');
+    assert(root().querySelector('[data-review-request]').textContent==='Review','Pending rows expose Review rather than decisions');
+    assert(!root().querySelector('[data-approve-trip]')&&!root().querySelector('[data-reject-trip]'),'No approve/reject controls on table rows');
+    assert(root().querySelector('input[name=q]').placeholder==='Search trip, client, route, or requester...','Focused search placeholder');
+    assert(root().querySelector('[data-advanced-fields]').hidden,'Advanced filters collapsed initially');
+    assert(document.querySelector('[data-ops-section=approvals]').classList.contains('active'),'Trip Approvals sidebar active');
+    assert(!document.querySelector('#sidebarMore')&&!document.querySelector('.sidebar-nav').textContent.includes('More Tools'),'Operations Head has no More Tools');
+    assert(!document.querySelector('.sidebar-nav [data-nav=mechanics]')&&!document.querySelector('.sidebar-nav [data-nav=maintenance]'),'Standalone maintenance links absent');
+    assert(document.querySelector('.sidebar-nav [data-ops-section=incidents]').getAttribute('href')==='#trips?tab=incidents','Incidents shortcut retains shared trip workspace');
+    assert(document.querySelectorAll('.sidebar-nav .nav-section').length===4&&document.querySelectorAll('.sidebar-nav a').length===12,'Only approved groups and items are rendered');
+    await go({view:'approvals',approval:'approved'});
+    assert(root().textContent.includes('REQ-COMPLETED')&&root().textContent.includes('REQ-WAITING'),'Approved includes Completed and Awaiting Resources requests');
+    assert(root().querySelector('[data-review-request]').textContent==='View','Processed rows expose View');
+    let drawer=await open(2);
+    assert(!drawer.querySelector('[data-approval-form]')&&!drawer.querySelector('[data-approve-trip]'),'Approved request review is read-only');
+    assert(drawer.querySelector('[data-close-review]')&&drawer.textContent.includes('Completed'),'Processed drawer shows Close and actual trip status');
+    await go({view:'approvals',approval:'rejected'});drawer=await open(3);
+    assert(drawer.textContent.includes('Fixture incomplete details')&&!drawer.querySelector('[data-reject-trip]'),'Rejected drawer retains reason without new actions');
+    await go({view:'approvals',approval:'approved',q:'Malvar',client_id:'1',requester_id:'2',truck_type:'Container',request_from:'2026-11-10',request_to:'2026-11-10'});
+    assert(root().textContent.includes('of 2 request(s)'),'Search and advanced filters combine with selected category');
+    root().querySelector('[data-reset-approvals]').click();await wait(()=>App.current.query.approval==='approved'&&!App.current.query.q);
+    assert(root().querySelector('.selected').textContent.includes('Approved'),'Reset preserves selected category');
+    await go({view:'approvals',q:'does-not-exist'});assert(root().textContent.includes('No pending review dispatcher requests'),'Filtered empty state is explicit');
+    await go({view:'approvals'});drawer=await open(1);
+    assert(drawer.querySelector('.offcanvas-title').textContent.includes('Trip Request Review'),'Review drawer identifies request');
+    assert(drawer.textContent.includes('Request Information')&&drawer.textContent.includes('Delivery Information')&&drawer.textContent.includes('Resource Information')&&drawer.textContent.includes('Supporting Records'),'Review drawer has four required sections');
+    assert(drawer.textContent.includes('Fixture consignee')&&drawer.textContent.includes('TEST-123'),'Supported shipment fields appear');
+    assert(drawer.textContent.includes('after approval')&&!drawer.querySelector('[data-tact=reassign]'),'Assignment explanation does not require manual resources');
+    assert(drawer.querySelector('.oh-approval-footer').parentElement===drawer,'Footer stays outside scrolling drawer body');
+    assert(drawer.querySelector('[data-approval-form] [name=distance_km]'),'Existing required distance validation retained');
+    drawer.querySelector('[data-approve-trip]').click();drawer.querySelector('[data-approve-trip]').click();
+    await wait(()=>document.querySelector('.app-drawer [data-close-review]'));
+    assert(writes.length===1,'Double-click approval submits one decision');
+    assert(writes[0].decision==='approve'&&+writes[0].distance_km===25,'Approval uses existing endpoint payload');
+    assert(document.querySelector('.app-drawer').textContent.includes('No free resources yet'),'Actual backend assignment response displayed');
+    assert(root().querySelector('.selected strong').textContent==='0','Counts refreshed after approval');
+    assert(!document.querySelector('.app-drawer [data-approve-trip]'),'Successful decision refreshes read-only drawer');
+    records.push({...base,id:7,trip_ref:'REQ-REJECT-ME',events:[]});await go({view:'approvals'});drawer=await open(7);drawer.querySelector('[data-reject-trip]').click();
+    assert(!drawer.querySelector('[data-reject-area]').hidden,'Reject opens confirmation area');
+    const before=writes.length;drawer.querySelector('[data-confirm-rejection]').click();await pause();assert(writes.length===before,'Empty rejection reason cannot submit');
+    drawer.querySelector('#oh-reject-reason').value='Fixture required documents missing';drawer.querySelector('[data-confirm-rejection]').click();drawer.querySelector('[data-confirm-rejection]').click();await wait(()=>document.querySelector('.app-drawer [data-close-review]'));
+    assert(writes.length===before+1&&writes.at(-1).reason==='Fixture required documents missing','Rejection sends one validated reason');
+    assert(document.querySelector('.app-drawer').textContent.includes('Fixture required documents missing'),'Rejection reason survives refresh');
+    records.push({...base,id:8,trip_ref:'REQ-STALE',events:[]});await go({view:'approvals'});drawer=await open(8);const stale=records.find(t=>t.id===8);stale.status='Rejected';stale.events=[rejected];
+    const staleWrites=writes.length;drawer.querySelector('[data-approve-trip]').click();await wait(()=>document.querySelector('.app-drawer [data-close-review]'));assert(writes.length===staleWrites,'Stale request check prevents another decision');
+    records.push({...base,id:9,trip_ref:'REQ-RACE',events:[]});await go({view:'approvals'});drawer=await open(9);concurrent=true;drawer.querySelector('[data-approve-trip]').click();await wait(()=>document.querySelector('.app-drawer [data-close-review]'));assert(document.querySelector('.app-drawer').textContent.includes('already processed by another request'),'Concurrent 409 refreshes actual processed state');
+    records.push({...base,id:10,trip_ref:'REQ-VALIDATION',events:[]});await go({view:'approvals'});drawer=await open(10);serverError=true;drawer.querySelector('[data-approve-trip]').click();await wait(()=>document.querySelector('[data-decision-feedback]')?.textContent.includes('Fixture server validation failed'));
+    assert(!document.querySelector('.app-drawer [data-approve-trip]').disabled,'Validation error restores eligible controls');
+    for(let i=20;i<34;i++)records.push({...base,id:i,trip_ref:'REQ-PAGE-'+i,events:[]});await go({view:'approvals'});assert(root().querySelectorAll('[data-review-request]').length===12,'List uses paginated backend rows');
+    root().querySelector('[data-approval-next]').click();await wait(()=>String(App.current.query.approval_page)==='2'&&root().textContent.includes('Page 2 of 2'));assert(root().textContent.includes('Page 2 of 2'),'Next page retains approval workspace and correct totals');
+    await go({tab:'active'});assert(document.querySelector('#pageTitle').textContent==='Trip Management'&&!App.current.query.view,'Trip Management opens general workspace without approval filters');
+    const allowedBefore=App.me.nav.map(n=>({...n}));App.me.user.role='motorpool';App.shell();assert(document.querySelector('.sidebar-nav [data-nav=mechanics]')&&document.querySelector('.sidebar-nav [data-nav=maintenance]'),'Motorpool keeps both maintenance destinations');
+    App.me.user.role='container_wingvan_dispatcher';App.me.nav=allowedBefore.filter(n=>!['mechanics','maintenance','routes','reports'].includes(n.id));App.shell();assert(document.querySelectorAll('[data-trip-section]').length===4,'Dispatcher navigation unchanged');
+    output.textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+  }catch(ex){output.textContent=checks.join('\n')+'\nFAIL '+ex.stack+'\nDETAILS '+JSON.stringify({runtimeErrors,writes,feedback:document.querySelector('[data-decision-feedback]')?.textContent,invalid:[...document.querySelectorAll('[data-approval-form] [name]')].filter(el=>!el.checkValidity()).map(el=>[el.name,el.value,el.validationMessage])})+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>

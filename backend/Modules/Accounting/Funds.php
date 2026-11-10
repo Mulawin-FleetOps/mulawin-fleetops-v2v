@@ -24,13 +24,14 @@ core('Notify');
 core('Money');
 core('Files');
 core('Settings');
+core('DispatcherScope');
 
 // CHECKLIST_40_FINANCE_WINDOW_V1: scheduling always uses Asia/Manila from bootstrap.php.
 final class Funds {
     public static function read(array $u, string $page, array $q): array {
         $p = db();
         $scope = ''; $args = [];
-        if (roleIsDispatcher($u['role'])) { $scope = ' AND (t.dispatcher_role=? OR f.requested_by=?)'; $args = [$u['role'], $u['id']]; }
+        if (roleIsDispatcher($u['role'])) [$scope,$args]=DispatcherScope::tripSql($u);
         $data = readSections([
             'funds' => fn() => many($p, "SELECT f.*, t.trip_ref, t.status AS trip_status, t.truck_type, t.pickup_point, t.delivery_point, t.scheduled_at,
                     c.company_name AS client, v.plate_number, ru.full_name AS requested_by_name, au.full_name AS approved_by_name,
@@ -43,11 +44,20 @@ final class Funds {
         ]);
         if (roleIsDispatcher($u['role'])) {
             $data = mergeSections($data, [
+                // Existing Diesel PO attachments only. No request approval/issuance workflow is implied.
+                'fuelTrips' => fn() => many($p, "SELECT t.id, t.trip_ref, t.truck_type, t.status, t.dispatcher_role, v.plate_number,
+                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Diesel PO') AS diesel_po_docs
+                    FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id
+                    WHERE 1=1 $scope AND (t.status NOT IN ('Pending Review','Rejected','Cancelled')
+                        OR EXISTS (SELECT 1 FROM documents pd WHERE pd.entity_type='trip' AND pd.entity_id=t.id AND pd.category='Diesel PO')) ORDER BY t.id DESC LIMIT 1000", $args),
+                'dieselDocuments' => fn() => many($p, "SELECT d.id,d.category,d.original_filename,d.mime_type,d.created_at,us.full_name AS uploader,t.id AS trip_id,t.trip_ref
+                    FROM documents d JOIN trips t ON d.entity_type='trip' AND d.entity_id=t.id JOIN users us ON us.id=d.uploaded_by
+                    WHERE d.category='Diesel PO' $scope ORDER BY d.id DESC LIMIT 2000", $args),
                 'eligibleTrips' => fn() => many($p, "SELECT t.id, t.trip_ref, t.status, t.attempt_number, t.pickup_point, t.delivery_point, v.plate_number
                     FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id
-                    WHERE t.dispatcher_role=? AND t.status IN ('Pre-Assigned','Ready for Dispatch')
+                    WHERE 1=1 $scope AND t.status IN ('Pre-Assigned','Ready for Dispatch')
                       AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id AND f.attempt_number=t.attempt_number AND f.status<>'Rejected')
-                    ORDER BY t.scheduled_at", [$u['role']]),
+                    ORDER BY t.scheduled_at", $args),
             ]);
         }
         // Server-derived flags power the Finance UI; the release API rechecks time.
@@ -109,7 +119,7 @@ final class Funds {
         return transaction(function (PDO $p) use ($u, $d, $tripId, $notes) {
             $t = one($p, 'SELECT * FROM trips WHERE id=? FOR UPDATE', [$tripId]);
             must((bool)$t, 'Trip not found.', 404);
-            must($t['dispatcher_role'] === $u['role'], 'This trip belongs to the other dispatcher team.', 403);
+            must(DispatcherScope::permitsTrip($u,$t), 'This trip belongs to the other dispatcher team.', 403);
             must(in_array($t['status'], ['Pre-Assigned', 'Ready for Dispatch'], true), 'A fund request is made for a Pre-Assigned trip that has not left yet (trip is ' . $t['status'] . ').', 409);
             $lines = self::lines($p, $d);
             $total = number_format(array_sum(array_map(fn($l) => (float)$l['amount'], $lines)), 2, '.', '');
@@ -254,16 +264,20 @@ final class Funds {
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'funds'), 'Not allowed.', 403);
         $id = idField($d, 'fund_id'); $p = db();
-        $f = one($p, "SELECT f.*, t.trip_ref, t.dispatcher_role, t.pickup_point, t.delivery_point, t.scheduled_at, c.company_name AS client, v.plate_number,
+        $f = one($p, "SELECT f.*, t.trip_ref, t.status AS trip_status, t.dispatcher_role,t.dispatcher_shift,t.truck_type, t.pickup_point, t.delivery_point, t.scheduled_at, c.company_name AS client, v.plate_number,
                 d1.full_name AS driver_name, ru.full_name AS requested_by_name, au.full_name AS approved_by_name, lu.full_name AS released_by_name,
                 ds.voucher_number, ds.payment_method, ds.reference_number, ds.cheque_number, ds.released_on
             FROM fund_requests f JOIN trips t ON t.id=f.trip_id JOIN clients c ON c.id=t.client_id LEFT JOIN vehicles v ON v.id=t.vehicle_id
             LEFT JOIN personnel d1 ON d1.id=t.driver_id JOIN users ru ON ru.id=f.requested_by LEFT JOIN users au ON au.id=f.approved_by
             LEFT JOIN users lu ON lu.id=f.released_by LEFT JOIN disbursements ds ON ds.id=f.disbursement_id WHERE f.id=?", [$id]);
         must((bool)$f, 'Fund request not found.', 404);
-        if (roleIsDispatcher($u['role'])) must($f['dispatcher_role'] === $u['role'] || (int)$f['requested_by'] === $u['id'], 'Not allowed.', 403);
+        if (roleIsDispatcher($u['role'])) must(DispatcherScope::permitsTrip($u,$f), 'Not allowed.', 403);
         $f['lines'] = many($p, 'SELECT category_name, amount, is_preset FROM fund_request_lines WHERE fund_request_id=? ORDER BY id', [$id]);
         $f['documents'] = Files::of($p, 'fund', $id);
+        if ($u['role'] === 'operations_head') {
+            $f['history'] = many($p, "SELECT a.action, a.created_at, u.full_name AS actor FROM audit_events a
+                LEFT JOIN users u ON u.id=a.actor_id WHERE a.area='Funds' AND a.record_ref=? ORDER BY a.id", ['fund ' . $id]);
+        }
         return ['fund' => $f];
     }
 }

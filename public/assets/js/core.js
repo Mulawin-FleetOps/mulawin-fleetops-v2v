@@ -26,7 +26,7 @@ const App = {
     try { data = await res.json(); }
     catch { throw new Error('The server returned an invalid answer. Check the PHP error log.'); }
     if (res.status === 401 && this.me) { this.me = null; clearInterval(this.timer); this.loginScreen(data.error); throw new Error(data.error || 'Please log in.'); }
-    if (!res.ok || !data.ok) throw new Error(data.error || 'Request failed.');
+    if (!res.ok || !data.ok) { const error = new Error(data.error || 'Request failed.'); error.status = res.status; throw error; }
     return data;
   },
   async api(action, payload = {}) {
@@ -258,8 +258,10 @@ const App = {
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
-    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : shortNames[n.id] || n.label)}</span></a>`;
-    let nav = `<div class="nav-section">My workspace</div>${primary.map(link).join('')}`;
+    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : n.id === 'funds' && ['car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role) ? 'My Trip Funds' : shortNames[n.id] || n.label)}</span></a>`;
+    const operationsRole = ['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role);
+    const tripLink = (label, icon, query) => `<a href="#trips?${query}" class="nav-item-link" data-nav="trips" data-trip-section="${query}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`;
+    let nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
     if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
     document.getElementById('app').innerHTML = `
     <div class="app-shell" id="appShell">
@@ -402,7 +404,17 @@ const App = {
       return;
     }
     this.current = { page, query };
-    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === page));
+    const routeState = this.current;
+    document.querySelectorAll('[data-nav]').forEach(a => {
+      const tripSection = query.new || query.batch ? 'new=1' : 'tab=' + (query.tab || (query.q || query.status || query.from ? 'history' : 'active'));
+      const active = a.dataset.nav === page && (a.dataset.dispatchSection
+        ? a.dataset.dispatchSection === (page === 'trucks' ? 'trucks' : page === 'crew' ? (query.view === 'attendance' ? 'attendance' : 'personnel') : query.new || query.batch || ['requests','new-request'].includes(query.view) ? 'requests' : query.tab === 'incidents' || query.view === 'incidents' ? 'incidents' : query.tab === 'history' ? 'history' : 'management')
+        : a.dataset.opsSection
+        ? a.dataset.opsSection === (query.view === 'approvals' ? 'approvals' : query.new || query.batch ? 'planning' : query.tab === 'incidents' ? 'incidents' : 'management')
+        : (!a.dataset.tripSection || a.dataset.tripSection === tripSection));
+      a.classList.toggle('active', active);
+      if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
     // Expand the supporting-tools group only when the current route is inside it.
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
     if (secondary) document.getElementById('sidebarMore').open = true;
@@ -435,7 +447,7 @@ const App = {
       setTitle: (t, s) => { document.getElementById('pageTitle').textContent = t; const st = document.getElementById('pageSubtitle'); if (st) st.textContent = s || ''; } };
     try {
       ctx.data = def.noData ? {} : await this.data(page, query);
-      if (this.current.page !== page) return;
+      if (this.current !== routeState) return;
       body.innerHTML = '';
       await def.render(ctx);
       UI.activate(body);
@@ -444,6 +456,7 @@ const App = {
       }
     } catch (e) {
       console.error(e);
+      if (this.current !== routeState) return;
       body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}<div class="small mt-1">Only this page is affected. You can keep using the other pages.</div></div></div>`;
     }
   },
