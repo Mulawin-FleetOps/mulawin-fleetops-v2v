@@ -33,7 +33,7 @@ const RouteUI = {
       { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
         <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route map</div><span>Select pickup and delivery on the map</span></div>
         <div data-routemapbox></div>
-        <div class="rpm-route-legend"><span><i class="rpm-legend-dot garage"></i> Garage (reference)</span><span><i class="rpm-legend-dot pickup"></i> Pickup</span><span><i class="rpm-legend-dot delivery"></i> Delivery</span></div>
+        <div class="rpm-route-legend"><span><i class="rpm-legend-dot garage"></i> Garage (approximate)</span><span><i class="rpm-legend-dot pickup"></i> Pickup</span><span><i class="rpm-legend-dot delivery"></i> Delivery</span><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span></div>
       </section>` },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
       // Route option, km, distance info and override reason: shared widget (assets/js/map.js), same as Trip Management.
@@ -67,13 +67,33 @@ const RouteUI = {
 
   /** Map, route option, automatic km and manual override of the Request route form (Checklist #5; shared widget in map.js). */
   wireDistance(wrap, form) {
-    const w = UI.distanceWidget(form, {
+    // The two road geometries are independent: the existing distance widget
+    // continues to own the billable Pickup → Delivery segment (blue), while
+    // this screen draws Garage → Pickup (teal) as an operational overlay.
+    let garageLine = null, garageRoad = null, clientRoad = null;
+    let updateGarageDistance = () => {};
+    let w;
+    const fitFullRoute = () => {
+      if (!w?.map || !garageRoad?.length || !clientRoad?.length) return;
+      const bounds = L.latLngBounds(garageRoad.concat(clientRoad));
+      if (bounds.isValid()) w.map.fitBounds(bounds.pad(0.12), { maxZoom: 14 });
+    };
+    w = UI.distanceWidget(form, {
       mapBox: form.querySelector('[data-routemapbox]'),
       fields: { pickup: { addr: 'origin', lat: 'origin_lat', lng: 'origin_lng' }, delivery: { addr: 'destination', lat: 'destination_lat', lng: 'destination_lng' } },
       labels: { pickup: 'Pickup', delivery: 'Destination' },
       scrollWheelZoom: true,
       hideStraightLine: true,
-      footNote: UI.Map.serviceReady() ? 'Use mouse wheel, +/−, or pinch to zoom. Blue road route is calculated by openrouteservice.' : 'Use mouse wheel, +/−, or pinch to zoom. Road routing is not configured; type the verified road km.',
+      // Clear stale geometry as soon as the user moves either pin.
+      onPointsChange: () => {
+        clientRoad = null;
+        updateGarageDistance();
+      },
+      onRoadRoute: (points) => {
+        clientRoad = points;
+        fitFullRoute();
+      },
+      footNote: UI.Map.serviceReady() ? 'Teal: garage to pickup. Blue: pickup to delivery. Scroll or pinch to zoom.' : 'Road routing is unavailable; use verified manual km.',
     });
     // A local, reference-only garage pin: coordinates are provisional until the
     // actual yard entrance has been verified. Never submit these to the route API.
@@ -96,13 +116,15 @@ const RouteUI = {
     billable?.addEventListener('input', updateDistances);
     updateDistances();
     let requestSeq = 0;
-    const updateGarageDistance = async () => {
+    updateGarageDistance = async () => {
       if (!w.map || !w.map.picker) return;
       const pickup = w.map.picker.points().pickup;
       const key = pickup ? pickup.lat.toFixed(6) + ',' + pickup.lng.toFixed(6) : '';
       if (key === lastPickup) return;
       lastPickup = key;
       const seq = ++requestSeq;
+      if (garageLine) { garageLine.remove(); garageLine = null; }
+      garageRoad = null;
       operationalKm = null;
       garageKm.textContent = pickup ? 'Checking…' : 'Pin pickup first';
       garageNote.textContent = 'Garage location on the map is approximate. Verify the garage entrance before using operational distance estimates.';
@@ -114,17 +136,24 @@ const RouteUI = {
       try {
         const r = await UI.Map.route(L.latLng(garage), pickup, form.querySelector('[name="route_option"]')?.value || UI.Map.cfg().defaultRouteOption);
         if (seq !== requestSeq) return;
-        if (r.available && Number.isFinite(+r.distance_km)) {
+        if (r.available && Number.isFinite(+r.distance_km) && r.geometry) {
+          const points = UI.Map.decode(r.geometry);
+          if (points.length < 2) throw new Error('Missing garage road geometry');
           operationalKm = +r.distance_km;
+          garageRoad = points;
+          garageLine = L.polyline(garageRoad, {
+            color: '#187d85', weight: 5, opacity: 0.95, lineJoin: 'round',
+          }).addTo(w.map).bindTooltip('Garage → Pickup · ' + operationalKm.toFixed(2) + ' km (approximate garage)');
           garageKm.textContent = operationalKm.toFixed(2) + ' km (estimate)';
+          fitFullRoute();
         } else garageKm.textContent = 'Route unavailable';
       } catch (e) {
         if (seq === requestSeq) garageKm.textContent = 'Route unavailable';
       }
       updateDistances();
     };
-    w.map?.on('click', () => setTimeout(updateGarageDistance, 0));
-    w.map?.on('mouseup', () => setTimeout(updateGarageDistance, 0));
+    // The picker change callback covers clicks and dragged markers. Do not
+    // request on every map mouseup: that wastes routing quota while panning.
     form.querySelector('[name="route_option"]')?.addEventListener('change', () => { lastPickup = ''; updateGarageDistance(); });
     wrap.addEventListener('shown.bs.modal', () => {
       w.map?.invalidateSize();
