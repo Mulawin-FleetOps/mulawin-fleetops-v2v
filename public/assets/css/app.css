@@ -2127,3 +2127,15 @@ button.docfm-folder:focus-visible {
   .rpm-route-legend { gap: 9px; padding: 9px 12px; }
   .rpm-route-legend-note { flex: 1 1 100%; margin-left: 0; }
 }
+
+
+/* Address-based map pin actions — Client Routes request form. */
+.rpm-route-dialog .rpm-address-pin-control { display: flex; align-items: stretch; width: 100%; min-width: 0; }
+.rpm-route-dialog .rpm-address-pin-control > .form-control { flex: 1 1 auto; min-width: 0; width: 1%; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.rpm-address-pin-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 66px; padding: 7px 11px; border: 1px solid #9dcdb0; border-left: 0; border-radius: 0 7px 7px 0; background: #e6f5ec; color: #17653c; font-size: 12px; font-weight: 650; cursor: pointer; transition: background .15s, box-shadow .15s; }
+.rpm-address-pin-btn:hover { background: #d3eddd; }
+.rpm-address-pin-btn:focus-visible { outline: 2px solid #196b40; outline-offset: 2px; }
+.rpm-address-pin-btn .bi { font-size: 15px; }
+.rpm-address-pin-status { color: #637568; font-size: 11px; min-height: 0; margin-top: 3px; }
+.rpm-address-pin-status:empty { display: none; }
+@media (max-width: 575.98px) { .rpm-address-pin-btn { min-width: 44px; padding: 7px 9px; } .rpm-address-pin-btn span { display: none; } }
