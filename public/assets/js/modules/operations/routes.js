@@ -146,6 +146,50 @@ const RouteUI = {
       },
       footNote: UI.Map.serviceReady() ? 'Teal: garage to pickup. Blue: pickup to delivery. Scroll or pinch to zoom.' : 'Road routing is unavailable; use verified manual km.',
     });
+    // Address inputs stay editable. The adjacent pin action chooses which map pin
+    // to place, and optionally searches the entered address. Search results must
+    // be selected by the user; never silently choose an approximate first match.
+    for (const [kind, fieldName, title] of [
+      ['pickup', 'origin', 'Pickup'], ['delivery', 'destination', 'Destination'],
+    ]) {
+      const address = form.querySelector('[name="' + fieldName + '"]');
+      if (!address) continue;
+      const controls = document.createElement('div');
+      controls.className = 'rpm-address-pin-control';
+      address.parentNode.insertBefore(controls, address);
+      controls.appendChild(address);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'rpm-address-pin-btn';
+      button.dataset.point = kind;
+      button.setAttribute('aria-label', 'Locate ' + title.toLowerCase() + ' address on the map');
+      button.title = 'Locate address or select the ' + title.toLowerCase() + ' pin on the map';
+      button.innerHTML = '<i class="bi bi-geo-alt" aria-hidden="true"></i><span>Pin</span>';
+      controls.appendChild(button);
+      const status = document.createElement('div');
+      status.className = 'rpm-address-pin-status';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      controls.after(status);
+      const showStatus = (message) => { status.textContent = message; };
+      button.addEventListener('click', () => {
+        if (!w.map?.picker) { showStatus('Map unavailable. Enter the address manually.'); return; }
+        w.map.picker.selectPoint(kind, address.value);
+        const searching = address.value.trim() && UI.Map.serviceReady();
+        showStatus(searching
+          ? 'Choose the correct search result below, or click the map to place this pin.'
+          : 'Click the map to place the ' + title.toLowerCase() + ' pin.');
+        form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      address.addEventListener('input', (event) => {
+        // Only a person editing the address should invalidate its old position.
+        // Programmatic suggestions from the map already manage their pin.
+        if (event.isTrusted && w.map?.picker?.points()?.[kind]) {
+          w.map.picker.clearPoint(kind);
+          showStatus('Address changed. Press Pin to select the updated location.');
+        }
+      });
+    }
     // A local, reference-only garage pin: coordinates are provisional until the
     // actual yard entrance has been verified. Never submit these to the route API.
     const garage = [14.126449, 121.070384];
