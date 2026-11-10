@@ -1,5 +1,54 @@
 # Changelog
 
+<<<<<<< HEAD
+=======
+## 2026-11-10 (Role workspaces: Maintenance and Purchasing)
+- **Motorpool Custodian** lands on the existing **Maintenance Overview** (unchanged apart from its links). Sidebar: Maintenance
+  Overview, Repair Management (`#maintenance`), Truck Masterlist, Mechanic Masterlist, Maintenance History (new, completed and
+  cancelled records with cost and attachment count). Parts requests are made and tracked inside Repair Management (new "Parts
+  requests" tab and "Request parts" button): Motorpool sees an In stock / Low stock / Out of stock label and requested versus
+  released units, and no costs, stock counts, budget, purchase orders or stock movements.
+- **Purchasing Officer** lands on **Purchasing Overview**. The combined "Parts & Purchasing" page (`#purchasing`) is replaced by
+  Parts Requests, Purchase Orders, Inventory, Stock Movements and Purchasing Reports; each page loads only its own data. Finance
+  keeps Purchase Orders and Purchasing Reports; Admin and Audit keep read access. Approval routing, budget checks and receiving are
+  unchanged. Old `#purchasing` links and notifications redirect to the user's page.
+- The company Dashboard stays for the other roles; Motorpool and Purchasing no longer have it. The inventory section moved from
+  Reports to Purchasing Reports. The Maintenance Overview parts data is now limited to Motorpool, Admin and Audit. Purchasing no
+  longer sees the Truck Masterlist, repair documents or the general Reports page; Motorpool no longer sees purchase-order
+  documents. No database change. Tests: `php tests/workspace_access_tests.php` (no database needed);
+  `tests/run_maintenance_overview_tests.php` was updated for the new menu.
+
+## 2026-11-10 (Maintenance Overview, Phase 1)
+- New **Maintenance Overview** page (`#maintenance_overview`), first in the Motorpool Custodian's menu: four counts
+  (New reports, Under repair, For verification, Pending parts requests), **Needs attention** (records waiting for an action:
+  assign a mechanic, assess an incident, verify a completed repair, parts Not Available), quick actions (the existing
+  Report a truck problem form, Repair Management, completed repairs, parts inventory) and **Recent maintenance activity**
+  (from the existing repair status history, parts requests and stock-out releases). Read-only; same roles as Corrective
+  Maintenance; parts data only for roles that may open Parts & Purchasing.
+- Motorpool menu wording: Overview, Repair Management (`#maintenance`, unchanged), Parts Inventory (`#purchasing`, unchanged).
+  Repair Management accepts `?view=reported|in_progress|verify` to narrow the Open records list. Existing links still work.
+- No change to repair statuses, verification, truck availability, incidents or permissions. No database change.
+  Tests: `tests/run_maintenance_overview_tests.php`.
+
+## 2026-11-10 (Authentication: no email OTP, Admin-generated temporary passwords)
+- **Login is now username (or email) + password only.** The emailed login code, its screen, endpoints and the "Trusted devices"
+  feature (which only existed to skip that code) are removed. Kept: password hashing, 5-wrong-password account lock and per-session
+  limit, CSRF, session-id regeneration at login, logout, idle timeout, sessions signed out after any password change.
+- **New accounts:** the Admin no longer types a password. The system generates a random one-time temporary password
+  (`random_bytes()`, 16 characters), stores only its `password_hash`, and shows it to the Admin **once** after saving.
+  It is never emailed, logged or audited. **Reset password** (Admin only, not for yourself) generates a new one the same way;
+  an existing password can never be viewed.
+- **First login:** accounts created or reset this way are flagged `must_change_password`. The server blocks every page, module,
+  document and API call until the user replaces the temporary password (`Admin.password_change_force`: temporary + new password,
+  no email code); the flag is cleared only after the new hash is saved, then the user lands on their role's start page.
+  Existing accounts are NOT flagged and keep working.
+- Normal (voluntary) password change and email change keep their emailed verification codes. Audit: account created,
+  password reset by Admin, password changed at first login.
+- While a password change is pending the server also withholds the menu, notifications and settings (`?api=me`), email change,
+  and the test-data loader page. `automation/*.py` now use the new login and read the one-time password from the Admin screen.
+- No database change. Tables `login_otps` and `trusted_login_devices` stay in the database, unused. Tests: `tests/auth_no_otp_tests.php`.
+
+>>>>>>> c426b55 (feat(auth): remove login OTP and add forced password change)
 ## 2026-11-08 (Batch trip planning)
 - **Trips → Batch planning**: enter up to 20 trips on one page. Every row becomes its own trip with its own number, using
   the same rules as New trip (auto-assignment or Awaiting Resources for the Operations Head; Pending Review requests for a

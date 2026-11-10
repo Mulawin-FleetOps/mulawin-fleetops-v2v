@@ -55,23 +55,18 @@ final class Actions {
         must((bool)preg_match('/^([A-Z][A-Za-z]+)\.([a-z_]+)$/', $api, $m), 'Unknown action.', 404);
         core('Access');
         $u = currentUser();
-        // Security S1: only password setup is permitted until employee owns the credential.
-        if (in_array($api, ['Admin.password_change_request','Admin.password_change_confirm','Admin.email_change_request','Admin.email_change_confirm'], true)) {
-            core('SecurityPasswordChange');
+        // Security S1: only the password-change workflow is permitted until the employee owns the credential.
+        core('SecurityPasswordChange');
+        if (in_array($api, ['Admin.password_change_force','Admin.password_change_request','Admin.password_change_confirm'], true)) {
             return match ($api) {
+                'Admin.password_change_force' => SecurityPasswordChange::forceChange($u, $data),
                 'Admin.password_change_request' => SecurityPasswordChange::request($u, $data),
                 'Admin.password_change_confirm' => SecurityPasswordChange::confirm($u, $data),
-                'Admin.email_change_request' => SecurityPasswordChange::emailRequest($u, $data),
-                'Admin.email_change_confirm' => SecurityPasswordChange::emailConfirm($u, $data),
             };
         }
-        core('SecurityPasswordChange');
         must(!SecurityPasswordChange::required((int)$u['id']), 'Complete your first-login password setup first.', 403);
-        // Security S3: self-service trusted-device management (for the signed-in user only).
-        if (in_array($api, ['Admin.trusted_devices_list','Admin.trusted_devices_revoke','Admin.trusted_devices_revoke_all'], true)) {
-            core('TrustedDevices');
-            if ($api === 'Admin.trusted_devices_list') return ['devices' => TrustedDevices::listFor((int)$u['id'])];
-            return TrustedDevices::manage($u, substr($api, strlen('Admin.')), $data);
+        if (in_array($api, ['Admin.email_change_request','Admin.email_change_confirm'], true)) {
+            return $api === 'Admin.email_change_request' ? SecurityPasswordChange::emailRequest($u, $data) : SecurityPasswordChange::emailConfirm($u, $data);
         }
         $class = self::load($m[1]);
         return $class::action($u, $m[2], $data);

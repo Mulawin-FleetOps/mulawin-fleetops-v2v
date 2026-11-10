@@ -3,7 +3,7 @@
  * =====================================================================
  *  backend/Core/AccountSecurity.php  —  simpleng proteksyon ng accounts
  * =====================================================================
- *  Dagdag sa email login code (Core/Otp.php), ganito pa ang proteksyon ng accounts:
+ *  Proteksyon ng accounts (login = username/email + password lamang; walang email OTP):
  *  1. Lock ng account: 5 maling password (kahit saang computer) = naka-lock nang 15 minuto.
  *  2. Recovery code ng Admin: isang code na ipi-print at itatago. Kapag nakalimutan o na-hack ang
  *     Admin password, gamitin ito sa login page ("Forgot the Admin password?"). Isang beses lang gumagana.
@@ -52,7 +52,6 @@ final class AccountSecurity {
         $now = self::now();
         // Fail closed: password/session revocation must not silently skip security updates.
         run(db(), 'UPDATE users SET password_changed_at=?, failed_logins=0, locked_until=NULL WHERE id=?', [$now, $id]);
-        core('TrustedDevices'); TrustedDevices::revokeAll($id);
         return $now;
     }
 
@@ -61,6 +60,20 @@ final class AccountSecurity {
         try { $pc = one(db(), 'SELECT password_changed_at FROM users WHERE id=?', [$id])['password_changed_at'] ?? null; }
         catch (Throwable $e) { return false; }
         return $pc !== null && strtotime((string)$pc) > (int)($_SESSION['login_at'] ?? 0);
+    }
+
+    /**
+     * One-time temporary password for a new or reset account (cryptographically secure, via random_bytes()).
+     * 16 characters from a 32-letter/digit alphabet (no O/0/I/1), so every random byte maps to a symbol without bias.
+     * Always has at least one letter and one digit so it passes the password policy. Shown to the Admin once; only its hash is stored.
+     */
+    public static function newTemporaryPassword(): string {
+        $abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // exactly 32 symbols
+        do {
+            $bytes = random_bytes(16); $pw = '';
+            for ($i = 0; $i < 16; $i++) $pw .= $abc[ord($bytes[$i]) & 31];
+        } while (!preg_match('/[A-Z]/', $pw) || !preg_match('/[2-9]/', $pw));
+        return $pw;
     }
 
     /** Recovery code: 16 letra at numero (walang O/0/I/1 para hindi malito), naka-grupo ng 4. */

@@ -21,36 +21,27 @@ App.page('admin', {
         ? shifts.some(s => !occupied(role, s, u.id))
         : !occupied(role, null, u.id);
     };
-    const addPasswordVisibility = (wrap) => {
-      ['password', 'password_confirm'].forEach(name => {
-        const field = wrap.querySelector(`input[name="${name}"]`);
-        if (!field) return;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn btn-sm btn-outline-secondary mt-1';
-        button.textContent = 'Show password';
-        button.setAttribute('aria-label', `Show ${name === 'password' ? 'password' : 'confirmation password'}`);
-        button.setAttribute('aria-pressed', 'false');
-        field.insertAdjacentElement('afterend', button);
-        button.addEventListener('click', () => {
-          const show = field.type === 'password';
-          field.type = show ? 'text' : 'password';
-          button.textContent = show ? 'Hide password' : 'Show password';
-          button.setAttribute('aria-pressed', String(show));
-        });
-      });
+    /** Shows a generated temporary password ONCE. It is never stored by the browser app and cannot be retrieved again. */
+    const showTempPassword = (r) => {
+      UI.modal('Temporary password for ' + UI.esc(r.temporary_for || 'the account'),
+        `<p class="small">Give this password to the user privately. It is shown <b>only once</b> and cannot be viewed again; the user must change it at first login. It is not emailed.</p>
+         <div class="input-group mb-2"><input class="form-control font-monospace" id="tmpPw" readonly value="${UI.esc(r.temporary_password)}" aria-label="Temporary password">
+         <button class="btn btn-outline-secondary" type="button" id="tmpPwCopy">Copy</button></div>`, null,
+        { size: '', onShow: (wrap) => {
+          wrap.querySelector('#tmpPwCopy').onclick = async () => { try { await navigator.clipboard.writeText(r.temporary_password); UI.toast('Copied.'); } catch { wrap.querySelector('#tmpPw').select(); UI.toast('Press Ctrl+C to copy.'); } };
+          wrap.addEventListener('hidden.bs.modal', () => { r.temporary_password = ''; const i = wrap.querySelector('#tmpPw'); if (i) i.value = ''; });
+        } });
     };
     const userForm = (u = {}) => {
       const availableRoles = roles.filter(([role]) => roleAvailable(role, u));
       const wrap = UI.formModal(u.id ? 'Edit ' + UI.esc(u.username) : 'New user account', [
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
-        { name: 'email', label: 'Email (login codes are sent here)', type: 'email', required: true, col: 6, value: u.email },
-        ...(u.id ? [] : [{ name: 'password', label: 'Password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password" maxlength="72"', help: (App.me.passwordMin || 8) + '+ characters with letters and numbers. Give it to the user privately.' },
-          { name: 'password_confirm', label: 'Confirm password', type: 'password', required: true, col: 6, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Type the same password again.' }]),
+        { name: 'email', label: 'Email', type: 'email', required: true, col: 6, value: u.email },
         { name: 'role', label: 'Role', type: 'select', options: availableRoles, required: true, col: 6, value: u.role },
         { name: 'shift', label: 'Shift (dispatchers)', type: 'select', options: UI.list(shifts), col: 6, value: u.shift }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
-          transform: (x) => { if (!u.id && x.password !== x.password_confirm) throw new Error('The password and the confirmation do not match.'); return x; } });
+          intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
+          after: (r) => { App.route(); if (r.temporary_password) showTempPassword(r); } });
       const role = wrap.querySelector('[name=role]');
       const shiftInput = wrap.querySelector('[name=shift]');
       const shiftWrapper = shiftInput.closest('[class*=col-]');
@@ -67,7 +58,6 @@ App.page('admin', {
       };
       role.addEventListener('change', () => { shiftInput.value = ''; refreshShifts(); });
       refreshShifts();
-      if (!u.id) addPasswordVisibility(wrap);
     };
     const tabs = [];
     if (isAdmin) {
@@ -75,14 +65,13 @@ App.page('admin', {
         const h = UI.table([['Name', 'full_name'], ['Username', 'username'], ['Email', 'email'], ['Role', 'role', (v) => UI.esc(d.roles[v] || v)], ['Shift', 'shift'], ['Active', 'active', (v) => +v ? UI.badge('Active') : UI.badge('Inactive')],
           ['E-signature', 'has_signature', 'yes'], ['Last login', 'last_login_at', 'datetime']], d.users,
           { title: 'Accounts (one per employee; access follows the role)', tools: '<button class="btn btn-sm btn-primary" data-adduser><i class="bi bi-person-plus"></i> New account</button>',
-            actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Set new password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
+            actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Reset password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
             onAction: (a, u) => {
               if (a === 'edit') userForm(u);
               if (a === 'pw') {
-                const passwordResetModal = UI.formModal('Reset password for ' + UI.esc(u.username), [{ name: 'password', label: 'New password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"', help: 'Share the new password securely. Existing sessions are signed out, and email verification is still required at sign-in.' },
-                { name: 'password_confirm', label: 'Confirm new password', type: 'password', required: true, col: 12, attrs: 'autocomplete="new-password" maxlength="72"' }], 'Admin.user_password',
-                { extra: { user_id: u.id }, size: '', transform: (x) => { if (x.password !== x.password_confirm) throw new Error('The passwords do not match.'); return x; } });
-                addPasswordVisibility(passwordResetModal);
+                UI.confirmAction('Reset password for ' + UI.esc(u.username),
+                  'A new random temporary password will be generated and shown to you once. The current password cannot be viewed. Existing sessions are signed out and the user must change the new password at next login.',
+                  'Admin.user_password', { user_id: u.id }, { submit: 'Generate temporary password', after: (r) => { UI.closeDrawer(); App.route(); if (r.temporary_password) showTempPassword(r); } });
               }
               if (a === 'toggle') UI.confirmAction((+u.active ? 'Deactivate ' : 'Activate ') + UI.esc(u.full_name), +u.active ? 'The user can no longer log in. Records made by this user are kept.' : 'The user can log in again.', 'Admin.user_toggle', { user_id: u.id, active: +u.active ? 0 : 1 }, { danger: +u.active });
             } });

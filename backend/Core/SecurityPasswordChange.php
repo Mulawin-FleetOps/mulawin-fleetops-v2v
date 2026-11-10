@@ -34,6 +34,42 @@ final class SecurityPasswordChange {
         return (int)(one(db(), 'SELECT must_change_password FROM users WHERE id=?', [$id])['must_change_password'] ?? 0) === 1;
     }
 
+    /**
+     * First-login (or Admin-reset) password change. The user proves they hold the temporary password, chooses a new one,
+     * and the must-change flag is cleared only after the new hash is stored. No email code: nothing is emailed here.
+     * Only usable while the flag is set; everyone else uses the email-verified change below.
+     */
+    public static function forceChange(array $u, array $d): array {
+        $p = db();
+        $row = one($p, 'SELECT * FROM users WHERE id=? AND active=1', [$u['id']]);
+        must((bool)$row, 'Account is inactive.', 403);
+        must((int)$row['must_change_password'] === 1, 'Your password does not need a first-login change. Use the Change password screen.', 409);
+        self::verifyCurrentPassword($row, field($d, 'current_password', 255), 'first-login password change');
+        $new = field($d, 'new_password', 255);
+        $confirm = field($d, 'confirm', 255, false);
+        self::policy($new, $confirm, (string)$row['password_hash']);
+        $result = transaction(function (PDO $p) use ($u, $new): array {
+            must(run($p, 'UPDATE users SET password_hash=?, must_change_password=0 WHERE id=? AND active=1 AND must_change_password=1',
+                [password_hash($new, PASSWORD_DEFAULT), $u['id']]) === 1, 'Password was already changed or the account is inactive.', 409);
+            $when = AccountSecurity::passwordChanged((int)$u['id']);
+            audit($p, (int)$u['id'], 'Access', 'user ' . $u['id'], 'password changed at first login', 'temporary password replaced; other sessions signed out');
+            return ['when' => $when];
+        });
+        // New session id after the credential change; this session stays valid, any other one is signed out.
+        session_regenerate_id(true);
+        $_SESSION['login_at'] = strtotime($result['when']);
+        return ['message' => 'Password changed successfully.'];
+    }
+
+    /** Password policy shared by every self-service change. */
+    private static function policy(string $new, string $confirm, string $currentHash): void {
+        must(hash_equals($new, $confirm), 'New passwords do not match.');
+        must(strlen($new) >= PASSWORD_MIN_LENGTH && strlen($new) <= PASSWORD_MAX_BYTES,
+            'Password must be ' . PASSWORD_MIN_LENGTH . '-' . PASSWORD_MAX_BYTES . ' bytes.');
+        must((bool)preg_match('/[A-Za-z]/', $new) && (bool)preg_match('/[0-9]/', $new), 'Password must contain letters and numbers.');
+        must(!password_verify($new, $currentHash), 'Choose a password different from the current one.');
+    }
+
     /** Verify current password before sending code; never email or log a password. */
     public static function request(array $u, array $d): array {
         core('Mailer');
@@ -43,12 +79,7 @@ final class SecurityPasswordChange {
         self::verifyCurrentPassword($row, field($d, 'current_password', 255), 'password change');
         $new = field($d, 'new_password', 255);
         $confirm = field($d, 'confirm', 255, false);
-        must(hash_equals($new, $confirm), 'New passwords do not match.');
-        must(strlen($new) >= PASSWORD_MIN_LENGTH && strlen($new) <= PASSWORD_MAX_BYTES,
-            'Password must be ' . PASSWORD_MIN_LENGTH . '-' . PASSWORD_MAX_BYTES . ' bytes.');
-        must((bool)preg_match('/[A-Za-z]/', $new) && (bool)preg_match('/[0-9]/', $new),
-            'Password must contain letters and numbers.');
-        must(!password_verify($new, (string)$row['password_hash']), 'Choose a password different from the current one.');
+        self::policy($new, $confirm, (string)$row['password_hash']);
         must(trim((string)$row['email']) !== '' && filter_var($row['email'], FILTER_VALIDATE_EMAIL), 'A valid account email is required. Ask Admin to update it first.', 409);
         $recent = one($p, 'SELECT requested_at FROM password_change_challenges WHERE user_id=?', [$u['id']]);
         must(!$recent || strtotime((string)$recent['requested_at']) <= time() - 60, 'Please wait 60 seconds before requesting another code.', 429);
@@ -132,10 +163,9 @@ final class SecurityPasswordChange {
             must(!one($p,'SELECT id FROM users WHERE email=? AND id<>?',[$r['new_email'],$u['id']]),'Email is already registered.',409);
             run($p,'UPDATE users SET email=? WHERE id=?',[$r['new_email'],$u['id']]);
             run($p,'DELETE FROM email_change_challenges WHERE user_id=?',[$u['id']]);
-            core('TrustedDevices'); TrustedDevices::revokeAll((int)$u['id']);
             auditWithChanges($p, (int)$u['id'], 'Access', 'user '.$u['id'], 'email verified and updated', '',
                 ['Email'=>$prior['email']],['Email'=>$r['new_email']]);
-            return ['message'=>'Email verified and updated. Trusted devices were revoked.', 'prior' => (string)$prior['email'], 'new' => (string)$r['new_email']];
+            return ['message'=>'Email verified and updated.', 'prior' => (string)$prior['email'], 'new' => (string)$r['new_email']];
         });
         must(!isset($result['error']),$result['error']??'',401);
         $prior = $result['prior']; $new = $result['new'];
@@ -157,9 +187,9 @@ final class SecurityPasswordChange {
         $h = fn(string $v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         $err = Mailer::send($prior, (string)$u['full_name'], 'Your Mulawin FleetOps email address was changed',
             '<p>Hello ' . $h((string)$u['full_name']) . ',</p><p>The email address of your Mulawin FleetOps account (<b>' . $h((string)$u['username']) . '</b>) was changed on '
-            . $h($when) . ' to <b>' . $h($masked) . '</b>. Login codes are now sent to the new address.</p>'
+            . $h($when) . ' to <b>' . $h($masked) . '</b>.</p>'
             . '<p><b>If you did not make this change, contact your Admin immediately</b> so the account can be secured.</p><p style="color:#6b7280">' . $h($company) . '</p>',
-            "Hello {$u['full_name']},\n\nThe email address of your Mulawin FleetOps account ({$u['username']}) was changed on $when to $masked. Login codes are now sent to the new address.\n\n"
+            "Hello {$u['full_name']},\n\nThe email address of your Mulawin FleetOps account ({$u['username']}) was changed on $when to $masked.\n\n"
             . "If you did not make this change, contact your Admin immediately so the account can be secured.\n\n$company");
         try {
             audit(db(), (int)$u['id'], 'Access', 'user ' . $u['id'], $err === null ? 'email change notice sent' : 'email change notice not sent',

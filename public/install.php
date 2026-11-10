@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim((string)($_POST['username'] ?? '')); $name = trim((string)($_POST['name'] ?? '')); $pw = (string)($_POST['password'] ?? '');
     $email = strtolower(trim((string)($_POST['email'] ?? '')));
     if (!hash_equals($token, (string)($_POST['install_token'] ?? ''))) $message = 'Wrong setup token.';
-    elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $message = 'Enter a valid email address. Every login sends a code to this email.';
+    elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $message = 'Enter a valid email address.';
     elseif (!preg_match('/^[a-zA-Z0-9_.-]{3,70}$/', $username) || strlen($name) < 2 || strlen($name) > 100 || strlen($pw) < PASSWORD_MIN_LENGTH || !preg_match('/[A-Za-z]/', $pw) || !preg_match('/\d/', $pw))
         $message = 'Enter a valid username, full name and a password of ' . PASSWORD_MIN_LENGTH . '+ characters with letters and numbers.';
     else {
@@ -44,6 +44,6 @@ function e(string $v): string { return htmlspecialchars($v, ENT_QUOTES, 'UTF-8')
 <div class="mb-3"><label class="form-label">Setup token (INSTALL_TOKEN)</label><input class="form-control" type="password" name="install_token" required></div>
 <div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" required></div>
 <div class="mb-3"><label class="form-label">Full name</label><input class="form-control" name="name" required></div>
-<div class="mb-3"><label class="form-label">Email (login codes are sent here)</label><input class="form-control" type="email" name="email" required></div>
+<div class="mb-3"><label class="form-label">Email</label><input class="form-control" type="email" name="email" required></div>
 <div class="mb-4"><label class="form-label">Password (<?= PASSWORD_MIN_LENGTH ?>+ characters, letters and numbers)</label><input class="form-control" type="password" name="password" minlength="<?= PASSWORD_MIN_LENGTH ?>" required></div>
 <button class="btn btn-primary w-100 login-btn" type="submit">Create Admin account</button></form></div></div></body></html>

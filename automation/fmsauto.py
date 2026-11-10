@@ -6,7 +6,8 @@ automation/fmsauto.py - shared helpers for the two demonstration scripts.
 
 Rules these helpers enforce (see guide H and M):
   * Everything is done through the browser screens, like a person would. No database access.
-  * Logging in uses the real email code (OTP). By default YOU type the code from your inbox.
+  * Logging in is username + password only. A NEW account (or one the Admin reset) starts with a one-time temporary
+    password that the Admin screen shows once; the first login replaces it with a new random password (forced change).
   * Passwords are never printed, never written to reports or screenshots. They live only in
     automation/.credentials.json (ignored by git, readable by your Windows/Linux user only).
   * A result is PASSED only after the action was done AND checked again after reloading the
@@ -120,6 +121,14 @@ class Credentials:
         self.data.setdefault(base, {})[username] = password
         save_private_json(CRED_FILE, self.data)
 
+    # A new password is saved here BEFORE it is submitted, so it is never lost if the script stops half-way.
+    def set_next(self, base, username, password):
+        self.set(base, username + '#next', password)
+
+    def clear_next(self, base, username):
+        if self.data.get(base, {}).pop(username + '#next', None) is not None:
+            save_private_json(CRED_FILE, self.data)
+
     def ask(self, base, username, label):
         pw = self.get(base, username)
         if pw:
@@ -211,59 +220,12 @@ th{{background:#f6f8fa}}tr.failed td{{background:#fff5f5}}tr.skipped td{{backgro
         return path
 
 
-# ============================================================================ login codes (OTP)
-class OtpSource:
-    """Where the 6-digit login code comes from.
-       manual  (default) - you read the email and type the code in this window.
-       mailpit (local testing only) - reads the code from a local Mailpit inbox (http://127.0.0.1:8025)."""
-    def __init__(self, mode='manual', mailpit_url='http://127.0.0.1:8025'):
-        self.mode, self.mailpit_url = mode, mailpit_url.rstrip('/')
-        self._seen = {}
-
-    def before_login(self, email):
-        if self.mode == 'mailpit':
-            self._seen[email] = self._mailpit_last(email)
-
-    def code(self, email, username, attempt):
-        if self.mode == 'mailpit':
-            return self._mailpit_code(email)
-        print(f'\n  >> A login code was emailed to {mask_email(email)} for "{username}".')
-        hint = '' if attempt == 1 else ' (the last code was not accepted)'
-        v = input(f'  >> Type the 6-digit code{hint}, or R to send a new code: ').strip()
-        return v
-
-    # --- local Mailpit (only for running the scripts on a test computer with Mailpit)
-    def _get(self, path):
-        import urllib.request
-        with urllib.request.urlopen(self.mailpit_url + path, timeout=10) as r:
-            return json.loads(r.read().decode('utf-8'))
-
-    def _mailpit_last(self, email):
-        import urllib.parse
-        r = self._get('/api/v1/search?limit=1&query=' + urllib.parse.quote(f'to:"{email}"'))
-        ms = r.get('messages') or []
-        return ms[0]['ID'] if ms else None
-
-    def _mailpit_code(self, email):
-        before = self._seen.get(email)
-        for _ in range(60):
-            last = self._mailpit_last(email)
-            if last and last != before:
-                msg = self._get('/api/v1/message/' + last)
-                m = re.search(r'code is:\s*(\d{6})', msg.get('Text', ''))
-                if m:
-                    self._seen[email] = last
-                    return m.group(1)
-            time.sleep(0.5)
-        raise RuntimeError('No login email arrived in Mailpit for ' + mask_email(email))
-
-
 # ============================================================================ browser helpers
 class Browser:
     """One Playwright browser; one context (= separate login) per user."""
-    def __init__(self, base, rec, otp, headed=False, slow=0):
+    def __init__(self, base, rec, creds=None, headed=False, slow=0):
         from playwright.sync_api import sync_playwright
-        self.base, self.rec, self.otp = base, rec, otp
+        self.base, self.rec, self.creds = base, rec, creds
         self._pw = sync_playwright().start()
         try:
             self.browser = self._pw.chromium.launch(headless=not headed, slow_mo=slow)
@@ -314,9 +276,11 @@ class Browser:
                 self.tile_status[r.status] = self.tile_status.get(r.status, 0) + 1
         page.on('response', on_response)
 
-    def login(self, username, password, email, label=''):
+    def login(self, username, password, email='', label=''):
         """Opens (or reuses) the signed-in screen of a user. Returns the page.
-           Uses the saved session when it is still valid; otherwise password + emailed code."""
+           Uses the saved session when it is still valid; otherwise signs in with username + password.
+           If the server asks for the first-login password change (new or Admin-reset account), the temporary
+           password is replaced by a new random one, saved in .credentials.json (never printed or reported)."""
         if username in self.pages:
             return self.pages[username]
         sf = self._session_file(username)
@@ -326,50 +290,75 @@ class Browser:
         page.set_default_timeout(20000)
         self._watch(page, username)
         page.goto(self.url())
-        page.wait_for_selector('#loginForm, #otpForm, #pageContent', timeout=30000)
+        page.wait_for_selector('#loginForm, #securePwForm, #pageContent', timeout=30000)
         if page.locator('#pageContent').count():
             who = page.evaluate('() => App.me && App.me.user && App.me.user.username')
             if who == username:
                 self.pages[username] = page
-                print(f'  {username}: still signed in from the last run (no code needed).')
+                print(f'  {username}: still signed in from the last run.')
                 return page
             page.evaluate('async () => { try { await App.logout(); } catch (e) {} }')
             page.wait_for_selector('#loginForm', timeout=15000)
-        if page.locator('#otpForm').count():
-            page.click('#otpBack')
-            page.wait_for_selector('#loginForm')
-        self.otp.before_login(email)
-        page.fill('#lgU', username)
-        page.fill('#lgP', password)
-        page.click('#loginForm button[type=submit]')
-        page.wait_for_selector('#otpForm, .auth-alert.alert-danger', timeout=30000)
-        if not page.locator('#otpForm').count():
-            msg = page.locator('.auth-alert').first.inner_text() if page.locator('.auth-alert').count() else 'login refused'
-            ctx.close()
-            raise RuntimeError(f'Login of {username} refused: {msg}')
-        for attempt in range(1, 6):
-            code = self.otp.code(email, username, attempt)
-            if code.lower() == 'r':
-                page.wait_for_function("() => !document.getElementById('otpResend').disabled", timeout=70000)
-                self.otp.before_login(email)
-                page.click('#otpResend')
-                page.wait_for_timeout(1500)
-                continue
-            page.fill('#otpCode', code)
-            page.click('#otpForm button[type=submit]')
-            try:
-                page.wait_for_selector('#pageContent', timeout=12000)
+        if page.locator('#securePwForm').count():          # a half-finished first login of someone else: start over
+            page.evaluate('async () => { try { await App.logout(); } catch (e) {} }')
+            page.wait_for_selector('#loginForm', timeout=15000)
+        # A password saved before an interrupted first-login change is tried as a second choice.
+        candidates = [password]
+        pending = self.creds.get(self.base, username + '#next') if self.creds else None
+        if pending and pending != password:
+            candidates.append(pending)
+        used = None
+        for pw in candidates:
+            page.fill('#lgU', username)
+            page.fill('#lgP', pw)
+            page.click('#loginForm button[type=submit]')
+            page.wait_for_selector('#pageContent, #securePwForm, .auth-alert.alert-danger', timeout=30000)
+            if not page.locator('.auth-alert.alert-danger').count():
+                used = pw
                 break
-            except Exception:
-                if page.locator('#loginForm').count():
-                    ctx.close()
-                    raise RuntimeError(f'Login of {username}: the code expired or the account is locked. Run again.')
-        else:
-            ctx.close()
-            raise RuntimeError(f'Login of {username}: no valid code after 5 tries.')
+            msg = page.locator('.auth-alert').first.inner_text()
+            if pw is candidates[-1] or 'locked' in msg.lower():
+                ctx.close()
+                raise RuntimeError(f'Login of {username} refused: {msg}')
+        if page.locator('#securePwForm').count():
+            self._first_login_change(page, username, used)
+        if used == pending and self.creds:                # the interrupted change had in fact completed
+            self.creds.set(self.base, username, pending)
+            self.creds.clear_next(self.base, username)
         self.pages[username] = page
         self.save_session(username)
         return page
+
+    def _first_login_change(self, page, username, temp_password):
+        """Forced first-login screen: replace the temporary password with a new random one."""
+        if self.creds is None:
+            raise RuntimeError(f'{username} must change the temporary password, but no credentials store was given.')
+        new_pw = strong_password()
+        self.creds.set_next(self.base, username, new_pw)
+        page.fill('[name=current_password]', temp_password)
+        page.fill('[name=new_password]', new_pw)
+        page.fill('[name=confirm]', new_pw)
+        page.click('#securePwForm button[type=submit]')
+        try:
+            page.wait_for_selector('#pageContent', timeout=30000)
+        except Exception:
+            msg = page.locator('.auth-alert').first.inner_text() if page.locator('.auth-alert').count() else 'no confirmation'
+            self.creds.clear_next(self.base, username)
+            raise RuntimeError(f'First-login password change of {username} failed: {msg}')
+        self.creds.set(self.base, username, new_pw)
+        self.creds.clear_next(self.base, username)
+        print(f'  {username}: temporary password replaced (new password saved in automation/.credentials.json).')
+
+    def read_temp_password(self, page):
+        """After Admin creates an account or resets a password: reads the one-time password from the dialog and closes it."""
+        field = page.locator('.modal.show #tmpPw')
+        field.wait_for(timeout=10000)
+        pw = field.input_value()
+        if not pw:
+            raise RuntimeError('The temporary password dialog was empty.')
+        page.locator('.modal.show [data-bs-dismiss=modal]').last.click()
+        page.wait_for_timeout(500)
+        return pw
 
     # ---- screen helpers
     @staticmethod
