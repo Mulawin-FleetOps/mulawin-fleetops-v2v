@@ -319,21 +319,36 @@ UI.distanceWidget = (form, opts = {}) => {
     leaveRouteMode();
     st.computed = null; st.kind = null;
     const seq = ++st.seq;
-    if (!cfg.routing) { say(noService); return; }
-    if (!points.pickup || !points.delivery) { say('<span class="text-muted">Pin both points to get the road distance.</span>'); return; }
+    const mapStatus = opts.mapBox?.querySelector('[data-mapinfo]');
+    if (opts.hideStraightLine && picker) picker.clearRoute();
+    if (!cfg.routing) {
+      if (mapStatus) mapStatus.textContent = 'Road routing unavailable. Enter a verified road distance manually.';
+      say(noService); return;
+    }
+    if (!points.pickup || !points.delivery) {
+      if (mapStatus) mapStatus.textContent = 'Pin pickup and destination to preview the road route.';
+      say('<span class="text-muted">Pin both points to get the road distance.</span>'); return;
+    }
+    if (mapStatus) mapStatus.textContent = 'Calculating pickup → destination road route…';
     say('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Computing the road distance…</span>');
     let r;
     try { r = await UI.Map.route(points.pickup, points.delivery, opt ? opt.value : cfg.defaultRouteOption); }
     catch (e) { r = { available: false, message: e.message }; }
     if (seq !== st.seq) return;   // an older answer: ignore
-    if (!r.available) { say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span> <span class="text-muted">Type the km.</span>`); return; }
+    if (!r.available) {
+      if (mapStatus) mapStatus.textContent = 'Road route unavailable; verify pins or enter the distance manually.';
+      say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span> <span class="text-muted">Type the km.</span>`); return;
+    }
     st.computed = +r.distance_km; st.kind = 'map';
     km.value = st.computed.toFixed(2); km.dispatchEvent(new Event('input', { bubbles: true }));
     if (r.geometry && picker) {
       const roadPoints = UI.Map.decode(r.geometry);
-      picker.showRoute(roadPoints);
-      if (opts.onRoadRoute) opts.onRoadRoute(roadPoints);
-    }
+      if (roadPoints.length >= 2) {
+        picker.showRoute(roadPoints);
+        if (opts.onRoadRoute) opts.onRoadRoute(roadPoints);
+        if (mapStatus) mapStatus.textContent = 'Pickup → destination road route ready · ' + UI.num(r.distance_km, 2) + ' km';
+      } else if (mapStatus) mapStatus.textContent = 'Road distance calculated; route line unavailable.';
+    } else if (mapStatus) mapStatus.textContent = 'Road distance calculated; route line unavailable.';
     say(`Road distance: <b>${UI.num(r.distance_km, 2)} km</b> · about ${UI.num(r.duration_min, 0)} min · ${UI.esc(r.option_label)}
       <span class="text-muted">(straight line ${UI.num(r.straight_km, 1)} km)</span>
       ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}${useBtn('Use the computed km')}`);
