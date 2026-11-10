@@ -23,15 +23,15 @@ const RouteUI = {
     const fields = [
       { type: 'html', col: 12, html: `<section class="rpm-route-garage" aria-label="Fixed company initial point">
         <div class="rpm-route-garage-icon"><i class="bi bi-house-door" aria-hidden="true"></i></div>
-        <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><strong>Company garage</strong><span><i class="bi bi-lock" aria-hidden="true"></i> Fixed initial point</span></div>
-        <div>R.P. Mulawin Trucking Service</div><small>Purok 2, 86-A, Luyos, Tanauan City, Batangas</small></div>
+        <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><span class="rpm-garage-eyebrow">STARTING LOCATION</span><span class="rpm-garage-fixed"><i class="bi bi-lock" aria-hidden="true"></i> Fixed for all trips</span></div>
+        <strong class="rpm-garage-name">R.P. Mulawin Trucking Service</strong><small><i class="bi bi-geo-alt" aria-hidden="true"></i> Purok 2, 86-A, Luyos, Tanauan City, Batangas</small></div>
       </section>` },
       { name: 'client_id', label: 'Client', type: 'select', required: true, col: 8, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
       { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes) },
       { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
       { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
       { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
-        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Follow the roads in travel order</span></div>
+        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Live road route · Garage → Pickup → Destination</span></div>
         <div class="rpm-route-steps" aria-label="Driving sequence"><span class="rpm-step-garage"><b>1</b> Garage</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-pickup"><b>2</b> Pickup</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-delivery"><b>3</b> Destination</span></div>
         <div data-routemapbox></div>
         <div class="rpm-route-legend"><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span><span class="rpm-route-legend-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Garage location approximate</span></div>
@@ -49,7 +49,7 @@ const RouteUI = {
       </div><p class="rpm-route-distance-note" data-garage-note>Garage distance is optional operational information. The client's billable route remains pickup to delivery.</p>` },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    UI.modal('Request a new route', '<p class="rpm-route-intro">Select a client and truck type, then pin pickup and delivery points. The company garage is fixed. The client route covers pickup to delivery only; return trips are separate.</p>'
+    UI.modal('Request a new route', '<p class="rpm-route-intro"><i class="bi bi-info-circle" aria-hidden="true"></i> Choose a client and truck, then enter and pin the pickup and delivery addresses. The garage is already set.</p>'
       + UI.fields(fields), async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
       if (form._distance) form._distance.clean(f);
