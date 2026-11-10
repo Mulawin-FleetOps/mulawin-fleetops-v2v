@@ -283,9 +283,9 @@ UI.distanceWidget = (form, opts = {}) => {
   const compute = async (points) => {
     leaveRouteMode();
     st.computed = null; st.kind = null;
+    const seq = ++st.seq;
     if (!cfg.routing) { say(noService); return; }
     if (!points.pickup || !points.delivery) { say('<span class="text-muted">Pin both points to get the road distance.</span>'); return; }
-    const seq = ++st.seq;
     say('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Computing the road distance…</span>');
     let r;
     try { r = await UI.Map.route(points.pickup, points.delivery, opt ? opt.value : cfg.defaultRouteOption); }
@@ -294,13 +294,20 @@ UI.distanceWidget = (form, opts = {}) => {
     if (!r.available) { say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span> <span class="text-muted">Type the km.</span>`); return; }
     st.computed = +r.distance_km; st.kind = 'map';
     km.value = st.computed.toFixed(2); km.dispatchEvent(new Event('input', { bubbles: true }));
-    if (r.geometry && picker) picker.showRoute(UI.Map.decode(r.geometry));
+    if (r.geometry && picker) {
+      const roadPoints = UI.Map.decode(r.geometry);
+      picker.showRoute(roadPoints);
+      if (opts.onRoadRoute) opts.onRoadRoute(roadPoints);
+    }
     say(`Road distance: <b>${UI.num(r.distance_km, 2)} km</b> · about ${UI.num(r.duration_min, 0)} min · ${UI.esc(r.option_label)}
       <span class="text-muted">(straight line ${UI.num(r.straight_km, 1)} km)</span>
       ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}${useBtn('Use the computed km')}`);
     wireUse();
   };
-  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, scrollWheelZoom: opts.scrollWheelZoom, hideStraightLine: opts.hideStraightLine, onChange: (pts) => compute(pts),
+  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, scrollWheelZoom: opts.scrollWheelZoom, hideStraightLine: opts.hideStraightLine, onChange: (pts) => {
+    if (opts.onPointsChange) opts.onPointsChange(pts);
+    compute(pts);
+  },
     footNote: opts.footNote || (cfg.routing ? 'Road distance by openrouteservice (estimate). Check it before saving.' : 'Type the km.') }) : null;
   picker = map ? map.picker : null;
   if (opt) opt.addEventListener('change', () => { if (picker && st.kind !== 'route') compute(picker.points()); });
