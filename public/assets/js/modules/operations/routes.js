@@ -21,6 +21,7 @@ const RouteUI = {
 
   request(d) {
     const fields = [
+      { type: 'html', col: 12, html: '<section class="rpm-route-garage" aria-label="Fixed company initial point"><strong>Company garage · Fixed initial point</strong><div>R.P. Mulawin Trucking Service — Purok 2, 86-A, Luyos, Tanauan City, Batangas</div><small>The initial point is shared by all trucks. Route billing distance remains pickup to destination.</small></section>' },
       { name: 'client_id', label: 'Client', type: 'select', required: true, col: 8, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
       { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes) },
       { name: 'origin', label: 'Origin (pickup point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
