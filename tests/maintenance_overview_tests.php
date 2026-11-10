@@ -89,14 +89,18 @@ ok(isset($pages['maintenance_overview']) && $pages['maintenance_overview'][3] ==
 ok($pages['maintenance_overview'][5] === $pages['maintenance'][5], 'overview roles are exactly the Corrective Maintenance roles (no new rights)', json_encode($pages['maintenance_overview'][5]));
 foreach (['admin' => true, 'operations_head' => true, 'motorpool' => true, 'audit' => true, 'purchasing' => false, 'finance' => false, 'billing' => false, 'car_carrier_dispatcher' => false, 'container_wingvan_dispatcher' => false] as $role => $allowed)
     ok(Access::canOpen($U($role), 'maintenance_overview') === $allowed, "$role " . ($allowed ? 'can' : 'cannot') . ' open the overview');
-foreach (['maintenance', 'purchasing', 'mechanics', 'trucks'] as $pg)
+foreach (['maintenance', 'mechanics', 'trucks', 'maint_history'] as $pg)
     ok(Access::canOpen($mp, $pg), "motorpool still opens $pg");
-ok(!Access::canOpen($pur, 'maintenance') && Access::canOpen($pur, 'purchasing'), 'purchasing access unchanged (purchasing page yes, maintenance no)');
+// Role workspaces: the combined Parts & Purchasing page is split; Motorpool requests parts inside Repair Management only.
+ok(!isset($pages['purchasing']), 'the combined Parts & Purchasing page no longer exists');
+foreach (['parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports', 'purchasing_overview'] as $pg)
+    ok(!Access::canOpen($mp, $pg), "motorpool cannot open $pg");
+ok(!Access::canOpen($pur, 'maintenance') && Access::canOpen($pur, 'parts_requests'), 'purchasing: Parts Requests yes, Repair Management no');
 $nav = array_column(Access::navFor($mp), null, 'id');
-ok(($nav['maintenance_overview']['label'] ?? '') === 'Overview' && ($nav['maintenance']['label'] ?? '') === 'Repair Management' && ($nav['purchasing']['label'] ?? '') === 'Parts Inventory', 'motorpool labels: Overview, Repair Management, Parts Inventory', json_encode(array_map(fn($n) => $n['label'], $nav)));
+ok(($nav['maintenance_overview']['label'] ?? '') === 'Overview' && ($nav['maintenance']['label'] ?? '') === 'Repair Management' && !isset($nav['purchasing']), 'motorpool labels: Overview, Repair Management; no Parts & Purchasing page', json_encode(array_map(fn($n) => $n['label'], $nav)));
 ok(($nav['maintenance_overview']['section'] ?? '') === 'Maintenance', 'overview is in the Maintenance section for motorpool');
 $navAdm = array_column(Access::navFor($adm), null, 'id');
-ok(($navAdm['maintenance']['label'] ?? '') === 'Corrective Maintenance' && ($navAdm['purchasing']['label'] ?? '') === 'Parts & Purchasing', 'other roles keep their labels');
+ok(($navAdm['maintenance']['label'] ?? '') === 'Corrective Maintenance', 'other roles keep their Corrective Maintenance label');
 ok(!isset(array_column(Access::navFor($pur), null, 'id')['maintenance_overview']), 'purchasing menu has no overview');
 // Direct calls of motorpool to purchasing-only actions are still refused.
 fails(fn() => Purchasing::action($mp, 'request_process', ['request_id' => 1]), 'motorpool cannot release parts (Purchasing only)', 403);

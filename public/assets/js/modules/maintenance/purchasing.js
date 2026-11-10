@@ -1,5 +1,5 @@
-/* assets/js/modules/maintenance/purchasing.js — PARTS & PURCHASING
-   A. Parts request (stock-out): Motorpool requests -> Purchasing checks stock and releases.
+/* assets/js/modules/maintenance/purchasing.js — PURCHASING WORKSPACE (Overview, Parts Requests, Purchase Orders, Inventory, Stock Movements)
+   A. Parts request (stock-out): Motorpool requests (from Repair Management) -> Purchasing checks stock and releases.
    B. Purchase order (stock-in): Purchasing creates -> routed to Finance (<= limit) or Admin
       (> limit) -> budget check -> approved PO (with e-signature) -> receiving (partial allowed).
    Printable REQUEST FORM (PDF #13) and PURCHASE ORDER.
@@ -16,7 +16,7 @@ const PurUI = {
       <div class="col-${withPrice ? 2 : 3}"><input class="form-control form-control-sm" type="number" min="1" max="100000" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
       ${withPrice ? `<div class="col-2"><input class="form-control form-control-sm" type="number" min="0" step="0.01" placeholder="Unit price" data-price value="${UI.esc(l.unit_price || '')}"></div><div class="col-2 small text-end pt-1" data-lt></div>` : ''}</div>`;
     const rows = (lines.length ? lines : [{}, {}, {}]).map(row).join('');
-    return `<div class="small text-muted mb-1">${withPrice ? 'Part · Qty · Unit price · Amount' : 'Part · Qty'} ${parts.length ? '' : '<b class="text-danger">No parts yet: Purchasing adds them in the Inventory tab.</b>'}</div><div data-lines>${rows}</div>
+    return `<div class="small text-muted mb-1">${withPrice ? 'Part · Qty · Unit price · Amount' : 'Part · Qty'} ${parts.length ? '' : '<b class="text-danger">No parts yet: Purchasing adds them on the Inventory page.</b>'}</div><div data-lines>${rows}</div>
       <button type="button" class="btn btn-sm btn-link p-0" data-addrow>+ Add item</button>${withPrice ? '<div class="text-end fw-bold" data-total></div><div class="small text-end" data-route></div>' : ''}`;
   },
   wireLines(w, withPrice) {
@@ -38,15 +38,6 @@ const PurUI = {
   readLines(w, withPrice) {
     return [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value, ...(withPrice ? { unit_price: r.querySelector('[data-price]').value } : {}) }))
       .filter(l => l.part_id || l.quantity);
-  },
-  newRequest(vehicleId, jobId) {
-    const d = PurUI.data;
-    UI.modal('Parts request (Request Form)', UI.fields([
-      { name: 'vehicle_id', label: 'Truck', type: 'select', required: true, col: 6, value: vehicleId, options: d.trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]) },
-      { name: 'maintenance_job_id', label: 'For maintenance record (optional)', type: 'select', col: 6, value: jobId, options: d.openJobs.map(j => [j.id, j.job_ref + ' · ' + j.problem.slice(0, 40)]) },
-      { name: 'purpose', label: 'Reason / purpose', required: true, col: 12 }]) + '<div class="mt-2">' + PurUI.lineEditor(false) + '</div>',
-      async (x, form, w) => { const r = await App.api('Purchasing.request_create', { ...x, lines: PurUI.readLines(w, false) }); UI.result(r); App.go('purchasing'); },
-      { submit: 'Send to Purchasing', onShow: (w) => PurUI.wireLines(w, false) });
   },
   /** Supplier fields of the PO form; picking a suggested supplier fills the empty fields. */
   supplierFields() {
@@ -72,7 +63,7 @@ const PurUI = {
     const d = PurUI.data;
     UI.modal('Purchase Order Request', UI.fields([
       ...PurUI.supplierFields(),
-      { name: 'part_request_id', label: 'Related parts request (optional)', type: 'select', col: 6, value: prefill.part_request_id, options: d.requests.filter(r => ['Not Available', 'Partially Released', 'Requested'].includes(r.status)).map(r => [r.id, r.request_ref + ' · ' + r.plate_number]) },
+      { name: 'part_request_id', label: 'Related parts request (optional)', type: 'select', col: 6, value: prefill.part_request_id, options: (d.linkableRequests || (d.requests || []).filter(r => ['Not Available', 'Partially Released', 'Requested'].includes(r.status))).map(r => [r.id, r.request_ref + ' · ' + r.plate_number]) },
       { name: 'purpose', label: 'Purpose', required: true, col: 12, value: prefill.purpose }]) + '<div class="mt-2">' + PurUI.lineEditor(true, prefill.lines || []) + '</div>'
       + (d.budget && d.budget.id ? `<div class="small text-muted mt-2">Purchasing budget available now: <b>${UI.money(d.budget.available)}</b> (checked again at approval).</div>` : '<div class="small text-danger mt-2">No active purchasing budget: approval will be rejected until Finance sets one.</div>'),
       async (x, form, w) => { const r = await App.api('Purchasing.po_create', { ...x, lines: PurUI.readLines(w, true) }); UI.result(r); App.route(); },
@@ -126,31 +117,14 @@ const PurUI = {
   },
 };
 
-App.page('purchasing', {
-  title: 'Parts & Purchasing',
-  subtitle: 'Parts requests (stock-out), purchase orders (stock-in) and inventory.',
-  render(ctx) {
-    const d = PurUI.data = ctx.data, can = d.can;
-    const add = (label, icon, fn, cls = 'btn-primary') => { const b = document.createElement('button'); b.className = 'btn btn-sm ' + cls; b.innerHTML = `<i class="bi ${icon}"></i> ${label}`; b.onclick = fn; ctx.tools.append(b); };
-    if (can.request) add('Request parts', 'bi-box-arrow-up', () => PurUI.newRequest());
-    if (can.stock) add('New purchase order', 'bi-cart-plus', () => PurUI.newPO());
-    const lowStock = d.parts.filter(p => +p.active && +p.low_stock);
-    const invValue = d.parts.filter(p => +p.active).reduce((a, p) => a + +p.stock_value, 0);
-    const pendingApproval = d.orders.filter(o => o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig)));
-    ctx.el.innerHTML = UI.cards([
-      { label: 'Parts requests to process', value: d.requests.filter(r => r.status === 'Requested').length, icon: 'bi-box-arrow-up', color: 'amber' },
-      { label: 'POs waiting for approval', value: d.orders.filter(o => o.status === 'Pending Approval').length, icon: 'bi-hourglass-split', color: 'blue', hint: pendingApproval.length ? pendingApproval.length + ' for you' : '' },
-      { label: 'POs to receive', value: d.orders.filter(o => ['Approved', 'Partially Received'].includes(o.status)).length, icon: 'bi-truck', color: 'blue' },
-      { label: 'Inventory value', value: invValue, format: 'money', icon: 'bi-cash', color: 'green' },
-      { label: 'Low-stock items', value: lowStock.length, icon: 'bi-exclamation-triangle', color: 'red' },
-      { label: 'Purchasing budget available', value: d.budget && d.budget.id ? +d.budget.available : 'No budget', format: d.budget && d.budget.id ? 'money' : '', icon: 'bi-piggy-bank', color: 'gray' },
-    ]);
+
+/** Row actions and forms shared by the Purchasing pages (Purchasing Officer acts, Finance/Admin approve, Admin/Audit read). */
+PurUI.kit = (d, can) => {
     const reqActs = (r) => UI.btn('print', 'Print form', 'outline-secondary') + (can.stock && ['Requested', 'Partially Released', 'Not Available'].includes(r.status) ? UI.btn('process', 'Check & release', 'primary') : '')
-      + (can.stock && ['Not Available', 'Partially Released'].includes(r.status) ? UI.btn('po', 'Create PO', 'outline-primary') : '') + (can.request && r.status === 'Requested' ? UI.btn('cancel', 'Cancel', 'outline-danger') : '');
+      + (can.stock && ['Not Available', 'Partially Released'].includes(r.status) ? UI.btn('po', 'Create PO', 'outline-primary') : '');
     const reqAct = async (a, r) => {
       if (a === 'print') PurUI.printRequest(r);
       if (a === 'process') PurUI.processRequest(r);
-      if (a === 'cancel') UI.confirmAction('Cancel ' + UI.esc(r.request_ref), 'The request will not be processed.', 'Purchasing.request_cancel', { request_id: r.id }, { danger: true });
       if (a === 'po') { const x = await App.api('Purchasing.request_details', { request_id: r.id });
         PurUI.newPO({ part_request_id: r.id, purpose: 'Parts for ' + r.plate_number + ' (' + r.request_ref + ')', lines: x.lines.filter(l => l.quantity - l.released_qty > 0).map(l => ({ part_id: l.part_id, quantity: l.quantity - l.released_qty, unit_price: (d.parts.find(p => p.id == l.part_id) || {}).unit_cost })) }); }
     };
@@ -177,24 +151,104 @@ App.page('purchasing', {
     const partAct = (a, p) => a === 'edit' ? partForm(p) : UI.formModal('Adjust stock of ' + UI.esc(p.part_number), [
       { name: 'quantity_delta', label: 'Quantity to add (+) or remove (-)', type: 'number', min: -100000, required: true, col: 6 }, { name: 'reason', label: 'Reason (count correction, damaged, ...)', required: true, col: 6 }],
       'Purchasing.adjust', { extra: { part_id: p.id }, intro: 'On hand now: ' + p.quantity_on_hand + ' ' + UI.esc(p.unit) + '.' });
+  return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
+};
+
+/** Page toolbar button. */
+PurUI.tool = (ctx, label, icon, fn, cls = 'btn-primary') => { const b = document.createElement('button'); b.className = 'btn btn-sm ' + cls; b.innerHTML = `<i class="bi ${icon}"></i> ${label}`; b.onclick = fn; ctx.tools.append(b); };
+PurUI.prep = (ctx) => { PurUI.data = ctx.data; return { d: ctx.data, can: ctx.data.can, k: PurUI.kit(ctx.data, ctx.data.can) }; };
+PurUI.waitingForMe = (d, can) => (d.orders || []).filter(o => o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig)));
+
+// ---------------------------------------------------------------- Purchasing Overview (landing page of the Purchasing Officer)
+App.page('purchasing_overview', {
+  title: 'Purchasing Overview',
+  subtitle: 'What needs action now: parts requests, purchase orders to receive, low stock and the purchasing budget.',
+  render(ctx) {
+    const { d } = PurUI.prep(ctx), c = d.counts || {}, n = (k) => +c[k] || 0, b = d.budget || {};
+    PurUI.tool(ctx, 'Parts requests', 'bi-box-arrow-up', () => App.go('parts_requests'), 'btn-primary');
+    PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => App.go('purchase_orders', { new: 1 }), 'btn-outline-secondary');
+    ctx.el.innerHTML = UI.cards([
+      { label: 'Parts requests to process', value: n('requests_open'), icon: 'bi-box-arrow-up', color: n('requests_open') ? 'amber' : '', page: 'parts_requests', hint: n('requests_followup') ? n('requests_followup') + ' more need follow-up' : '' },
+      { label: 'POs waiting for approval', value: n('po_pending'), icon: 'bi-hourglass-split', color: 'blue', page: 'purchase_orders' },
+      { label: 'POs to receive', value: n('po_to_receive'), icon: 'bi-truck', color: 'blue', page: 'purchase_orders' },
+      { label: 'Inventory value', value: n('inventory_value'), format: 'money', icon: 'bi-cash', color: 'green', page: 'inventory' },
+      { label: 'Low-stock items', value: n('low_stock'), icon: 'bi-exclamation-triangle', color: n('low_stock') ? 'red' : '', page: 'inventory' },
+      { label: 'Purchasing budget available', value: b.id ? +b.available : 'No budget', format: b.id ? 'money' : '', icon: 'bi-piggy-bank', color: 'gray' },
+    ]);
+    const add = (html) => { const box = document.createElement('div'); box.className = 'mt-3'; box.innerHTML = html; ctx.el.append(box); };
+    add(UI.table([['Request', 'request_ref'], ['Request date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Repair', 'job_ref'], ['Items', 'items'], ['Status', 'status', 'badge']], d.requests || [],
+      { title: 'Parts requests requiring action', actions: () => UI.btn('go', 'Open'), onAction: () => App.go('parts_requests'), rowClick: () => App.go('parts_requests'), empty: 'No parts request is waiting.' }));
+    add(UI.table([['PO', 'po_ref'], ['Supplier', 'supplier'], ['Total', 'total_amount', 'money'], ['Status', 'status', 'badge']], d.receiving || [],
+      { title: 'Purchase orders awaiting receipt', actions: () => UI.btn('go', 'Open'), onAction: () => App.go('purchase_orders'), rowClick: () => App.go('purchase_orders'), empty: 'No approved purchase order is waiting for delivery.' }));
+    add(UI.table([['Part no.', 'part_number'], ['Description', 'description'], ['On hand', 'quantity_on_hand', 'num'], ['Reorder level', 'reorder_level', 'num']], d.lowStock || [],
+      { title: 'Low-stock items', actions: () => UI.btn('go', 'Open'), onAction: () => App.go('inventory'), rowClick: () => App.go('inventory'), empty: 'No part is at or below its reorder level.' }));
+  },
+});
+
+// ---------------------------------------------------------------- Parts Requests (stock-out)
+App.page('parts_requests', {
+  title: 'Parts Requests',
+  subtitle: 'Check the stock and release parts for repair requests. Create a purchase order for missing items.',
+  render(ctx) {
+    const { d, can, k } = PurUI.prep(ctx);
+    const todo = (d.requests || []).filter(r => r.status === 'Requested').length;
+    ctx.el.innerHTML = UI.statusStrip([
+      { label: 'To process', value: todo, color: todo ? 'amber' : '' },
+      { label: 'Partially released / not available', value: (d.requests || []).filter(r => ['Partially Released', 'Not Available'].includes(r.status)).length, color: 'blue' },
+      { label: 'Released', value: (d.requests || []).filter(r => r.status === 'Released').length, color: 'green' }]);
     const box = document.createElement('div'); ctx.el.append(box);
-    UI.tabs(box, [
-      ['requests', 'Parts requests', () => UI.table([['Request', 'request_ref'], ['Request date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Maintenance', 'job_ref'], ['Purpose', 'purpose'],
-        ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name']], d.requests, { title: 'Truck-parts requests (stock-out)', actions: reqActs, onAction: reqAct })],
-      ['orders', 'Purchase orders', () => UI.table([['PO', 'po_ref'], ['Order date', 'created_at', 'date'], ['Supplier', 'supplier'], ['Total', 'total_amount', 'money'],
-        ['Approver', 'approver_role', (v) => v === 'finance' ? 'Finance' : 'Admin'], ['Status', 'status', 'badge'], ['Payment', 'payment_status', 'badge']], d.orders,
-        { title: 'Purchase order requests (stock-in)', actions: poActs, onAction: poAct })],
-      ['inventory', `Inventory${lowStock.length ? ' (' + lowStock.length + ' low)' : ''}`, (body) => {
-        const h = UI.table([['Part no.', 'part_number'], ['Description', 'description'], ['Category', 'category'], ['On hand', 'quantity_on_hand', (v, p) => `${UI.num(v)} ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}`],
-          ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], d.parts, { title: 'Parts inventory', actions: partActs, onAction: partAct,
-          tools: can.stock ? '<button class="btn btn-sm btn-primary" data-addpart><i class="bi bi-plus"></i> Add part</button>' : '' });
-        setTimeout(() => body.querySelector('[data-addpart]')?.addEventListener('click', () => partForm()), 0);
-        return h;
-      }],
-      ['movements', 'Stock movements', () => UI.table([['Date and time', 'created_at', 'datetime'], ['Part', 'part_number'], ['Description', 'description'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', 'num'],
-        ['Reason', 'reason'], ['Truck', 'plate_number'], ['By', 'actor']], d.movements, { title: 'Stock-in, stock-out and adjustments (latest 500)' })],
-    ], can.approveSmall || can.approveBig ? 'orders' : null);
-    const once = UI.takeQuery(ctx, 'request_for', 'job');
-    if (once.request_for && can.request) PurUI.newRequest(once.request_for, once.job);
+    box.innerHTML = UI.table([['Request', 'request_ref'], ['Request date', 'created_at', 'date'], ['Requesting department', 'department'], ['Truck', 'plate_number'], ['Repair reference', 'job_ref'],
+      ['Items', 'items'], ['Purpose', 'purpose'], ['Status', 'status', 'badge']], (d.requests || []).map(r => ({ ...r, department: 'Motorpool' })),
+      { title: 'Truck-parts requests (stock-out)', actions: k.reqActs, onAction: k.reqAct });
+  },
+});
+
+// ---------------------------------------------------------------- Purchase Orders (stock-in)
+App.page('purchase_orders', {
+  title: 'Purchase Orders',
+  subtitle: 'Purchase orders for parts: approval, printing, receiving and closing.',
+  render(ctx) {
+    const { d, can, k } = PurUI.prep(ctx);
+    if (can.stock) PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => PurUI.newPO());
+    const mine = PurUI.waitingForMe(d, can);
+    ctx.el.innerHTML = UI.statusStrip([
+      { label: 'Waiting for approval', value: (d.orders || []).filter(o => o.status === 'Pending Approval').length, color: 'blue', note: mine.length ? mine.length + ' for you' : '' },
+      { label: 'To receive', value: (d.orders || []).filter(o => ['Approved', 'Partially Received'].includes(o.status)).length, color: 'blue' }]);
+    const box = document.createElement('div'); ctx.el.append(box);
+    box.innerHTML = UI.table([['PO', 'po_ref'], ['Order date', 'created_at', 'date'], ['Supplier', 'supplier'], ['Total', 'total_amount', 'money'],
+      ['Approver', 'approver_role', (v) => v === 'finance' ? 'Finance' : 'Admin'], ['Status', 'status', 'badge'], ['Payment', 'payment_status', 'badge']], d.orders || [],
+      { title: 'Purchase order requests (stock-in)', actions: k.poActs, onAction: k.poAct });
+    const once = UI.takeQuery(ctx, 'new');
+    if (once.new && can.stock) PurUI.newPO();
+  },
+});
+
+// ---------------------------------------------------------------- Inventory
+App.page('inventory', {
+  title: 'Inventory',
+  subtitle: 'Parts, stock on hand, reorder levels and stock value.',
+  render(ctx) {
+    const { d, can, k } = PurUI.prep(ctx);
+    if (can.stock) PurUI.tool(ctx, 'Add part', 'bi-plus-lg', () => k.partForm());
+    const active = (d.parts || []).filter(p => +p.active), low = active.filter(p => +p.low_stock);
+    ctx.el.innerHTML = UI.cards([
+      { label: 'Parts', value: active.length, icon: 'bi-box-seam' },
+      { label: 'Inventory value', value: active.reduce((a, p) => a + +p.stock_value, 0), format: 'money', icon: 'bi-cash', color: 'green' },
+      { label: 'Low-stock items', value: low.length, icon: 'bi-exclamation-triangle', color: low.length ? 'red' : '' }]);
+    const box = document.createElement('div'); ctx.el.append(box);
+    box.innerHTML = UI.table([['Part no.', 'part_number'], ['Description', 'description'], ['Category', 'category'], ['On hand', 'quantity_on_hand', (v, p) => `${UI.num(v)} ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}`],
+      ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], d.parts || [], { title: 'Parts inventory', actions: k.partActs, onAction: k.partAct });
+  },
+});
+
+// ---------------------------------------------------------------- Stock Movements
+App.page('stock_movements', {
+  title: 'Stock Movements',
+  subtitle: 'Stock-in, stock-out and adjustments (latest 500).',
+  render(ctx) {
+    const { d } = PurUI.prep(ctx);
+    const box = document.createElement('div'); ctx.el.append(box);
+    box.innerHTML = UI.table([['Date and time', 'created_at', 'datetime'], ['Part', 'part_number'], ['Description', 'description'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', 'num'],
+      ['Reason', 'reason'], ['Truck', 'plate_number'], ['By', 'actor']], d.movements || [], { title: 'Stock-in, stock-out and adjustments (latest 500)' });
   },
 });

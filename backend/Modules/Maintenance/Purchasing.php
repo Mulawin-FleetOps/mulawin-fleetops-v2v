@@ -33,37 +33,93 @@ core('Files');
 core('Settings');
 
 final class Purchasing {
+    /**
+     * Role-specific workspace pages. Every page returns ONLY the sections it shows
+     * (Access::canOpen() has already limited who may call each page).
+     *   purchasing_overview  counts and short work lists, no full tables
+     *   parts_requests       requests to process (fulfilment fields only)
+     *   purchase_orders      purchase orders (+ what the PO form needs, Purchasing Officer only)
+     *   inventory            parts and stock values
+     *   stock_movements      stock-in / stock-out / adjustment records
+     * Motorpool has none of these pages; it uses request_catalog / my_requests below.
+     */
     public static function read(array $u, string $page, array $q): array {
         $p = db();
-        $data = readSections([
-            'parts' => fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
-                    (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock FROM parts pt ORDER BY pt.active DESC, pt.part_number"),
-            'supplierSuggestions' => fn() => hasRole($u, 'purchasing') ? self::supplierSuggestions($p) : [],
-            'requests' => fn() => many($p, "SELECT r.*, v.plate_number, m.job_ref, ru.full_name AS requested_by_name, pu.full_name AS processed_by_name,
-                    (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
-                       FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
-                FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
-                JOIN users ru ON ru.id=r.requested_by LEFT JOIN users pu ON pu.id=r.processed_by
-                ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available','Released','Cancelled'), r.id DESC LIMIT 500"),
-            'orders' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
-                    (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value,
-                    (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' ', l.received_qty, '/', l.quantity) SEPARATOR '; ') FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=o.id) AS items
-                FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
-                ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500"),
-            'movements' => fn() => many($p, "SELECT sm.*, pt.part_number, pt.description, v.plate_number, u.full_name AS actor FROM stock_movements sm JOIN parts pt ON pt.id=sm.part_id
-                LEFT JOIN vehicles v ON v.id=sm.vehicle_id JOIN users u ON u.id=sm.actor_id ORDER BY sm.id DESC LIMIT 500"),
-            'trucks' => fn() => many($p, 'SELECT id, plate_number, truck_number FROM vehicles WHERE active=1 ORDER BY plate_number'),
-            'openJobs' => fn() => many($p, "SELECT m.id, m.job_ref, m.vehicle_id, m.problem FROM maintenance_jobs m WHERE m.status IN ('Under Inspection','Under Repair') ORDER BY m.id DESC"),
-            // S4B-2D-B: Motorpool may request parts but does not need purchasing budget details.
-            'budget' => fn() => hasRole($u, 'purchasing', 'finance', 'admin', 'audit')
-                ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? []) : [],
-        ]);
+        $stock = hasRole($u, 'purchasing');
+        // S4B-2D-B: only roles that handle purchasing money see the budget.
+        $budget = fn() => hasRole($u, 'purchasing', 'finance', 'admin', 'audit')
+            ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? []) : [];
+        $partsFull = fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
+                    (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock FROM parts pt ORDER BY pt.active DESC, pt.part_number");
+        $data = match ($page) {
+            'purchasing_overview' => self::overview($u, $p, $budget),
+            'parts_requests' => readSections([
+                'requests' => fn() => self::requestRows($p),
+                // The "Create PO" shortcut needs the part list and supplier suggestions: Purchasing Officer only.
+                'parts' => fn() => $stock ? $partsFull() : [],
+                'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
+                'budget' => $budget,
+            ]),
+            'purchase_orders' => readSections([
+                'orders' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
+                        (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value,
+                        (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' ', l.received_qty, '/', l.quantity) SEPARATOR '; ') FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=o.id) AS items
+                    FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
+                    ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500"),
+                // PO form inputs (Purchasing Officer only): parts to order, requests that can be linked, supplier suggestions.
+                'parts' => fn() => $stock ? $partsFull() : [],
+                'linkableRequests' => fn() => $stock ? many($p, "SELECT r.id, r.request_ref, r.status, v.plate_number FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id
+                    WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY r.id DESC LIMIT 200") : [],
+                'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
+                'budget' => $budget,
+            ]),
+            'inventory' => readSections(['parts' => $partsFull]),
+            'stock_movements' => readSections([
+                'movements' => fn() => many($p, "SELECT sm.*, pt.part_number, pt.description, v.plate_number, u.full_name AS actor FROM stock_movements sm JOIN parts pt ON pt.id=sm.part_id
+                    LEFT JOIN vehicles v ON v.id=sm.vehicle_id JOIN users u ON u.id=sm.actor_id ORDER BY sm.id DESC LIMIT 500"),
+            ]),
+            default => throw new BusinessRuleException('Unknown page.', 404),
+        };
         $data['threshold'] = Settings::value('purchase_approval_threshold');
         $data['can'] = [
-            'request' => hasRole($u, 'motorpool'), 'stock' => hasRole($u, 'purchasing'),
+            'stock' => $stock,
             'approveSmall' => hasRole($u, 'finance'), 'approveBig' => hasRole($u, 'admin'),
         ];
         return $data;
+    }
+
+    /** Parts requests as Purchasing needs them to fulfil: no incident notes, driver or employee data. */
+    private static function requestRows(PDO $p): array {
+        return many($p, "SELECT r.id, r.request_ref, r.vehicle_id, r.status, r.purpose, r.notes, r.created_at, r.processed_at, v.plate_number, m.job_ref,
+                ru.full_name AS requested_by_name, pu.full_name AS processed_by_name,
+                (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
+                   FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
+            FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
+            JOIN users ru ON ru.id=r.requested_by LEFT JOIN users pu ON pu.id=r.processed_by
+            ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available','Released','Cancelled'), r.id DESC LIMIT 500");
+    }
+
+    /** Purchasing Overview: what needs action now. Counts and short lists only. */
+    private static function overview(array $u, PDO $p, callable $budget): array {
+        return readSections([
+            'counts' => fn() => [
+                'requests_open' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status='Requested'")['n'],
+                'requests_followup' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status IN ('Partially Released','Not Available')")['n'],
+                'po_pending' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval'")['n'],
+                'po_to_receive' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status IN ('Approved','Partially Received')")['n'],
+                'inventory_value' => (float)one($p, 'SELECT COALESCE(SUM(quantity_on_hand*unit_cost),0) AS v FROM parts WHERE active=1')['v'],
+                'low_stock' => (int)one($p, 'SELECT COUNT(*) AS n FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level')['n'],
+            ],
+            'requests' => fn() => many($p, "SELECT r.id, r.request_ref, r.status, r.created_at, v.plate_number, m.job_ref,
+                    (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity) SEPARATOR '; ') FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
+                FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
+                WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available'), r.id LIMIT 10"),
+            'receiving' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.total_amount, COALESCE(o.supplier_name, s.name) AS supplier FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id
+                WHERE o.status IN ('Approved','Partially Received') ORDER BY o.id LIMIT 10"),
+            'lowStock' => fn() => many($p, "SELECT id, part_number, description, unit, quantity_on_hand, reorder_level FROM parts
+                WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY (quantity_on_hand-reorder_level), part_number LIMIT 10"),
+            'budget' => $budget,
+        ]);
     }
 
     /**
@@ -111,6 +167,8 @@ final class Purchasing {
             'po_close' => self::poClose($u, $d),
             'po_details' => self::poDetails($u, $d),
             'request_details' => self::requestDetails($u, $d),
+            'request_catalog' => self::requestCatalog($u),
+            'my_requests' => self::myRequests($u),
             default => throw new BusinessRuleException('Unknown action.', 404),
         };
     }
@@ -236,7 +294,7 @@ final class Purchasing {
             foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
             auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
                 [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
-            Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'purchasing', 'parts-req-' . $rid);
+            Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'parts_requests', 'parts-req-' . $rid);
             return ['message' => "Request $ref sent to the Purchasing Officer."];
         });
     }
@@ -272,7 +330,7 @@ final class Purchasing {
             run($p, 'UPDATE part_requests SET status=?, processed_by=?, processed_at=NOW(), notes=COALESCE(?, notes) WHERE id=?', [$status, $u['id'], $notes, $id]);
             auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request processed', $r['request_ref'] . ' -> ' . $status,
                 ['Request status' => $r['status'], 'Units released in this action' => 0], ['Request status' => $status, 'Units released in this action' => $released]);
-            Notify::user($p, (int)$r['requested_by'], 'Parts request', $r['request_ref'] . ' is ' . $status . '.', 'purchasing');
+            Notify::user($p, (int)$r['requested_by'], 'Parts request', $r['request_ref'] . ' is ' . $status . '.', 'maintenance');
             Notify::resolve($p, 'parts-req-' . $id);
             return ['message' => 'Request is now ' . $status . '.' . ($status !== 'Released' ? ' Create a purchase order for the missing items if needed.' : '')];
         });
@@ -339,7 +397,7 @@ final class Purchasing {
                 run($p, "UPDATE purchase_orders SET status='Rejected', decided_by=?, decided_at=NOW(), decision_notes=? WHERE id=?", [$u['id'], $notes, $id]);
                 auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order rejected', $o['po_ref'] . ': ' . $notes,
                     ['PO status' => $o['status']], ['PO status' => 'Rejected']);
-                Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was rejected: ' . $notes, 'purchasing');
+                Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was rejected: ' . $notes, 'purchase_orders');
                 return ['message' => 'Purchase order rejected.'];
             }
             $b = one($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
@@ -349,7 +407,7 @@ final class Purchasing {
                 run($p, "UPDATE purchase_orders SET status='Rejected - Insufficient Budget', decided_by=?, decided_at=NOW(), decision_notes=? WHERE id=?", [$u['id'], cut('System: ' . $why, 255), $id]);
                 auditWithChanges($p, null, 'Purchasing', 'po ' . $id, 'purchase order rejected - insufficient budget', $o['po_ref'] . ': ' . $why,
                     ['PO status' => $o['status']], ['PO status' => 'Rejected - Insufficient Budget']);
-                Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was automatically rejected: insufficient budget (' . $why . ').', 'purchasing');
+                Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was automatically rejected: insufficient budget (' . $why . ').', 'purchase_orders');
                 return ['warning' => 'Rejected - Insufficient Budget: ' . $why . '. No PO document was made.'];
             }
             run($p, 'UPDATE budgets SET reserved_amount=reserved_amount+? WHERE id=?', [$o['total_amount'], $b['id']]);
@@ -357,7 +415,7 @@ final class Purchasing {
                 [$b['id'], $u['id'], $notes, $id]);
             auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order approved', $o['po_ref'] . ': PHP ' . $o['total_amount'] . ' reserved from the budget',
                 ['PO status' => $o['status'], 'Reserved amount' => $o['reserved_amount']], ['PO status' => 'Approved', 'Reserved amount' => $o['total_amount']]);
-            Notify::user($p, (int)$o['requested_by'], 'PO approved', $o['po_ref'] . ' is approved. Print the PO and proceed with the purchase.', 'purchasing');
+            Notify::user($p, (int)$o['requested_by'], 'PO approved', $o['po_ref'] . ' is approved. Print the PO and proceed with the purchase.', 'purchase_orders');
             Notify::roles($p, ['finance'], 'PO pending payment', $o['po_ref'] . ' (PHP ' . number_format((float)$o['total_amount'], 2) . ') was approved and is Pending Payment.', 'finance', 'po-pay-' . $id);
             return ['message' => 'Approved. PHP ' . number_format((float)$o['total_amount'], 2) . ' is reserved from the purchasing budget. The PO document is ready to print.'];
         });
@@ -427,7 +485,7 @@ final class Purchasing {
     }
 
     private static function poDetails(array $u, array $d): array {
-        must(Access::canOpen($u, 'purchasing') || Access::canOpen($u, 'finance'), 'Not allowed.', 403);
+        must(Access::canOpen($u, 'purchase_orders'), 'Not allowed.', 403);
         $id = idField($d, 'po_id'); $p = db();
         $o = one($p, 'SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, COALESCE(o.supplier_address, s.address) AS supplier_address,
                 COALESCE(o.supplier_contact, s.contact_person) AS supplier_contact, COALESCE(o.supplier_phone, s.contact_number) AS supplier_phone,
@@ -445,13 +503,46 @@ final class Purchasing {
             'documents' => Files::of($p, 'purchase', $id)];
     }
 
+    /**
+     * One parts request with its lines.
+     *  - Purchasing / Admin / Audit (Parts Requests page): fulfilment view incl. quantity on hand.
+     *  - Motorpool: only requests made by Motorpool, and only an availability label (no stock counts, no costs).
+     */
     private static function requestDetails(array $u, array $d): array {
-        must(Access::canOpen($u, 'purchasing'), 'Not allowed.', 403);
+        $motorpool = hasRole($u, 'motorpool');
+        must($motorpool || Access::canOpen($u, 'parts_requests'), 'Not allowed.', 403);
         $id = idField($d, 'request_id'); $p = db();
-        $r = one($p, 'SELECT r.*, v.plate_number, v.truck_number, v.make_brand, v.engine_number, m.job_ref, ru.full_name AS requested_by_name, pu.full_name AS processed_by_name
+        $r = one($p, 'SELECT r.id, r.request_ref, r.status, r.purpose, r.notes, r.created_at, r.processed_at, r.requested_by, r.processed_by,
+                v.plate_number, v.truck_number, v.make_brand, v.engine_number, m.job_ref, ru.full_name AS requested_by_name, pu.full_name AS processed_by_name
             FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users ru ON ru.id=r.requested_by
-            LEFT JOIN users pu ON pu.id=r.processed_by WHERE r.id=?', [$id]);
+            LEFT JOIN users pu ON pu.id=r.processed_by WHERE r.id=?' . ($motorpool ? " AND ru.role='motorpool'" : ''), [$id]);
         must((bool)$r, 'Request not found.', 404);
-        return ['request' => $r, 'lines' => many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit, pt.quantity_on_hand FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? ORDER BY l.id', [$id])];
+        $cols = $motorpool ? self::availabilitySql('pt') . ' AS availability' : 'pt.quantity_on_hand';
+        return ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, pt.part_number, pt.description, pt.unit, $cols
+            FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? ORDER BY l.id", [$id])];
+    }
+
+    /** In stock / Low stock / Out of stock, so Motorpool can see availability without stock counts or costs. */
+    private static function availabilitySql(string $alias): string {
+        return "CASE WHEN $alias.quantity_on_hand<=0 THEN 'Out of stock' WHEN $alias.reorder_level>0 AND $alias.quantity_on_hand<=$alias.reorder_level THEN 'Low stock' ELSE 'In stock' END";
+    }
+
+    /** Parts Motorpool may pick in the request form: identification and availability only. */
+    private static function requestCatalog(array $u): array {
+        requireRole($u, 'motorpool');
+        return ['parts' => many(db(), 'SELECT pt.id, pt.part_number, pt.description, pt.unit, ' . self::availabilitySql('pt') . ' AS availability
+            FROM parts pt WHERE pt.active=1 ORDER BY pt.part_number')];
+    }
+
+    /** Motorpool's own parts requests with fulfilment progress (requested vs released units). No costs, no stock counts. */
+    private static function myRequests(array $u): array {
+        requireRole($u, 'motorpool');
+        return ['requests' => many(db(), "SELECT r.id, r.request_ref, r.status, r.purpose, r.notes, r.created_at, r.processed_at, v.plate_number, m.job_ref, ru.full_name AS requested_by_name,
+                (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
+                (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
+                (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
+                   FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
+            FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users ru ON ru.id=r.requested_by
+            WHERE ru.role='motorpool' ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available','Released','Cancelled'), r.id DESC LIMIT 300")];
     }
 }

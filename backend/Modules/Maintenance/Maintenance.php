@@ -43,6 +43,7 @@ final class Maintenance {
     public static function read(array $u, string $page, array $q): array {
         $p = db();
         if ($page === 'maintenance_overview') return self::overview($u, $p);
+        if ($page === 'maint_history') return self::history($u, $p);
         $data = readSections([
             'jobs' => fn() => many($p, "SELECT m.id, m.job_ref, m.vehicle_id, m.source, m.problem, m.reported_on, m.priority, m.severity, m.status, m.mechanic_id, m.trip_id, m.incident_id,
                     m.expected_completion, m.completed_on, m.verified_at, m.created_at, mc.full_name AS mechanic, mc.mechanic_code,
@@ -76,14 +77,16 @@ final class Maintenance {
      * Uses only existing statuses and records; nothing is written here.
      *   - "For verification" = status Completed with verified_at still empty (the existing
      *     Verify & return to service step; it is not a separate status value).
-     *   - Parts request data is included only for roles that may open Parts & Purchasing.
+     *   - Parts request data is included only for Motorpool and roles that may open Parts Requests.
      *   - Recent activity = maintenance_events (+ parts requests and stock-out releases).
      */
     private const OVERVIEW_ATTENTION_LIMIT = 25;
     private const OVERVIEW_ACTIVITY_LIMIT = 15;
 
     private static function overview(array $u, PDO $p): array {
-        $parts = Access::canOpen($u, 'purchasing');
+        // Parts data: Motorpool (its own requests) and the roles that can open the Parts Requests page.
+        // Never inventory values, budget, purchase orders or supplier data.
+        $parts = hasRole($u, 'motorpool') || Access::canOpen($u, 'parts_requests');
         $data = readSections([
             'summary' => fn() => self::overviewSummary($p, $parts),
             'attention' => fn() => self::overviewAttention($p, $parts),
@@ -137,7 +140,7 @@ final class Maintenance {
         return $rows;
     }
 
-    /** Latest maintenance events in plain words. Parts entries only for roles that may open Parts & Purchasing. */
+    /** Latest maintenance events in plain words. Parts entries only for Motorpool and roles that may open Parts Requests. */
     private static function overviewActivity(PDO $p, bool $parts): array {
         $lim = self::OVERVIEW_ACTIVITY_LIMIT;
         $sql = "SELECT 'job' AS kind, e.created_at AS at, e.from_status, e.to_status, e.details, m.id AS job_id, m.job_ref, NULL AS request_id, NULL AS request_ref,
@@ -188,6 +191,24 @@ final class Maintenance {
         if ($from === 'Completed' && $to === 'Under Repair') return 'Verification failed, back to repair';
         if ($from === 'Completed' && $to === 'Completed' && str_starts_with($det, 'verified')) return 'Verified, returned to service';
         return $to;
+    }
+
+    /**
+     * Maintenance History: finished and cancelled records with their cost and attachment count.
+     * Full detail (incident, photos, parts, costs) opens through details(), which checks the role again.
+     */
+    private static function history(array $u, PDO $p): array {
+        return readSections([
+            'records' => fn() => many($p, "SELECT m.id, m.job_ref, m.source, m.problem, m.status, m.reported_on, m.completed_on, m.verified_at, v.plate_number, v.truck_type,
+                    mc.full_name AS mechanic, i.incident_ref,
+                    (SELECT COALESCE(SUM(c.amount),0) FROM maintenance_costs c WHERE c.maintenance_job_id=m.id) AS other_cost,
+                    (SELECT COALESCE(SUM(l.released_qty*l.unit_cost),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id) AS parts_cost,
+                    (SELECT COUNT(*) FROM documents d WHERE (d.entity_type='maintenance' AND d.entity_id=m.id) OR (m.incident_id IS NOT NULL AND d.entity_type='incident' AND d.entity_id=m.incident_id)) AS attachments
+                FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id LEFT JOIN incidents i ON i.id=m.incident_id
+                WHERE m.status IN ('Completed','Cancelled') OR m.verified_at IS NOT NULL
+                ORDER BY COALESCE(m.verified_at, m.completed_on, m.created_at) DESC, m.id DESC LIMIT 1000"),
+            'trucks' => fn() => many($p, 'SELECT id, plate_number FROM vehicles ORDER BY plate_number'),
+        ]);
     }
 
     public static function action(array $u, string $action, array $d): array {

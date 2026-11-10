@@ -312,20 +312,23 @@ const App = {
       car_carrier_dispatcher: ['dashboard', 'trips', 'funds'],
       container_wingvan_dispatcher: ['dashboard', 'trips', 'funds'],
       // MAINTENANCE_OVERVIEW_PHASE1_V1: Overview, Repair Management, Parts Inventory first (same permitted pages).
-      motorpool: ['dashboard', 'maintenance_overview', 'maintenance', 'purchasing', 'trucks', 'mechanics'],
-      purchasing: ['dashboard', 'purchasing'],
-      finance: ['dashboard', 'funds', 'finance', 'purchasing'],
+      motorpool: ['maintenance_overview', 'maintenance', 'trucks', 'mechanics', 'maint_history'],
+      purchasing: ['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports'],
+      finance: ['dashboard', 'funds', 'finance', 'purchase_orders', 'purchasing_reports'],
       billing: ['dashboard', 'billing', 'clients', 'routes'],
       audit: ['dashboard', 'reports', 'admin'],
     };
     const shortNames = {
       trips: 'Trips', trucks: 'Trucks', crew: 'Drivers', clients: 'Clients',
       routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance', maintenance_overview: 'Maintenance overview',
-      purchasing: 'Parts & purchasing', funds: 'Trip funds', billing: 'Billing',
+      funds: 'Trip funds', billing: 'Billing',
       finance: 'Finance', reports: 'Reports', admin: 'Users & settings',
+      maint_history: 'Maintenance history',
+      purchasing_overview: 'Purchasing overview', parts_requests: 'Parts requests', purchase_orders: 'Purchase orders',
+      inventory: 'Inventory', stock_movements: 'Stock movements', purchasing_reports: 'Purchasing reports',
     };
     // Role-specific menu wording (labels only).
-    const roleShortNames = { motorpool: { maintenance: 'Repair management', purchasing: 'Parts inventory' } };
+    const roleShortNames = { motorpool: { maintenance: 'Repair management', trucks: 'Truck masterlist', mechanics: 'Mechanic masterlist' } };
     const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
     const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
@@ -338,7 +341,7 @@ const App = {
     document.getElementById('app').innerHTML = `
     <div class="app-shell" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
-        <a href="#dashboard" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span><span class="brand-product">Mulawin FleetOps</span><span class="brand-company">R.P. Mulawin Trucking</span></span></a>
+        <a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span><span class="brand-product">Mulawin FleetOps</span><span class="brand-company">R.P. Mulawin Trucking</span></span></a>
         <nav class="sidebar-nav">${nav}</nav>
         <div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>
       </aside>
@@ -442,6 +445,15 @@ const App = {
   },
 
   // ---------------------------------------------------------------- router (#page?x=y)
+  /** Landing page per role. The server's me.nav decides what exists; this only picks the first page to show. */
+  homePage() {
+    const landing = { motorpool: 'maintenance_overview', purchasing: 'purchasing_overview' }[this.me?.user?.role] || 'dashboard';
+    const nav = this.me?.nav || [];
+    return nav.some(n => n.id === landing) ? landing : (nav[0]?.id || 'dashboard');
+  },
+  legacyPurchasingPage() {
+    return { motorpool: 'maintenance', purchasing: 'parts_requests' }[this.me?.user?.role] || 'purchase_orders';
+  },
   go(page, query = {}) {
     const qs = new URLSearchParams(query).toString();
     const hash = '#' + page + (qs ? '?' + qs : '');
@@ -449,7 +461,9 @@ const App = {
   },
   async route() {
     if (!this.me) return;
-    const [page, qs] = (location.hash.slice(1) || 'dashboard').split('?');
+    let [page, qs] = (location.hash.slice(1) || this.homePage()).split('?');
+    // Old notification / bookmark links to the former combined "Parts & Purchasing" page.
+    if (page === 'purchasing') { page = this.legacyPurchasingPage(); history.replaceState(null, '', '#' + page + (qs ? '?' + qs : '')); }
     const query = Object.fromEntries(new URLSearchParams(qs || ''));
     const nav = this.me.nav.find(n => n.id === page);
     // FLEETOPS_ACCESS_ANALYTICS_V1: render an explicit denial without requesting restricted page data.
@@ -471,9 +485,9 @@ const App = {
           <div class="panel-body" style="padding:28px">
             <h1 class="page-title"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Access denied</h1>
             <p class="text-muted mt-2">Your account does not have permission to open this page. Contact your administrator if you need access.</p>
-            <button type="button" class="btn btn-primary mt-2" id="accessReturnHome"><i class="bi bi-house me-1" aria-hidden="true"></i> Return to dashboard</button>
+            <button type="button" class="btn btn-primary mt-2" id="accessReturnHome"><i class="bi bi-house me-1" aria-hidden="true"></i> Return to my home page</button>
           </div></section>`;
-        content.querySelector('#accessReturnHome')?.addEventListener('click', () => this.go('dashboard'));
+        content.querySelector('#accessReturnHome')?.addEventListener('click', () => this.go(this.homePage()));
       }
       return;
     }

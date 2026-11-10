@@ -48,8 +48,8 @@ final class Documents {
         return in_array($type, match ($role) {
             'operations_head' => ['incident', 'maintenance', 'fund', 'billing'],
             'car_carrier_dispatcher', 'container_wingvan_dispatcher' => ['vehicle', 'client'],
-            'motorpool' => ['trip', 'purchase'],
-            'purchasing' => ['maintenance', 'vehicle'],
+            'motorpool' => ['trip'],   // purchase-order documents belong to Purchasing/Finance
+            'purchasing' => ['vehicle'],   // repair evidence and incident photos stay with Motorpool
             'finance' => ['billing', 'trip', 'client'],
             'billing' => ['trip'],
             'audit' => ['trip', 'incident', 'fund', 'expense', 'payable', 'billing', 'purchase', 'client', 'maintenance', 'vehicle', 'company'],

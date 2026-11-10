@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 final class Access {
     /** Small headings in the menu (only shown when the role has pages under them). */
-    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Accounting', 'Billing', 'Records'];
+    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Purchasing', 'Accounting', 'Billing', 'Records'];
 
     /**
      * Shared workflow pages belong in the employee's work area, never in a
@@ -31,14 +31,15 @@ final class Access {
         ],
         'car_carrier_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
         'container_wingvan_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
-        'motorpool' => ['trucks' => 'Maintenance', 'purchasing' => 'Maintenance', 'mechanics' => 'Maintenance'],
-        'purchasing' => ['trucks' => 'Maintenance'],
-        'finance' => ['purchasing' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
+        'motorpool' => ['trucks' => 'Maintenance', 'mechanics' => 'Maintenance'],
+        'finance' => ['purchase_orders' => 'Accounting', 'purchasing_reports' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
         'billing' => ['trips' => 'Billing', 'clients' => 'Billing', 'routes' => 'Billing'],
         'audit' => [
             'trips' => 'Records', 'trucks' => 'Records', 'crew' => 'Records',
             'clients' => 'Records', 'routes' => 'Records', 'mechanics' => 'Records',
-            'maintenance_overview' => 'Records', 'maintenance' => 'Records', 'purchasing' => 'Records', 'funds' => 'Records',
+            'maintenance_overview' => 'Records', 'maintenance' => 'Records', 'maint_history' => 'Records', 'funds' => 'Records',
+            'parts_requests' => 'Records', 'purchase_orders' => 'Records', 'inventory' => 'Records',
+            'stock_movements' => 'Records', 'purchasing_reports' => 'Records',
             'billing' => 'Records', 'finance' => 'Records', 'admin' => 'Records',
             'reports' => 'Records',
         ],
@@ -48,20 +49,23 @@ final class Access {
         'car_carrier_dispatcher' => ['funds' => 'My Trip Funds'],
         'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
         // MAINTENANCE_OVERVIEW_PHASE1_V1: Motorpool wording (labels only; same pages and permissions).
-        'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management', 'purchasing' => 'Parts Inventory'],
+        'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management'],
     ];
 
     public static function pages(): array {
         $D = ['car_carrier_dispatcher', 'container_wingvan_dispatcher'];
         $all = array_keys(ROLE_LABELS);
+        // Motorpool and Purchasing have their own landing pages (Maintenance / Purchasing Overview),
+        // so the company-wide Dashboard is not duplicated for them.
+        $dash = array_values(array_diff($all, ['motorpool', 'purchasing']));
         return [
             // id => [label, icon, section, module, js file, roles]
-            'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $all],
+            'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $dash],
             'trips'       => ['Trip Management', 'bi-signpost-split', null, 'Trips', 'operations/trips',
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
             'trucks'      => ['Truck Masterlist', 'bi-truck', 'Masterlists', 'Fleet', 'operations/fleet',
-                              array_merge(['admin', 'operations_head', 'motorpool', 'purchasing', 'audit'], $D)],
+                              array_merge(['admin', 'operations_head', 'motorpool', 'audit'], $D)],
             'crew'        => ['Driver & Helper Masterlist', 'bi-person-badge', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'audit'], $D)],
             'clients'     => ['Client Masterlist', 'bi-building', 'Masterlists', 'Clients', 'operations/clients',
@@ -77,8 +81,25 @@ final class Access {
                               ['admin', 'operations_head', 'motorpool', 'audit']],
             'maintenance' => ['Corrective Maintenance', 'bi-wrench-adjustable', 'Maintenance', 'Maintenance', 'maintenance/maintenance',
                               ['admin', 'operations_head', 'motorpool', 'audit']],
-            'purchasing'  => ['Parts & Purchasing', 'bi-box-seam', 'Maintenance', 'Purchasing', 'maintenance/purchasing',
-                              ['admin', 'motorpool', 'purchasing', 'finance', 'audit']],
+            'maint_history' => ['Maintenance History', 'bi-clock-history', 'Maintenance', 'Maintenance', 'maintenance/history',
+                              ['admin', 'operations_head', 'motorpool', 'audit']],
+
+            // Purchasing workspace (replaces the combined "Parts & Purchasing" page). The five Purchasing pages share
+            // one backend module and one screen file. Purchasing Officer: all pages. Finance: Purchase Orders (approvals)
+            // and Purchasing Reports. Admin and Audit keep their previous read access (Admin also approves POs above the limit).
+            // Motorpool requests and tracks parts inside Repair Management (Purchasing::request_catalog / my_requests).
+            'purchasing_overview' => ['Purchasing Overview', 'bi-speedometer2', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
+                              ['purchasing']],
+            'parts_requests' => ['Parts Requests', 'bi-box-arrow-up', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
+                              ['admin', 'purchasing', 'audit']],
+            'purchase_orders' => ['Purchase Orders', 'bi-cart-check', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
+                              ['admin', 'purchasing', 'finance', 'audit']],
+            'inventory'   => ['Inventory', 'bi-box-seam', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
+                              ['admin', 'purchasing', 'audit']],
+            'stock_movements' => ['Stock Movements', 'bi-arrow-left-right', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
+                              ['admin', 'purchasing', 'audit']],
+            'purchasing_reports' => ['Purchasing Reports', 'bi-graph-up', 'Purchasing', 'Analytics', 'general/reports',
+                              ['admin', 'purchasing', 'finance', 'audit']],
 
             'funds'       => ['Trip Funds', 'bi-cash-coin', 'Accounting', 'Funds', 'accounting/funds',
                               array_merge(['admin', 'operations_head', 'finance', 'audit'], $D)],
@@ -89,7 +110,7 @@ final class Access {
 
             'documents'   => ['Documents', 'bi-folder2-open', 'Records', 'Documents', 'general/documents', $all],
             'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports',
-                              ['admin', 'operations_head', 'motorpool', 'purchasing', 'finance', 'billing', 'audit']],
+                              ['admin', 'operations_head', 'motorpool', 'finance', 'billing', 'audit']],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
             'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin', 'audit']],
         ];

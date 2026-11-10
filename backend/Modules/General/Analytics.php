@@ -22,7 +22,7 @@ core('Notify');
 
 final class Analytics {
     public static function read(array $u, string $page, array $q): array {
-        return $page === 'dashboard' ? self::dashboard($u) : self::reports($u, $q);
+        return $page === 'dashboard' ? self::dashboard($u) : self::reports($u, $q, $page === 'purchasing_reports');
     }
     public static function action(array $u, string $action, array $d): array {
         throw new BusinessRuleException('Unknown action.', 404);
@@ -94,7 +94,7 @@ final class Analytics {
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM trips WHERE status='On Hold - Incident Reported'"), 'trip(s) on hold because of an incident', 'trips', 'danger');
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM trips WHERE status IN ('Pre-Assigned','Ready for Dispatch') AND scheduled_at < NOW()"), 'trip(s) past the schedule and not yet dispatched (delayed)', 'trips', 'danger');
             if ($r === 'admin') {
-                $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval' AND approver_role='admin'"), 'purchase order(s) above the limit waiting for your approval', 'purchasing');
+                $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval' AND approver_role='admin'"), 'purchase order(s) above the limit waiting for your approval', 'purchase_orders');
                 if (empty(one($p, 'SELECT recovery_hash FROM users WHERE id=?', [$u['id']])['recovery_hash'])) $alerts[] = ['text' => 'No Admin recovery code yet. Make one from your name menu > Recovery code.', 'level' => 'info'];
             }
             $docDays = (int)Settings::value('document_alert_days');
@@ -131,13 +131,13 @@ final class Analytics {
             $tables[] = $doneTable();
         } elseif ($r === 'purchasing') {
             $inv = one($p, 'SELECT COUNT(*) AS parts, COALESCE(SUM(quantity_on_hand*unit_cost),0) AS value, SUM(reorder_level>0 AND quantity_on_hand<=reorder_level) AS low FROM parts WHERE active=1');
-            $cards = [['label' => 'Parts in inventory', 'value' => (int)$inv['parts'], 'icon' => 'bi-box-seam', 'page' => 'purchasing'],
-                      ['label' => 'Inventory value', 'value' => (float)$inv['value'], 'format' => 'money', 'icon' => 'bi-cash', 'page' => 'purchasing'],
-                      ['label' => 'Low-stock items', 'value' => (int)$inv['low'], 'icon' => 'bi-exclamation-triangle', 'color' => (int)$inv['low'] ? 'red' : 'green', 'page' => 'purchasing']];
-            $alert(self::n($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status='Requested'"), 'parts request(s) to check and release', 'purchasing');
-            $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status IN ('Approved','Partially Received')"), 'approved purchase order(s) waiting for delivery', 'purchasing', 'info');
-            $alert((float)$inv['low'], 'low-stock item(s)', 'purchasing', 'danger');
-            $tables[] = ['title' => 'Low-stock items', 'page' => 'purchasing', 'columns' => [['Part', 'part_number'], ['Description', 'description'], ['On hand', 'quantity_on_hand'], ['Reorder level', 'reorder_level']],
+            $cards = [['label' => 'Parts in inventory', 'value' => (int)$inv['parts'], 'icon' => 'bi-box-seam', 'page' => 'inventory'],
+                      ['label' => 'Inventory value', 'value' => (float)$inv['value'], 'format' => 'money', 'icon' => 'bi-cash', 'page' => 'inventory'],
+                      ['label' => 'Low-stock items', 'value' => (int)$inv['low'], 'icon' => 'bi-exclamation-triangle', 'color' => (int)$inv['low'] ? 'red' : 'green', 'page' => 'inventory']];
+            $alert(self::n($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status='Requested'"), 'parts request(s) to check and release', 'parts_requests');
+            $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status IN ('Approved','Partially Received')"), 'approved purchase order(s) waiting for delivery', 'purchase_orders', 'info');
+            $alert((float)$inv['low'], 'low-stock item(s)', 'inventory', 'danger');
+            $tables[] = ['title' => 'Low-stock items', 'page' => 'inventory', 'columns' => [['Part', 'part_number'], ['Description', 'description'], ['On hand', 'quantity_on_hand'], ['Reorder level', 'reorder_level']],
                          'rows' => many($p, 'SELECT part_number, description, quantity_on_hand, reorder_level FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY quantity_on_hand'), 'empty' => 'No low-stock items.'];
         } elseif ($r === 'finance') {
             $b = one($p, "SELECT amount-reserved_amount-spent_amount AS available, reserved_amount FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1");
@@ -148,7 +148,7 @@ final class Analytics {
                 ['label' => 'Expenses this month', 'value' => self::n($p, "SELECT COALESCE(SUM(amount),0) AS n FROM expenses WHERE incurred_on>=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')"), 'format' => 'money', 'icon' => 'bi-wallet2', 'page' => 'finance'],
             ];
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM fund_requests WHERE status='Ready for Release'"), 'approved trip fund(s) to release', 'funds');
-            $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval' AND approver_role='finance'"), 'purchase order(s) waiting for your approval', 'purchasing');
+            $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval' AND approver_role='finance'"), 'purchase order(s) waiting for your approval', 'purchase_orders');
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM fund_requests f JOIN trips t ON t.id=f.trip_id WHERE f.status='Released' AND f.liquidation_status='Not Liquidated' AND t.status IN ('Completed','Cancelled')"), 'released fund(s) to liquidate', 'funds', 'info');
             if (!$b) $alerts[] = ['text' => 'No active purchasing budget. Purchase orders will be rejected until a budget is set (Finance > Purchasing budget).', 'page' => 'finance', 'level' => 'danger'];
         } elseif ($r === 'billing') {
@@ -172,7 +172,8 @@ final class Analytics {
     // =================================================================
     // REPORTS
     // =================================================================
-    private static function reports(array $u, array $q): array {
+    /** $purchasing = the Purchasing Reports page: inventory/purchasing section only. The general Reports page no longer carries it. */
+    private static function reports(array $u, array $q, bool $purchasing = false): array {
         $p = db();
         $from = self::date($q['from'] ?? '') ?? date('Y-m-01');
         $to = self::date($q['to'] ?? '') ?? date('Y-m-d');
@@ -181,14 +182,18 @@ final class Analytics {
         $pFrom = date('Y-m-d', strtotime($from . " -$days days")); $pTo = date('Y-m-d', strtotime($from . ' -1 day'));
         $r = $u['role'];
         $sections = [];
-        if (in_array($r, ['admin', 'operations_head', 'audit'], true)) $sections['trips'] = self::tripReport($p, $q, $from, $to, $pFrom, $pTo);
-        if (in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true)) $sections['fleet'] = self::fleetReport($p, $q, $from, $to);
-        if (in_array($r, ['admin', 'finance', 'billing', 'audit'], true)) $sections['money'] = self::moneyReport($p, $q, $from, $to, $pFrom, $pTo);
-        if (in_array($r, ['admin', 'purchasing', 'motorpool', 'finance', 'audit'], true)) $sections['stock'] = self::stockReport($p, $from, $to);
+        if (!$purchasing) {
+            if (in_array($r, ['admin', 'operations_head', 'audit'], true)) $sections['trips'] = self::tripReport($p, $q, $from, $to, $pFrom, $pTo);
+            if (in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true)) $sections['fleet'] = self::fleetReport($p, $q, $from, $to);
+            if (in_array($r, ['admin', 'finance', 'billing', 'audit'], true)) $sections['money'] = self::moneyReport($p, $q, $from, $to, $pFrom, $pTo);
+        } elseif (in_array($r, ['admin', 'purchasing', 'finance', 'audit'], true)) {
+            $sections['stock'] = self::stockReport($p, $from, $to);
+        }
         // FLEETOPS_ACCESS_ANALYTICS_V1: derive bounded observations from already-authorized aggregates.
         $insights = self::reportInsights($sections);
         return ['sections' => $sections, 'insights' => $insights, 'period' => ['from' => $from, 'to' => $to, 'prevFrom' => $pFrom, 'prevTo' => $pTo],
-                'filterOptions' => readSections([
+                // Purchasing Reports needs no client / driver / dispatcher lists (and must not receive them).
+                'filterOptions' => $purchasing ? [] : readSections([
                     'clients' => fn() => many($p, 'SELECT id, company_name FROM clients ORDER BY company_name'),
                     'trucks' => fn() => many($p, 'SELECT id, plate_number FROM vehicles ORDER BY plate_number'),
                     'people' => fn() => many($p, 'SELECT id, full_name, person_type FROM personnel ORDER BY full_name'),

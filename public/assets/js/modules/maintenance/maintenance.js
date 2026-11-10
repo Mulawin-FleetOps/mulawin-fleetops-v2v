@@ -50,6 +50,33 @@ const MaintUI = {
       'Maintenance.report', { submit: 'Report problem', size: 'modal-lg',
         intro: 'The truck is taken out of service at once (Under Maintenance) and cannot be assigned to trips until the repair is completed and verified. If it was reserved for a trip, the trip is re-assigned automatically.' });
   },
+  /** Parts request form (Request Form). Motorpool sees part identity and availability only: no costs, no stock counts. */
+  async requestParts(vehicleId, jobId) {
+    const d = MaintUI.data;
+    let parts; try { parts = (await App.api('Purchasing.request_catalog')).parts; } catch (e) { return UI.toast(e.message, 'error'); }
+    const openJobs = (d.jobs || []).filter(j => ['Under Inspection', 'Under Repair'].includes(j.status));
+    const row = () => `<div class="row g-2 mb-1 pl-row"><div class="col-9"><select class="form-select form-select-sm" data-part><option value="">Choose part…</option>
+        ${parts.map(p => `<option value="${p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)} (${UI.esc(p.availability)})</option>`).join('')}</select></div>
+      <div class="col-3"><input class="form-control form-control-sm" type="number" min="1" max="100000" placeholder="Qty" data-qty></div></div>`;
+    UI.modal('Request parts', UI.fields([
+      { name: 'vehicle_id', label: 'Truck', type: 'select', required: true, col: 6, value: vehicleId, options: d.trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]) },
+      { name: 'maintenance_job_id', label: 'For repair record', type: 'select', col: 6, value: jobId, options: openJobs.map(j => [j.id, j.job_ref + ' · ' + j.plate_number + ' · ' + j.problem.slice(0, 30)]),
+        help: 'Choose the open repair these parts are for.' },
+      { name: 'purpose', label: 'Reason for the request', required: true, col: 12 }])
+      + `<div class="mt-2"><div class="small text-muted mb-1">Part · Quantity</div><div data-lines>${row()}${row()}${row()}</div>
+         <button type="button" class="btn btn-sm btn-link p-0" data-addrow>+ Add item</button></div>`,
+      async (x, form, w) => {
+        const lines = [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value })).filter(l => l.part_id || l.quantity);
+        const r = await App.api('Purchasing.request_create', { ...x, lines }); UI.result(r); App.route();
+      },
+      { submit: 'Send to Purchasing', onShow: (w) => { w.querySelector('[data-addrow]').onclick = () => w.querySelector('[data-lines]').insertAdjacentHTML('beforeend', row()); } });
+  },
+  /** Fulfilment progress of one parts request: requested vs released units and current availability. */
+  async openRequest(rq) {
+    let r; try { r = await App.api('Purchasing.request_details', { request_id: rq.id }); } catch (e) { return UI.toast(e.message, 'error'); }
+    UI.modal('Parts request ' + UI.esc(r.request.request_ref), `<p class="small text-muted">Truck ${UI.esc(r.request.plate_number)}${r.request.job_ref ? ' · repair ' + UI.esc(r.request.job_ref) : ''} · ${UI.esc(r.request.purpose)}<br>Status: ${UI.badge(r.request.status)}${r.request.notes ? ' · ' + UI.esc(r.request.notes) : ''}</p>
+      ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
+  },
   async open(id) {
     const d = MaintUI.data;
     let r; try { r = await App.api('Maintenance.details', { job_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
@@ -127,7 +154,7 @@ const MaintUI = {
           { name: 'cost_type', label: 'Type', type: 'select', options: UI.list(d.costTypes), required: true, col: 6 }, { name: 'amount', label: 'Amount (₱)', type: 'money', required: true, col: 6 },
           { name: 'description', label: 'Description', required: true, col: 12 }, { name: 'provider', label: 'Supplier / service provider', col: 6 }, { name: 'incurred_on', label: 'Date', type: 'date', value: UI.today(), required: true, col: 6 }],
         'Maintenance.add_cost', { extra: { job_id: j.id }, after: () => MaintUI.open(j.id) });
-      if (a === 'parts') { UI.closeDrawer(); App.go('purchasing', { request_for: j.vehicle_id, job: j.id }); }
+      if (a === 'parts') { UI.closeDrawer(); MaintUI.requestParts(j.vehicle_id, j.id); }
       if (a === 'cancel') UI.confirmAction('Cancel ' + UI.esc(j.job_ref), 'Use this only for a report made by mistake. The truck becomes available again if nothing else blocks it.', 'Maintenance.cancel', { job_id: j.id },
         { danger: true, submit: 'Cancel record', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
       if (a === 'printinc') TripUI.printIncident({ ...i }, { trip_ref: j.trip_ref, plate_number: j.plate_number });
@@ -136,11 +163,12 @@ const MaintUI = {
 };
 
 App.page('maintenance', {
-  title: 'Corrective Maintenance',
-  subtitle: 'Unexpected truck problems from the garage or from trip incidents: inspection, repair, verification.',
+  title: 'Repair Management',
+  subtitle: 'Truck problems from the garage or from trip incidents: assessment, mechanic, repair, parts requests and verification.',
   render(ctx) {
     const d = MaintUI.data = ctx.data;
     if (d.can.act) UI.tool(ctx, 'Report truck problem', () => MaintUI.report(), 'bi-plus-lg', 'primary');
+    if (d.can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-box-seam');
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     const open = jobs.filter(j => !['Cancelled'].includes(j.status) && !j.verified_at);
     const by = (s) => open.filter(j => j.status === s);
@@ -168,9 +196,24 @@ App.page('maintenance', {
       ['open', `Open records <span class="tab-count">${open.length}</span>`, () => viewBar + UI.table(cols, openShown, { ...opt, empty: view ? 'No open record matches this filter.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
       ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
       ['all', 'All records', () => UI.table(cols, jobs, { ...opt })],
+      // Parts requests belong to Motorpool's repair workflow; other roles that can view repairs do not get this tab.
+      ...(d.can.act ? [
+      ['parts', 'Parts requests', (body) => {
+        body.innerHTML = '<div class="text-muted small p-3"><span class="spinner-border spinner-border-sm"></span> Loading…</div>';
+        App.api('Purchasing.my_requests').then(r => {
+          const rows = r.requests.map(q => ({ ...q, progress: q.released_units + ' of ' + q.requested_units + ' released' }));
+          body.innerHTML = UI.table([['Request', 'request_ref'], ['Request date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Repair record', 'job_ref'], ['Items', 'items'],
+            ['Progress', 'progress'], ['Status', 'status', 'badge']], rows,
+            { title: 'Parts requests of this department', actions: (q) => UI.btn('view', 'Details') + (q.status === 'Requested' && d.can.act ? UI.btn('cancel', 'Cancel', 'outline-danger') : ''),
+              onAction: (a, q) => a === 'view' ? MaintUI.openRequest(q) : UI.confirmAction('Cancel ' + UI.esc(q.request_ref), 'The request will not be processed.', 'Purchasing.request_cancel', { request_id: q.id }, { danger: true }),
+              empty: 'No parts requests yet. Use Request parts on a repair record.' });
+          UI.activate(body);
+        }).catch(e => { body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}</div></div>`; });
+      }],
+      ] : []),
     ], view ? 'open' : null, { forceActive: !!view });
     const once = UI.takeQuery(ctx, 'report', 'open');
-    if (once.report) MaintUI.report(once.report);
+    if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
     if (once.open) MaintUI.open(once.open);
   },
 });
@@ -178,7 +221,7 @@ App.page('maintenance', {
 /* MAINTENANCE_OVERVIEW_PHASE1_V1 — Maintenance Overview (landing page for the Motorpool Custodian).
    Read-only: every number and row comes from Maintenance::read('maintenance_overview').
    Actions reuse the existing screens: Report a truck problem (MaintUI.report), Repair Management
-   (#maintenance, with ?view= filters and ?open=<id>), Parts requests (Parts & Purchasing page). */
+   (#maintenance, with ?view= filters and ?open=<id>), Parts requests (Repair Management > Parts requests; Parts Requests page for Admin / Audit). */
 const MaintOverview = {
   ACTIONS: {
     assess: 'Assess the incident (Minor or Major)',
@@ -196,7 +239,7 @@ const MaintOverview = {
     const tag = r.source === 'Incident' && r.kind === 'job' ? `<span class="mo-tag">Trip incident${r.incident_ref ? ' ' + UI.esc(r.incident_ref) : ''}</span>` : '';
     const viewBtn = r.job_id
       ? `<button type="button" class="btn btn-sm btn-outline-primary" data-open-job="${+r.job_id}">View repair</button>`
-      : (can.parts ? `<button type="button" class="btn btn-sm btn-outline-primary" data-go="purchasing#_=requests">View request</button>` : '');
+      : (can.parts ? `<button type="button" class="btn btn-sm btn-outline-primary" data-go="${can.requestParts ? 'maintenance#_=parts' : 'parts_requests'}">View request</button>` : '');
     return `<li class="mo-item">
       <div class="mo-item-main">
         <div class="mo-item-top">${MaintOverview.truck(r)} <span class="mo-ref">${UI.esc(ref)}</span> ${tag}</div>
@@ -231,7 +274,7 @@ App.page('maintenance_overview', {
       { label: 'Under repair', value: s ? n('under_inspection') + n('under_repair') : '—', note: s ? `${n('under_inspection')} under inspection · ${n('under_repair')} under repair` : '', color: s && (s.under_inspection + s.under_repair) ? 'blue' : '', go: 'maintenance?view=in_progress' },
       { label: 'For verification', value: n('for_verification'), note: 'repair completed, truck still out of service', color: s && s.for_verification ? 'amber' : '', go: 'maintenance?view=verify' },
     ];
-    if (can.parts) cards.push({ label: 'Pending parts requests', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partially released` : '', color: s && s.pending_parts ? 'blue' : '', go: 'purchasing#_=requests' });
+    if (can.parts) cards.push({ label: 'Pending parts requests', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partially released` : '', color: s && s.pending_parts ? 'blue' : '', go: can.requestParts ? 'maintenance#_=parts' : 'parts_requests' });
 
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
@@ -258,8 +301,8 @@ App.page('maintenance_overview', {
             <div class="panel-body mo-quick">
               ${can.act ? '<button type="button" class="btn btn-primary" data-q="report"><i class="bi bi-plus-lg"></i> Report truck issue</button>' : ''}
               <button type="button" class="btn btn-outline-secondary" data-go="maintenance"><i class="bi bi-wrench-adjustable"></i> Repair management</button>
-              <button type="button" class="btn btn-link mo-quick-link" data-go="maintenance#_=done"><i class="bi bi-clock-history"></i> Maintenance history (completed repairs)</button>
-              ${can.parts ? '<button type="button" class="btn btn-link mo-quick-link" data-go="purchasing#_=inventory"><i class="bi bi-box-seam"></i> Parts inventory</button>' : ''}
+              <button type="button" class="btn btn-link mo-quick-link" data-go="maint_history"><i class="bi bi-clock-history"></i> Maintenance history (completed repairs)</button>
+              ${can.requestParts ? '<button type="button" class="btn btn-link mo-quick-link" data-go="maintenance#_=parts"><i class="bi bi-box-seam"></i> Parts requests</button>' : ''}
             </div></section>
           <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-activity"></i> Recent maintenance activity</h2></div>
             <div class="panel-body flush">${activityBody}</div></section>

@@ -94,7 +94,7 @@ final class Finance {
                 ['Paid amount' => $o['paid_amount'], 'Reserved amount' => $o['reserved_amount'], 'Payment status' => $o['payment_status']],
                 ['Paid amount' => number_format((float)$o['paid_amount'] + (float)$amount, 2, '.', ''),
                  'Reserved amount' => number_format(max(0, (float)$o['reserved_amount'] - $fromReserve), 2, '.', ''), 'Payment status' => $st]);
-            Notify::user($p, (int)$o['requested_by'], 'PO paid', $o['po_ref'] . ' payment recorded (' . $st . ').', 'purchasing');
+            Notify::user($p, (int)$o['requested_by'], 'PO paid', $o['po_ref'] . ' payment recorded (' . $st . ').', 'purchase_orders');
             if ($st === 'Paid') Notify::resolve($p, 'po-pay-' . $o['id']);
             return ['message' => 'Payment recorded. ' . $o['po_ref'] . ' is ' . $st . '.'];
         });

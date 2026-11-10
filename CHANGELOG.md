@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-10 (Role workspaces: Maintenance and Purchasing)
+- **Motorpool Custodian** lands on the existing **Maintenance Overview** (unchanged apart from its links). Sidebar: Maintenance
+  Overview, Repair Management (`#maintenance`), Truck Masterlist, Mechanic Masterlist, Maintenance History (new, completed and
+  cancelled records with cost and attachment count). Parts requests are made and tracked inside Repair Management (new "Parts
+  requests" tab and "Request parts" button): Motorpool sees an In stock / Low stock / Out of stock label and requested versus
+  released units, and no costs, stock counts, budget, purchase orders or stock movements.
+- **Purchasing Officer** lands on **Purchasing Overview**. The combined "Parts & Purchasing" page (`#purchasing`) is replaced by
+  Parts Requests, Purchase Orders, Inventory, Stock Movements and Purchasing Reports; each page loads only its own data. Finance
+  keeps Purchase Orders and Purchasing Reports; Admin and Audit keep read access. Approval routing, budget checks and receiving are
+  unchanged. Old `#purchasing` links and notifications redirect to the user's page.
+- The company Dashboard stays for the other roles; Motorpool and Purchasing no longer have it. The inventory section moved from
+  Reports to Purchasing Reports. The Maintenance Overview parts data is now limited to Motorpool, Admin and Audit. Purchasing no
+  longer sees the Truck Masterlist, repair documents or the general Reports page; Motorpool no longer sees purchase-order
+  documents. No database change. Tests: `php tests/workspace_access_tests.php` (no database needed);
+  `tests/run_maintenance_overview_tests.php` was updated for the new menu.
+
 ## 2026-11-10 (Maintenance Overview, Phase 1)
 - New **Maintenance Overview** page (`#maintenance_overview`), first in the Motorpool Custodian's menu: four counts
   (New reports, Under repair, For verification, Pending parts requests), **Needs attention** (records waiting for an action:
