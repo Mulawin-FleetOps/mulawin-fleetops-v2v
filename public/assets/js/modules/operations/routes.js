@@ -31,7 +31,8 @@ const RouteUI = {
       { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
       { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
       { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
-        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route map</div><span>Select pickup and delivery on the map</span></div>
+        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route map</div><span>Travel order: 1 Garage → 2 Pickup → 3 Delivery</span></div>
+        <div class="rpm-route-steps" aria-label="Driving sequence"><span><b>1</b> Start at garage</span><i class="bi bi-arrow-right" aria-hidden="true"></i><span><b>2</b> Load at pickup</span><i class="bi bi-arrow-right" aria-hidden="true"></i><span><b>3</b> Unload at destination</span></div>
         <div data-routemapbox></div>
         <div class="rpm-route-legend"><span><i class="rpm-legend-dot garage"></i> Garage (approximate)</span><span><i class="rpm-legend-dot pickup"></i> Pickup</span><span><i class="rpm-legend-dot delivery"></i> Delivery</span><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span></div>
       </section>` },
@@ -71,7 +72,53 @@ const RouteUI = {
     // continues to own the billable Pickup → Delivery segment (blue), while
     // this screen draws Garage → Pickup (teal) as an operational overlay.
     let garageLine = null, garageRoad = null, clientRoad = null;
+    let garageArrows = [], clientArrows = [], stopLabels = [];
     let updateGarageDistance = () => {};
+    // Draw direction arrows in travel order, not just a road polyline.
+    // This is important when the garage-to-pickup road passes close to the
+    // destination: a road without arrows can look like a reversed trip.
+    const clearMarkers = (markers) => { markers.forEach(m => m.remove()); markers.length = 0; };
+    const drawArrows = (points, color, out) => {
+      clearMarkers(out);
+      if (!w?.map || !Array.isArray(points) || points.length < 2) return;
+      const lengths = [0];
+      for (let i = 1; i < points.length; i++) {
+        lengths.push(lengths[i - 1] + L.latLng(points[i - 1]).distanceTo(L.latLng(points[i])));
+      }
+      const total = lengths[lengths.length - 1];
+      if (total < 100) return;
+      for (const fraction of [0.3, 0.65]) {
+        const distance = total * fraction;
+        let j = lengths.findIndex(v => v >= distance);
+        if (j < 1) j = 1;
+        const a = L.latLng(points[j - 1]), b = L.latLng(points[j]);
+        const segment = lengths[j] - lengths[j - 1];
+        const t = segment ? (distance - lengths[j - 1]) / segment : 0;
+        const point = L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
+        const east = (b.lng - a.lng) * Math.cos(point.lat * Math.PI / 180);
+        const north = b.lat - a.lat;
+        const degrees = Math.atan2(north, east) * 180 / Math.PI;
+        const icon = L.divIcon({
+          className: 'rpm-route-arrow-icon',
+          html: '<span style="color:' + color + ';transform:rotate(' + (-degrees) + 'deg)" aria-hidden="true">➤</span>',
+          iconSize: [24, 24], iconAnchor: [12, 12],
+        });
+        out.push(L.marker(point, { icon, interactive: false, keyboard: false, zIndexOffset: 500 }).addTo(w.map));
+      }
+    };
+    const updateStopLabels = () => {
+      clearMarkers(stopLabels);
+      if (!w?.map) return;
+      const points = w.map.picker?.points();
+      const locations = [[L.latLng([14.126449, 121.070384]), '1', 'Garage (approximate)'],
+        [points?.pickup, '2', 'Pickup'], [points?.delivery, '3', 'Delivery']];
+      for (const [pos, n, title] of locations) {
+        if (!pos) continue;
+        const icon = L.divIcon({ className: 'rpm-route-stop-label', html: '<span>' + n + '</span>',
+          iconSize: [24, 24], iconAnchor: [-10, 31] });
+        stopLabels.push(L.marker(pos, { icon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(w.map));
+      }
+    };
     let w;
     const fitFullRoute = () => {
       if (!w?.map || !garageRoad?.length || !clientRoad?.length) return;
@@ -87,10 +134,13 @@ const RouteUI = {
       // Clear stale geometry as soon as the user moves either pin.
       onPointsChange: () => {
         clientRoad = null;
+        clearMarkers(clientArrows);
+        updateStopLabels();
         updateGarageDistance();
       },
       onRoadRoute: (points) => {
         clientRoad = points;
+        drawArrows(points, '#0b5cad', clientArrows);
         fitFullRoute();
       },
       footNote: UI.Map.serviceReady() ? 'Teal: garage to pickup. Blue: pickup to delivery. Scroll or pinch to zoom.' : 'Road routing is unavailable; use verified manual km.',
@@ -100,7 +150,8 @@ const RouteUI = {
     const garage = [14.126449, 121.070384];
     if (w.map && typeof L !== 'undefined') {
       L.circleMarker(garage, { radius: 8, color: '#34526a', fillColor: '#34526a', fillOpacity: 0.95, weight: 2, interactive: true })
-        .addTo(w.map).bindTooltip('R.P. Mulawin garage (approximate; entrance not verified)');
+        .addTo(w.map).bindTooltip('Stop 1: R.P. Mulawin garage (approximate; entrance not verified)');
+      updateStopLabels();
     }
     const billable = form.querySelector('[name="distance_km"]');
     const clientKm = form.querySelector('[data-client-km]');
@@ -124,6 +175,7 @@ const RouteUI = {
       lastPickup = key;
       const seq = ++requestSeq;
       if (garageLine) { garageLine.remove(); garageLine = null; }
+      clearMarkers(garageArrows);
       garageRoad = null;
       operationalKm = null;
       garageKm.textContent = pickup ? 'Checking…' : 'Pin pickup first';
@@ -145,6 +197,7 @@ const RouteUI = {
             color: '#187d85', weight: 5, opacity: 0.95, lineJoin: 'round',
           }).addTo(w.map).bindTooltip('Garage → Pickup · ' + operationalKm.toFixed(2) + ' km (approximate garage)');
           garageKm.textContent = operationalKm.toFixed(2) + ' km (estimate)';
+          drawArrows(garageRoad, '#187d85', garageArrows);
           fitFullRoute();
         } else garageKm.textContent = 'Route unavailable';
       } catch (e) {
@@ -154,7 +207,12 @@ const RouteUI = {
     };
     // The picker change callback covers clicks and dragged markers. Do not
     // request on every map mouseup: that wastes routing quota while panning.
-    form.querySelector('[name="route_option"]')?.addEventListener('change', () => { lastPickup = ''; updateGarageDistance(); });
+    form.querySelector('[name="route_option"]')?.addEventListener('change', () => {
+      lastPickup = '';
+      clientRoad = null;
+      clearMarkers(clientArrows);
+      updateGarageDistance();
+    });
     wrap.addEventListener('shown.bs.modal', () => {
       w.map?.invalidateSize();
       updateGarageDistance();
