@@ -43,17 +43,16 @@ final class Settings {
             'The dispatcher can open and submit the pre-dispatch checklist this many hours before the scheduled dispatch. 0 = not before the scheduled time.', 0, 24],
         'dispatch_early_minutes'      => ['Allow Confirm Dispatch before the scheduled time', 15, 'minutes before',
             'Confirm Dispatch / Redispatch is enabled this many minutes before the scheduled dispatch (it still needs Ready for Dispatch and a Released fund). 0 = only at the scheduled time.', 0, 240],
-        // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: 1 = Warn (default), 2 = Enforce (refused while crew lack a shift).
+        // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: 1 = Warn (default), 2 = Enforce (crew must be Present for the dispatch date).
         'crew_attendance_dispatch_check' => ['Crew attendance check at Confirm Dispatch', 1, 'mode',
-            'Warn: dispatch is allowed and missing / Absent / wrong-shift crew are noted in the trip history. Enforce: Confirm Dispatch and Redispatch need every assigned driver and helper Present on their own shift at the dispatch time.', 1, 2],
-        // CHECKLIST_42_ATTENDANCE_PHASE1_V1: start hours are configurable by Admin (0-23, Philippine time).
-        'attendance_day_start_hour' => ['Day shift attendance reminder starts', 6, 'Philippine time', 'Time when the Day shift starts (Admin bell reminder and duty shift). Must differ from the Night shift start.', 0, 23],
-        'attendance_night_start_hour' => ['Night shift attendance reminder starts', 18, 'Philippine time', 'Time when the Night shift starts (Admin bell reminder and duty shift). Must differ from the Day shift start.', 0, 23],
+            'Warn: dispatch is allowed and missing / Absent crew are noted in the trip history. Enforce: Confirm Dispatch and Redispatch need every assigned driver and helper marked Present for the date of the dispatch.', 1, 2],
+        // DAILY_ATTENDANCE_V1: one daily reminder hour (0-23, Philippine time). Key name kept so the saved value stays valid.
+        'attendance_day_start_hour' => ['Daily attendance reminder starts', 6, 'Philippine time', 'Time of day from which the Admin bell reminds about driver, helper and mechanic attendance that is not marked yet for today.', 0, 23],
         'inspection_min_minutes'      => ['Minimum checklist duration', 15, 'minutes',
             'Pre-dispatch and arrival checklists: the earliest a checklist can be submitted, counted from when the dispatcher opened it (PDF #11 section G). 0 = no minimum.', 0, 120],
     ];
     /** Settings that are a time of day (whole hour 0-23, Philippine time). */
-    public const HOUR_OF_DAY = ['attendance_day_start_hour', 'attendance_night_start_hour'];
+    public const HOUR_OF_DAY = ['attendance_day_start_hour'];
     private const FROM_CONFIG = ['purchase_approval_threshold', 'document_alert_days', 'license_alert_days',
                                  'default_payment_terms_days', 'km_per_liter', 'fuel_price_per_liter', 'units_per_trip',
                                  'inspection_min_minutes'];

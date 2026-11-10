@@ -125,6 +125,8 @@ if (!is_file($baseSchema) || !is_file($baseExt)) {
     $oldCols = 'id, billing_id, description, amount, added_by, created_at';
     $fa = test_fingerprint($p, $FRESH);
     $sameAsFresh = function (PDO $c, string $label) use ($fa, $UPGRADE): void {
+        // Later migrations (other features) are part of a fresh install: apply them first (each only once).
+        foreach (test_migrations_from(MIG) as $later) if (strcmp($later, MIG) > 0 && !one($c, 'SELECT id FROM schema_migrations WHERE id=?', [$later])) test_import($c, test_sql("database/migrations/$later.sql"));
         $fb = test_fingerprint($c, $UPGRADE);
         foreach ($fa as $k => $v) ok($v === $fb[$k], "$label: identical $k to a fresh install", json_encode([array_values(array_diff($v, $fb[$k])), array_values(array_diff($fb[$k], $v))]));
     };

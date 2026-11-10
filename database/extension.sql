@@ -301,7 +301,7 @@ CREATE TABLE parts (
 
 -- =====================================================================
 -- MECHANIC MASTERLIST  (supports Corrective Maintenance only)
--- availability: Available | Assigned (has an active repair, set by the system) | Unavailable (manual, with reason)
+-- availability: Available (timed in) | Assigned (timed in, has an active repair) | Unavailable (not timed in). See mechanic_attendance.
 -- =====================================================================
 CREATE TABLE mechanics (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -310,7 +310,7 @@ CREATE TABLE mechanics (
   duty_shift VARCHAR(5) NULL COMMENT 'Day or Night; assigned by Admin',
   contact_number VARCHAR(40) NULL,
   specialization VARCHAR(150) NULL COMMENT 'e.g. engine, electrical, brakes, welding',
-  availability VARCHAR(15) NOT NULL DEFAULT 'Available',
+  availability VARCHAR(15) NOT NULL DEFAULT 'Unavailable',
   unavailable_reason VARCHAR(150) NULL,
   active TINYINT NOT NULL DEFAULT 1,
   notes VARCHAR(255) NULL,
@@ -931,3 +931,54 @@ CREATE TABLE attendance_marks (
   CONSTRAINT chk_att_shift CHECK (duty_shift IN ('Day','Night')),
   CONSTRAINT chk_att_status CHECK (status IN ('Present','Absent'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- MECHANIC_ATTENDANCE_V1: Time In / Time Out sessions of mechanics (Maintenance). History is never overwritten.
+CREATE TABLE mechanic_attendance (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  mechanic_id INT NOT NULL,
+  time_in DATETIME NOT NULL,
+  time_out DATETIME NULL,
+  time_in_by INT NOT NULL,
+  time_out_by INT NULL,
+  open_mechanic INT AS (CASE WHEN time_out IS NULL THEN mechanic_id ELSE NULL END) STORED COMMENT 'one open Time In per mechanic (database rule)',
+  UNIQUE KEY uq_mattn_one_open (open_mechanic),
+  INDEX idx_mattn_mechanic (mechanic_id, time_in),
+  CONSTRAINT fk_mattn_mechanic FOREIGN KEY (mechanic_id) REFERENCES mechanics(id),
+  CONSTRAINT fk_mattn_in_by FOREIGN KEY (time_in_by) REFERENCES users(id),
+  CONSTRAINT fk_mattn_out_by FOREIGN KEY (time_out_by) REFERENCES users(id),
+  CONSTRAINT chk_mattn_order CHECK (time_out IS NULL OR time_out >= time_in)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Originals of mechanics set Unavailable by migration 2026-11-10_10 (empty on a fresh install; kept so the schema is identical to an upgraded database).
+CREATE TABLE mechanic_availability_backup (
+  mechanic_id INT NOT NULL PRIMARY KEY,
+  original_availability VARCHAR(15) NOT NULL,
+  original_unavailable_reason VARCHAR(150) NULL,
+  backed_up_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_mavb_mechanic FOREIGN KEY (mechanic_id) REFERENCES mechanics(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='originals of mechanics set Unavailable by migration 2026-11-10_10; used by its rollback';
+
+-- DAILY_ATTENDANCE_V1: one Operations Attendance mark per driver/helper/mechanic per date (no permanent shifts).
+-- attendance_marks above is kept as the legacy shift-based archive (never written by the application any more).
+CREATE TABLE attendance_daily (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  duty_date DATE NOT NULL,
+  personnel_id INT NULL,
+  mechanic_id INT NULL,
+  status VARCHAR(7) NOT NULL,
+  marked_by INT NOT NULL,
+  marked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  legacy_shifts VARCHAR(9) NULL COMMENT 'Day, Night or Day+Night when copied from attendance_marks; NULL for marks made after the migration',
+  UNIQUE KEY uq_attd_person (duty_date,personnel_id),
+  UNIQUE KEY uq_attd_mech (duty_date,mechanic_id),
+  INDEX idx_attd_date (duty_date),
+  CONSTRAINT fk_attd_person FOREIGN KEY (personnel_id) REFERENCES personnel(id),
+  CONSTRAINT fk_attd_mech FOREIGN KEY (mechanic_id) REFERENCES mechanics(id),
+  CONSTRAINT fk_attd_user FOREIGN KEY (marked_by) REFERENCES users(id),
+  CONSTRAINT chk_attd_kind CHECK ((personnel_id IS NOT NULL AND mechanic_id IS NULL) OR (personnel_id IS NULL AND mechanic_id IS NOT NULL)),
+  CONSTRAINT chk_attd_status CHECK (status IN ('Present','Absent'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migrations 2026-11-10_10 and 2026-11-10_11: their tables are created ABOVE, so a fresh install is already complete.
+-- Recorded here, AFTER the tables, so a failure while creating them can never leave a false migration record.
+INSERT INTO schema_migrations (id) VALUES ('2026-11-10_10_mechanic_attendance'), ('2026-11-10_11_daily_attendance');

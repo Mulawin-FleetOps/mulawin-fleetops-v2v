@@ -62,6 +62,8 @@ for ($i = 1; $i <= 6; $i++) $V[$i] = insert($p, 'vehicles', ['plate_number' => "
 for ($i = 1; $i <= 3; $i++) { insert($p, 'personnel', ['full_name' => "DRIVER, NO $i", 'person_type' => 'Driver']); insert($p, 'personnel', ['full_name' => "HELPER, NO $i", 'person_type' => 'Helper']); }
 $M = [];
 foreach (['ALPHA MECH', 'BRAVO MECH', 'CHARLIE MECH'] as $name) $M[] = Mechanics::action($mp, 'save', ['full_name' => $name, 'specialization' => 'Engine'])['id'];
+// Availability follows Mechanic Attendance: the test mechanics Time In before they can be assigned.
+foreach ($M as $mid) Mechanics::action($mp, 'time_in', ['id' => $mid]);
 
 // Upload simulation: real temporary files (Files::store accepts CLI files).
 $tmpDir = sys_get_temp_dir() . '/fleet_maint_' . bin2hex(random_bytes(4)); mkdir($tmpDir);

@@ -1,6 +1,7 @@
-/* assets/js/modules/maintenance/mechanics.js — MECHANIC MASTERLIST
-   Mechanics who do corrective maintenance. Availability: Available, Assigned (working on a
-   repair, set by the system) or Unavailable (set by hand with a reason).
+/* assets/js/modules/maintenance/mechanics.js — MECHANIC MASTERLIST + MECHANIC ATTENDANCE (Time In / Time Out)
+   Mechanics who do corrective maintenance. Availability follows attendance: Unavailable (not timed in),
+   Available (timed in) or Assigned (timed in and working on a repair, set by the system).
+   The Time In / Time Out buttons call Mechanics.time_in / Mechanics.time_out; the server decides and the screen reloads from the saved state.
    Backend: backend/Modules/Maintenance/Mechanics.php */
 'use strict';
 const MechUI = {
@@ -8,36 +9,44 @@ const MechUI = {
   form(m = {}) {
     UI.formModal(m.id ? 'Edit ' + UI.esc(m.full_name) : 'Add mechanic', [
       { name: 'full_name', label: 'Full name (LAST NAME, FIRST NAME)', required: true, col: 12, value: m.full_name },
-      { name: 'duty_shift', label: 'Assigned shift', type: 'select', options: [['','Choose shift'],['Day','Day Shift'],['Night','Night Shift']], required: UI.role('admin'), attrs: UI.role('admin') ? '' : 'disabled', col: 6, value: m.duty_shift || '' },
-      { name: 'contact_number', label: 'Contact number', col: 6, value: m.contact_number, placeholder: '0917 123 4567' },
+      { name: 'contact_number', label: 'Contact number', col: 12, value: m.contact_number, placeholder: '0917 123 4567' },
       { name: 'specialization', label: 'Specialization / skills', col: 6, value: m.specialization, placeholder: 'e.g. engine, electrical, brakes' },
       { name: 'notes', label: 'Notes', col: 12, value: m.notes }],
-      'Mechanics.save', { extra: m.id ? { id: m.id } : {}, size: '', intro: m.id ? '' : 'The Mechanic ID (MEC-###) is given by the system. New mechanics start as Available.' });
+      'Mechanics.save', { extra: m.id ? { id: m.id } : {}, size: '', intro: m.id ? '' : 'The Mechanic ID (MEC-###) is given by the system. New mechanics start Unavailable until they Time In.' });
+  },
+  /** Time In / Time Out: the server checks the saved state; the screen is reloaded from it (no alert or confirm dialogs). */
+  async toggle(m, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const r = await App.api(+m.timed_in ? 'Mechanics.time_out' : 'Mechanics.time_in', { id: m.id });
+      UI.toast(r.message || 'Saved.');
+    } catch (e) { UI.toast(e.message, 'error'); }
+    App.route();
   },
   async open(id) {
     const can = MechUI.data.can.edit;
     let r; try { r = await App.api('Mechanics.details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
     const m = r.mechanic;
+    const timedIn = !!(r.attendance[0] && !r.attendance[0].time_out);
     const acts = [];
     if (can && +m.active) {
       acts.push(['edit', 'Edit', 'outline-secondary', 'bi-pencil']);
-      if (m.availability === 'Unavailable') acts.push(['avail', 'Set Available', 'outline-success', 'bi-check-circle']);
-      else if (m.availability === 'Available') acts.push(['unavail', 'Set Unavailable', 'outline-secondary', 'bi-slash-circle']);
+      acts.push(['toggle', timedIn ? 'Time Out' : 'Time In', timedIn ? 'outline-secondary' : 'success', 'bi-clock']);
       acts.push(['deact', 'Deactivate', 'outline-danger', '']);
     } else if (can) acts.push(['react', 'Reactivate', 'outline-success', '']);
     const html = `<div class="mb-2">${UI.badge(+m.active ? m.availability : 'Inactive')}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.map(([a, l, c, ic]) => `<button class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}"></i> ` : ''}${l}</button>`).join('')}</div>` : ''}
       ${UI.h('Details')}${UI.kv([['Mechanic ID', UI.e(m.mechanic_code)], ['Full name', `<b>${UI.esc(m.full_name)}</b>`], ['Contact', UI.e(m.contact_number)],
-        ['Specialization', UI.e(m.specialization)], ['Unavailable because', m.availability === 'Unavailable' ? UI.e(m.unavailable_reason) : '—'], ['Notes', UI.e(m.notes)]])}
+        ['Specialization', UI.e(m.specialization)], ['Notes', UI.e(m.notes)]])}
+      ${UI.h('Attendance (Time In / Time Out)')}${UI.table([['Time In', 'time_in', 'datetime'], ['Time Out', 'time_out', (v) => v ? UI.datetime(v) : '<span class="badge-s green">Still timed in</span>'], ['Timed in by', 'time_in_by'], ['Timed out by', 'time_out_by']], r.attendance,
+        { plain: true, empty: 'No Time In recorded yet.' })}
       ${UI.h('Repair assignments')}${UI.table([['Record', 'job_ref'], ['Truck', 'plate_number'], ['Problem', 'problem'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completion date', 'completed_on', 'date']], r.jobs,
         { plain: true, empty: 'No repair assigned yet.', rowClick: (j) => App.go('maintenance', { open: j.id }) })}`;
     const el = UI.drawer(UI.esc(m.full_name), html, { subtitle: 'Mechanic ' + UI.esc(m.mechanic_code) });
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') MechUI.form(m);
-      if (a === 'avail') UI.confirmAction('Set ' + UI.esc(m.full_name) + ' Available', 'The mechanic can be assigned to new repairs again.', 'Mechanics.availability', { id: m.id, availability: 'Available' });
-      if (a === 'unavail') UI.confirmAction('Set ' + UI.esc(m.full_name) + ' Unavailable', 'The mechanic will not appear in the repair assignment list.', 'Mechanics.availability', { id: m.id, availability: 'Unavailable' },
-        { fields: [{ name: 'reason', label: 'Reason (e.g. on leave)', required: true, col: 12 }] });
+      if (a === 'toggle') { UI.closeDrawer?.(); MechUI.toggle({ id: m.id, timed_in: timedIn ? 1 : 0 }); }
       if (a === 'deact') UI.confirmAction('Deactivate ' + UI.esc(m.full_name), 'The mechanic is removed from the lists. Repair history is kept.', 'Mechanics.set_active', { id: m.id, active: 0 }, { danger: true, submit: 'Deactivate' });
       if (a === 'react') UI.confirmAction('Reactivate ' + UI.esc(m.full_name), 'The mechanic returns to the masterlist.', 'Mechanics.set_active', { id: m.id, active: 1 });
     });
@@ -72,11 +81,14 @@ App.page('mechanics', {
       + UI.table([
         ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
         ['Specialization', 'specialization'],
-        ['Shift', 'duty_shift', (v,m) => UI.esc(v || 'Unassigned')],
+        ['Attendance', 'timed_in', (v, m) => +v ? '<span class="badge-s green">Timed In</span>' : (m.last_time_out ? '<span class="badge-s amber">Timed Out</span>' : '<span class="text-muted">Not timed in</span>')],
+        ['Time In', 'last_time_in', (v) => v ? UI.datetime(v) : '<span class="text-muted">—</span>'],
+        ['Time Out', 'last_time_out', (v, m) => +m.timed_in ? '<span class="text-muted">—</span>' : (v ? UI.datetime(v) : '<span class="text-muted">—</span>')],
         ['Availability', 'availability', (v, m) => UI.badge(+m.active ? v : 'Inactive')],
         ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
         ['Completed repairs', 'completed_jobs', 'num']], rows,
-        { actions: () => UI.btn('view', 'Open'), onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
+        { actions: (m) => (d.can.edit && +m.active ? UI.btn('toggle', +m.timed_in ? 'Time Out' : 'Time In', +m.timed_in ? 'outline-secondary' : 'success', 'bi-clock') + ' ' : '') + UI.btn('view', 'Open'),
+          onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
           empty: d.mechanics.length ? 'No mechanic matches the filter.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
     // Quick tabs replace the redundant Filter button on this masterlist.
     ctx.el.querySelector('.filter-summary [data-fopen]')?.remove();

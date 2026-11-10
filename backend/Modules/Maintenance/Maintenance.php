@@ -242,19 +242,22 @@ final class Maintenance {
     private static function freeMechanic(PDO $p, int $mechanicId, ?int $exceptJob = null): array {
         $m = one($p, 'SELECT * FROM mechanics WHERE id=? FOR UPDATE', [$mechanicId]);
         must($m && (int)$m['active'], 'Choose an active mechanic from the Mechanic Masterlist.');
-        must($m['availability'] !== 'Unavailable', $m['full_name'] . ' is Unavailable' . ($m['unavailable_reason'] ? ' (' . $m['unavailable_reason'] . ')' : '') . '.', 409);
+        // Availability = an open Time In (Mechanic Attendance). The saved state is checked here, not only in the dropdown.
+        $in = one($p, 'SELECT id FROM mechanic_attendance WHERE mechanic_id=? AND time_out IS NULL', [$mechanicId]);
+        must((bool)$in, $m['full_name'] . ' is Unavailable (not timed in). The Motorpool Custodian must Time In the mechanic in the Mechanic Masterlist first.', 409);
         $busy = one($p, "SELECT job_ref, id FROM maintenance_jobs WHERE active_mechanic=?", [$mechanicId]);
         must(!$busy || (int)$busy['id'] === (int)$exceptJob, $m['full_name'] . ' is already assigned to ' . ($busy['job_ref'] ?? '') . '. Choose an Available mechanic.', 409);
         return $m;
     }
 
-    /** Recomputes a mechanic's availability from their active repairs (Unavailable is kept). */
+    /** Recomputes a mechanic's availability from their active repairs and Time In (no open Time In = Unavailable). */
     public static function refreshMechanic(PDO $p, ?int $mechanicId): void {
         if (!$mechanicId) return;
         $m = one($p, 'SELECT availability FROM mechanics WHERE id=? FOR UPDATE', [$mechanicId]);
-        if (!$m || $m['availability'] === 'Unavailable') return;
+        if (!$m) return;
         $busy = (bool)one($p, 'SELECT id FROM maintenance_jobs WHERE active_mechanic=?', [$mechanicId]);
-        run($p, 'UPDATE mechanics SET availability=? WHERE id=?', [$busy ? 'Assigned' : 'Available', $mechanicId]);
+        $in = (bool)one($p, 'SELECT id FROM mechanic_attendance WHERE mechanic_id=? AND time_out IS NULL', [$mechanicId]);
+        run($p, 'UPDATE mechanics SET availability=? WHERE id=?', [$busy ? 'Assigned' : ($in ? 'Available' : 'Unavailable'), $mechanicId]);
     }
 
     private static function setMechanic(PDO $p, array $j, int $mechanicId): void {

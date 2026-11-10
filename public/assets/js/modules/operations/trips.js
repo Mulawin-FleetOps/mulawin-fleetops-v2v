@@ -546,24 +546,22 @@ const TripUI = {
     const label = (ok, txt, why) => ok ? txt : `${txt} — ${why}`;
     const truckOpts = trucks.map(v => { const mine = String(v.id) === String(t.vehicle_id); const ok = mine || (v.status === 'Available' && !v.on_trip);
       return [v.id, label(ok, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '') + (mine ? ' (current)' : ''), v.on_trip ? 'on ' + v.on_trip : v.status)]; });
-    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: crew labelled for the trip's shift by the server (which rechecks on save).
+    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: crew labelled with attendance by the server (which rechecks on save).
     let co;
     try { co = await App.api('Trips.crew_options', { trip_id: t.id }); } catch (e) { return UI.toast(e.message, 'error'); }
     const people = (type) => co.crew.filter(p => p.type === type).map(p => {
-      const tags = [p.duty_shift ? p.duty_shift + ' shift' : 'No shift', ...p.labels.filter(l => l !== 'No shift')];
+      const tags = [p.attendance, ...p.labels];
       const text = `${p.name}${p.current ? ' (current)' : ''} — ${tags.join(' · ')}${p.blocker ? ' (' + p.blocker + ')' : ''}${p.allowed ? '' : ' — not allowed'}`;
       return [p.id, text];
     });
-    const rules = co.mode === 'Enforce'
-      ? `Enforce mode: only <b>${UI.esc(co.shift)}-shift</b> crew can be assigned. Crew marked <b>Absent</b>, on another shift or without a shift are refused.`
-      : `Warn mode: choose <b>${UI.esc(co.shift)}-shift</b> crew when possible. Other-shift or no-shift crew are allowed as a fallback (recorded in the history, audited and sent to the Operations Head). Crew marked <b>Absent</b> are refused.`;
+    const rules = `Crew marked <b>Absent</b> for that date are refused. Drivers and helpers are not tied to a shift.`;
     UI.formModal('Change assignment of ' + UI.esc(t.trip_ref), [
       { name: 'vehicle_id', label: 'Truck (' + t.truck_type + ')', type: 'select', options: truckOpts, value: t.vehicle_id, required: true, col: 12 },
       { name: 'driver_id', label: t.truck_type === 'Car Carrier' ? 'Driver 1' : 'Driver', type: 'select', options: people('Driver'), value: t.driver_id, required: true, col: 6 },
       t.truck_type === 'Car Carrier' ? { name: 'driver2_id', label: 'Driver 2', type: 'select', options: people('Driver'), value: t.driver2_id, required: true, col: 6 }
         : { name: 'helper_id', label: 'Helper', type: 'select', options: people('Helper'), value: t.helper_id, required: true, col: 6 },
       { name: 'reason', label: 'Reason for the change', required: true, col: 12 }],
-      'Trips.reassign', { extra: { trip_id: t.id }, intro: `Trip shift: <b>${UI.esc(co.shift_text)}</b>. ${rules}<br><span class="small text-muted">Busy or unavailable trucks and people are marked; the system refuses them. A new pre-dispatch checklist is needed after the change.</span>`,
+      'Trips.reassign', { extra: { trip_id: t.id }, intro: `Attendance date: <b>${UI.esc(co.day_text)}</b>. ${rules}<br><span class="small text-muted">Busy or unavailable trucks and people are marked; the system refuses them. A new pre-dispatch checklist is needed after the change.</span>`,
         after: () => { TripUI.open(t.id); App.route(); } });
   },
   /** Checklist modal. kind = 'Pre-Dispatch' (before departure) or 'Arrival' (truck is back; before = the pre-dispatch result). */
@@ -769,18 +767,16 @@ const TripUI = {
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
     const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
     const crew = [['Driver', t.driver_name], ...(t.truck_type === 'Car Carrier' ? [['Driver 2', t.driver2_name]] : [['Helper', t.helper_name]])];
-    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: attendance per crew member for the shift of "dispatch now" (server data).
+    // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: attendance per crew member for the date of "dispatch now" (server data).
     const att = t.crew_attendance;
     const attBadge = (role) => {
       const c = att && att.crew.find(x => x.role === role);
       if (!c) return '';
       const color = c.problem ? (att.mode === 'Enforce' ? 'red' : 'amber') : 'green';
-      return ` <span class="badge-s ${color}">${UI.esc(c.issue || 'Present')}</span>`
-        + (c.duty_shift ? ` <span class="small text-muted">${UI.esc(c.duty_shift)} shift</span>` : '')
-        + (c.outside_scheduled_shift ? ` <span class="badge-s amber" title="Assigned outside the trip's scheduled shift (Warn-mode fallback or manual choice)">Outside trip shift</span>` : '');
+      return ` <span class="badge-s ${color}">${UI.esc(c.issue || 'Present')}</span>`;
     };
     const missingRow = att && att.missing && att.missing.length ? ['Crew required', att.missing.map(m => `<div class="small text-danger"><i class="bi bi-exclamation-octagon"></i> ${UI.esc(m)}</div>`).join('')] : null;
-    const attRow = att && att.crew.length ? ['Crew attendance', `<span class="small">${UI.esc(att.mode)} mode · Confirm Dispatch now: ${UI.esc(att.dispatch_shift)} · Trip scheduled: ${UI.esc(att.scheduled_shift)}</span>`
+    const attRow = att && att.crew.length ? ['Crew attendance', `<span class="small">${UI.esc(att.mode)} mode · Confirm Dispatch now: ${UI.esc(att.dispatch_day)} · Trip scheduled: ${UI.esc(att.scheduled_day)}</span>`
       + att.crew.filter(c => c.problem).map(c => `<div class="small ${att.mode === 'Enforce' ? 'text-danger' : 'text-warning-emphasis'}"><i class="bi bi-exclamation-triangle"></i> ${UI.esc(c.problem)}</div>`).join('')] : null;
     let checklistHtml = '<div class="text-muted small">Not done yet.</div>';
     if (ins) {

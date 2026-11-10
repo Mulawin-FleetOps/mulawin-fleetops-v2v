@@ -62,7 +62,7 @@ App.page('admin', {
     const tabs = [];
     if (isAdmin) {
       tabs.push(['users', 'User accounts', (body) => {
-        const h = UI.table([['Name', 'full_name'], ['Username', 'username'], ['Email', 'email'], ['Role', 'role', (v) => UI.esc(d.roles[v] || v)], ['Shift', 'shift'], ['Active', 'active', (v) => +v ? UI.badge('Active') : UI.badge('Inactive')],
+        const h = UI.table([['Name', 'full_name'], ['Username', 'username'], ['Email', 'email'], ['Role', 'role', (v) => UI.esc(d.roles[v] || v)], ['Dispatcher shift', 'shift', (v) => v ? UI.esc(v) : '<span class="text-muted">—</span>'], ['Active', 'active', (v) => +v ? UI.badge('Active') : UI.badge('Inactive')],
           ['E-signature', 'has_signature', 'yes'], ['Last login', 'last_login_at', 'datetime']], d.users,
           { title: 'Accounts (one per employee; access follows the role)', tools: '<button class="btn btn-sm btn-primary" data-adduser><i class="bi bi-person-plus"></i> New account</button>',
             actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Reset password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
@@ -95,14 +95,13 @@ App.page('admin', {
       const settingField = (s) => s.format === 'hour'
         ? { name: 'value', label: `Time (${s.unit})`, type: 'select', options: Array.from({ length: 24 }, (_, h) => [String(h), hour12(h)]), value: String(Math.round(+s.value)), required: true, col: 12 }
         : s.format === 'attendance_mode'
-        ? { name: 'value', label: 'Mode', type: 'select', options: [['1', 'Warn (dispatch allowed; attendance noted)'], ['2', 'Enforce (dispatch needs Present crew on their shift)']], value: String(Math.round(+s.value)), required: true, col: 12 }
+        ? { name: 'value', label: 'Mode', type: 'select', options: [['1', 'Warn (dispatch allowed; attendance noted)'], ['2', 'Enforce (dispatch needs Present crew for the dispatch date)']], value: String(Math.round(+s.value)), required: true, col: 12 }
         : { name: 'value', label: `Value (${s.unit}, ${s.min} to ${s.max})`, type: 'number', step: 'any', value: s.value, required: true, col: 12 };
       // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: show readiness before the Admin switches Warn / Enforce.
       const readinessHtml = (r) => {
-        const un = r.unassigned || [], tr = r.trips || [];
-        if (!un.length && !tr.length) return '<div class="alert alert-success py-2 small mb-0">Ready: every active driver and helper has a shift, and no upcoming trip has crew on another shift.</div>';
-        return `<div class="alert alert-warning py-2 small mb-0">${un.length ? `<b>${un.length} driver(s)/helper(s) have no shift</b> (Enforce is refused until they have one): ${un.slice(0, 15).map(x => UI.esc(x.full_name)).join(', ')}${un.length > 15 ? ', ...' : ''}.<br>` : ''}`
-          + `${tr.length ? `<b>${tr.length} upcoming trip(s)</b> would be blocked under Enforce:<ul class="mb-0">${tr.slice(0, 10).map(x => `<li>${UI.esc(x.trip_ref)} · ${UI.datetime(x.scheduled_at)}: ${x.issues.map(UI.esc).join('; ')}</li>`).join('')}</ul>` : ''}</div>`;
+        const tr = r.trips || [];
+        if (!tr.length) return '<div class="alert alert-success py-2 small mb-0">Ready: no upcoming trip has assigned crew marked Absent.</div>';
+        return `<div class="alert alert-warning py-2 small mb-0"><b>${tr.length} upcoming trip(s)</b> would be blocked under Enforce:<ul class="mb-0">${tr.slice(0, 10).map(x => `<li>${UI.esc(x.trip_ref)} · ${UI.datetime(x.scheduled_at)}: ${x.issues.map(UI.esc).join('; ')}</li>`).join('')}</ul></div>`;
       };
       const settingModal = async (s) => {
         const intro = s.format === 'attendance_mode' ? readinessHtml(await App.api('Attendance.readiness', {})) : undefined;
