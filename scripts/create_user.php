@@ -4,7 +4,7 @@
  * Usage (XAMPP on Windows, inside the project folder):
  *   C:\xampp\php\php.exe scripts\create_user.php admin myusername "Full Name" name@gmail.com
  *   (dispatchers: add Day or Night at the end)
- * You type the password yourself (twice). Every login also needs the code sent to the email.
+ * You type the password yourself (twice). Login is username/email + password; the account is not forced to change it.
  * Forgotten password: scripts/reset_password.php.
  * Roles: admin, operations_head, car_carrier_dispatcher, container_wingvan_dispatcher,
  *        motorpool, purchasing, finance, billing, audit
@@ -31,5 +31,5 @@ try {
       ->execute([$username, $email, password_hash($pass, PASSWORD_DEFAULT), cut($name, 100), $role, $shift]);
     audit($p, null, 'Access', 'user ' . $p->lastInsertId(), 'account created from the server (scripts/create_user.php)', "$username / $role");
     $p->commit();
-    echo "Account created: $username ($role). Login codes will be sent to $email.\n";
+    echo "Account created: $username ($role).\n";
 } catch (Throwable $e) { if (isset($p) && $p->inTransaction()) $p->rollBack(); fwrite(STDERR, $e->getMessage() . "\n"); exit(1); }

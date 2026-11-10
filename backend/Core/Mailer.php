@@ -1,7 +1,7 @@
 <?php
 /*
  * =====================================================================
- *  backend/Core/Mailer.php  —  sends email through SMTP (login OTP codes)
+ *  backend/Core/Mailer.php  —  sends email through SMTP (password / email change codes, notices)
  * =====================================================================
  *  Uses PHPMailer 6.9.3 (backend/vendor/PHPMailer, LGPL-2.1, free).
  *  All settings come from .env, never from the code:

@@ -25,7 +25,6 @@
 .auth-note { font-size: var(--fs-sm); color: var(--text-3); margin: 12px 0 0; text-align: center; }
 .auth-links { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: var(--fs-sm); color: var(--text-3); }
 .auth-foot { margin-top: 20px; font-size: var(--fs-xs); color: var(--text-3); }
-.otp-input { font-family: var(--font-mono); font-size: 26px !important; letter-spacing: .5em; text-align: center; padding-left: .5em !important; height: 54px; }
 @media (max-width: 899.98px) {
   .auth-shell { grid-template-columns: 1fr; }
   .auth-side { padding: 22px 22px; gap: 0; }
@@ -43,7 +42,7 @@
 .login-brand .brand-sub { font-size: var(--fs-md); color: var(--text-3); margin-bottom: 18px; }
 .login-btn { height: 40px; }
 
-/* RPM LIGHT LOGIN V1 START — login/recovery/OTP visual design only. */
+/* RPM LIGHT LOGIN V1 START — login/recovery visual design only. */
 /* These styles are deliberately scoped to .auth-page; the installer and app shell are unaffected. */
 .auth-page {
   --auth-green: #14652f;

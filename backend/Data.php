@@ -14,6 +14,12 @@ final class Data {
         $u = currentUser();
         core('SecurityPasswordChange');
         $u['setup_required'] = SecurityPasswordChange::required((int)$u['id']);
+        if ($u['setup_required']) {
+            // Forced password change pending: nothing but the password screen's own needs (no menu, notifications or settings).
+            return ['ok' => true, 'user' => ['id' => $u['id'], 'username' => $u['username'], 'full_name' => $u['full_name'], 'role' => $u['role'],
+                    'role_label' => $u['role_label'], 'setup_required' => true],
+                    'csrf' => $_SESSION['csrf'] ?? '', 'passwordMin' => PASSWORD_MIN_LENGTH];
+        }
         $bell = ['items' => [], 'unread' => 0, 'active' => 0];
         try { core('Notify'); if ($u['role'] === 'admin') { require_once __DIR__ . '/Modules/Administration/Attendance.php'; Attendance::remind(db()); } $bell = Notify::forUser(db(), $u['id']); }
         catch (Throwable $e) { error_log('Notifications unavailable: ' . $e->getMessage()); }

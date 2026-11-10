@@ -5,7 +5,7 @@
  * Usage (XAMPP on Windows, inside the project folder):
  *   C:\xampp\php\php.exe scripts\reset_password.php USERNAME
  * You type the new password yourself (twice). The account is unlocked and all old sessions are
- * signed out. Logging in still needs the code sent to the account's email.
+ * signed out.
  */
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('CLI only'); }

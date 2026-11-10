@@ -5,7 +5,7 @@ automation/script2_demo.py  -  SCRIPT 2: full objective demonstration through th
 Run Script 1 first (it creates the accounts and saves their passwords in automation/.credentials.json).
 
 What it does, in this order (guide H and J):
-   1. Logs in each role with password + emailed code (you type the codes; saved sessions are reused).
+   1. Logs in each role with username + password (saved sessions are reused; a temporary password is replaced at first login).
    2. Masterlists: demo driver, truck (with OR/CR file), mechanic, client (with accreditation files) + billing rate.
    3. E-signature: the Operations Head DRAWS a signature, Finance UPLOADS a signature image.
    4. Corrective maintenance at the garage on the demo truck: report -> mechanic -> findings -> parts
@@ -154,8 +154,7 @@ class Demo:
         self.creds = F.Credentials()
         self.rec = F.Recorder('Script 2 - Objective demonstration', 'script2')
         self.man = Manifest(self.base)
-        self.otp = F.OtpSource(args.otp_source, self.cfg.get('mailpit_url', 'http://127.0.0.1:8025'))
-        self.br = F.Browser(self.base, self.rec, self.otp, headed=args.headed, slow=args.slow)
+        self.br = F.Browser(self.base, self.rec, self.creds, headed=args.headed, slow=args.slow)
         self.p = {}
         self.run = {'started': dt.datetime.now().isoformat(timespec='seconds')}
 
@@ -209,7 +208,7 @@ class Demo:
     # ======================================================================= 1. logins
     def logins(self):
         R = self.rec
-        R.set_section('1. Login with password and emailed code (OTP)')
+        R.set_section('1. Login with username and password')
         roles = ['admin'] + ROLES_NEEDED
         for i, role in enumerate(roles, start=1):
             a = self.acc(role)
@@ -225,12 +224,12 @@ class Demo:
                 pg = self.br.login(a['username'], pw, a['email'])
                 ok = pg.evaluate('() => App.me.user.role') == role
                 self.p[role] = pg if ok else None
-                R.check(item, '4.1', f'Login {F.ROLE_LABEL[role]} "{a["username"]}"', ok, 'signed in with password + emailed code (or a still-valid session)', 'wrong role')
+                R.check(item, '4.1', f'Login {F.ROLE_LABEL[role]} "{a["username"]}"', ok, 'signed in with username + password (or a still-valid session)', 'wrong role')
                 if not ok:
                     del self.p[role]
             except Exception as e:
                 R.failed(item, '4.1', f'Login {F.ROLE_LABEL[role]} "{a["username"]}"', str(e))
-        R.context['Login codes'] = 'typed by the operator from the real inbox' if self.args.otp_source == 'manual' else 'local Mailpit (test computer) - real Gmail delivery is checked only in manual mode'
+        R.context['Login'] = 'username + password; no emailed code'
 
     # ======================================================================= 2. masterlists
     def masterlists(self):
@@ -1261,7 +1260,6 @@ def main():
     ap.add_argument('--headed', action='store_true', help='Show the browser window while it works (good for the defense)')
     ap.add_argument('--slow', type=int, default=0, help='Slow down each browser action (milliseconds), e.g. 250 with --headed')
     ap.add_argument('--only', help='Run only some parts: masterlists,signatures,garage,po,trip,billing,monitoring (comma separated)')
-    ap.add_argument('--otp-source', choices=['manual', 'mailpit'], default='manual', help='manual = you type the emailed codes (default)')
     args = ap.parse_args()
     demo = Demo(args)
     try:

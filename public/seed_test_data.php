@@ -21,6 +21,8 @@ $token = envValue('SEED_TEST_TOKEN', '');
 if (strlen($token) < 32) { http_response_code(403); exit('Disabled. Set SEED_TEST_TOKEN (32+ characters) in .env to use this page, then clear it after use.'); }
 try { $u = currentUser(); } catch (Throwable $e) { http_response_code(403); exit('Log in to Mulawin FleetOps as the Admin first (same browser), then open this page again.'); }
 if ($u['role'] !== 'admin') { http_response_code(403); exit('Only the Admin can load test data.'); }
+core('SecurityPasswordChange');
+if (SecurityPasswordChange::required((int)$u['id'])) { http_response_code(403); exit('Complete your first-login password change first.'); }
 
 require dirname(__DIR__) . '/scripts/seed_test_data.php';
 

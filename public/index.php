@@ -5,8 +5,7 @@
  * =====================================================================
  *  1. Without ?api=  -> sends the HTML shell (login / app screen).
  *  2. With ?api=...  -> JSON API used by the screen:
- *       whoami, login (step 1: password), otp_verify (step 2: email code), otp_resend,
- *       otp_cancel, recover (Admin recovery code), logout, me
+ *       whoami, login (username/email + password), logout, me
  *       data&page=xyz                      data for one page
  *       Module.action  (POST JSON)         save something
  *       document_upload / document_download / backup_download
@@ -20,18 +19,7 @@ require_once dirname(__DIR__) . '/backend/Data.php';
 
 if (!isset($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(24));
 core('AccountSecurity');
-core('Otp');
-const LOCKED_MSG = 'This account is locked for 15 minutes because of too many wrong passwords or codes. Try again later.';
-
-/** The user who typed a correct password but has not entered the email code yet (or null). */
-function pendingLogin(): ?array {
-    $id = (int)($_SESSION['pending_uid'] ?? 0);
-    if (!$id) return null;
-    if (time() - (int)($_SESSION['pending_at'] ?? 0) > Otp::PENDING_MINUTES * 60) { unset($_SESSION['pending_uid'], $_SESSION['pending_at']); return null; }
-    $row = one(db(), 'SELECT * FROM users WHERE id=? AND active=1', [$id]);
-    if (!$row) { unset($_SESSION['pending_uid'], $_SESSION['pending_at']); return null; }
-    return $row;
-}
+const LOCKED_MSG = 'This account is locked for 15 minutes because of too many wrong passwords. Try again later.';
 
 function checkCsrf(?string $given): void {
     must(hash_equals((string)($_SESSION['csrf'] ?? ''), (string)$given), 'Security token expired. Please reload the page.', 403);
@@ -40,9 +28,9 @@ function checkCsrf(?string $given): void {
 if (isset($_GET['api'])) {
     $api = (string)$_GET['api'];
     try {
-        // Security S1: login, OTP, logout, and account setup remain reachable;
-        // blocked users cannot call document, backup, map, or other APIs directly.
-        if (!in_array($api, ['whoami','login','otp_verify','otp_resend','otp_cancel','logout','me','Admin.password_change_request','Admin.password_change_confirm','Admin.email_change_request','Admin.email_change_confirm'], true)
+        // Security S1: login, logout and the password-change workflow remain reachable;
+        // a user who must still replace a temporary password cannot call document, backup, map, or other APIs directly.
+        if (!in_array($api, ['whoami','login','logout','me','Admin.password_change_force','Admin.password_change_request','Admin.password_change_confirm'], true)
             && !empty($_SESSION['uid'])) {
             $setupUser = currentUser();
             core('SecurityPasswordChange');
@@ -50,11 +38,9 @@ if (isset($_GET['api'])) {
         }
         switch ($api) {
             case 'whoami':
-                $pending = pendingLogin();
-                jsonOut(['ok' => true, 'signedIn' => (bool)($_SESSION['uid'] ?? false), 'csrf' => $_SESSION['csrf'],
-                         'otp' => $pending ? ['email' => Mailer::mask((string)$pending['email']), 'resend_in' => Otp::resendWait((int)$pending['id']), 'minutes' => Otp::OTP_MINUTES] : null]);
+                jsonOut(['ok' => true, 'signedIn' => (bool)($_SESSION['uid'] ?? false), 'csrf' => $_SESSION['csrf']]);
             case 'login':
-                // Step 1 of 2: username (or email) + password. The session is NOT logged in yet.
+                // Username (or email) + password. A correct password signs the user in; there is no second step.
                 must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
                 $d = inputData();
                 checkCsrf($d['csrf'] ?? '');
@@ -63,7 +49,7 @@ if (isset($_GET['api'])) {
                 $fails = array_values(array_filter($_SESSION['login_failures'] ?? [], fn($t) => $now - (int)$t < 900));
                 must(count($fails) < 5, 'Too many wrong tries. Please wait 15 minutes.', 429);
                 $row = one(db(), 'SELECT * FROM users WHERE (username=? OR email=?) AND active=1 LIMIT 1', [$login, $login]);
-                // Account lock (from any computer): 5 wrong passwords or codes = locked for 15 minutes.
+                // Account lock (from any computer): 5 wrong passwords = locked for 15 minutes.
                 must(!$row || !AccountSecurity::isLocked($row), LOCKED_MSG, 429);
                 if (!$row || !password_verify($password, (string)$row['password_hash'])) {
                     $fails[] = $now; $_SESSION['login_failures'] = $fails;
@@ -71,78 +57,11 @@ if (isset($_GET['api'])) {
                     fail('Wrong username or password.' . (count($fails) >= 3 ? ' (' . (5 - count($fails)) . ' tries left)' : ''), 401);
                 }
                 must(in_array($row['role'], allowedRoles(), true), 'Account role is not allowed.', 403);
-                // Security S2: a verified browser token removes the need for repeat email OTP.
-                // The password is still required on every sign-in.
-                core('TrustedDevices');
-                $_SESSION['remember_device_requested'] = !empty($d['remember_device']);
-                if (TrustedDevices::isTrusted((int)$row['id'])) {
-                    AccountSecurity::success((int)$row['id']);
-                    unset($_SESSION['login_failures'], $_SESSION['pending_uid'], $_SESSION['pending_at']);
-                    session_regenerate_id(true);
-                    $_SESSION['uid'] = (int)$row['id']; $_SESSION['last_seen'] = time(); $_SESSION['login_at'] = time();
-                    $_SESSION['csrf'] = bin2hex(random_bytes(24));
-                    run(db(), 'UPDATE users SET last_login_at=NOW() WHERE id=?', [$row['id']]);
-                    audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'signed in', 'password + trusted device');
-                    unset($_SESSION['remember_device_requested']);
-                    jsonOut(['ok' => true]);
-                }
-                must(trim((string)$row['email']) !== '', 'This account has no email address for the login code. Ask the Admin to add one.', 409);
-                unset($_SESSION['login_failures'], $_SESSION['uid']);
-                session_regenerate_id(true);
-                $_SESSION['pending_uid'] = (int)$row['id']; $_SESSION['pending_at'] = time();
-                $err = Otp::issue($row);
-                if ($err !== null && str_starts_with($err, 'Please wait') && Otp::hasActive((int)$row['id'])) {
-                    // A code was sent less than a minute ago and still works: ask for that code instead of sending another.
-                    jsonOut(['ok' => true, 'otp' => ['email' => Mailer::mask((string)$row['email']), 'resend_in' => Otp::resendWait((int)$row['id']), 'minutes' => Otp::OTP_MINUTES],
-                             'notice' => 'A code was already sent a moment ago. Use that code.']);
-                }
-                if ($err !== null) {
-                    unset($_SESSION['pending_uid'], $_SESSION['pending_at']);
-                    fail($err, str_starts_with($err, 'Please wait') || str_starts_with($err, 'Too many') ? 429 : 503);
-                }
-                jsonOut(['ok' => true, 'otp' => ['email' => Mailer::mask((string)$row['email']), 'resend_in' => Otp::OTP_RESEND_SECONDS, 'minutes' => Otp::OTP_MINUTES]]);
-            case 'otp_verify':
-                // Step 2 of 2: the 6-digit code from the email.
-                must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
-                $d = inputData();
-                checkCsrf($d['csrf'] ?? '');
-                $row = pendingLogin();
-                must((bool)$row, 'Your login step expired. Enter your username and password again.', 401);
-                must(!AccountSecurity::isLocked($row), LOCKED_MSG, 429);
-                $res = Otp::verify((int)$row['id'], preg_replace('/\D/', '', (string)($d['code'] ?? '')));
-                if (!$res['ok']) {
-                    if (AccountSecurity::failure($row)) { unset($_SESSION['pending_uid'], $_SESSION['pending_at']); fail(LOCKED_MSG, 429); }
-                    fail($res['error'], 401);
-                }
                 AccountSecurity::success((int)$row['id']);
                 session_regenerate_id(true);
-                unset($_SESSION['pending_uid'], $_SESSION['pending_at']);
-                $_SESSION['uid'] = (int)$row['id']; $_SESSION['last_seen'] = time(); $_SESSION['login_at'] = time();
-                $_SESSION['csrf'] = bin2hex(random_bytes(24));
-                if (!empty($_SESSION['remember_device_requested'])) {
-                    core('TrustedDevices');
-                    TrustedDevices::remember((int)$row['id']);
-                }
-                unset($_SESSION['remember_device_requested']);
+                $_SESSION = ['csrf' => bin2hex(random_bytes(24)), 'uid' => (int)$row['id'], 'last_seen' => time(), 'login_at' => time()];
                 run(db(), 'UPDATE users SET last_login_at=NOW() WHERE id=?', [$row['id']]);
-                audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'signed in', 'password + email code');
-                jsonOut(['ok' => true]);
-            case 'otp_resend':
-                must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
-                $d = inputData();
-                checkCsrf($d['csrf'] ?? '');
-                $row = pendingLogin();
-                must((bool)$row, 'Your login step expired. Enter your username and password again.', 401);
-                must(!AccountSecurity::isLocked($row), LOCKED_MSG, 429);
-                $err = Otp::issue($row);
-                if ($err !== null) fail($err, str_starts_with($err, 'Please wait') || str_starts_with($err, 'Too many') ? 429 : 503);
-                jsonOut(['ok' => true, 'otp' => ['email' => Mailer::mask((string)$row['email']), 'resend_in' => Otp::OTP_RESEND_SECONDS, 'minutes' => Otp::OTP_MINUTES],
-                         'data' => ['message' => 'A new code was sent. Older codes no longer work.']]);
-            case 'otp_cancel':
-                must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
-                $d = inputData();
-                checkCsrf($d['csrf'] ?? '');
-                unset($_SESSION['pending_uid'], $_SESSION['pending_at']);
+                audit(db(), (int)$row['id'], 'Access', 'user ' . $row['id'], 'signed in', 'password');
                 jsonOut(['ok' => true]);
             case 'logout':
                 must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
