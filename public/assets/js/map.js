@@ -103,7 +103,7 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
     </div>`;
   const note = (msg) => { const n = box.querySelector('[data-locnote]'); n.textContent = msg; n.classList.toggle('d-none', !msg); };
   if (typeof L === 'undefined') { note('The map library did not load. Type the addresses and the km.'); box.querySelector('[data-mapcanvas]').remove(); return null; }
-  const map = L.map(box.querySelector('[data-mapcanvas]'), { scrollWheelZoom: false }).setView([14.08, 121.15], 9);
+  const map = L.map(box.querySelector('[data-mapcanvas]'), { scrollWheelZoom: opts.scrollWheelZoom === true, doubleClickZoom: true, touchZoom: true, boxZoom: true }).setView([14.08, 121.15], 9);
   UI.Map.tiles(map, note);
   if (!searchReady) {
     box.querySelectorAll('[data-locq],[data-locgo]').forEach(x => x.disabled = true);
@@ -138,8 +138,10 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
     if (routeLine) { routeLine.remove(); routeLine = null; }
     if (pins.pickup && pins.delivery) {
       const a = pins.pickup.getLatLng(), b = pins.delivery.getLatLng();
-      line = L.polyline([a, b], { color: '#1f2328', weight: 2, dashArray: '6 6' }).addTo(map);
-      info.textContent = `Both points set · straight-line distance ${(a.distanceTo(b) / 1000).toFixed(1)} km`;
+      if (!opts.hideStraightLine) line = L.polyline([a, b], { color: '#1f2328', weight: 2, dashArray: '6 6' }).addTo(map);
+      info.textContent = opts.hideStraightLine
+        ? 'Pickup and delivery pinned · road route requires the routing service. Straight lines are not driving routes.'
+        : `Both points set · straight-line distance ${(a.distanceTo(b) / 1000).toFixed(1)} km`;
     }
     if (!silent && opts.onChange) opts.onChange(points(), picker);
   }
@@ -298,7 +300,7 @@ UI.distanceWidget = (form, opts = {}) => {
       ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}${useBtn('Use the computed km')}`);
     wireUse();
   };
-  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, onChange: (pts) => compute(pts),
+  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, scrollWheelZoom: opts.scrollWheelZoom, hideStraightLine: opts.hideStraightLine, onChange: (pts) => compute(pts),
     footNote: opts.footNote || (cfg.routing ? 'Road distance by openrouteservice (estimate). Check it before saving.' : 'Type the km.') }) : null;
   picker = map ? map.picker : null;
   if (opt) opt.addEventListener('change', () => { if (picker && st.kind !== 'route') compute(picker.points()); });
