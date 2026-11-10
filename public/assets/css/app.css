@@ -2154,3 +2154,43 @@ button.docfm-folder:focus-visible {
 .rpm-route-dialog .rpm-address-pin-status { line-height: 1.35; overflow-wrap: anywhere; }
 .rpm-route-map-shell .loc-toolbar { justify-content: flex-start; }
 .rpm-route-map-shell .loc-toolbar .seg { flex: 0 0 auto; }
+
+
+/* Client Routes request — refined, compact desktop/mobile form hierarchy. */
+.rpm-route-dialog .modal-header { padding: 16px 22px; background: #fff; border-bottom: 1px solid #e3ebe5; }
+.rpm-route-dialog .modal-body { padding: 18px 22px 22px; background: #fbfcfb; }
+.rpm-route-dialog .modal-footer { padding: 12px 22px; border-top: 1px solid #e3ebe5; background: #fff; }
+.rpm-route-dialog .modal-body > form > .row { row-gap: 13px !important; }
+.rpm-route-intro { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 16px; padding: 10px 12px; background: #edf6f0; border: 1px solid #d9e9df; border-radius: 8px; color: #4a6354; font-size: 12px; line-height: 1.55; }
+.rpm-route-intro .bi { font-size: 14px; flex: 0 0 auto; color: #28744a; }
+.rpm-route-garage { padding: 14px 16px; gap: 14px; background: linear-gradient(110deg, #f1faf4, #f8fcf9); border: 1px solid #d8eadf; border-left: 4px solid #258751; border-radius: 11px; box-shadow: 0 2px 8px rgba(34,91,59,.035); }
+.rpm-route-garage-icon { width: 46px; height: 46px; flex-basis: 46px; border-radius: 12px; background: #def1e5; font-size: 21px; }
+.rpm-route-garage-copy { flex: 1; line-height: 1.45; }
+.rpm-route-garage-top { gap: 10px; margin-bottom: 3px; }
+.rpm-route-garage-top .rpm-garage-eyebrow { display: inline-block; padding: 0; background: transparent; color: #47805c; letter-spacing: .075em; font-size: 10px; font-weight: 750; }
+.rpm-route-garage-top .rpm-garage-fixed { background: #dff1e5; padding: 3px 9px; color: #2d744b; font-size: 11px; font-weight: 600; }
+.rpm-route-garage-copy .rpm-garage-name { display: block; color: #1f4731; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.rpm-route-garage-copy small { font-size: 12px; line-height: 1.45; color: #647c6b; }
+.rpm-route-garage-copy small .bi { margin-right: 3px; }
+.rpm-route-dialog .form-label { margin-bottom: 6px; color: #314a3b; font-size: 12px; font-weight: 700; }
+.rpm-route-dialog .form-select, .rpm-route-dialog .form-control { min-height: 43px; border-color: #cbdcd1; border-radius: 8px; background-color: #fff; font-size: 13px; }
+.rpm-route-dialog .form-select:focus, .rpm-route-dialog .form-control:focus { border-color: #4b9a68; box-shadow: 0 0 0 3px rgba(42,133,78,.12); }
+.rpm-route-dialog .rpm-address-pin-control .form-control { border-radius: 8px 0 0 8px; }
+.rpm-route-dialog .rpm-address-pin-btn { min-height: 43px; border-color: #c4decf; background: #e7f5eb; border-radius: 0 8px 8px 0; color: #206b41; font-size: 12px; }
+.rpm-route-dialog .rpm-address-pin-btn:hover { background: #d7eedd; }
+.rpm-route-dialog .rpm-route-map-shell { margin-top: 2px; border-radius: 11px; border: 1px solid #dce7df; box-shadow: 0 3px 13px rgba(31,76,49,.04); }
+.rpm-route-dialog .rpm-route-map-heading { padding: 12px 15px; background: #fff; }
+.rpm-route-dialog .rpm-route-map-heading > span { color: #647d6d; }
+.rpm-route-dialog .rpm-route-steps { padding: 8px 15px; background: #f5faf7; }
+.rpm-route-dialog .rpm-route-legend { padding: 10px 15px; }
+.rpm-route-dialog .form-help { font-size: 11px; line-height: 1.5; color: #728176; }
+@media (max-width: 767.98px) {
+  .rpm-route-dialog .modal-header { padding: 13px 15px; }
+  .rpm-route-dialog .modal-body { padding: 13px 14px 16px; }
+  .rpm-route-dialog .modal-footer { padding: 10px 14px; }
+  .rpm-route-intro { margin-bottom: 12px; }
+  .rpm-route-garage { padding: 12px; gap: 10px; }
+  .rpm-route-garage-icon { width: 40px; height: 40px; flex-basis: 40px; }
+  .rpm-route-garage-copy .rpm-garage-name { font-size: 13px; }
+  .rpm-route-dialog .rpm-route-map-heading > span { display: none; }
+}
