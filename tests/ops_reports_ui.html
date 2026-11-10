@@ -1,0 +1,93 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Operations Head Reports fixture</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css"><link rel="stylesheet" href="../public/assets/css/ops-head.css">
+<div id="app"></div><div id="fixture"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/vendor/chartjs/chart.umd.min.js"></script><script src="../public/assets/js/core.js"></script><script src="../public/assets/js/map.js"></script>
+<script src="../public/assets/js/modules/general/dashboard.js"></script><script src="../public/assets/js/modules/operations/trips.js"></script><script src="../public/assets/js/modules/operations/trip-planner.js"></script><script src="../public/assets/js/modules/operations/fleet.js"></script><script src="../public/assets/js/modules/operations/clients.js"></script><script src="../public/assets/js/modules/operations/routes.js"></script><script src="../public/assets/js/modules/accounting/funds.js"></script><script src="../public/assets/js/modules/general/reports.js"></script><script src="../public/assets/js/modules/general/documents.js"></script><script src="../public/assets/js/modules/operations/ops-head.js"></script><script src="../public/assets/js/modules/operations/ops-reports.js"></script>
+<script>
+// All records and API responses in this local-file fixture are mocked. No application DB is used.
+(async()=>{
+ const output=document.querySelector('#results'),checks=[],navigation=[],calls=[],downloads=[],details=[];
+ const assert=(ok,label)=>{if(!ok)throw new Error(label);checks.push('PASS '+label);};
+ const pause=()=>new Promise(resolve=>setTimeout(resolve,35));
+ App.me={user:{id:1,role:'operations_head',full_name:'Fixture Operations Head',role_label:'Operations Head',username:'fixture'},roles:{operations_head:'Operations Head'},truckTypes:['Container','Wing Van','Car Carrier'],map:{routing:false},notifications:[],unread:0,nav:['dashboard','trips','trucks','crew','funds','reports','documents'].map(id=>({id,label:id==='reports'?'Reports':id,icon:'bi-grid'}))};
+ const logo=UI.logoTag;UI.logoTag=(...args)=>logo(...args).replace('src="assets/','src="../public/assets/');UI.toast=()=>{};App.current={page:'reports',query:{}};
+ const trips=Array.from({length:37},(_,i)=>({id:i+1,trip_ref:'REPORT-TRIP-'+(i+1),client:'Fixture Client '+(i%2?'B':'A'),truck_type:['Container','Wing Van','Car Carrier'][i%3],route:'Fixture Origin → Fixture Destination',scheduled_at:'2026-11-'+String(i%10+1).padStart(2,'0')+' 08:00:00',status:['Completed','Dispatched','In Transit','On Hold - Incident Reported','For Reschedule'][i%5]}));
+ const trucks=[{id:1,plate_number:'REPORT-TRUCK-1',truck_type:'Container',driver_name:'Fixture Driver 1',trip_count:4,status:'Available'},{id:2,plate_number:'REPORT-TRUCK-2',truck_type:'Wing Van',driver_name:'Fixture Driver 2',trip_count:1,status:'On Trip'},{id:3,plate_number:'REPORT-TRUCK-3',truck_type:'Car Carrier',driver_name:null,trip_count:0,status:'Under Maintenance'}];
+ const incidents=Array.from({length:4},(_,i)=>({id:i+1,incident_ref:'REPORT-INC-'+(i+1),trip_id:i<3?1:2,trip_ref:i<3?'REPORT-TRIP-1':'REPORT-TRIP-2',truck_type:i<3?'Container':'Car Carrier',incident_type:'Fixture Breakdown',reported_at:'2026-11-10 10:00:00',status:['Resolved','Reported','Under Repair','Repaired - Cleared to Continue'][i]}));
+ const columns={trips:[['Trip ID','trip_ref'],['Client','client'],['Truck Type','truck_type'],['Route','route'],['Scheduled Date','scheduled_at','datetime'],['Status','status','badge']],trucks:[['Plate Number','plate_number'],['Truck Type','truck_type'],['Assigned Driver','driver_name'],['Number of Trips','trip_count','count'],['Current Operational Status','status','badge']],incidents:[['Incident ID','incident_ref'],['Trip ID','trip_ref'],['Truck Type','truck_type'],['Incident Type','incident_type'],['Date Reported','reported_at','datetime'],['Status','status','badge']]};
+ let forceEmpty=false,exportFail=false,openedDownload=false;
+ const filtered=q=>{
+   const f={report:'trips',date_range:'month',from:'2026-11-01',to:'2026-11-10',truck_type:'',search:'',...q};
+   if(f.date_range==='today')f.from=f.to='2026-11-10';else if(f.date_range==='week'){f.from='2026-11-09';f.to='2026-11-10';}else if(f.date_range==='month'){f.from='2026-11-01';f.to='2026-11-10';}
+   const source=f.report==='trucks'?trucks:f.report==='incidents'?incidents:trips;
+   const rows=forceEmpty?[]:source.filter(r=>(!f.truck_type||r.truck_type===f.truck_type)&&(!f.search||columns[f.report].map(([,k])=>r[k]??'').join(' ').toLowerCase().includes(f.search.toLowerCase()))&&(f.report==='trucks'||String(r[f.report==='incidents'?'reported_at':'scheduled_at']).slice(0,10)>=f.from&&String(r[f.report==='incidents'?'reported_at':'scheduled_at']).slice(0,10)<=f.to));
+   delete f.report_page;return {f,rows};
+ };
+ const response=q=>{
+   const {f,rows}=filtered(q),n=rows.length;let cards,chart;
+   if(f.report==='trips'){const complete=rows.filter(r=>r.status==='Completed').length,progress=rows.filter(r=>['Dispatched','In Transit'].includes(r.status)).length,hold=rows.filter(r=>r.status==='On Hold - Incident Reported').length;cards=[['Total Trips',n],['Completed Trips',complete],['In Progress',progress],['Trips On Hold',hold]];chart={title:'Trip Status Overview',labels:['Completed','In Progress','On Hold','Other'],values:[complete,progress,hold,n-complete-progress-hold]};}
+   else if(f.report==='trucks'){const used=rows.filter(r=>r.trip_count>0).length;cards=[['Total Trucks',n],['Trucks Used',used],['Total Trips Recorded',rows.reduce((sum,r)=>sum+r.trip_count,0)],['Trucks Not Used',n-used]];chart={title:'Truck Usage Overview',labels:['Used Trucks','Not Used'],values:[used,n-used]};}
+   else{const resolved=rows.filter(r=>r.status==='Resolved').length;cards=[['Total Incidents',n],['Resolved Incidents',resolved],['Open Incidents',n-resolved],['Trips Affected',new Set(rows.map(r=>r.trip_id)).size]];chart={title:'Incident Status Overview',labels:['Resolved','Open'],values:[resolved,n-resolved]};}
+   const pages=Math.max(1,Math.ceil(n/10)),page=Math.min(q.report_page||1,pages);
+   return {operationsReport:{filters:f,title:OpsReportsUI.tabs.find(t=>t[0]===f.report)[1],cards:cards.map(([label,value])=>({label,value})),chart,columns:columns[f.report],rows:rows.slice((page-1)*10,page*10),total:n,page,pages,pageSize:10,note:f.report==='trucks'?'Recorded dispatches only; earlier assignments are not reconstructed.':f.report==='incidents'?'Incidents by reporting time (PHT).':'Trips by scheduled date (PHT).'}};
+ };
+ App.api=async(action,payload)=>{
+   calls.push({action,payload:structuredClone(payload)});
+   if(action==='Analytics.operations_incident')return {incident:incidents.find(r=>r.id===+payload.id)};
+   if(action==='Analytics.operations_export'){
+     if(exportFail)throw new Error('Export service unavailable. Retry Export Report.');
+     const {f,rows}=filtered(payload),escape=value=>'"'+String(value??'').replaceAll('"','""')+'"';
+     return {filename:(f.report==='trips'?'trip-report':f.report==='trucks'?'truck-utilization':'incident-report')+'-'+f.from+'-to-'+f.to+'.csv',mime:'text/csv;charset=utf-8',recordCount:rows.length,csv:'\uFEFF'+[columns[f.report].map(c=>escape(c[0])).join(','),...rows.map(r=>columns[f.report].map(([,key])=>escape(r[key])).join(','))].join('\r\n')+'\r\n'};
+   }
+   throw new Error('Unexpected mocked action '+action);
+ };
+ TripUI.open=async id=>details.push(['trip',id]);FleetUI.truckDetails=async(id,permissions)=>details.push(['truck',id,permissions]);OpsHead.incident=row=>details.push(['incident',row.id]);
+ const realDownload=OpsReportsUI.download;OpsReportsUI.download=result=>{downloads.push(result);if(new URLSearchParams(location.search).has('download')&&!openedDownload){openedDownload=true;realDownload.call(OpsReportsUI,result);}};
+ const ctx={el:document.querySelector('#fixture'),tools:document.createElement('div'),page:'reports',query:{},data:null,setTitle:(title,subtitle)=>{ctx.title=title;ctx.subtitle=subtitle;},reload(){}};
+ const render=(q={})=>{ctx.query=q;ctx.data=response(q);ctx.tools.replaceChildren();App.current={page:'reports',query:q};App.pages.reports.render(ctx);};
+ App.go=(page,q={})=>{navigation.push({page,q:structuredClone(q),loading:!ctx.el.querySelector('[data-report-loading]')?.hidden});Promise.resolve().then(()=>render(q));};
+ const input=(name,value)=>{const el=ctx.el.querySelector(`[name=${name}]`);el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));};
+ const values=()=>[...ctx.el.querySelectorAll('.oh-report-cards strong')].map(el=>+el.textContent.replaceAll(',',''));
+ const parameters=new URLSearchParams(location.search),preview=parameters.get('preview');
+ if(preview){
+   App.shell();const page=document.querySelector('#pageContent');page.innerHTML='<div class="page-head"><div><h1 id="pageTitle" class="page-title"></h1><p id="pageSubtitle" class="page-subtitle"></p></div><div id="pageTools"></div></div><div id="reportPreview"></div>';
+   ctx.el=document.querySelector('#reportPreview');ctx.tools=document.querySelector('#pageTools');ctx.setTitle=(t,s)=>{document.querySelector('#pageTitle').textContent=t;document.querySelector('#pageSubtitle').textContent=s;};
+   forceEmpty=preview==='empty';render({report:['trucks','incidents'].includes(preview)?preview:'trips',...(parameters.has('last')?{report_page:4}:{})});
+   document.querySelector('#fixture').hidden=true;output.hidden=true;output.textContent='REPORT PREVIEW READY';return;
+ }
+ try{
+   render();assert(ctx.title==='Reports'&&ctx.subtitle==='View trip activities, truck usage, and incident records.','Exact heading and compact description');
+   assert(ctx.el.querySelectorAll('[role=tab]').length===3&&ctx.el.querySelector('[aria-selected=true]').textContent==='Trip Reports','Exactly three primary tabs with one selected');
+   assert(ctx.el.querySelector('[name=date_range]').value==='month'&&ctx.el.querySelector('[data-custom-range]').hidden,'This Month is the default with custom dates hidden');
+   assert(values()[0]===37&&values().length===4,'Trip summary uses the whole 37-record dataset');
+   assert(ctx.el.querySelectorAll('tbody tr[data-ri]').length===10&&!ctx.el.querySelector('[data-rpm-size]'),'Detailed records use ten rows without a size selector');
+   assert(OpsReportsUI.chart.config.options.indexAxis==='y'&&OpsReportsUI.chart.config.options.animation===false,'One nonanimated horizontal Chart.js chart');
+   assert(OpsReportsUI.chart.data.datasets[0].data.reduce((a,b)=>a+b,0)===37,'Trip chart reconciles with full matching count');
+   ctx.el.querySelector('[data-report-next]').click();await pause();assert(ctx.el.textContent.includes('Showing 11–20 of 37 records')&&navigation.at(-1).loading,'Next page retains count and exposes loading feedback');
+   ctx.el.querySelector('[data-report-next]').click();await pause();ctx.el.querySelector('[data-report-next]').click();await pause();assert(ctx.el.querySelectorAll('tbody tr[data-ri]').length===7&&ctx.el.querySelector('[data-report-next]').disabled,'Final page contains seven records');
+   ctx.el.querySelector('[data-report-prev]').click();await pause();assert(ctx.el.textContent.includes('Showing 21–30 of 37 records'),'Previous returns to the correct page');
+   ctx.el.querySelector('#ohReportSearch').value='REPORT-TRIP-37';ctx.el.querySelector('form[role=search]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();assert(values()[0]===1&&ctx.el.textContent.includes('Showing 1–1 of 1 records')&&!navigation.at(-1).q.report_page,'Search reaches the last record and resets pagination/cards');
+   ctx.el.querySelector('[data-report-export]').click();await pause();assert(downloads.at(-1).recordCount===1&&downloads.at(-1).csv.includes('REPORT-TRIP-37')&&!downloads.at(-1).csv.includes('REPORT-TRIP-36'),'Export respects applied search rather than current input or page');
+   render({report_page:4});ctx.el.querySelector('[data-report-export]').click();await pause();assert(downloads.at(-1).recordCount===37&&downloads.at(-1).csv.includes('REPORT-TRIP-1')&&downloads.at(-1).csv.includes('REPORT-TRIP-37'),'Export includes the complete dataset from the last table page');
+   input('truck_type','Car Carrier');await pause();assert(values()[0]===12&&ctx.el.querySelectorAll('tbody tr[data-ri]').length===10&&ctx.el.querySelector('[data-report-prev]').disabled,'Truck type updates summaries, rows, and resets pagination');
+   input('date_range','today');await pause();assert(ctx.data.operationsReport.filters.from==='2026-11-10'&&values()[0]===1,'Today and truck type combine consistently');
+   input('date_range','week');await pause();assert(ctx.data.operationsReport.filters.from==='2026-11-09','This Week starts Monday in the mock server');
+   input('date_range','custom');await pause();assert(!ctx.el.querySelector('[data-custom-range]').hidden,'Custom Range exposes date controls');
+   const count=navigation.length;input('from','2026-11-20');assert(navigation.length===count&&!ctx.el.querySelector('[data-report-error]').hidden,'Invalid reversed dates show inline feedback without fetching');
+   input('from','2026-11-01');await pause();assert(ctx.data.operationsReport.filters.date_range==='custom','Corrected custom dates reach the report query');
+   render();ctx.el.querySelectorAll('[role=tab]')[1].click();await pause();assert(values().join() === '3,2,5,1'&&ctx.el.querySelectorAll('canvas').length===1,'Truck tab counts distinct trucks and recorded trips separately');
+   assert(ctx.el.querySelector('[aria-selected=true]').textContent==='Truck Utilization'&&ctx.el.textContent.includes('Truck Usage Overview')&&!ctx.el.textContent.includes('Trip Status Overview'),'Only selected report chart/content is displayed');
+   ctx.el.querySelector('[data-act=view]').click();await pause();assert(details.at(-1)[0]==='truck'&&!details.at(-1)[2].can.edit,'Truck View Details reuses existing authorized read view');
+   ctx.el.querySelector('[data-report-export]').click();await pause();assert(downloads.at(-1).filename.startsWith('truck-utilization-')&&downloads.at(-1).recordCount===3,'Truck CSV has the correct report identity');
+   ctx.el.querySelectorAll('[role=tab]')[2].click();await pause();assert(values().join()==='4,1,3,2','Incident tab distinguishes incident count, open statuses, and affected trips');
+   assert(!ctx.el.textContent.includes('Submit Incident Report'),'Incident report tab contains no submission action');ctx.el.querySelector('[data-act=view]').click();await pause();assert(details.at(-1)[0]==='incident'&&calls.at(-1).action==='Analytics.operations_incident','Incident details reuse existing coordination view after authorized fetch');
+   ctx.el.querySelector('[data-report-export]').click();await pause();assert(downloads.at(-1).filename.startsWith('incident-report-'),'Incident CSV has the correct report identity');
+   render();ctx.el.querySelector('[data-act=view]').click();await pause();assert(details.at(-1)[0]==='trip','Trip View Details reuses TripUI.open');
+   exportFail=true;ctx.el.querySelector('[data-report-export]').click();await pause();assert(!ctx.el.querySelector('[data-export-error]').hidden&&ctx.el.querySelector('[data-export-error]').textContent.includes('Retry')&&!ctx.el.querySelector('[data-report-export]').disabled,'Export failures are actionable and allow retry');exportFail=false;
+   forceEmpty=true;render();assert(values().every(v=>v===0)&&ctx.el.textContent.includes('No records found for the selected filters.')&&ctx.el.querySelector('[data-report-next]').disabled,'Empty result uses zeros and accurate disabled pagination');ctx.el.querySelector('[data-report-export]').click();await pause();assert(downloads.at(-1).recordCount===0&&downloads.at(-1).csv.trim().split('\r\n').length===1,'Empty export produces a valid header-only file');forceEmpty=false;
+   ctx.data={};App.pages.reports.render(ctx);assert(ctx.el.textContent.includes('Report data is unavailable'),'Unavailable report has a user-friendly failure state');
+   App.me.user.role='finance';ctx.data={period:{from:'2026-11-01',to:'2026-11-10',prevFrom:'2026-10-22',prevTo:'2026-10-31'},filterOptions:{clients:[],trucks:[],people:[],dispatchers:[]},statuses:[],sections:{money:{title:'Finance fixture',cards:[],tables:[],charts:[]}}};ctx.tools.replaceChildren();App.pages.reports.render(ctx);assert(ctx.tools.textContent.includes('Print all')&&!ctx.el.querySelector('.oh-reports'),'Other roles retain the existing reporting renderer');
+   output.textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+ }catch(ex){output.textContent=checks.join('\n')+'\nFAIL '+ex.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>

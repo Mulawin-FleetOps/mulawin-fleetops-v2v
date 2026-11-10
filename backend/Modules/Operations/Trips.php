@@ -40,6 +40,8 @@ core('Files');
 core('BillingDraft');
 core('RouteDistance');
 core('CrewAttendance');
+core('DispatcherResources');
+core('DispatcherPlanning');
 
 final class Trips {
     public const STATUSES = ['Pending Review', 'Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'Dispatched',
@@ -65,6 +67,21 @@ final class Trips {
     // READ
     // =================================================================
     public static function read(array $u, string $page, array $q): array {
+        if (($q['view'] ?? '') === 'approvals') {
+            requireRole($u, 'operations_head');
+            return self::approvalWorkspace($q);
+        }
+        if (($q['view'] ?? '') === 'requests') {
+            must(roleIsDispatcher($u['role']), 'Only dispatchers can open Trip Requests.', 403);
+            return self::approvalWorkspace($q, $u);
+        }
+        if (($q['view'] ?? '') === 'request-result') {
+            must(roleIsDispatcher($u['role']), 'Only dispatchers can retrieve their request result.', 403);
+            $key = strtolower(field($q, 'request_key', 36));
+            must((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $key), 'Invalid request key.');
+            [$scope,$args]=self::scope($u);
+            return ['submission' => one(db(), 'SELECT t.id AS trip_id,t.trip_ref,t.status FROM trips t WHERE t.request_key=? AND t.created_by=?'.$scope, [$key, $u['id'],...$args])];
+        }
         $p = db();
         [$scope, $scopeArgs] = self::scope($u);
         [$where, $args] = self::filters($q);
@@ -80,18 +97,20 @@ final class Trips {
                 JOIN users ru ON ru.id=i.reported_by LEFT JOIN maintenance_jobs m ON m.incident_id=i.id
                 WHERE 1=1 $scope ORDER BY i.id DESC LIMIT 300", $scopeArgs),
         ]);
+        $reference=null;
+        if(roleIsDispatcher($u['role'])){require_once __DIR__.'/Fleet.php';$reference=Fleet::read($u,'trucks',[]);}
         if (self::canCreate($u) || hasRole($u, 'operations_head', 'admin')) {
             $data = mergeSections($data, [
-                'clients' => fn() => many($p, "SELECT c.id, c.company_name, (SELECT GROUP_CONCAT(r.truck_type SEPARATOR '|') FROM client_rates r WHERE r.client_id=c.id) AS rate_types
-                    FROM clients c WHERE c.status='Active' ORDER BY c.company_name"),
-                'trucks' => fn() => many($p, "SELECT v.id, v.plate_number, v.truck_number, v.truck_type, v.status, v.assigned_driver_id, v.assigned_helper_id,
+                'clients' => function()use($p,$u){$types=roleIsDispatcher($u['role'])?DispatcherScope::types($u):[];$condition=$types?' AND EXISTS (SELECT 1 FROM client_rates sr WHERE sr.client_id=c.id AND sr.truck_type IN ('.implode(',',array_fill(0,count($types),'?')).'))':'';return many($p, "SELECT c.id, c.company_name, (SELECT GROUP_CONCAT(r.truck_type SEPARATOR '|') FROM client_rates r WHERE r.client_id=c.id) AS rate_types
+                    FROM clients c WHERE c.status='Active' $condition ORDER BY c.company_name",$types);},
+                'trucks' => fn() => $reference!==null?($reference['trucks']??[]):many($p, "SELECT v.id, v.plate_number, v.truck_number, v.truck_type, v.status, v.assigned_driver_id, v.assigned_helper_id,
                     (SELECT t.trip_ref FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='vehicle' AND a.resource_id=v.id) AS on_trip
                     FROM vehicles v WHERE v.active=1 ORDER BY v.truck_type, v.plate_number"),
-                'crew' => fn() => many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, pe.license_expiry,
+                'crew' => fn() => $reference!==null?($reference['personnel']??[]):many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, pe.license_expiry,
                     (SELECT t.trip_ref FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='person' AND a.resource_id=pe.id) AS on_trip
                     FROM personnel pe WHERE pe.active=1 ORDER BY pe.full_name"),
-                'places' => fn() => array_column(many($p, "SELECT x FROM (SELECT pickup_point AS x FROM trips UNION SELECT delivery_point FROM trips) z WHERE x<>'' ORDER BY x LIMIT 500"), 'x'),
-                'consignees' => fn() => array_column(many($p, "SELECT DISTINCT consignee FROM trips WHERE consignee IS NOT NULL ORDER BY consignee LIMIT 300"), 'consignee'),
+                'places' => fn() => roleIsDispatcher($u['role'])?[]:array_column(many($p, "SELECT x FROM (SELECT pickup_point AS x FROM trips UNION SELECT delivery_point FROM trips) z WHERE x<>'' ORDER BY x LIMIT 500"), 'x'),
+                'consignees' => fn() => roleIsDispatcher($u['role'])?[]:array_column(many($p, "SELECT DISTINCT consignee FROM trips WHERE consignee IS NOT NULL ORDER BY consignee LIMIT 300"), 'consignee'),
             ]);
         }
         require_once __DIR__ . '/Inspections/Checklist.php';
@@ -104,22 +123,37 @@ final class Trips {
         $data['fuelLevels'] = self::FUEL_LEVELS;
         $data['checklistMinMinutes'] = (int)Settings::value('inspection_min_minutes');
         $data['unitsPerTrip'] = Settings::value('units_per_trip');
-        $data['filterOptions'] = readSections([
+        $data['filterOptions'] = roleIsDispatcher($u['role'])?['clients'=>$data['clients']??[],'trucks'=>$reference['trucks']??[],'drivers'=>$reference['personnel']??[],'dispatchers'=>[]]:readSections([
             'clients' => fn() => many($p, 'SELECT id, company_name FROM clients ORDER BY company_name'),
             'trucks' => fn() => many($p, 'SELECT id, plate_number FROM vehicles ORDER BY plate_number'),
             'drivers' => fn() => many($p, "SELECT id, full_name, person_type FROM personnel ORDER BY full_name"),
             'dispatchers' => fn() => many($p, "SELECT id, full_name FROM users WHERE role IN ('car_carrier_dispatcher','container_wingvan_dispatcher') ORDER BY full_name"),
         ]);
         $data['can'] = ['create' => self::canCreate($u), 'review' => hasRole($u, 'operations_head'),
-                        'dispatch' => roleIsDispatcher($u['role']), 'manage' => hasRole($u, 'operations_head')];
+                        'dispatch' => roleIsDispatcher($u['role']), 'assign'=>roleIsDispatcher($u['role']), 'manage' => hasRole($u, 'operations_head')];
         return $data;
     }
 
     private static function canCreate(array $u): bool { return hasRole($u, 'operations_head') || roleIsDispatcher($u['role']); }
 
+    /** Dashboard read projection, using the same team/creator scope as the trip workspace. */
+    public static function dispatcherOverview(array $u): array {
+        must(roleIsDispatcher($u['role']), 'Only dispatchers can open this overview.', 403);
+        $p = db(); [$scope, $args] = self::scope($u);
+        return readSections([
+            'active' => fn() => many($p, self::select() . " WHERE (t.status NOT IN ('Completed','Cancelled','Rejected')
+                OR EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle' AND t.status='Completed')) $scope ORDER BY t.scheduled_at,t.id", $args),
+            'incidents' => fn() => many($p, "SELECT i.*, t.trip_ref, t.status AS trip_status, v.plate_number, m.job_ref, m.status AS job_status
+                FROM incidents i JOIN trips t ON t.id=i.trip_id JOIN vehicles v ON v.id=i.vehicle_id
+                LEFT JOIN maintenance_jobs m ON m.incident_id=i.id WHERE i.status<>'Resolved' $scope ORDER BY i.id DESC LIMIT 300", $args),
+            'incidentCount' => fn() => one($p, "SELECT COUNT(*) AS count FROM incidents i JOIN trips t ON t.id=i.trip_id WHERE i.status<>'Resolved' $scope", $args),
+            'attendanceWork' => function()use($u){$d=DispatcherAttendance::read($u);return ['not_timed_in'=>count(array_filter($d['rows'],fn($r)=>$r['duty_shift']===$d['shift']['shift']&&$r['attendance_status']!=='Timed In')),'shift'=>$d['shift']];},
+        ]);
+    }
+
     /** Dispatchers see the trips of their own truck types (and requests they encoded). */
     private static function scope(array $u): array {
-        if (roleIsDispatcher($u['role'])) return [' AND (t.dispatcher_role=? OR t.created_by=?)', [$u['role'], $u['id']]];
+        if (roleIsDispatcher($u['role'])) return DispatcherScope::tripSql($u);
         return ['', []];
     }
 
@@ -150,6 +184,68 @@ final class Trips {
             LEFT JOIN users cr ON cr.id=t.created_by
             LEFT JOIN fund_requests f ON f.trip_id=t.id AND f.attempt_number=t.attempt_number
             LEFT JOIN billings b ON b.trip_id=t.id";
+    }
+
+    /** Approval is a recorded decision, not an official trip status. Only Scenario B requests belong here. */
+    private static function approvalDecisionSql(): string {
+        return "CASE
+            WHEN (t.approved_by IS NOT NULL AND t.approved_at IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM trip_events ae WHERE ae.trip_id=t.id AND ae.event_type='trip details confirmed by Operations Head') THEN 'approved'
+            WHEN EXISTS (SELECT 1 FROM trip_events re WHERE re.trip_id=t.id AND re.event_type='trip request rejected' AND re.to_status='Rejected') THEN 'rejected'
+            WHEN t.status='Pending Review' THEN 'pending'
+            ELSE NULL END";
+    }
+
+    /** Search and date filters apply to request creation, not dispatch/assignment dates. */
+    private static function approvalFilters(array $q): array {
+        $where = "t.intake_source='Dispatcher'"; $args = [];
+        foreach (['client_id' => 't.client_id', 'requester_id' => 't.created_by'] as $key => $column) {
+            $id = intField($q, $key, 1, false);
+            if ($id !== null) { $where .= " AND $column=?"; $args[] = $id; }
+        }
+        $type = choiceField($q, 'truck_type', TRUCK_TYPES, false);
+        if ($type !== null) { $where .= ' AND t.truck_type=?'; $args[] = $type; }
+        $from = dateField($q, 'request_from', false); $to = dateField($q, 'request_to', false);
+        must(!$from || !$to || $from <= $to, 'Request date range: the start must not be after the end.');
+        if ($from) { $where .= ' AND t.created_at>=?'; $args[] = $from . ' 00:00:00'; }
+        if ($to) { $where .= ' AND t.created_at<DATE_ADD(?, INTERVAL 1 DAY)'; $args[] = $to; }
+        $search = trim((string)($q['q'] ?? ''));
+        must(mb_strlen($search) <= 200, 'Search must be at most 200 characters.');
+        if ($search !== '') {
+            $where .= ' AND (t.trip_ref LIKE ? OR c.company_name LIKE ? OR t.pickup_point LIKE ? OR t.delivery_point LIKE ? OR cr.full_name LIKE ?)';
+            array_push($args, ...array_fill(0, 5, '%' . $search . '%'));
+        }
+        return [$where, $args];
+    }
+
+    /** Read-only projection over existing trips and events. No new approval engine/storage. */
+    private static function approvalWorkspace(array $q, ?array $dispatcher = null): array {
+        $category = choiceField($q, 'approval', ['pending', 'approved', 'rejected'], false) ?? 'pending';
+        $requestedPage = intField($q, 'approval_page', 1, false, 1000000) ?? 1;
+        [$where, $args] = self::approvalFilters($q);
+        [$scope, $scopeArgs] = $dispatcher ? self::scope($dispatcher) : ['', []];
+        $where .= $scope; $args = [...$args, ...$scopeArgs];
+        $p = db(); $decision = self::approvalDecisionSql();
+        $join = ' FROM trips t JOIN clients c ON c.id=t.client_id LEFT JOIN users cr ON cr.id=t.created_by';
+        $counts = one($p, "SELECT COALESCE(SUM(decision='pending'),0) AS pending,
+            COALESCE(SUM(decision='approved'),0) AS approved, COALESCE(SUM(decision='rejected'),0) AS rejected,
+            COALESCE(SUM(decision IS NULL),0) AS unclassified
+            FROM (SELECT $decision AS decision $join WHERE $where) decisions", $args);
+        $total = (int)$counts[$category]; $size = $dispatcher ? 10 : 12;
+        $pages = max(1, (int)ceil($total / $size)); $page = min($requestedPage, $pages); $offset = ($page - 1) * $size;
+        $direction = $category === 'pending' ? 'ASC' : 'DESC';
+        $rows = many($p, "SELECT t.id, t.trip_ref, t.client_id, c.company_name AS client, t.truck_type,
+            t.pickup_point, t.delivery_point, t.scheduled_at, t.created_at, t.created_by, cr.full_name AS created_by_name,
+            t.status, t.approved_at, t.approved_by, ($decision) AS approval_category
+            $join WHERE $where AND ($decision)=? ORDER BY t.created_at $direction, t.id $direction LIMIT $size OFFSET $offset", [...$args, $category]);
+        return [
+            'approval' => ['category' => $category, 'counts' => array_map('intval', $counts), 'rows' => $rows,
+                'total' => $total, 'page' => $page, 'pages' => $pages, 'pageSize' => $size],
+            'filterOptions' => [
+                'clients' => many($p, "SELECT DISTINCT c.id, c.company_name FROM clients c JOIN trips t ON t.client_id=c.id WHERE t.intake_source='Dispatcher' $scope ORDER BY c.company_name", $scopeArgs),
+                'requesters' => many($p, "SELECT DISTINCT u.id, u.full_name FROM users u JOIN trips t ON t.created_by=u.id WHERE t.intake_source='Dispatcher' $scope ORDER BY u.full_name", $scopeArgs),
+            ],
+        ];
     }
 
     /** Filters of the trip history (filter modal): text, status, type, client, truck, driver, dispatcher, dates. */
@@ -185,6 +281,8 @@ final class Trips {
             'auto_assign' => self::retryAssign($u, $d),
             'reassign' => self::reassign($u, $d),
             'crew_options' => self::crewOptions($u, $d),
+            'dispatcher_resources' => self::dispatcherResources($u,$d),
+            'assign_resources' => self::assignResources($u,$d),
             'diesel_po' => self::attachDieselPo($u, $d),
             'create_batch' => self::createBatch($u, $d),
             'checklist_start' => self::checklistStart($u, $d),
@@ -207,10 +305,12 @@ final class Trips {
         must((bool)$t, 'Trip not found.', 404);
         return $t;
     }
-    /** Only dispatchers of the trip's truck type do dispatcher steps (Day and Night shifts share the trips). */
+    /** Explicit planning ownership is fixed; legacy NULL-shift trips retain group-wide access. */
     private static function mustBeTripDispatcher(array $u, array $t): void {
         must(roleIsDispatcher($u['role']), 'Only the dispatcher can do this step.', 403);
         must($t['dispatcher_role'] === $u['role'], 'This trip belongs to the ' . (ROLE_LABELS[$t['dispatcher_role']] ?? 'other') . ' team.', 403);
+        if(isset($t['truck_type']))must(in_array($t['truck_type'],DispatcherScope::types($u),true),'Trip truck type belongs to another operational group.',403);
+        must(DispatcherScope::permitsTrip($u,$t),'This trip is assigned to another dispatcher shift.',403);
     }
     private static function mustBeStatus(array $t, array $allowed, string $what): void {
         must(in_array($t['status'], $allowed, true), "Cannot $what: the trip is " . $t['status'] . ' (allowed only when ' . implode(' / ', $allowed) . ').', 409);
@@ -426,23 +526,35 @@ final class Trips {
     private static function create(array $u, array $d): array {
         must(self::canCreate($u), 'Only the Operations Head or a dispatcher can create a trip.', 403);
         $isOps = hasRole($u, 'operations_head');
+        // Reconcile an already-created form before applying new-entry requirements or date validation.
+        $key = trim((string)($d['request_key'] ?? ''));
+        must($key === '' || (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $key), 'Invalid form key. Reload the page.');
+        if($key!==''&&($saved=one(db(),'SELECT id,trip_ref,created_by,dispatcher_role,dispatcher_shift,truck_type FROM trips WHERE request_key=?',[strtolower($key)]))){
+            must((int)$saved['created_by']===(int)$u['id'],'Invalid form key. Reload the page.',409);
+            if(!$isOps)must(DispatcherScope::permitsTrip($u,$saved),'The recorded request is outside your current operational scope.',403);
+            return ['trip_id'=>(int)$saved['id'],'trip_ref'=>$saved['trip_ref'],'duplicate'=>true,'message'=>'Trip '.$saved['trip_ref'].' was already created from this form. No second trip was made.'];
+        }
         // km is checked AFTER the road distance (an approved route or the map may supply it).
         $row = self::deliveryFields($d, false);
         $row['client_id'] = idField($d, 'client_id');
         // One key per opened New Trip form: the same form sent twice creates the trip once.
-        $key = trim((string)($d['request_key'] ?? ''));
-        must($key === '' || (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $key), 'Invalid form key. Reload the page.');
         $row['request_key'] = $key === '' ? null : strtolower($key);
         $type = choiceField($d, 'truck_type', TRUCK_TYPES, $isOps);
-        if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.');
+        if(!$isOps)must($type!==null,'Choose an authorized truck type.');
+        if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.', 403);
         $row['truck_type'] = $type;
+        if($isOps){
+            $row += DispatcherPlanning::assignment($type,$d['dispatcher_assignment']??null);
+            must(!empty($d['client_route_id']),'Choose an approved client route for every trip entry.');
+        }
         if ($type === 'Car Carrier' && !$row['units_planned']) $row['units_planned'] = (int)Settings::value('units_per_trip');
         // Road distance before the transaction (no lock is held while the map service answers).
         [$row, $geometry, $distNote] = self::distanceColumns($u, $d, $row, $row['client_id'], $type, null);
         if ($isOps) must($row['distance_km'] !== null && $row['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
         return transaction(function (PDO $p) use ($u, $row, $isOps, $geometry, $distNote) {
-            if ($row['request_key'] !== null && ($dup = one($p, 'SELECT id, trip_ref, created_by FROM trips WHERE request_key=?', [$row['request_key']]))) {
+            if ($row['request_key'] !== null && ($dup = one($p, 'SELECT id, trip_ref, created_by,dispatcher_role,dispatcher_shift,truck_type FROM trips WHERE request_key=?', [$row['request_key']]))) {
                 must((int)$dup['created_by'] === $u['id'], 'Invalid form key. Reload the page.', 409);
+                if(!$isOps)must(DispatcherScope::permitsTrip($u,$dup),'The recorded request is outside your current operational scope.',403);
                 return ['trip_id' => (int)$dup['id'], 'trip_ref' => $dup['trip_ref'], 'duplicate' => true,
                         'message' => 'Trip ' . $dup['trip_ref'] . ' was already created from this form (sent twice). No second trip was made.'];
             }
@@ -460,7 +572,7 @@ final class Trips {
             run($p, 'UPDATE trips SET trip_ref=? WHERE id=?', [$ref, $id]);
             self::saveGeometry($p, $id, $geometry);
             self::event($p, $u['id'], $id, $isOps ? 'trip created by Operations Head (Scenario A)' : 'delivery request encoded by dispatcher (Scenario B)', '', 'Pending Review',
-                'Distance: ' . self::distanceNote($row) . ($row['distance_override_reason'] ? '. Km changed by hand: ' . $row['distance_override_reason'] : ''));
+                'Distance: ' . self::distanceNote($row) . ($row['distance_override_reason'] ? '. Km changed by hand: ' . $row['distance_override_reason'] : '') . ($isOps ? '. Dispatcher: '.ROLE_LABELS[$row['dispatcher_role']].' ('.$row['dispatcher_shift'].').' : ''));
             if ($isOps) {
                 run($p, 'UPDATE trips SET approved_by=?, approved_at=NOW() WHERE id=?', [$u['id'], $id]);
                 $res = self::approveAndAssign($p, $u, self::lockTrip($p, $id));
@@ -504,17 +616,21 @@ final class Trips {
                 must((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $key), 'Invalid form key. Reload the page.');
                 must(!isset($seenKeys[$key]), 'Same form key as row ' . ($seenKeys[$key] ?? '') . '. Reload the page.');
                 $seenKeys[$key] = $n;
-                $prev = one($p, 'SELECT trip_ref, created_by FROM trips WHERE request_key=?', [$key]);
+                $prev = one($p, 'SELECT trip_ref, created_by,dispatcher_role,dispatcher_shift,truck_type FROM trips WHERE request_key=?', [$key]);
                 must(!$prev || (int)$prev['created_by'] === $u['id'], 'Invalid form key. Reload the page.');
+                if($prev&&!$isOps)must(DispatcherScope::permitsTrip($u,$prev),'The recorded request is outside your current operational scope.',403);
                 if ($prev) { $sched[$i] = PHP_INT_MAX; continue; }   // already created by an earlier send: reported as duplicate below
                 $f = self::deliveryFields($row, false);
                 $client = idField($row, 'client_id');
                 $type = choiceField($row, 'truck_type', TRUCK_TYPES, $isOps);
-                if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.');
+                if($isOps)DispatcherPlanning::assignment($type,$row['dispatcher_assignment']??null);
+                if(!$isOps)must($type!==null,'Choose an authorized truck type.');
+                if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.', 403);
                 $c = one($p, 'SELECT company_name, status FROM clients WHERE id=?', [$client]);
                 must($c && $c['status'] === 'Active', 'Choose an Active client.');
                 if ($type) must(self::hasRate($p, $client, $type), $c['company_name'] . ' has no billing rate for ' . $type . ' yet.');
                 $route = ($row['client_route_id'] ?? '') === '' || ($row['client_route_id'] ?? null) === null ? null : idField($row, 'client_route_id');
+                if($isOps)must($route!==null,'Choose an approved client route for every trip entry.');
                 if ($route !== null) must((bool)RouteDistance::selectable($p, $client, $type, $route), 'The chosen approved route cannot be used for this client and truck type.');
                 $mapRoute = trim((string)($row['route_option'] ?? '')) !== '' && $f['pickup_lat'] !== null && $f['delivery_lat'] !== null;
                 if ($isOps) must($route !== null || $mapRoute || ($f['distance_km'] !== null && $f['distance_km'] > 0), 'Enter the billable distance in km, or choose an approved route.');
@@ -531,12 +647,15 @@ final class Trips {
             $row = $rows[$i];
             try {
                 $r = self::create($u, $row);
-                $t = one($p, 'SELECT t.trip_ref, t.status, v.plate_number FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id WHERE t.id=?', [$r['trip_id']]);
+                [$resultScope,$resultArgs]=self::scope($u);
+                $t = one($p, "SELECT t.trip_ref, t.status, v.plate_number FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id WHERE t.id=? $resultScope", [$r['trip_id'],...$resultArgs]);
+                must((bool)$t,'The recorded request is outside your current operational scope.',403);
                 $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => !empty($r['duplicate']) ? 'Already created' : 'Created', 'trip_id' => (int)$r['trip_id'],
                                 'trip_ref' => $t['trip_ref'], 'trip_status' => $t['status'], 'truck' => $t['plate_number'], 'message' => $r['message']];
             } catch (PDOException $e) {
                 // Same batch sent twice at the same moment: the other request inserted this form key first.
-                $dup = ($e->errorInfo[1] ?? 0) === 1062 ? one($p, 'SELECT id, trip_ref, status FROM trips WHERE request_key=? AND created_by=?', [strtolower((string)$row['request_key']), $u['id']]) : null;
+                $dup = ($e->errorInfo[1] ?? 0) === 1062 ? one($p, 'SELECT id, trip_ref, status,created_by,dispatcher_role,dispatcher_shift,truck_type FROM trips WHERE request_key=? AND created_by=?', [strtolower((string)$row['request_key']), $u['id']]) : null;
+                if($dup&&!$isOps&&!DispatcherScope::permitsTrip($u,$dup))$dup=null;
                 if (!$dup) {
                     error_log('Batch planning row ' . $label[$i] . ' failed: ' . $e->getMessage());
                     $results[$i] = ['row' => $label[$i], 'request_key' => strtolower((string)$row['request_key']), 'result' => 'Not created', 'trip_id' => null, 'trip_ref' => null, 'trip_status' => null, 'truck' => null,
@@ -663,7 +782,7 @@ final class Trips {
         $res = self::autoAssign($p, $t);
         if (!$res['ok']) {
             self::setStatus($p, $u['id'], $t, 'Awaiting Resources', 'trip confirmed; waiting for resources', $res['reason']);
-            Notify::roles($p, ['operations_head', $t['dispatcher_role']], 'Waiting for resources', $t['trip_ref'] . ': ' . $res['reason'] . ' The system will assign automatically when resources are free.', 'trips');
+            Notify::tripRoles($p, $t, ['operations_head', $t['dispatcher_role']], 'Waiting for resources', $t['trip_ref'] . ': ' . $res['reason'] . ' The system will assign automatically when resources are free.', 'trips');
             return 'No free resources yet (' . $res['reason'] . ') The trip is "Awaiting Resources" and will be assigned automatically when a truck and crew are free.';
         }
         self::applyAssignment($p, $u['id'], $t, $res, 'Auto');
@@ -675,83 +794,13 @@ final class Trips {
      * Rule:
      *   Truck : active, same truck type, status Available, no open maintenance job, not held by another trip;
      *           fewest trips in the last 30 days first (fair rotation).
-     *   Driver: the truck's regular driver when free; otherwise a free active driver (license not expired)
-     *           with the fewest recent trips.
+     *   Driver: the truck's verified regular driver, currently timed in, free, and licensed.
+     *           A different driver's truck is never substituted by automatic assignment.
      *   Car Carrier: two different eligible drivers are required (DRIVER 1 / DRIVER 2); with fewer the trip waits (Awaiting Resources).
      *   Container / Wing Van: a helper is required (regular helper first).
      */
     private static function autoAssign(PDO $p, array $t): array {
-        if (!$t['truck_type']) return ['ok' => false, 'reason' => 'Truck type is not set.'];
-        $trucks = many($p, "SELECT v.*, (SELECT COUNT(*) FROM trips x WHERE x.vehicle_id=v.id AND x.status='Completed' AND x.completed_at>=DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent
-            FROM vehicles v WHERE v.active=1 AND v.truck_type=? AND v.status='Available'
-              AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.resource_type='vehicle' AND a.resource_id=v.id)
-              AND NOT EXISTS (SELECT 1 FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1)
-            ORDER BY recent, v.id FOR UPDATE", [$t['truck_type']]);
-        if (!$trucks) return ['ok' => false, 'reason' => 'No ' . $t['truck_type'] . ' truck is available.'];
-        // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: shift-aware crew. The trip's SCHEDULED shift decides (planning);
-        // crew marked Absent for that shift are never picked; Not Yet Marked is allowed (future shifts cannot be marked).
-        // Same-shift crew first. Warn mode only: if none is free, other-shift / no-shift crew as a flagged fallback.
-        // All existing rules (active, Available, license, not held by another trip) still apply to every candidate.
-        $sched = CrewAttendance::planningShift($t);
-        $warn = CrewAttendance::mode() === CrewAttendance::MODE_WARN;
-        $free = function (string $type) use ($p, $sched): array {
-            return many($p, "SELECT pe.id, pe.full_name, pe.duty_shift, (SELECT COUNT(*) FROM trips x WHERE (x.driver_id=pe.id OR x.driver2_id=pe.id OR x.helper_id=pe.id) AND x.status='Completed' AND x.completed_at>=DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent
-                FROM personnel pe WHERE pe.active=1 AND pe.person_type=? AND pe.availability='Available'
-                  AND (pe.person_type<>'Driver' OR pe.license_expiry IS NULL OR pe.license_expiry>=CURRENT_DATE())
-                  AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.resource_type='person' AND a.resource_id=pe.id)
-                  AND NOT EXISTS (SELECT 1 FROM attendance_marks am WHERE am.personnel_id=pe.id AND am.duty_date=? AND am.duty_shift=? AND am.status='Absent')
-                ORDER BY recent, pe.id FOR UPDATE", [$type, $sched['date'], $sched['shift']]);
-        };
-        $pool = function (string $type) use ($free, $sched, $warn): array {
-            $rows = $free($type);
-            $same = array_values(array_filter($rows, fn($r) => $r['duty_shift'] === $sched['shift']));
-            $other = $warn ? array_values(array_filter($rows, fn($r) => $r['duty_shift'] !== $sched['shift'])) : [];
-            return [array_map(fn($r) => (int)$r['id'], $same), array_map(fn($r) => (int)$r['id'], $other)];
-        };
-        $shiftWord = $sched['shift'] . '-shift';
-        [$drivers, $fbDrivers] = $pool('Driver');
-        if (!$drivers && !$fbDrivers) return ['ok' => false, 'reason' => $warn ? 'No driver is available.' : "No $shiftWord driver is available (Enforce mode; Absent crew are skipped)."];
-        $usedFallback = [];
-        if (!$drivers) { $drivers = $fbDrivers; $usedFallback['driver'] = true; }
-        [$helpers, $fbHelpers] = $t['truck_type'] === 'Car Carrier' ? [[], []] : $pool('Helper');
-        if ($t['truck_type'] !== 'Car Carrier' && !$helpers) {
-            if (!$fbHelpers) return ['ok' => false, 'reason' => $warn ? 'No helper is available.' : "No $shiftWord helper is available (Enforce mode; Absent crew are skipped)."];
-            $helpers = $fbHelpers; $usedFallback['helper'] = true;
-        }
-        // Prefer a truck whose regular driver (and helper) is free.
-        usort($trucks, function ($a, $b) use ($drivers, $helpers) {
-            $sa = (in_array((int)$a['assigned_driver_id'], $drivers, true) ? 2 : 0) + (in_array((int)$a['assigned_helper_id'], $helpers, true) ? 1 : 0);
-            $sb = (in_array((int)$b['assigned_driver_id'], $drivers, true) ? 2 : 0) + (in_array((int)$b['assigned_helper_id'], $helpers, true) ? 1 : 0);
-            return $sb <=> $sa ?: ((int)$a['recent'] <=> (int)$b['recent']) ?: ((int)$a['id'] <=> (int)$b['id']);
-        });
-        $v = $trucks[0];
-        $driver = in_array((int)$v['assigned_driver_id'], $drivers, true) ? (int)$v['assigned_driver_id'] : $drivers[0];
-        $driver2 = null; $helper = null;
-        if ($t['truck_type'] === 'Car Carrier') {
-            $others = array_values(array_filter($drivers, fn($x) => $x !== $driver));
-            if (!$others && empty($usedFallback['driver'])) {   // Driver 2: same shift first, then (Warn) fallback
-                $others = array_values(array_filter($fbDrivers, fn($x) => $x !== $driver));
-                if ($others) $usedFallback['driver2'] = true;
-            }
-            $driver2 = $others[0] ?? null;
-            // CHECKLIST_42_CREW_COMPLETENESS_V1: a Car Carrier assignment needs TWO different eligible drivers.
-            // Nothing is held when only one is free (the caller leaves the trip Awaiting Resources).
-            if (!$driver2) return ['ok' => false, 'reason' => $warn ? 'Car Carrier requires two available drivers.'
-                : "Car Carrier requires two available $shiftWord drivers (Enforce mode; Absent crew are skipped)."];
-        } else {
-            $helper = in_array((int)$v['assigned_helper_id'], $helpers, true) ? (int)$v['assigned_helper_id'] : $helpers[0];
-        }
-        // Flag every picked person who is not on the trip's scheduled shift (Warn-mode fallback; never "verified").
-        $fallback = [];
-        foreach (['Driver' => $driver, 'Driver 2' => $driver2, 'Helper' => $helper] as $role => $pid) {
-            if (!$pid) continue;
-            $pe = one($p, 'SELECT full_name, duty_shift FROM personnel WHERE id=?', [$pid]);
-            if ($pe['duty_shift'] !== $sched['shift']) $fallback[] = $pe['full_name'] . " ($role, " . ($pe['duty_shift'] ? $pe['duty_shift'] . ' shift' : 'no assigned shift') . ')';
-        }
-        $note = $fallback ? 'Shift fallback (Warn mode): no free ' . $shiftWord . ' crew for the ' . CrewAttendance::shiftText($sched) . ', so '
-            . implode(', ', $fallback) . ' was assigned. Attendance is NOT verified; reassign ' . $shiftWord . ' crew before Confirm Dispatch if possible.' : '';
-        return ['ok' => true, 'vehicle_id' => (int)$v['id'], 'plate' => $v['plate_number'], 'driver_id' => $driver, 'driver2_id' => $driver2, 'helper_id' => $helper,
-                'shift_fallback_note' => $note];
+        return DispatcherResources::automatic($p, $t);
     }
 
     private static function applyAssignment(PDO $p, ?int $uid, array $t, array $res, string $mode, ?string $keepStatus = null): void {
@@ -771,7 +820,7 @@ final class Trips {
             audit($p, $uid, 'Trips', 'trip ' . $t['id'], 'crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note']);
             Notify::roles($p, ['operations_head'], 'Crew shift fallback', $t['trip_ref'] . ': ' . $res['shift_fallback_note'], 'trips', 'trip-shift-fallback-' . $t['id'] . '-' . $t['attempt_number'] . '-' . $res['driver_id'] . '-' . ($res['driver2_id'] ?? 0) . '-' . ($res['helper_id'] ?? 0));
         }
-        if ($to === 'Pre-Assigned') Notify::roles($p, [$t['dispatcher_role']], 'Pre-assigned trip', $t['trip_ref'] . ' is pre-assigned to truck ' . $res['plate'] . '. Submit the fund request and do the pre-dispatch checklist.', 'trips', 'trip-prep-' . $t['id'] . '-' . $t['attempt_number']);
+        if ($to === 'Pre-Assigned') Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Pre-assigned trip', $t['trip_ref'] . ' is pre-assigned to truck ' . $res['plate'] . '. Submit the fund request and do the pre-dispatch checklist.', 'trips', 'trip-prep-' . $t['id'] . '-' . $t['attempt_number']);
     }
 
     /**
@@ -810,7 +859,7 @@ final class Trips {
             return 'Trip ' . $t['trip_ref'] . ' was re-assigned to ' . $res['plate'] . ($keep ? '' : ' (pre-dispatch checklist needed again)') . '.';
         }
         if (!$keep) self::setStatus($p, $u['id'], $t, 'Awaiting Resources', 'waiting for resources', $res['reason']);
-        Notify::roles($p, ['operations_head', $t['dispatcher_role']], 'Trip needs resources', $t['trip_ref'] . ': ' . $why . '. ' . $res['reason'], 'trips');
+        Notify::tripRoles($p, $t, ['operations_head', $t['dispatcher_role']], 'Trip needs resources', $t['trip_ref'] . ': ' . $why . '. ' . $res['reason'], 'trips');
         return 'Trip ' . $t['trip_ref'] . ' is waiting for resources (' . $res['reason'] . ').';
     }
 
@@ -854,6 +903,20 @@ final class Trips {
                       'labels' => $labels, 'blocker' => $block, 'allowed' => !$c['absent'] && !$block && (!$enforce || !$c['issue'])];
         }
         return ['mode' => CrewAttendance::modeName(), 'shift' => $plan['shift'], 'shift_text' => CrewAttendance::shiftText($plan), 'crew' => $out];
+    }
+
+    private static function dispatcherResources(array $u,array $d): array {
+        DispatcherScope::types($u);$p=db();$t=one($p,'SELECT * FROM trips WHERE id=?',[idField($d,'trip_id')]);
+        must((bool)$t,'Trip not found.',404);self::mustBeTripDispatcher($u,$t);self::mustBeStatus($t,['Awaiting Resources'],'assign resources');
+        return DispatcherResources::candidates($p,$u,$t)+['trip'=>['id'=>$t['id'],'trip_ref'=>$t['trip_ref'],'truck_type'=>$t['truck_type']]];
+    }
+    private static function assignResources(array $u,array $d): array {
+        DispatcherScope::types($u);$id=idField($d,'trip_id');
+        return transaction(function(PDO $p)use($u,$d,$id){$t=self::lockTrip($p,$id);self::mustBeTripDispatcher($u,$t);self::mustBeStatus($t,['Awaiting Resources'],'assign resources');
+            $res=DispatcherResources::choose(DispatcherResources::candidates($p,$u,$t,true),$t,$d);
+            self::applyAssignment($p,$u['id'],$t,$res,'Manual');
+            return ['message'=>'Resources assigned to '.$t['trip_ref'].'. Status: Pre-Assigned.'];
+        });
     }
 
     private static function reassign(array $u, array $d): array {
@@ -1021,6 +1084,7 @@ final class Trips {
                 elseif ($block = FleetState::personBlocker($p, $c['id'], (int)$t['id'])) $why[] = 'Crew not available: ' . $block . '.';
             }
         }
+        if(in_array($t['status'],['Pre-Assigned','Ready for Dispatch','For Reschedule'],true))foreach(DispatcherResources::tripBlockers($p,$t,$lock) as $block)$why[]=$block;
         return $why;
     }
 
@@ -1191,7 +1255,7 @@ final class Trips {
             BillingDraft::forBilling($p, $id);
             Notify::roles($p, ['billing'], 'For billing', $t['trip_ref'] . ' is completed. Verify the documents and finalize the billing.', 'billing', 'billing-verify-' . $id);
             Notify::roles($p, ['operations_head'], 'Trip completed', $t['trip_ref'] . ' completed. The truck is returning (arrival checklist pending).', 'trips');
-            Notify::roles($p, [$t['dispatcher_role']], 'Arrival checklist', $t['trip_ref'] . ': do the arrival checklist when the truck is back.', 'trips', 'trip-arrival-' . $id);
+            Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Arrival checklist', $t['trip_ref'] . ': do the arrival checklist when the truck is back.', 'trips', 'trip-arrival-' . $id);
             $auto = self::assignWaiting($p, $u);
             return ['message' => 'Trip completed. The billing record moved to For Billing. The driver and helper are free; the truck stays On Trip until you submit the arrival checklist.' . ($auto ? ' ' . $auto : '')];
         });
@@ -1301,7 +1365,7 @@ final class Trips {
                     audit($p, $u['id'], 'Funds', 'fund ' . $f['id'], 'fund request cancelled (trip cancelled)', $f['fund_ref']);
                 }
             }
-            Notify::roles($p, [$t['dispatcher_role']], 'Trip cancelled', $t['trip_ref'] . ' was cancelled: ' . $reason, 'trips');
+            Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Trip cancelled', $t['trip_ref'] . ' was cancelled: ' . $reason, 'trips');
             $auto = self::assignWaiting($p, $u);
             return ['message' => $msg . ($auto ? ' ' . $auto : '')];
         });

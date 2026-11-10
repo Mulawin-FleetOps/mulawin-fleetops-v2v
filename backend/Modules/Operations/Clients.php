@@ -23,6 +23,7 @@ declare(strict_types=1);
 core('Files');
 core('Notify');
 core('Settings');
+core('DispatcherScope');
 
 final class Clients {
     /** input name => document category (all required before "Pending Rate"). */
@@ -38,6 +39,7 @@ final class Clients {
 
     public static function read(array $u, string $page, array $q): array {
         $p = db();
+        if(roleIsDispatcher($u['role'])){$types=DispatcherScope::types($u);$marks=implode(',',array_fill(0,count($types),'?'));return ['clients'=>many($p,"SELECT c.id,c.company_name,c.status FROM clients c WHERE EXISTS(SELECT 1 FROM client_rates r WHERE r.client_id=c.id AND r.truck_type IN ($marks)) ORDER BY c.company_name",$types),'can'=>['edit'=>false,'rate'=>false],'requiredDocs'=>[],'defaultTerms'=>null];}
         $data = readSections([
             'clients' => fn() => many($p, "SELECT c.*,
                     (SELECT GROUP_CONCAT(CONCAT(r.truck_type, ': ', FORMAT(r.rate_per_km,2), '/km') ORDER BY r.truck_type SEPARATOR '; ') FROM client_rates r WHERE r.client_id=c.id) AS rates,
@@ -227,6 +229,10 @@ final class Clients {
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'clients') || Access::canOpen($u, 'trips'), 'Not allowed.', 403);
         $id = idField($d, 'id'); $p = db();
+        if(roleIsDispatcher($u['role'])){
+            $types=DispatcherScope::types($u);$marks=implode(',',array_fill(0,count($types),'?'));$c=one($p,"SELECT c.id,c.company_name,c.status FROM clients c WHERE c.id=? AND EXISTS(SELECT 1 FROM client_rates r WHERE r.client_id=c.id AND r.truck_type IN ($marks))",[$id,...$types]);must((bool)$c,'Client is outside your operational scope.',403);[$scope,$args]=DispatcherScope::tripSql($u);
+            return ['client'=>$c,'rates'=>[],'documents'=>[],'missing'=>[],'trips'=>many($p,"SELECT t.id,t.trip_ref,t.status,t.scheduled_at,t.pickup_point,t.delivery_point,t.truck_type FROM trips t WHERE t.client_id=? $scope ORDER BY t.scheduled_at DESC LIMIT 30",[$id,...$args]),'billing'=>null];
+        }
         $c = one($p, 'SELECT c.*, cu.full_name AS created_by_name, ru.full_name AS rate_set_by_name FROM clients c LEFT JOIN users cu ON cu.id=c.created_by LEFT JOIN users ru ON ru.id=c.rate_set_by WHERE c.id=?', [$id]);
         must((bool)$c, 'Client not found.', 404);
         return [

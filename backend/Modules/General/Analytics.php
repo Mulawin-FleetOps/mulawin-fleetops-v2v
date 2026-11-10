@@ -25,6 +25,10 @@ final class Analytics {
         return $page === 'dashboard' ? self::dashboard($u) : self::reports($u, $q);
     }
     public static function action(array $u, string $action, array $d): array {
+        if(in_array($action,['operations_export','operations_incident'],true)){
+            requireRole($u,'operations_head');core('OperationsReports');
+            return $action==='operations_export'?OperationsReports::export($u,$d):OperationsReports::incident($u,$d);
+        }
         throw new BusinessRuleException('Unknown action.', 404);
     }
 
@@ -33,9 +37,41 @@ final class Analytics {
     // =================================================================
     // DASHBOARD
     // =================================================================
+    /** Operations Head presentation data. No new statuses or financial calculations. */
+    private static function operationsDashboard(PDO $p): array {
+        return readSections([
+            'counts' => fn() => one($p, "SELECT
+                COALESCE(SUM(status='Pending Review' AND intake_source='Dispatcher'),0) AS pending,
+                COALESCE(SUM(status='Awaiting Resources'),0) AS awaiting,
+                COALESCE(SUM(status IN ('Dispatched','In Transit')),0) AS road FROM trips"),
+            'incidents' => fn() => one($p, "SELECT COUNT(*) AS open FROM incidents WHERE status<>'Resolved'"),
+            'funds' => fn() => one($p, "SELECT COUNT(*) AS pending FROM fund_requests WHERE status='Pending Approval'"),
+            'fleet' => fn() => many($p, 'SELECT status, COUNT(*) AS count FROM vehicles WHERE active=1 GROUP BY status'),
+            'schedule' => fn() => many($p, "SELECT t.id, t.trip_ref, c.company_name AS client, t.scheduled_at, t.truck_type, t.status
+                FROM trips t JOIN clients c ON c.id=t.client_id
+                WHERE t.scheduled_at>=CURRENT_DATE() AND t.scheduled_at<DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+                ORDER BY t.scheduled_at, t.id"),
+            // Trip events cover approval, assignment and incidents. Fund audit records add decisions.
+            // Restrict the audit join to actual fund records; never expose the general audit log.
+            'activity' => fn() => many($p, "SELECT * FROM (
+                SELECT e.id, e.created_at, e.event_type AS action, t.trip_ref AS reference, t.id AS trip_id, u.full_name AS actor
+                FROM trip_events e JOIN trips t ON t.id=e.trip_id LEFT JOIN users u ON u.id=e.actor_id
+                UNION ALL
+                SELECT a.id, a.created_at, a.action, f.fund_ref AS reference, f.trip_id, u.full_name AS actor
+                FROM audit_events a JOIN fund_requests f ON a.record_ref=CONCAT('fund ', f.id)
+                LEFT JOIN users u ON u.id=a.actor_id WHERE a.area='Funds'
+            ) events ORDER BY created_at DESC, id DESC LIMIT 12"),
+        ]);
+    }
+
     private static function dashboard(array $u): array {
         $p = db();
         Notify::dailyReminders($p);
+        if ($u['role'] === 'operations_head') return self::operationsDashboard($p);
+        if (roleIsDispatcher($u['role'])) {
+            require_once dirname(__DIR__) . '/Operations/Trips.php';
+            return Trips::dispatcherOverview($u);
+        }
         $r = $u['role'];
         $alerts = []; $cards = []; $charts = []; $tables = [];
         $alert = function (float $n, string $text, string $page, string $level = 'warning') use (&$alerts) { if ($n > 0) $alerts[] = ['text' => (int)$n . ' ' . $text, 'page' => $page, 'level' => $level]; };

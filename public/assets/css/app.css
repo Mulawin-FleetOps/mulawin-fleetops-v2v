@@ -2009,6 +2009,13 @@ button.docfm-folder:focus-visible {
 .fleet-action-chooser { display: flex; flex-direction: column; gap: 8px; }
 .fleet-action-chooser .btn { width: 100%; text-align: left; justify-content: flex-start; min-height: 40px; white-space: normal; }
 /* Active Trips has a custom HTML table outside UI.table. Match the same density. */
+.ops-filter { width: auto; max-width: 230px; }
+.ops-next-step { background: var(--bs-tertiary-bg, #f3f7fc); border-radius: 8px; padding: 12px; margin: 12px 0; font-size: .85rem; }
+.ops-next-copy { max-width: 320px; white-space: normal; margin-top: 6px; }
+.ops-review-list { padding-left: 1.4rem; }
+.ops-review-list li { padding: 10px 0; border-bottom: 1px solid var(--bs-border-color, #dce2ea); }
+.ops-planner .data-table { min-width: 760px; }
+.ops-planner .form-section-title { margin: 0; }
 .rpm-trip-table { min-width: 620px; }
 .rpm-trip-table th, .rpm-trip-table td { padding: 10px 14px; font-size: 14px; line-height: 1.4; }
 .rpm-trip-table .rpm-trip-route { max-width: 320px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

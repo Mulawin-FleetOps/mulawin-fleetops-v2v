@@ -109,6 +109,9 @@ final class CrewAttendance {
             $mark = one($p, 'SELECT status FROM attendance_marks WHERE duty_date=? AND duty_shift=? AND personnel_id=?' . ($lock ? ' LOCK IN SHARE MODE' : ''),
                 [$s['date'], $s['shift'], (int)$pe['id']]);
             $status = $mark['status'] ?? null;
+            // Dispatcher Time In supplies positive attendance without rewriting Admin's Present/Absent record.
+            core('DispatcherAttendance');
+            if($status!=='Absent'&&DispatcherAttendance::ready($p)){$session=DispatcherAttendance::current($p,(int)$pe['id'],$lock);if($session&&DispatcherAttendance::isCurrent($session,$s)&&$session['dispatcher_role']===($t['dispatcher_role']??null))$status='Present';}
             $name = $pe['full_name'] . ' (' . $role . ')';
             $issue = null;
             if ($pe['duty_shift'] === null) $issue = 'No shift';

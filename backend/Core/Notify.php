@@ -16,6 +16,16 @@ declare(strict_types=1);
 final class Notify {
     public const STATES = ['Unread', 'Read', 'Resolved', 'Archived'];
 
+    /** Preserve non-dispatcher recipients while respecting explicit planning shift ownership. */
+    public static function tripRoles(PDO $p, array $trip, array $roles, string $category, string $message, ?string $page = null, ?string $key = null): void {
+        if(empty($trip['dispatcher_shift'])){self::roles($p,$roles,$category,$message,$page,$key);return;}
+        $dispatcher=$trip['dispatcher_role'];
+        self::roles($p,array_values(array_filter($roles,fn($r)=>$r!==$dispatcher)),$category,$message,$page,$key);
+        if(!in_array($dispatcher,$roles,true))return;
+        try{foreach(many($p,'SELECT id FROM users WHERE active=1 AND role=? AND shift=?',[$dispatcher,$trip['dispatcher_shift']]) as $u)self::user($p,(int)$u['id'],$category,$message,$page,$key);}
+        catch(Throwable $e){error_log('Notify::tripRoles failed: '.$e->getMessage());}
+    }
+
     /** Send to every active user with one of the roles. */
     public static function roles(PDO $p, array $roles, string $category, string $message, ?string $page = null, ?string $key = null): void {
         try {
