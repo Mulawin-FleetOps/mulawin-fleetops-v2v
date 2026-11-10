@@ -2060,6 +2060,9 @@ button.docfm-folder:focus-visible {
 .rpm-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #446079; }
 .rpm-legend-dot.pickup { background: #248348; }
 .rpm-legend-dot.delivery { background: #cc4343; }
+.rpm-route-line-key { width: 20px; height: 0; border-top: 4px solid; border-radius: 2px; display: inline-block; vertical-align: middle; }
+.rpm-route-line-key.garage-road { border-color: #187d85; }
+.rpm-route-line-key.delivery-road { border-color: #0b5cad; }
 .rpm-route-distances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .rpm-route-distances > div { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 12px; min-width: 0; }
 .rpm-route-distances span { display: block; font-size: 11px; color: var(--text-2); margin-bottom: 5px; }
