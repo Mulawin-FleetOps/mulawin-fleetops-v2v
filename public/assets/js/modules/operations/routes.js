@@ -31,10 +31,10 @@ const RouteUI = {
       { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
       { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
       { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
-        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route map</div><span>Travel order: 1 Garage → 2 Pickup → 3 Delivery</span></div>
-        <div class="rpm-route-steps" aria-label="Driving sequence"><span><b>1</b> Start at garage</span><i class="bi bi-arrow-right" aria-hidden="true"></i><span><b>2</b> Load at pickup</span><i class="bi bi-arrow-right" aria-hidden="true"></i><span><b>3</b> Unload at destination</span></div>
+        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Follow the roads in travel order</span></div>
+        <div class="rpm-route-steps" aria-label="Driving sequence"><span class="rpm-step-garage"><b>1</b> Garage</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-pickup"><b>2</b> Pickup</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-delivery"><b>3</b> Destination</span></div>
         <div data-routemapbox></div>
-        <div class="rpm-route-legend"><span><i class="rpm-legend-dot garage"></i> Garage (approximate)</span><span><i class="rpm-legend-dot pickup"></i> Pickup</span><span><i class="rpm-legend-dot delivery"></i> Delivery</span><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span></div>
+        <div class="rpm-route-legend"><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span><span class="rpm-route-legend-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Garage location approximate</span></div>
       </section>` },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
       // Route option, km, distance info and override reason: shared widget (assets/js/map.js), same as Trip Management.
@@ -87,7 +87,7 @@ const RouteUI = {
       }
       const total = lengths[lengths.length - 1];
       if (total < 100) return;
-      for (const fraction of [0.3, 0.65]) {
+      for (const fraction of [0.52]) {
         const distance = total * fraction;
         let j = lengths.findIndex(v => v >= distance);
         if (j < 1) j = 1;
@@ -100,8 +100,8 @@ const RouteUI = {
         const degrees = Math.atan2(north, east) * 180 / Math.PI;
         const icon = L.divIcon({
           className: 'rpm-route-arrow-icon',
-          html: '<span style="color:' + color + ';transform:rotate(' + (-degrees) + 'deg)" aria-hidden="true">➤</span>',
-          iconSize: [24, 24], iconAnchor: [12, 12],
+          html: '<span style="--route-arrow-color:' + color + ';transform:rotate(' + (-degrees) + 'deg)" aria-hidden="true">➤</span>',
+          iconSize: [20, 20], iconAnchor: [10, 10],
         });
         out.push(L.marker(point, { icon, interactive: false, keyboard: false, zIndexOffset: 500 }).addTo(w.map));
       }
@@ -110,12 +110,13 @@ const RouteUI = {
       clearMarkers(stopLabels);
       if (!w?.map) return;
       const points = w.map.picker?.points();
-      const locations = [[L.latLng([14.126449, 121.070384]), '1', 'Garage (approximate)'],
-        [points?.pickup, '2', 'Pickup'], [points?.delivery, '3', 'Delivery']];
+      const locations = [[L.latLng([14.126449, 121.070384]), '1', 'Garage'],
+        [points?.pickup, '2', 'Pickup'], [points?.delivery, '3', 'Destination']];
       for (const [pos, n, title] of locations) {
         if (!pos) continue;
-        const icon = L.divIcon({ className: 'rpm-route-stop-label', html: '<span>' + n + '</span>',
-          iconSize: [24, 24], iconAnchor: [-10, 31] });
+        const icon = L.divIcon({ className: 'rpm-route-stop-label rpm-stop-' + n,
+          html: '<span><b>' + n + '</b> ' + title + '</span>',
+          iconSize: [110, 26], iconAnchor: [-12, 15] });
         stopLabels.push(L.marker(pos, { icon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(w.map));
       }
     };
