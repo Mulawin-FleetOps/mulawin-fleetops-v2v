@@ -116,6 +116,24 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
   const points = () => ({ pickup: pins.pickup ? pins.pickup.getLatLng() : null, delivery: pins.delivery ? pins.delivery.getLatLng() : null });
   const picker = {
     points,
+    /** Activate a point from an external address field without changing the other pin. */
+    selectPoint(kind, address = '') {
+      if (kind !== 'pickup' && kind !== 'delivery') return;
+      setActive(kind);
+      if (address.trim() && searchReady) {
+        q.value = address.trim();
+        runSearch();
+      } else if (address.trim() && !searchReady) {
+        note('Address search is unavailable. Click the map to place the ' + label(kind) + ' pin.');
+      }
+    },
+    /** Clear outdated coordinates if the address is manually edited. */
+    clearPoint(kind) {
+      if (!pins[kind]) return;
+      pins[kind].remove();
+      delete pins[kind];
+      update();
+    },
     showRoute(latlngs) {
       if (routeLine) routeLine.remove();
       if (line) { line.remove(); line = null; }
