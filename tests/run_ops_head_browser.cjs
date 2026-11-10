@@ -13,6 +13,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 let chrome, socket;
 const pending = new Map(); let next = 0;
 const report = [];
+const analyticsOnly = process.argv.includes('--analytics-only');
 const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
   const id = ++next;
   const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timed out: ' + method)); }, 20000);
@@ -48,13 +49,15 @@ const send = (method, params = {}, sessionId) => new Promise((resolve, reject) =
       }
       throw new Error('Fixture did not complete: ' + file);
     };
-    for (const file of ['operations_ui.html', 'ops_head_ui.html', 'trip_approvals_ui.html', 'dispatcher_ui.html']) {
+    fs.mkdirSync(reports,{recursive:true});
+    for (const file of (analyticsOnly?['ops_analytics_ui.html']:['operations_ui.html', 'ops_head_ui.html', 'trip_approvals_ui.html', 'dispatcher_ui.html', 'ops_reports_ui.html', 'ops_analytics_ui.html'])) {
       const result = await navigate(file, 'RESULT:');
       if(file==='dispatcher_ui.html'){fs.mkdirSync(reports,{recursive:true});fs.writeFileSync(path.join(reports,'dispatcher-refinement-checks.txt'),result+'\n');}
       const summary = result.match(/RESULT: \d+ passed, \d+ failed/)?.[0];
       report.push(file + ': ' + summary);
       if (!summary || !summary.endsWith('0 failed')) throw new Error(result);
     }
+    if(!analyticsOnly){
     for (const [name, view, width, height] of [['desktop', 'dashboard', 1440, 1000], ['planner-mobile', 'planner', 390, 1100], ['planner-desktop','planner-filled',1440,1100], ['planner-tablet','planner-filled',820,1150], ['planner-review-mobile','planner-review',390,1100], ['trips-mobile', 'active', 390, 1000], ['incidents-mobile', 'incidents', 390, 1000]]) {
       await send('Emulation.setDeviceMetricsOverride', {width, height, screenWidth: width, screenHeight: height, deviceScaleFactor: 1, mobile: width < 600}, sessionId);
       await navigate('ops_head_ui.html?preview=' + view, 'LAYOUT ');
@@ -128,6 +131,46 @@ const send = (method, params = {}, sessionId) => new Promise((resolve, reject) =
       }
       const {data}=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},sessionId);fs.writeFileSync(path.join(reports,name+'.png'),Buffer.from(data,'base64'));report.push('PASS '+name+' layout '+width+'px; no document overflow');
     }
+    for(const [name,view,width,height] of [['reports-trips-desktop','trips',1440,1100],['reports-trucks-tablet','trucks',820,1100],['reports-incidents-mobile','incidents',390,1100],['reports-trips-mobile','trips',390,1100],['reports-empty-desktop','empty',1440,1000]]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height,screenWidth:width,screenHeight:height,deviceScaleFactor:1,mobile:width<600},sessionId);
+      await navigate('ops_reports_ui.html?preview='+view,'REPORT PREVIEW READY');
+      const layout=await evaluate('(()=>{const nav=document.querySelector(".oh-report-tabs"),tabs=[...nav.querySelectorAll("[role=tab]")],rows=document.querySelectorAll("tbody tr[data-ri]");return {width:innerWidth,scroll:document.documentElement.scrollWidth,rows:rows.length,tabs:tabs.length,wrapped:tabs.some(t=>Math.abs(t.getBoundingClientRect().top-tabs[0].getBoundingClientRect().top)>1),selected:tabs.filter(t=>t.getAttribute("aria-selected")==="true").length,cards:document.querySelectorAll(".oh-report-cards article").length,charts:document.querySelectorAll(".oh-report-chart canvas").length,size:!!document.querySelector("[data-rpm-size]"),header:getComputedStyle(document.querySelector(".data-table th")||document.querySelector(".oh-report-records")).backgroundColor,navScroll:nav.scrollWidth>nav.clientWidth,mainOrder:[...document.querySelector(".oh-reports").children].map(e=>e.className)};})()');
+      if(layout.scroll>width+1||layout.rows>10||layout.tabs!==3||layout.wrapped||layout.selected!==1||layout.cards!==4||layout.charts!==1||layout.size)throw new Error(name+' report layout failed: '+JSON.stringify(layout));
+      await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},sessionId).then(({data})=>fs.writeFileSync(path.join(reports,'ops-head-'+name+'.png'),Buffer.from(data,'base64')));
+      report.push('PASS '+name+' layout '+width+'px; horizontal tabs and no document overflow');
+    }
+    }
+    for(const [name,view,width,height] of [['analytics-fleet-wide','fleet-full',1920,1100],['analytics-fleet-empty','fleet',1440,1100],['analytics-fleet-laptop','fleet-full',1366,900],['analytics-trips-laptop','trips',1280,1000],['analytics-fleet-mobile','fleet',390,1100]]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height,screenWidth:width,screenHeight:height,deviceScaleFactor:1,mobile:width<600},sessionId);
+      await navigate('ops_analytics_ui.html?preview='+view,'ANALYTICS PREVIEW READY');
+      const layout=await evaluate('(()=>{const h=document.querySelector(".oh-analytics-head"),charts=[...document.querySelectorAll(".oh-analytics .chart-panel")],tabs=[...document.querySelectorAll(".oh-analytics-workspace > [role=tablist] > [data-tab]")],metrics=[...document.querySelectorAll(".oh-analytics .metric")];return {width:innerWidth,scroll:document.documentElement.scrollWidth,header:getComputedStyle(h).position,print:h.querySelectorAll("button").length,tabs:tabs.map(t=>({top:t.getBoundingClientRect().top,active:t.classList.contains("active")})),charts:charts.map(c=>({top:c.getBoundingClientRect().top,left:c.getBoundingClientRect().left,height:c.getBoundingClientRect().height})),metrics:metrics.length,overflow:metrics.some(m=>m.scrollWidth>m.clientWidth+1),empty:[...document.querySelectorAll(".chart-panel .table-empty")].map(e=>e.getBoundingClientRect().height)};})()');
+      if(layout.scroll>width+1||layout.header!=='static'||layout.print!==2||layout.tabs.length!==2||layout.tabs.some(t=>Math.abs(t.top-layout.tabs[0].top)>1)||layout.tabs.filter(t=>t.active).length!==1||layout.charts.length!==(view==='trips'?3:2)||layout.metrics!==(view==='trips'?7:4)||layout.overflow)throw new Error(name+' analytics layout failed: '+JSON.stringify(layout));
+      if(width>1100&&Math.abs(layout.charts[0].top-layout.charts[1].top)>2)throw new Error(name+' related charts are not side by side');
+      if(view==='fleet'&&layout.empty.some(h=>h<230))throw new Error(name+' empty charts lost their balanced height');
+      await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},sessionId).then(({data})=>fs.writeFileSync(path.join(reports,'ops-head-'+name+'.png'),Buffer.from(data,'base64')));
+      report.push('PASS '+name+' layout '+width+'px; original analytics and no page overflow');
+    }
+    await navigate('ops_analytics_ui.html?preview=fleet','ANALYTICS PREVIEW READY');
+    await evaluate('document.querySelectorAll(".oh-analytics-head .page-actions button")[1].click()');
+    await sleep(150);
+    const print=await evaluate('({text:document.querySelector("#printArea").textContent,images:document.querySelectorAll("#printArea img").length})');
+    if(!print.text.includes('Trips per client')||!print.text.includes('Maintenance expenses')||!print.text.includes('Highest downtime')||!print.text.includes('Trip records (delivery and return)'))throw new Error('Analytics Print all omitted original content');
+    await send('Emulation.setEmulatedMedia',{media:'print'},sessionId);
+    const printLayout=await evaluate('(()=>{const a=document.querySelector("#printArea");return {display:getComputedStyle(a).display,overflow:[...a.querySelectorAll(".pr-chart img")].some(i=>{const b=i.getBoundingClientRect(),p=i.parentElement.getBoundingClientRect();return b.width>p.width+1;})};})()');
+    if(printLayout.display==='none'||printLayout.overflow)throw new Error('Original analytics print layout hides content or clips charts: '+JSON.stringify(printLayout));
+    const pdf=await send('Page.printToPDF',{printBackground:true,preferCSSPageSize:true},sessionId);fs.writeFileSync(path.join(reports,'ops-head-analytics-print-all.pdf'),Buffer.from(pdf.data,'base64'));report.push('PASS original analytics Print all generated a PDF with original report sections');
+    await send('Emulation.setEmulatedMedia',{media:'screen'},sessionId);
+    if(!analyticsOnly){
+    const downloadDir=path.join(reports,'operations-reports-download-'+Date.now());fs.mkdirSync(downloadDir,{recursive:true});
+    await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloadDir});
+    await navigate('ops_reports_ui.html?preview=trips&last=1&download=1','REPORT PREVIEW READY');
+    await evaluate('document.querySelector("[data-report-export]").click()');
+    let csvFile;
+    for(let attempt=0;attempt<100;attempt++){csvFile=fs.readdirSync(downloadDir).find(f=>f.endsWith('.csv'));if(csvFile)break;await sleep(50);}
+    if(!csvFile)throw new Error('Export Report did not produce a real CSV download');
+    const csv=fs.readFileSync(path.join(downloadDir,csvFile),'utf8');
+    if(!csv.includes('REPORT-TRIP-1')||!csv.includes('REPORT-TRIP-37')||csv.trim().split('\r\n').length!==38)throw new Error('Report download did not include all 37 matching records from page four');
+    report.push('PASS real Reports CSV download: 37 matching records exported from page four');
     await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
     await navigate('dispatcher_ui.html?preview=dashboard','DISPATCHER PREVIEW READY');
     const card=await evaluate('(()=>{const r=document.querySelector(".ds-summary-card").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
@@ -135,6 +178,7 @@ const send = (method, params = {}, sessionId) => new Promise((resolve, reject) =
     const reduced=await evaluate('(()=>{const c=document.querySelector(".ds-summary-card"),s=getComputedStyle(c);return c.matches(":hover")&&s.transitionDuration==="0s"&&s.transform==="none";})()');
     if(!reduced)throw new Error('Reduced-motion card hover did not suppress movement');
     report.push('PASS Dispatcher reduced-motion preference; no card hover movement or transition');
+    }
     process.stdout.write(report.join('\n') + '\n');
     fs.writeFileSync(path.join(reports, 'ops-head-browser.txt'), report.join('\n') + '\n');
   } catch (error) { process.stderr.write(report.join('\n') + '\nFAIL ' + error.stack + '\n'); process.exitCode = 1; }

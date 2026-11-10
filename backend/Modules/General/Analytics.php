@@ -25,6 +25,10 @@ final class Analytics {
         return $page === 'dashboard' ? self::dashboard($u) : self::reports($u, $q);
     }
     public static function action(array $u, string $action, array $d): array {
+        if(in_array($action,['operations_export','operations_incident'],true)){
+            requireRole($u,'operations_head');core('OperationsReports');
+            return $action==='operations_export'?OperationsReports::export($u,$d):OperationsReports::incident($u,$d);
+        }
         throw new BusinessRuleException('Unknown action.', 404);
     }
 

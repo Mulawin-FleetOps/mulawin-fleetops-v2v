@@ -423,15 +423,4 @@ const OpsHead = {
     const original = App.pages[page].render;
     App.pages[page].render = function(ctx) { return OpsHead.is() ? render(ctx) : original.call(this, ctx); };
   }
-  const reports = App.pages.reports.render;
-  App.pages.reports.render = function(ctx) {
-    const result = reports.call(this, ctx);
-    if (OpsHead.is() && Object.keys(ctx.data.sections || {}).length) {
-      const label = document.createElement('label'); label.className = 'oh-report-category'; label.textContent = 'Report Category';
-      const select = document.createElement('select'); select.className = 'form-select';
-      Object.entries(ctx.data.sections).forEach(([key, section]) => { const option = document.createElement('option'); option.value = key; option.textContent = section.title; select.append(option); });
-      select.onchange = () => ctx.el.querySelector(`[data-tab="${CSS.escape(select.value)}"]`)?.click(); label.append(select); ctx.el.prepend(label);
-    }
-    return result;
-  };
 })();
