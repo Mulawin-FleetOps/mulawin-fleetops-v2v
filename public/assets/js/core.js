@@ -429,6 +429,8 @@ const App = {
     document.getElementById('crumbs').innerHTML = `${nav.section ? `<span class="crumb-sec">${UI.esc(nav.section)}</span><i class="bi bi-chevron-right"></i>` : ''}<span class="crumb-page">${UI.esc(nav.label)}</span>`;
     document.title = nav.label + ' · Mulawin FleetOps';
     const el = document.getElementById('pageContent');
+    // STAGE_B_WORKSPACE_UI: compact table styling only on Maintenance and Accounting pages (Operations pages unchanged).
+    el.classList.toggle('ws-scope', UI.WS_PAGES.has(page) || (page === 'admin' && UI.role('audit')));
     const def = this.pages[page];
     if (!def) {
       el.innerHTML = `<div class="page-head"><div><h1 class="page-title">${UI.esc(nav.label)}</h1></div></div>
@@ -470,6 +472,10 @@ const App = {
 // =====================================================================
 //  UI HELPERS
 // =====================================================================
+/** Pages of the Maintenance (Motorpool, Purchasing) and Accounting (Finance, Billing, Audit) workspaces. */
+UI.WS_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance',
+  'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports',
+  'finance', 'funds', 'billing']);
 UI.esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 UI.money = (v) => (v === null || v === undefined || v === '') ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 UI.num = (v, d = 0) => (v === null || v === undefined || v === '') ? '—' : Number(v).toLocaleString('en-PH', { maximumFractionDigits: d });
@@ -546,6 +552,18 @@ UI.statusStrip = (items) => `<div class="metric-strip">${(items || []).map(c => 
     <div class="metric-label">${c.color ? '<span class="dot"></span>' : ''}${UI.esc(c.label)}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
     ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div>`; }).join('')}</div>`;
+/**
+ * STAGE_A_WORKSPACE_UI — KPI tiles for the role workspaces (Motorpool, Purchasing).
+ * items: [{label, value, note, icon: 'bi-...', tone: amber|blue|green|red|gray, go: 'page?x=y'}]
+ * A tile is a link only when the user may open its page (UI.canGo); otherwise it is plain, non-interactive text.
+ */
+UI.kpiTiles = (items) => `<div class="kpi-tiles">${(items || []).map(c => { const go = c.go && UI.canGo(c.go);
+  return `<div class="kpi-tile tone-${UI.esc(c.tone || 'gray')}${go ? ' clickable' : ''}"${go ? ` data-go="${UI.esc(c.go)}" role="link" tabindex="0" aria-label="${UI.esc(c.label)}: ${UI.esc(c.value)}"` : ''}>
+    <div class="kpi-icon"><i class="bi ${UI.esc(c.icon || 'bi-circle')}"></i></div>
+    <div class="kpi-body"><div class="kpi-value">${UI.esc(c.value)}</div><div class="kpi-label">${UI.esc(c.label)}</div>${c.note ? `<div class="kpi-note">${UI.esc(c.note)}</div>` : ''}</div>
+    ${go ? '<i class="bi bi-chevron-right kpi-go" aria-hidden="true"></i>' : ''}</div>`; }).join('')}</div>`;
+/** Back link to a workspace page; empty when the user cannot open that page. */
+UI.crumb = (page, label) => UI.canGo(page) ? `<nav class="ws-crumb" aria-label="Back"><button type="button" class="ws-crumb-link" data-go="${UI.esc(page)}"><i class="bi bi-arrow-left"></i> ${UI.esc(label)}</button></nav>` : '';
 /** Dashboard / report cards use the same metric strip. */
 UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
 UI.goParts = (spec) => {
@@ -606,6 +624,9 @@ UI.overviewColumns = (columns, opts = {}) => {
 UI.overviewActions = (id, row) => {
   const t = UI._tables[id];
   let html = t.opts.actions ? (t.opts.actions(row) || '') : '';
+  // STAGE_B_WORKSPACE_UI: tables that pass directActions show their (already role/state-filtered) icon buttons in the row,
+  // instead of collapsing them behind a "Manage" chooser.
+  if (t.opts.directActions) return `<div class="row-icons">${html}</div>`;
   const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(html);
   if (t.columns.length < t.allColumns.length && !hasView) html += '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details><i class="bi bi-eye" aria-hidden="true"></i> View</button>';
   const n = (html.match(/<button\b/gi) || []).length;
@@ -801,6 +822,9 @@ UI.activate = (root) => {
   });
   UI.mountMasterlistQuickToolbar(root);
 };
+/** STAGE_B_WORKSPACE_UI — compact icon action for table rows: tooltip + accessible label, same data-act contract as UI.btn. */
+UI.ibtn = (act, label, icon, cls = 'outline-secondary') =>
+  `<button type="button" class="btn btn-sm btn-${cls} icon-act" data-act="${UI.esc(act)}" title="${UI.esc(label)}" aria-label="${UI.esc(label)}"><i class="bi ${UI.esc(icon)}" aria-hidden="true"></i></button>`;
 UI.btn = (act, label, cls = 'outline-secondary', icon = '') => {
   const text = label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label;
   const isView = act === 'view' || (act === 'trip' && text === 'View trip');
@@ -1301,6 +1325,32 @@ UI.filterModal = (ctx, fields, opts = {}) => {
   return `<div class="filter-summary" data-fid="${id}"><button type="button" class="btn btn-sm btn-outline-secondary" data-fopen><i class="bi bi-funnel"></i> Filter${active.length ? ` <span class="badge bg-warning text-dark">${active.length}</span>` : ''}</button>
     ${active.length ? active.map(k => `<span class="filter-chip">${UI.esc(label(k))}</span>`).join('') + '<button type="button" class="btn btn-link btn-sm p-0 ms-1" data-fclear>Reset</button>' : `<span>${UI.esc(opts.hint || 'Showing all records.')}</span>`}</div>`;
 };
+
+/**
+ * STAGE_B_WORKSPACE_UI — general filters shown directly on the page (Truck Masterlist style): selects and dates that
+ * change the page URL query at once, plus Reset. fields: [{name, label, options: [[value, label]] | [value], type: 'select'|'date'}].
+ * Options must come from real loaded data. Works together with status tabs and the table search.
+ */
+UI.generalFilters = (ctx, fields) => {
+  const keys = fields.map(f => f.name), active = keys.filter(k => ctx.query[k]);
+  const ctl = (f) => {
+    const v = ctx.query[f.name] ?? '';
+    if (f.type === 'date') return `<input type="date" class="form-control form-control-sm" data-gf="${UI.esc(f.name)}" value="${UI.esc(v)}" aria-label="${UI.esc(f.label)}" title="${UI.esc(f.label)}">`;
+    const opts = (f.options || []).map(o => Array.isArray(o) ? o : [o, o]);
+    return `<select class="form-select form-select-sm" data-gf="${UI.esc(f.name)}" aria-label="${UI.esc(f.label)}"><option value="">${UI.esc(f.all || 'All ' + f.label.toLowerCase())}</option>
+      ${opts.map(([val, lab]) => `<option value="${UI.esc(val)}" ${String(val) === String(v) ? 'selected' : ''}>${UI.esc(lab)}</option>`).join('')}</select>`;
+  };
+  return `<div class="ws-filters no-print" role="group" aria-label="Filters">${fields.map(ctl).join('')}${active.length ? `<button type="button" class="btn btn-link btn-sm ws-filter-reset" data-gf-reset="${UI.esc(keys.join(','))}"><i class="bi bi-x-circle"></i> Reset filters</button>` : ''}</div>`;
+};
+document.addEventListener('change', (e) => {
+  const c = e.target.closest('[data-gf]'); if (!c || !App.current) return;
+  const q = { ...App.current.query }; if (c.value) q[c.dataset.gf] = c.value; else delete q[c.dataset.gf];
+  App.go(App.current.page, q);
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-gf-reset]'); if (!b || !App.current) return;
+  const q = { ...App.current.query }; b.dataset.gfReset.split(',').forEach(k => delete q[k]); App.go(App.current.page, q);
+});
 
 UI._filters = {};
 // One listener for every filter bar (works even when the bar is drawn later inside a tab).
