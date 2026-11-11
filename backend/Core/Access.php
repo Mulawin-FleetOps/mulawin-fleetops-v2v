@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 final class Access {
     /** Small headings in the menu (only shown when the role has pages under them). */
-    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Purchasing', 'Accounting', 'Billing', 'Records'];
+    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Purchasing', 'Accounting', 'Billing', 'Audit', 'Records'];
 
     /**
      * Shared workflow pages belong in the employee's work area, never in a
@@ -33,26 +33,40 @@ final class Access {
         'car_carrier_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
         'container_wingvan_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
         'motorpool' => ['trucks' => 'Maintenance', 'mechanics' => 'Maintenance', 'mechanic_attendance' => 'Maintenance'],
-        'finance' => ['purchase_orders' => 'Accounting', 'purchasing_reports' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
-        'billing' => ['trips' => 'Billing', 'clients' => 'Billing', 'routes' => 'Billing'],
+        'finance' => ['finance_overview' => 'Accounting', 'purchase_orders' => 'Accounting', 'purchasing_reports' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
+        'billing' => ['trips' => 'Billing', 'clients' => 'Billing', 'routes' => 'Billing', 'billing_overview' => 'Billing', 'billing' => 'Billing',
+            'billing_collections' => 'Billing', 'billing_receivables' => 'Billing', 'reports' => 'Billing'],
         'audit' => [
             'trips' => 'Records', 'trucks' => 'Records', 'crew' => 'Records',
             'clients' => 'Records', 'routes' => 'Records', 'mechanics' => 'Records', 'mechanic_attendance' => 'Records',
             'maintenance_overview' => 'Records', 'maintenance' => 'Records', 'maint_history' => 'Records', 'funds' => 'Records',
             'parts_requests' => 'Records', 'purchase_orders' => 'Records', 'inventory' => 'Records',
             'stock_movements' => 'Records', 'purchasing_reports' => 'Records',
-            'billing' => 'Records', 'finance' => 'Records', 'admin' => 'Records',
+            'billing' => 'Records', 'finance' => 'Records', 'finance_budgets' => 'Records',
+            'billing_collections' => 'Records', 'billing_receivables' => 'Records',
+            'audit_overview' => 'Audit', 'audit_logs' => 'Audit', 'audit_history' => 'Audit', 'audit_reports' => 'Audit',
             'reports' => 'Records',
         ],
     ];
     private const NAV_LABELS = [
-        'audit' => ['admin' => 'Activity Log'],
+        'audit' => ['audit_overview' => 'Overview'],
         'car_carrier_dispatcher' => ['funds' => 'My Trip Funds'],
         'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
         // MAINTENANCE_OVERVIEW_PHASE1_V1: Motorpool wording (labels only; same pages and permissions).
         'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management'],
         // STAGE_B_PURCHASING_UI: concise Purchasing workspace labels (labels only; same pages and permissions).
         'purchasing' => ['purchasing_overview' => 'Overview', 'purchasing_reports' => 'Reports'],
+        // FINANCE_WORKSPACE_V1: Finance labels (same pages; Approvals = purchase orders routed to Finance).
+        // BILLING_WORKSPACE_V1
+        'billing' => ['billing_overview' => 'Overview', 'reports' => 'Billing Reports'],
+        'finance' => ['finance_overview' => 'Overview', 'purchase_orders' => 'Approvals', 'funds' => 'Trip Funds'],
+    ];
+
+    /** Workspace menu order per role: listed pages first, in this order; the other pages keep the default order. */
+    private const NAV_ORDER = [
+        'finance' => ['finance_overview', 'purchase_orders', 'funds', 'finance', 'finance_budgets', 'purchasing_reports'],
+        'billing' => ['billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'reports'],
+        'audit' => ['audit_overview', 'audit_logs', 'audit_history', 'audit_reports'],
     ];
 
     public static function pages(): array {
@@ -60,7 +74,7 @@ final class Access {
         $all = array_keys(ROLE_LABELS);
         // Motorpool and Purchasing have their own landing pages (Maintenance / Purchasing Overview),
         // so the company-wide Dashboard is not duplicated for them.
-        $dash = array_values(array_diff($all, ['motorpool', 'purchasing']));
+        $dash = array_values(array_diff($all, ['motorpool', 'purchasing', 'finance', 'billing', 'audit']));
         return [
             // id => [label, icon, section, module, js file, roles]
             'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $dash],
@@ -114,16 +128,31 @@ final class Access {
 
             'funds'       => ['Trip Funds', 'bi-cash-coin', 'Accounting', 'Funds', 'accounting/funds',
                               array_merge(['admin', 'operations_head', 'finance', 'audit'], $D)],
-            'billing'     => ['Billing & Collection', 'bi-receipt', 'Accounting', 'Billing', 'accounting/billing',
+            // BILLING_WORKSPACE_V1: Overview (Billing landing page), Billing & Invoices, Collections, Receivables. Same Billing module and rules.
+            'billing_overview' => ['Billing Overview', 'bi-speedometer2', 'Billing', 'Billing', 'accounting/billing', ['billing']],
+            'billing'     => ['Billing & Invoices', 'bi-receipt', 'Accounting', 'Billing', 'accounting/billing',
                               ['admin', 'billing', 'finance', 'audit']],
-            'finance'     => ['Finance', 'bi-wallet2', 'Accounting', 'Finance', 'accounting/finance',
+            'billing_collections' => ['Collections', 'bi-cash-stack', 'Accounting', 'Billing', 'accounting/billing', ['admin', 'billing', 'finance', 'audit']],
+            'billing_receivables' => ['Receivables', 'bi-hourglass-split', 'Accounting', 'Billing', 'accounting/billing', ['admin', 'billing', 'finance', 'audit']],
+            // FINANCE_WORKSPACE_V1: Overview (Finance landing page), Payables & Payments (page id 'finance' kept: notifications
+            // link to it) and Budgets & Expenses. Admin and Audit keep read access to the two record pages.
+            'finance_overview' => ['Finance Overview', 'bi-speedometer2', 'Accounting', 'Finance', 'accounting/finance', ['finance']],
+            'finance'     => ['Payables & Payments', 'bi-wallet2', 'Accounting', 'Finance', 'accounting/finance',
+                              ['admin', 'finance', 'audit']],
+            'finance_budgets' => ['Budgets & Expenses', 'bi-piggy-bank', 'Accounting', 'Finance', 'accounting/finance',
                               ['admin', 'finance', 'audit']],
 
             'documents'   => ['Documents', 'bi-folder2-open', 'Records', 'Documents', 'general/documents', $all],
             'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports',
                               ['admin', 'operations_head', 'motorpool', 'finance', 'billing', 'audit']],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
-            'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin', 'audit']],
+            // AUDIT_WORKSPACE_V1: read-only audit pages (Admin module, audit_events). Audit uses them instead of its former
+            // Activity Log view of User Management (same records, now with filters, record history and reports).
+            'audit_overview' => ['Audit Overview', 'bi-speedometer2', 'Audit', 'Admin', 'administration/audit', ['audit']],
+            'audit_logs'  => ['Audit Logs', 'bi-journal-text', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
+            'audit_history' => ['Transaction History', 'bi-clock-history', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
+            'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
+            'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin']],
         ];
     }
 
@@ -138,6 +167,10 @@ final class Access {
                 $label = self::NAV_LABELS[$u['role']][$id] ?? $label;
                 $out[] = ['id' => $id, 'label' => $label, 'icon' => $icon, 'section' => $section, 'js' => $js];
             }
+        }
+        if ($order = self::NAV_ORDER[$u['role']] ?? null) {
+            $rank = array_flip($order); $pos = array_flip(array_column($out, 'id'));
+            usort($out, fn($a, $b) => [$rank[$a['id']] ?? 999, $pos[$a['id']]] <=> [$rank[$b['id']] ?? 999, $pos[$b['id']]]);
         }
         return $out;
     }

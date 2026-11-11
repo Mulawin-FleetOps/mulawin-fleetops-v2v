@@ -33,11 +33,38 @@ foreach (array_keys(ROLE_LABELS) as $r) {
     if ($r !== 'purchasing') ok(!Access::canOpen($U($r), 'purchasing_overview'), "$r cannot open Purchasing Overview");
 }
 
-section('B. Company Dashboard kept, but not duplicated for Motorpool / Purchasing');
+section('B. Company Dashboard kept, but not duplicated for Motorpool / Purchasing / Finance / Billing / Audit (own Overview pages)');
 foreach (array_keys(ROLE_LABELS) as $r) {
-    $expect = !in_array($r, ['motorpool', 'purchasing'], true);
+    $expect = !in_array($r, ['motorpool', 'purchasing', 'finance', 'billing', 'audit'], true);
     ok(Access::canOpen($U($r), 'dashboard') === $expect, "dashboard for $r = " . ($expect ? 'yes' : 'no'));
 }
+
+section('B2. Finance workspace (FINANCE_WORKSPACE_V1)');
+$fnav = array_column(Access::navFor($U('finance')), 'label', 'id');
+ok(array_slice(array_keys($fnav), 0, 5) === ['finance_overview', 'purchase_orders', 'funds', 'finance', 'finance_budgets'], 'Finance menu starts Overview, Approvals, Trip Funds, Payables & Payments, Budgets & Expenses', json_encode(array_keys($fnav)));
+ok(array_slice(array_values($fnav), 0, 5) === ['Overview', 'Approvals', 'Trip Funds', 'Payables & Payments', 'Budgets & Expenses'], 'Finance menu labels', json_encode(array_values($fnav)));
+foreach (array_keys(ROLE_LABELS) as $r) {
+    ok(Access::canOpen($U($r), 'finance_overview') === ($r === 'finance'), "finance_overview for $r = " . ($r === 'finance' ? 'yes' : 'no'));
+    $fb = in_array($r, ['admin', 'finance', 'audit'], true);
+    ok(Access::canOpen($U($r), 'finance_budgets') === $fb && Access::canOpen($U($r), 'finance') === $fb, "finance / finance_budgets for $r = " . ($fb ? 'yes' : 'no'));
+}
+ok(Access::moduleOf('finance_overview') === 'Finance' && Access::moduleOf('finance_budgets') === 'Finance', 'new Finance pages are served by the Finance module');
+
+section('B3. Billing and Audit workspaces (BILLING_WORKSPACE_V1, AUDIT_WORKSPACE_V1)');
+$bnav = array_column(Access::navFor($U('billing')), 'label', 'id');
+ok(array_slice(array_values($bnav), 0, 5) === ['Overview', 'Billing & Invoices', 'Collections', 'Receivables', 'Billing Reports'], 'Billing menu: Overview, Billing & Invoices, Collections, Receivables, Billing Reports', json_encode(array_values($bnav)));
+$anav = array_column(Access::navFor($U('audit')), 'label', 'id');
+ok(array_slice(array_values($anav), 0, 4) === ['Overview', 'Audit Logs', 'Transaction History', 'Audit Reports'], 'Audit menu: Overview, Audit Logs, Transaction History, Audit Reports', json_encode(array_values($anav)));
+foreach (array_keys(ROLE_LABELS) as $r) {
+    ok(Access::canOpen($U($r), 'billing_overview') === ($r === 'billing'), "billing_overview only for billing ($r)");
+    $bc = in_array($r, ['admin', 'billing', 'finance', 'audit'], true);
+    ok(Access::canOpen($U($r), 'billing_collections') === $bc && Access::canOpen($U($r), 'billing_receivables') === $bc, "collections / receivables for $r = " . ($bc ? 'yes' : 'no'));
+    ok(Access::canOpen($U($r), 'audit_overview') === ($r === 'audit'), "audit_overview only for audit ($r)");
+    $al = in_array($r, ['admin', 'audit'], true);
+    foreach (['audit_logs', 'audit_history', 'audit_reports'] as $pg) ok(Access::canOpen($U($r), $pg) === $al, "$pg for $r = " . ($al ? 'yes' : 'no'));
+}
+ok(!Access::canOpen($U('audit'), 'admin') && Access::canOpen($U('admin'), 'admin'), 'User Management is Admin only (Audit uses Audit Logs instead of the former Activity Log view)');
+ok(Access::moduleOf('audit_logs') === 'Admin' && Access::moduleOf('billing_collections') === 'Billing', 'audit pages served by Admin (audit_events), billing pages by Billing');
 
 section('C. Motorpool workspace');
 $mp = $ids('motorpool');

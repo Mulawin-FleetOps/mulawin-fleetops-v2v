@@ -375,7 +375,7 @@ const App = {
   // ---------------------------------------------------------------- router (#page?x=y)
   /** Landing page per role. The server's me.nav decides what exists; this only picks the first page to show. */
   homePage() {
-    const landing = { motorpool: 'maintenance_overview', purchasing: 'purchasing_overview' }[this.me?.user?.role] || 'dashboard';
+    const landing = { motorpool: 'maintenance_overview', purchasing: 'purchasing_overview', finance: 'finance_overview', billing: 'billing_overview', audit: 'audit_overview' }[this.me?.user?.role] || 'dashboard';
     const nav = this.me?.nav || [];
     return nav.some(n => n.id === landing) ? landing : (nav[0]?.id || 'dashboard');
   },
@@ -475,7 +475,7 @@ const App = {
 /** Pages of the Maintenance (Motorpool, Purchasing) and Accounting (Finance, Billing, Audit) workspaces. */
 UI.WS_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance',
   'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports',
-  'finance', 'funds', 'billing']);
+  'finance_overview', 'finance', 'finance_budgets', 'funds', 'billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'audit_overview', 'audit_logs', 'audit_history', 'audit_reports']);
 UI.esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 UI.money = (v) => (v === null || v === undefined || v === '') ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 UI.num = (v, d = 0) => (v === null || v === undefined || v === '') ? '—' : Number(v).toLocaleString('en-PH', { maximumFractionDigits: d });
