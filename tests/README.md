@@ -12,6 +12,9 @@ Automated tests. This folder is blocked from the web by the root `.htaccess`.
 | `php tests/run_trip_schedule_tests.php` | Trip schedule restrictions (Checklist #38/#40): checklist and Confirm Dispatch windows, Admin settings, date rollover, Asia/Manila, reschedule, workflow regression |
 | `php tests/run_fund_release_tests.php` | Cash-only trip fund release (#36) and Trip Fund tabs (#37): API refusals, server date, double click, two Finance users at once (two processes), release window, closed trips, nothing written by failures |
 | `php tests/run_mechanic_attendance_tests.php` | Dispatcher-only account shifts, mechanic masterlist without shift, Time In / Time Out, availability, assignment, migration and rollback |
+| `php tests/run_maintenance_overview_tests.php` | Maintenance Overview: page rights, counts at every repair step, parts follow-up, trip incident flow, counts = Repair Management records, recent activity, read-only |
+| `php tests/run_motorpool_workspace_tests.php` | Motorpool workspace (Parts Requests + Mechanic Attendance pages) through the real `Actions::pageData` / `Actions::run` (child process per user): access per role, no cost / stock / budget / supplier / PO data in the Motorpool payload, request create / release / Not Available / cancel, notification pages, attendance board, daily mark Admin-only, date range clamp, Time In / Time Out refusals, read-only |
+| `php tests/workspace_access_tests.php` | No database. Page map per role (Motorpool / Purchasing workspaces), menu order, every page has a module and a screen, source checks of the scoped reads |
 | `php tests/run_phase2_migration_safety_tests.php` | Phase 2 migrations: record is the last step, partial-failure states, recovery files, nothing legacy changed, fresh-install order |
 | `php tests/run_crew_attendance_tests.php` | Daily attendance without shifts: roster of every active driver/helper/mechanic, marking, history, masterlist without shift, daily bell, migration of legacy shift-based marks and rollback |
 | `php tests/run_crew_dispatch_tests.php` | #42 Phase 2 enforcement: Warn/Enforce + guard, Present/Absent/Not Yet Marked/shift mismatch at dispatch, overnight dates, cross-shift early dispatch, shift-aware auto-assign and fallback, Absent notice, redispatch, two-process concurrency |
@@ -44,5 +47,7 @@ Safety rules:
   `<prefix>_partial_test`; prefix `mulawin_routes`, change it with `TEST_DB_PREFIX`).
 - The run stops when a name does not end in `_test` or equals `DB_NAME` of the project `.env`.
 - `tests/route_tests.php` refuses to run on its own (it only runs inside the temporary copy).
+- The base schema for the migration checks is read from git as `<commit>~1` (quoted). `^` is not used: on Windows
+  `cmd.exe` drops an unquoted `^`, which loaded the schema AFTER the migration and broke the upgrade checks.
 
 Exit code 0 = all tests passed. Details: `docs/CLAUDE_20_CLIENT_ROUTES.md`.

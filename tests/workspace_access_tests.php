@@ -48,6 +48,33 @@ foreach (['purchase_orders', 'inventory', 'stock_movements', 'parts_requests', '
 ok(array_column(Access::navFor($U('motorpool')), 'label', 'id')['maintenance'] === 'Repair Management', 'Motorpool menu names the maintenance page Repair Management');
 ok(!isset(Access::pages()['purchasing']), 'the combined Parts & Purchasing page is gone');
 
+section('C2. Motorpool Phase 1: Parts Requests and Mechanic Attendance pages');
+foreach (array_keys(ROLE_LABELS) as $r) {
+    $pr = $r === 'motorpool';
+    ok(Access::canOpen($U($r), 'mp_parts_requests') === $pr, "$r " . ($pr ? 'can' : 'cannot') . ' open mp_parts_requests');
+    $ma = in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true);
+    ok(Access::canOpen($U($r), 'mechanic_attendance') === $ma, "$r " . ($ma ? 'can' : 'cannot') . ' open mechanic_attendance (same roles as the Mechanic Masterlist)');
+    ok(Access::canOpen($U($r), 'mechanic_attendance') === Access::canOpen($U($r), 'mechanics'), "$r: mechanic_attendance access equals mechanics access");
+}
+foreach (['mp_parts_requests', 'mechanic_attendance'] as $p) ok(in_array($p, $mp, true), "Motorpool menu has $p");
+ok(!Access::canOpen($U('motorpool'), 'parts_requests'), 'Motorpool still cannot open the Purchasing parts_requests page');
+$core = (string)file_get_contents($root . '/public/assets/js/core.js');
+ok(str_contains($core, "motorpool: ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maint_history', 'trucks']"), 'Motorpool sidebar order: Overview, Repair Management, Parts Requests, Mechanic Masterlist, Mechanic Attendance, Maintenance History, Truck Masterlist');
+ok(str_contains($core, "motorpool: 'mp_parts_requests'"), 'legacy #purchasing link sends Motorpool to mp_parts_requests');
+$purC2 = (string)file_get_contents($root . '/backend/Modules/Maintenance/Purchasing.php');
+ok(str_contains($purC2, "if (\$page === 'mp_parts_requests') return self::motorpoolPage(\$u, \$p);"), 'Purchasing::read routes mp_parts_requests to motorpoolPage');
+ok(preg_match('/function motorpoolPage\(array \$u, PDO \$p\): array \{\s*requireRole\(\$u, \'motorpool\'\)/', $purC2) === 1, 'motorpoolPage is Motorpool only');
+$mpSrc = substr($purC2, (int)strpos($purC2, 'function motorpoolPage('), (int)strpos($purC2, 'function myRequests(') - (int)strpos($purC2, 'function motorpoolPage('));
+ok($mpSrc !== '' && !preg_match('/unit_cost|quantity_on_hand|stock_value|budget|supplier|purchase_orders|total_amount/', $mpSrc), 'motorpoolPage reads no cost, stock, budget, supplier or PO data');
+ok(str_contains($purC2, "is ' . \$status . '.', 'mp_parts_requests')"), 'processed-request notification opens mp_parts_requests');
+ok(!preg_match("/Notify::[a-z]+\([^;]*'purchasing'\)/", $purC2), "no Purchasing notification targets the removed 'purchasing' page");
+$mecC2 = (string)file_get_contents($root . '/backend/Modules/Maintenance/Mechanics.php');
+ok(str_contains($mecC2, "if (\$page === 'mechanic_attendance') return self::attendancePage("), 'Mechanics::read routes mechanic_attendance to attendancePage');
+ok(str_contains($mecC2, "if (!hasRole(\$u, 'admin')) foreach (\$data['board'] as &\$r) unset(\$r['daily_mark']);"), 'daily Present/Absent mark is removed for every role except Admin');
+$mntJs = (string)file_get_contents($root . '/public/assets/js/modules/maintenance/maintenance.js');
+ok(!str_contains($mntJs, "maintenance#_=parts"), 'no link to the old Repair Management parts tab remains');
+ok(substr_count($mntJs, "Purchasing.my_requests") === 0, 'the request list is not loaded a second time in Repair Management (no duplicate list)');
+
 section('D. Purchasing workspace');
 $pu = $ids('purchasing');
 foreach (['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports'] as $p) ok(in_array($p, $pu, true), "Purchasing menu has $p");

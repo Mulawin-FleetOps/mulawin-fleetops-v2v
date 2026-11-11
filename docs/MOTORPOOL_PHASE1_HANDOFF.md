@@ -2,7 +2,7 @@
 
 Checkpoint date: 2026-11-11
 Source branch: `luis` · Working branch: `luis-maintenance-ui` (base commit `1aa7603`)
-Status: **Phase 1 is partly implemented. The automated tests and the manual role checks have NOT been run yet.** Do not merge, deploy or push this.
+Status: **Phase 1 navigation is implemented and its automated tests pass (see 5b). The manual browser pass per role is NOT done yet.** Phase 1 changed navigation only, not the visual design: the UI redesign is Stage A / B of `docs/MULAWIN_UI_WIREFRAME_IMPLEMENTATION_SPEC.md`. Do not merge, deploy or push this.
 
 ---
 
@@ -73,6 +73,30 @@ The full plan is in `C:\Users\Kent Emmanuel\.claude\plans\pasted-content-id-7c36
   - The `mechanics?availability=` filter exists.
   - `MechUI.toggle(m, btn)` matches the `UI.table` `onAction(act, row, btn)` call.
   - `time_in` and `time_out` call `requireRole(admin, motorpool)`.
+
+## 5b. Automated verification (2026-11-11)
+All database suites ran through `tests/_launcher.php` on disposable `*_test` databases only (`mulawin_v2` is refused by name and never connected).
+
+| Suite | Result |
+|---|---|
+| `workspace_access_tests.php` (no database, new section C2) | 256 passed, 0 failed |
+| `run_motorpool_workspace_tests.php` (new; real `Actions` dispatch per role) | 115 passed, 0 failed |
+| `run_maintenance_overview_tests.php` | 105 passed, 0 failed |
+| `run_mechanic_attendance_tests.php` (after the launcher fix below) | 77 passed, 0 failed |
+| `run_fund_release_tests.php` | 70 passed, 0 failed |
+| `run_billing_adjustment_tests.php` | 173 passed, 0 failed |
+| `run_crew_dispatch_tests.php` | 127 passed, 0 failed |
+| `run_crew_attendance_tests.php` | 69 passed, 0 failed |
+| `run_trip_schedule_tests.php` | 95 passed, 0 failed |
+| `run_trip_documents_tests.php` | 58 passed, 0 failed |
+| `run_trip_routing_tests.php` | 116 passed, 0 failed |
+| `run_phase2_migration_safety_tests.php` | 93 passed, 0 failed |
+| `run_trip_batch_tests.php` (after the stale-label test fix below) | 65 passed, 0 failed |
+
+- **Launcher fix (Windows):** `_launcher.php` read the base schema with `git show <sha>^:...`; `cmd.exe` drops the unquoted `^`, so the schema AFTER the migration was loaded and every migration-upgrade section crashed (duplicate `schema_migrations` key). Now `escapeshellarg("<sha>~1:...")`. Verified: identical to the parent commit's files; the safety checks are unchanged.
+- **trip_batch stale label (pre-existing, fixed in the test only):** the test looked for the old button text `Retry not-created row(s)`; commit `b0bd1b7` (2026-11-09, before Phase 1) renamed it to `Retry not-created rows (N)` in `trips.js:430`. The test now expects `Retry not-created rows (`; the application code is unchanged and the behaviour it guards is intact (`trips.js:417-419`).
+- **Concern 6 resolved:** `db()` sets the MySQL session time zone from PHP (`bootstrap.php:76`); the test confirms minutes on duty ≈ 0 right after Time In.
+- Not run (Phase 1 does not touch their code): `run_map_tests`, `run_route_tests`, `run_account_security_tests`, `run_htaccess_tests`.
 
 ## 6. Pending and known concerns
 1. **`tests/workspace_access_tests.php` is not updated.** The proposed edit was rejected when work paused, not on its merits; it is not in this checkpoint. It added a section "C2" with checks on:

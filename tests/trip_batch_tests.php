@@ -182,7 +182,7 @@ ok(array_column($all['results'], 'result') === ['Already created', 'Already crea
 ok(count(array_unique(array_column($all['results'], 'trip_id'))) === 3, 'three different trips, one per row');
 fails(fn() => $batch($ops, [$row(['distance_km' => '', 'row_no' => '5'])]), 'retry with a row problem names the screen row number', 400, 'Row 5:');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/operations/trips.js');
-ok(str_contains($js, "filter(tr => !tr.dataset.done)") && str_contains($js, 'Retry not-created row(s)') && str_contains($js, 'request_key: tr.dataset.key, row_no:'), 'screen: Retry sends only not-created rows with their original keys');
+ok(str_contains($js, "filter(tr => !tr.dataset.done)") && str_contains($js, 'Retry not-created rows (') && str_contains($js, 'request_key: tr.dataset.key, row_no:'), 'screen: Retry sends only not-created rows with their original keys');
 ok(!str_contains($js, 'Nothing is created until every row is correct'), 'old all-or-nothing wording removed');
 
 // ---------------------------------------------------------------------

@@ -63,7 +63,7 @@ function run_isolated_tests(string $testFile, string $defaultPrefix, array $dbSu
     $added = $commits ? end($commits) : '';   // oldest commit that added the migration file
     if (preg_match('/^[0-9a-f]{40}$/', $added)) {
         foreach (['schema', 'extension'] as $f) {
-            $sql = (string)@shell_exec("$git show {$added}^:database/$f.sql 2>$null");
+            $sql = (string)@shell_exec("$git show " . escapeshellarg("{$added}~1:database/$f.sql") . " 2>$null");
             if ($sql !== '') file_put_contents("$tmp/tests/_base_$f.sql", $sql);
         }
     }
