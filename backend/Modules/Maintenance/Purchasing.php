@@ -130,7 +130,8 @@ final class Purchasing {
                 WHERE o.status='Pending Approval' OR (o.status='Rejected - Insufficient Budget' AND o.decided_at >= NOW() - INTERVAL 30 DAY)
                 ORDER BY FIELD(o.status,'Pending Approval','Rejected - Insufficient Budget'), o.id LIMIT 10"),
             'payments' => fn() => array_map('floatval', one($p, "SELECT COUNT(*) AS n, COALESCE(SUM(GREATEST((SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id)-o.paid_amount,0)),0) AS due
-                FROM purchase_orders o WHERE o.payment_status IN ('Pending Payment','Partially Paid')")),
+                FROM purchase_orders o WHERE o.payment_status IN ('Pending Payment','Partially Paid')
+                  AND (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) > o.paid_amount")),
             'lowStock' => fn() => many($p, "SELECT id, part_number, description, unit, quantity_on_hand, reorder_level FROM parts
                 WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY (quantity_on_hand-reorder_level), part_number LIMIT 10"),
             'budget' => $budget,
