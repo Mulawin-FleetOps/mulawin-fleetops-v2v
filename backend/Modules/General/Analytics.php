@@ -140,7 +140,8 @@ final class Analytics {
             $tables[] = ['title' => 'Low-stock items', 'page' => 'inventory', 'columns' => [['Part', 'part_number'], ['Description', 'description'], ['On hand', 'quantity_on_hand'], ['Reorder level', 'reorder_level']],
                          'rows' => many($p, 'SELECT part_number, description, quantity_on_hand, reorder_level FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY quantity_on_hand'), 'empty' => 'No low-stock items.'];
         } elseif ($r === 'finance') {
-            $b = one($p, "SELECT amount-reserved_amount-spent_amount AS available, reserved_amount FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1");
+            // ACCOUNTING_INTEGRITY_G7: same date rule as PO approval (Purchasing::poDecide); an expired budget is not "available".
+            $b = one($p, "SELECT amount-reserved_amount-spent_amount AS available, reserved_amount FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1");
             $cards = [
                 ['label' => 'Funds ready for release', 'value' => self::n($p, "SELECT COALESCE(SUM(amount),0) AS n FROM fund_requests WHERE status='Ready for Release'"), 'format' => 'money', 'icon' => 'bi-cash-coin', 'page' => 'funds'],
                 ['label' => 'PO payables (received, unpaid)', 'value' => self::n($p, "SELECT COALESCE(SUM((SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) - o.paid_amount),0) AS n FROM purchase_orders o WHERE o.payment_status IN ('Pending Payment','Partially Paid')"), 'format' => 'money', 'icon' => 'bi-receipt', 'page' => 'finance'],
@@ -150,7 +151,7 @@ final class Analytics {
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM fund_requests WHERE status='Ready for Release'"), 'approved trip fund(s) to release', 'funds');
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval' AND approver_role='finance'"), 'purchase order(s) waiting for your approval', 'purchase_orders');
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM fund_requests f JOIN trips t ON t.id=f.trip_id WHERE f.status='Released' AND f.liquidation_status='Not Liquidated' AND t.status IN ('Completed','Cancelled')"), 'released fund(s) to liquidate', 'funds', 'info');
-            if (!$b) $alerts[] = ['text' => 'No active purchasing budget. Purchase orders will be rejected until a budget is set (Finance > Purchasing budget).', 'page' => 'finance', 'level' => 'danger'];
+            if (!$b) $alerts[] = ['text' => 'No purchasing budget covers today (none set, or its period ended). Purchase orders will be rejected until Finance sets one.', 'page' => 'finance', 'level' => 'danger'];
         } elseif ($r === 'billing') {
             $cards = [
                 ['label' => 'Ongoing trip drafts', 'value' => self::n($p, "SELECT COUNT(*) AS n FROM billings WHERE status='Ongoing'"), 'icon' => 'bi-hourglass', 'page' => 'billing'],

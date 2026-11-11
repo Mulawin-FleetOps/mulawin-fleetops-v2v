@@ -164,11 +164,26 @@ final class Finance {
         $start = dateField($d, 'period_start'); $end = dateField($d, 'period_end');
         must($end >= $start, 'The end date is before the start date.');
         return transaction(function (PDO $p) use ($u, $amount, $start, $end) {
+            // ACCOUNTING_INTEGRITY_G8: open commitments move to the new budget, so later payments draw on an Active budget and
+            // reserved + spent stay consistent. The old budget keeps its spent amount (history) and loses only what moved.
+            $old = many($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' FOR UPDATE");
+            $carry = many($p, "SELECT id, po_ref, budget_id, reserved_amount FROM purchase_orders WHERE budget_id IN (SELECT id FROM budgets WHERE status='Active' AND category='Purchasing')
+                AND reserved_amount > 0 AND status IN ('Approved','Partially Received','Received') FOR UPDATE");
+            $moved = round(array_sum(array_map(fn($o) => (float)$o['reserved_amount'], $carry)), 2);
+            must((float)$amount >= $moved, 'The new budget (PHP ' . number_format((float)$amount, 2) . ') is less than the PHP ' . number_format($moved, 2)
+                . ' still reserved by approved purchase orders that will move to it. Enter at least that amount.');
             run($p, "UPDATE budgets SET status='Closed' WHERE status='Active' AND category='Purchasing'");
             $id = insert($p, 'budgets', ['category' => 'Purchasing', 'amount' => $amount, 'period_start' => $start, 'period_end' => $end, 'status' => 'Active', 'set_by' => $u['id']]);
-            auditWithChanges($p, $u['id'], 'Finance', 'budget ' . $id, 'purchasing budget set', "PHP $amount ($start to $end)", [],
-                ['Category' => 'Purchasing', 'Amount' => $amount, 'Period start' => $start, 'Period end' => $end, 'Status' => 'Active']);
-            return ['message' => 'Purchasing budget set: PHP ' . number_format((float)$amount, 2) . '.'];
+            foreach ($carry as $o) {
+                run($p, 'UPDATE budgets SET reserved_amount=GREATEST(reserved_amount-?,0) WHERE id=?', [$o['reserved_amount'], $o['budget_id']]);
+                run($p, 'UPDATE purchase_orders SET budget_id=? WHERE id=?', [$id, $o['id']]);
+            }
+            if ($moved > 0) run($p, 'UPDATE budgets SET reserved_amount=? WHERE id=?', [$moved, $id]);
+            auditWithChanges($p, $u['id'], 'Finance', 'budget ' . $id, 'purchasing budget set', "PHP $amount ($start to $end)"
+                . ($carry ? '; ' . count($carry) . ' open PO(s) moved with PHP ' . number_format($moved, 2) . ' reserved: ' . implode(', ', array_column($carry, 'po_ref')) : ''),
+                ['Previous active budget' => $old ? implode(', ', array_map(fn($b) => 'budget ' . $b['id'] . ' reserved ' . $b['reserved_amount'], $old)) : null],
+                ['Category' => 'Purchasing', 'Amount' => $amount, 'Period start' => $start, 'Period end' => $end, 'Status' => 'Active', 'Reserved carried over' => number_format($moved, 2, '.', '')]);
+            return ['message' => 'Purchasing budget set: PHP ' . number_format((float)$amount, 2) . '.' . ($carry ? ' ' . count($carry) . ' open purchase order(s) moved to it with PHP ' . number_format($moved, 2) . ' reserved.' : '')];
         });
     }
 }

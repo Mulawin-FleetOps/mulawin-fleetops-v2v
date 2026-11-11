@@ -496,7 +496,15 @@ final class Purchasing {
         $received = (float)one($p, 'SELECT COALESCE(SUM(received_qty*unit_price),0) AS v FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['v'];
         $paid = (float)$o['paid_amount'];
         $final = in_array($o['status'], ['Received', 'Closed'], true);
+        // ACCOUNTING_INTEGRITY_G5: a PO closed before anything was received (and never paid) owes nothing. It leaves the
+        // Finance payables (payment_status NULL, allowed by chk_po_pay) and its "PO pending payment" notification is resolved.
+        if ($final && round($received, 2) <= 0 && $paid <= 0) {
+            run($p, 'UPDATE purchase_orders SET payment_status=NULL WHERE id=?', [$id]);
+            Notify::resolve($p, 'po-pay-' . $id);
+            return;
+        }
         $status = ($paid <= 0) ? 'Pending Payment' : (($final && $paid >= round($received, 2)) ? 'Paid' : 'Partially Paid');
+        if ($status === 'Paid') Notify::resolve($p, 'po-pay-' . $id);
         run($p, 'UPDATE purchase_orders SET payment_status=? WHERE id=?', [$status, $id]);
     }
 
