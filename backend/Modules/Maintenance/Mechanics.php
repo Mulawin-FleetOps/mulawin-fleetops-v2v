@@ -34,7 +34,7 @@ final class Mechanics {
                     (SELECT COUNT(*) FROM mechanic_attendance o WHERE o.mechanic_id=mc.id AND o.time_out IS NULL) AS timed_in,
                     (SELECT la.time_in FROM mechanic_attendance la WHERE la.mechanic_id=mc.id ORDER BY la.id DESC LIMIT 1) AS last_time_in,
                     (SELECT lo.time_out FROM mechanic_attendance lo WHERE lo.mechanic_id=mc.id ORDER BY lo.id DESC LIMIT 1) AS last_time_out
-                FROM mechanics mc LEFT JOIN maintenance_jobs m ON m.active_mechanic=mc.id LEFT JOIN vehicles v ON v.id=m.vehicle_id
+                FROM mechanics mc LEFT JOIN maintenance_jobs m ON m.id=" . self::jobOfSql() . " LEFT JOIN vehicles v ON v.id=m.vehicle_id
                 ORDER BY mc.active DESC, mc.full_name"),
         ]);
         $data['can'] = ['edit' => hasRole($u, ...self::EDIT)];
@@ -68,7 +68,7 @@ final class Mechanics {
                     m.id AS job_id, m.job_ref, m.status AS job_status, v.plate_number AS job_truck, ad.status AS daily_mark
                 FROM mechanics mc
                 LEFT JOIN mechanic_attendance o ON o.mechanic_id=mc.id AND o.time_out IS NULL
-                LEFT JOIN maintenance_jobs m ON m.active_mechanic=mc.id LEFT JOIN vehicles v ON v.id=m.vehicle_id
+                LEFT JOIN maintenance_jobs m ON m.id=" . self::jobOfSql() . " LEFT JOIN vehicles v ON v.id=m.vehicle_id
                 LEFT JOIN attendance_daily ad ON ad.mechanic_id=mc.id AND ad.duty_date=CURRENT_DATE()
                 WHERE mc.active=1 ORDER BY (o.id IS NULL), mc.full_name"),
             'sessions' => fn() => many($p, "SELECT a.id, a.mechanic_id, mc.mechanic_code, mc.full_name, a.time_in, a.time_out,
@@ -149,7 +149,7 @@ final class Mechanics {
                 if (str_contains($e->getMessage(), 'Duplicate')) throw new BusinessRuleException($m['full_name'] . ' is already timed in.', 409);
                 throw $e;
             }
-            $busy = (bool)one($p, 'SELECT id FROM maintenance_jobs WHERE active_mechanic=?', [$id]);
+            $busy = self::activeJobRef($p, $id) !== null;
             $to = $busy ? 'Assigned' : 'Available';
             run($p, 'UPDATE mechanics SET availability=?, unavailable_reason=NULL WHERE id=?', [$to, $id]);
             $s = one($p, 'SELECT time_in FROM mechanic_attendance WHERE mechanic_id=? AND time_out IS NULL', [$id]);
@@ -169,7 +169,7 @@ final class Mechanics {
             $open = one($p, 'SELECT id, time_in FROM mechanic_attendance WHERE mechanic_id=? AND time_out IS NULL FOR UPDATE', [$id]);
             must((bool)$open, $m['full_name'] . ' has not timed in, so there is nothing to time out.', 409);
             // Existing rule: an active repair is Reported, Under Inspection or Under Repair (maintenance_jobs.active_mechanic).
-            $job = one($p, 'SELECT job_ref FROM maintenance_jobs WHERE active_mechanic=?', [$id]);
+            $job = (($ref = self::activeJobRef($p, $id)) !== null) ? ['job_ref' => $ref] : null;
             must(!$job, $m['full_name'] . ' is working on ' . ($job['job_ref'] ?? '') . ' and cannot time out. Complete the repair or assign it to another mechanic first.', 409);
             must(run($p, 'UPDATE mechanic_attendance SET time_out=NOW(), time_out_by=? WHERE id=? AND time_out IS NULL', [$u['id'], $open['id']]) === 1, 'Already timed out.', 409);
             run($p, "UPDATE mechanics SET availability='Unavailable', unavailable_reason=NULL WHERE id=?", [$id]);
@@ -187,7 +187,7 @@ final class Mechanics {
             $m = one($p, 'SELECT * FROM mechanics WHERE id=? FOR UPDATE', [$id]);
             must((bool)$m, 'Mechanic not found.', 404);
             if (!$active) {
-                $job = one($p, 'SELECT job_ref FROM maintenance_jobs WHERE active_mechanic=?', [$id]);
+                $job = (($ref = self::activeJobRef($p, $id)) !== null) ? ['job_ref' => $ref] : null;
                 must(!$job, $m['full_name'] . ' is working on ' . ($job['job_ref'] ?? '') . '. Assign that repair to another mechanic first.', 409);
             }
             // A deactivated mechanic is no longer at work: an open Time In is closed so it cannot come back as "Available" on reactivation.
@@ -200,6 +200,22 @@ final class Mechanics {
             return ['message' => $m['full_name'] . ($active ? ' is active again.' : ' was deactivated. The repair history is kept.')];
         });
     }
+
+    /**
+     * JOB_HELPER_MECHANICS_V1 — the mechanic's active repair: as lead (maintenance_jobs.active_mechanic) or, once migration 12
+     * is applied, as assisting mechanic (maintenance_job_helpers.active_mechanic). Used by Time In / Time Out / deactivate.
+     */
+    private static function activeJobRef(PDO $p, int $id): ?string {
+        $j = one($p, 'SELECT job_ref FROM maintenance_jobs WHERE active_mechanic=?', [$id]);
+        if (!$j && self::helpersReady()) $j = one($p, 'SELECT m.job_ref FROM maintenance_job_helpers h JOIN maintenance_jobs m ON m.id=h.maintenance_job_id WHERE h.active_mechanic=?', [$id]);
+        return $j['job_ref'] ?? null;
+    }
+    /** SQL expression: id of the active repair of mechanic mc (lead first, then assisting). */
+    private static function jobOfSql(): string {
+        $lead = '(SELECT x.id FROM maintenance_jobs x WHERE x.active_mechanic=mc.id)';
+        return self::helpersReady() ? "COALESCE($lead, (SELECT h.maintenance_job_id FROM maintenance_job_helpers h WHERE h.active_mechanic=mc.id))" : $lead;
+    }
+    private static function helpersReady(): bool { Actions::load('Maintenance'); return Maintenance::helpersReady(db()); }
 
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'mechanics'), 'Not allowed.', 403);

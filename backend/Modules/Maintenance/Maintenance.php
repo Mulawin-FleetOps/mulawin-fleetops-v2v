@@ -55,6 +55,10 @@ final class Maintenance {
                 LEFT JOIN incidents i ON i.id=m.incident_id LEFT JOIN trips t ON t.id=m.trip_id
                 ORDER BY FIELD(m.status,'Reported','Under Inspection','Under Repair','Completed','Cancelled'), m.id DESC LIMIT 1000"),
         ] + self::formSections($p));
+        // JOB_HELPER_MECHANICS_V1: assisting mechanics of the active repairs (empty until migration 12 is applied).
+        $data['helpers'] = self::helpersReady($p) ? many($p, "SELECT h.maintenance_job_id AS job_id, h.mechanic_id, mc.full_name, mc.mechanic_code FROM maintenance_job_helpers h
+                JOIN mechanics mc ON mc.id=h.mechanic_id WHERE h.released_at IS NULL ORDER BY h.id") : [];
+        $data['helpersReady'] = self::helpersReady($p);
         $data['costTypes'] = self::COST_TYPES;
         $data['priorities'] = self::PRIORITIES;
         $data['can'] = ['act' => hasRole($u, ...self::ACT)];
@@ -91,6 +95,18 @@ final class Maintenance {
             'summary' => fn() => self::overviewSummary($p, $parts),
             'attention' => fn() => self::overviewAttention($p, $parts),
             'activity' => fn() => self::overviewActivity($p, $parts),
+            // STAGE_A_MOTORPOOL_UI: read-only status panels (same values as the Mechanic Masterlist / Truck Masterlist).
+            'crew' => fn() => array_map('intval', one($p, "SELECT COUNT(*) AS active,
+                    COALESCE(SUM(availability='Available'),0) AS available, COALESCE(SUM(availability='Assigned'),0) AS assigned,
+                    COALESCE(SUM(availability='Unavailable'),0) AS unavailable,
+                    (SELECT COUNT(*) FROM mechanic_attendance a JOIN mechanics x ON x.id=a.mechanic_id WHERE a.time_out IS NULL AND x.active=1) AS on_duty
+                FROM mechanics WHERE active=1")),
+            'fleet' => fn() => [
+                'active_trucks' => (int)one($p, 'SELECT COUNT(*) AS n FROM vehicles WHERE active=1')['n'],
+                'in_repair' => many($p, "SELECT v.id AS vehicle_id, v.plate_number, v.truck_number, v.truck_type, m.id AS job_id, m.job_ref, m.status,
+                        (m.status='Completed' AND m.verified_at IS NULL) AS awaiting_verification, m.reported_on
+                    FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id WHERE m.open_key=1 ORDER BY m.reported_on, m.id"),
+            ],
         ] + self::formSections($p));
         $data['can'] = ['act' => hasRole($u, ...self::ACT), 'parts' => $parts, 'requestParts' => hasRole($u, 'motorpool')];
         $data['limits'] = ['attention' => self::OVERVIEW_ATTENTION_LIMIT, 'activity' => self::OVERVIEW_ACTIVITY_LIMIT];
@@ -182,6 +198,8 @@ final class Maintenance {
         $from = $e['from_status']; $to = $e['to_status']; $det = (string)$e['details'];
         if ($to === 'Cancelled') return 'Record cancelled';
         if ($from === null && $to === 'Reported') return str_starts_with($det, 'from incident') ? 'Trip incident reported' : 'Truck issue reported';
+        if (str_starts_with($det, 'assisting mechanic added')) return 'Assisting mechanic added';
+        if (str_starts_with($det, 'assisting mechanic removed')) return 'Assisting mechanic removed';
         if (str_starts_with($det, 'mechanic changed')) return 'Mechanic changed';
         if (str_starts_with($det, 'mechanic assigned')) return 'Mechanic assigned';
         if (str_starts_with($det, 'assessed ')) return 'Incident assessed, mechanic assigned';
@@ -215,6 +233,8 @@ final class Maintenance {
         return match ($action) {
             'report' => self::report($u, $d),
             'assign_mechanic' => self::assignMechanic($u, $d),
+            'helpers_add' => self::helpersAdd($u, $d),
+            'helper_remove' => self::helperRemove($u, $d),
             'assess' => self::assess($u, $d),
             'inspect' => self::inspect($u, $d),
             'add_cost' => self::addCost($u, $d),
@@ -247,7 +267,29 @@ final class Maintenance {
         must((bool)$in, $m['full_name'] . ' is Unavailable (not timed in). The Motorpool Custodian must Time In the mechanic in the Mechanic Masterlist first.', 409);
         $busy = one($p, "SELECT job_ref, id FROM maintenance_jobs WHERE active_mechanic=?", [$mechanicId]);
         must(!$busy || (int)$busy['id'] === (int)$exceptJob, $m['full_name'] . ' is already assigned to ' . ($busy['job_ref'] ?? '') . '. Choose an Available mechanic.', 409);
+        // JOB_HELPER_MECHANICS_V1: an assisting assignment also makes the mechanic busy (on any job, including this one:
+        // remove them as assisting mechanic first before making them the lead).
+        if (self::helpersReady($p)) {
+            $helps = one($p, 'SELECT m.job_ref FROM maintenance_job_helpers h JOIN maintenance_jobs m ON m.id=h.maintenance_job_id WHERE h.active_mechanic=?', [$mechanicId]);
+            must(!$helps, $m['full_name'] . ' is already assisting on ' . ($helps['job_ref'] ?? '') . '. Choose an Available mechanic.', 409);
+        }
         return $m;
+    }
+
+    /** JOB_HELPER_MECHANICS_V1 — true once migration 2026-11-12_12 created maintenance_job_helpers (checked once per request). */
+    private static ?bool $helpersReady = null;
+    public static function helpersReady(PDO $p): bool {
+        return self::$helpersReady ??= (bool)one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='maintenance_job_helpers'");
+    }
+
+    /** Releases every active assisting mechanic of a job (completion, cancellation) and recomputes their availability. */
+    private static function releaseHelpers(PDO $p, int $jobId, int $actor, string $reason): array {
+        if (!self::helpersReady($p)) return [];
+        $ids = array_map('intval', array_column(many($p, 'SELECT mechanic_id FROM maintenance_job_helpers WHERE maintenance_job_id=? AND released_at IS NULL FOR UPDATE', [$jobId]), 'mechanic_id'));
+        if (!$ids) return [];
+        run($p, 'UPDATE maintenance_job_helpers SET released_at=NOW(), released_by=?, release_reason=? WHERE maintenance_job_id=? AND released_at IS NULL', [$actor, cut($reason, 255), $jobId]);
+        foreach ($ids as $mid) self::refreshMechanic($p, $mid);
+        return $ids;
     }
 
     /** Recomputes a mechanic's availability from their active repairs and Time In (no open Time In = Unavailable). */
@@ -255,7 +297,8 @@ final class Maintenance {
         if (!$mechanicId) return;
         $m = one($p, 'SELECT availability FROM mechanics WHERE id=? FOR UPDATE', [$mechanicId]);
         if (!$m) return;
-        $busy = (bool)one($p, 'SELECT id FROM maintenance_jobs WHERE active_mechanic=?', [$mechanicId]);
+        $busy = (bool)one($p, 'SELECT id FROM maintenance_jobs WHERE active_mechanic=?', [$mechanicId])
+            || (self::helpersReady($p) && (bool)one($p, 'SELECT id FROM maintenance_job_helpers WHERE active_mechanic=?', [$mechanicId]));
         $in = (bool)one($p, 'SELECT id FROM mechanic_attendance WHERE mechanic_id=? AND time_out IS NULL', [$mechanicId]);
         run($p, 'UPDATE mechanics SET availability=? WHERE id=?', [$busy ? 'Assigned' : ($in ? 'Available' : 'Unavailable'), $mechanicId]);
     }
@@ -333,6 +376,63 @@ final class Maintenance {
                 ['Assigned mechanic' => $oldMechanic['full_name'] ?? null, 'Repair status' => $j['status']],
                 ['Assigned mechanic' => $m['full_name'], 'Repair status' => $to]);
             return ['message' => $m['full_name'] . ' is assigned to ' . $j['job_ref'] . ($to !== $j['status'] ? ' (Under Inspection).' : '.')];
+        });
+    }
+
+    /**
+     * JOB_HELPER_MECHANICS_V1 — add one or more assisting mechanics to an active repair that already has a lead mechanic.
+     * Same rules as the lead: active masterlist mechanic, timed in, not on another active repair (lead or assisting).
+     * All-or-nothing: one refused mechanic refuses the whole request, so nothing is half-assigned.
+     */
+    private static function helpersAdd(array $u, array $d): array {
+        requireRole($u, ...self::ACT);
+        $id = idField($d, 'job_id');
+        $raw = $d['mechanic_ids'] ?? [];
+        must(is_array($raw) && $raw, 'Choose at least one mechanic.');
+        $ids = array_values(array_unique(array_map('intval', $raw)));
+        must(count($ids) <= 10 && min($ids) > 0, 'Choose valid mechanics (at most 10 at a time).');
+        return transaction(function (PDO $p) use ($u, $id, $ids) {
+            must(self::helpersReady($p), 'Assigning several mechanics needs the pending database update (migration 12). Ask the administrator.', 409);
+            $j = self::lockJob($p, $id);
+            must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
+            must((bool)$j['mechanic_id'], 'Assign the lead mechanic first.', 409);
+            $names = [];
+            sort($ids); // fixed lock order on the mechanic rows (no deadlock between two custodians)
+            foreach ($ids as $mid) {
+                must($mid !== (int)$j['mechanic_id'], 'The lead mechanic is already on this repair.', 409);
+                $m = self::freeMechanic($p, $mid, (int)$j['id']);
+                must((int)$j['mechanic_id'] !== $mid, $m['full_name'] . ' already leads this repair.', 409);
+                // NOW() on both assigned_at and released_at (same clock as the CHECK released_at >= assigned_at).
+                try { run($p, 'INSERT INTO maintenance_job_helpers (maintenance_job_id, mechanic_id, assigned_at, assigned_by) VALUES (?,?,NOW(),?)', [$id, $mid, $u['id']]); }
+                catch (PDOException $e) {
+                    if (str_contains($e->getMessage(), 'Duplicate')) throw new BusinessRuleException($m['full_name'] . ' already has another active repair.', 409);
+                    throw $e;
+                }
+                self::refreshMechanic($p, $mid);
+                self::event($p, $id, $j['status'], $j['status'], $u['id'], 'assisting mechanic added: ' . $m['full_name'], $mid);
+                $names[] = $m['full_name'];
+            }
+            auditWithChanges($p, $u['id'], 'Maintenance', 'job ' . $id, 'assisting mechanics added', $j['job_ref'] . ' + ' . implode(', ', $names), [], ['Assisting mechanics added' => implode(', ', $names)]);
+            return ['message' => implode(', ', $names) . (count($names) > 1 ? ' are' : ' is') . ' now assisting on ' . $j['job_ref'] . '.'];
+        });
+    }
+
+    /** JOB_HELPER_MECHANICS_V1 — remove an assisting mechanic (reason required). The row is kept as history (released_at). */
+    private static function helperRemove(array $u, array $d): array {
+        requireRole($u, ...self::ACT);
+        $id = idField($d, 'job_id'); $mid = idField($d, 'mechanic_id'); $reason = field($d, 'reason', 255);
+        return transaction(function (PDO $p) use ($u, $id, $mid, $reason) {
+            must(self::helpersReady($p), 'Assigning several mechanics needs the pending database update (migration 12).', 409);
+            $j = self::lockJob($p, $id);
+            must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
+            $h = one($p, 'SELECT h.id, mc.full_name FROM maintenance_job_helpers h JOIN mechanics mc ON mc.id=h.mechanic_id WHERE h.maintenance_job_id=? AND h.mechanic_id=? AND h.released_at IS NULL FOR UPDATE', [$id, $mid]);
+            must((bool)$h, 'This mechanic is not assisting on this repair.', 404);
+            run($p, 'UPDATE maintenance_job_helpers SET released_at=NOW(), released_by=?, release_reason=? WHERE id=?', [$u['id'], $reason, $h['id']]);
+            self::refreshMechanic($p, $mid);
+            self::event($p, $id, $j['status'], $j['status'], $u['id'], 'assisting mechanic removed: ' . $h['full_name'] . ': ' . $reason, $mid);
+            auditWithChanges($p, $u['id'], 'Maintenance', 'job ' . $id, 'assisting mechanic removed', $j['job_ref'] . ' - ' . $h['full_name'] . ': ' . $reason,
+                ['Assisting mechanic' => $h['full_name']], ['Assisting mechanic' => null]);
+            return ['message' => $h['full_name'] . ' was removed from ' . $j['job_ref'] . '.'];
         });
     }
 
@@ -426,6 +526,7 @@ final class Maintenance {
             run($p, "UPDATE maintenance_jobs SET status='Completed', repair_performed=?, completed_on=?, remarks=COALESCE(?, remarks), completed_by=?, completed_at=NOW() WHERE id=?",
                 [$performed, $done, $remarks, $u['id'], $id]);
             self::refreshMechanic($p, $j['mechanic_id'] ? (int)$j['mechanic_id'] : null);
+            self::releaseHelpers($p, $id, (int)$u['id'], 'repair completed');
             self::event($p, $id, 'Under Repair', 'Completed', $u['id'], 'corrective action: ' . $performed, $j['mechanic_id'] ? (int)$j['mechanic_id'] : null);
             audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'repair completed', $j['job_ref'] . ': ' . cut($performed, 200));
             $v = one($p, 'SELECT plate_number FROM vehicles WHERE id=?', [$j['vehicle_id']]);
@@ -498,6 +599,7 @@ final class Maintenance {
             run($p, "UPDATE maintenance_jobs SET status='Cancelled', remarks=? WHERE id=?", [cut('Cancelled: ' . $reason, 500), $id]);
             run($p, "UPDATE part_requests SET status='Cancelled' WHERE maintenance_job_id=? AND status='Requested'", [$id]);
             self::refreshMechanic($p, $j['mechanic_id'] ? (int)$j['mechanic_id'] : null);
+            self::releaseHelpers($p, $id, (int)$u['id'], 'record cancelled');
             self::event($p, $id, $j['status'], 'Cancelled', $u['id'], $reason);
             $now = FleetState::reconcile($p, (int)$j['vehicle_id'], $u['id'], 'Maintenance cancelled ' . $j['job_ref']);
             audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'maintenance cancelled', $j['job_ref'] . ': ' . $reason);
@@ -523,6 +625,11 @@ final class Maintenance {
         if ($arrival) foreach (Files::of($p, 'trip', (int)$arrival['trip_id']) as $doc) if ($doc['category'] === 'Arrival Inspection Photo') $docs[] = $doc;
         return [
             'job' => $j, 'incident' => $inc, 'arrival' => $arrival, 'documents' => $docs,
+            // JOB_HELPER_MECHANICS_V1: assisting mechanics, active and past (who assigned / released them and why).
+            'helpers' => self::helpersReady($p) ? many($p, 'SELECT h.mechanic_id, h.assigned_at, h.released_at, h.release_reason, mc.full_name, mc.mechanic_code, au.full_name AS assigned_by_name, ru.full_name AS released_by_name
+                FROM maintenance_job_helpers h JOIN mechanics mc ON mc.id=h.mechanic_id JOIN users au ON au.id=h.assigned_by LEFT JOIN users ru ON ru.id=h.released_by
+                WHERE h.maintenance_job_id=? ORDER BY h.released_at IS NOT NULL, h.id', [$id]) : [],
+            'helpersReady' => self::helpersReady($p),
             'events' => many($p, 'SELECT e.*, u.full_name AS actor, mc.full_name AS mechanic FROM maintenance_events e LEFT JOIN users u ON u.id=e.actor_id LEFT JOIN mechanics mc ON mc.id=e.mechanic_id WHERE e.maintenance_job_id=? ORDER BY e.id', [$id]),
             'history' => many($p, 'SELECT m.id, m.job_ref, m.source, m.problem, m.status, m.reported_on, m.completed_on, mc.full_name AS mechanic FROM maintenance_jobs m LEFT JOIN mechanics mc ON mc.id=m.mechanic_id WHERE m.vehicle_id=? ORDER BY m.id DESC LIMIT 30', [$j['vehicle_id']]),
             'costs' => many($p, 'SELECT c.*, u.full_name AS recorded_by_name FROM maintenance_costs c JOIN users u ON u.id=c.recorded_by WHERE c.maintenance_job_id=? ORDER BY c.id', [$id]),

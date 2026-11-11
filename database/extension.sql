@@ -982,3 +982,25 @@ CREATE TABLE attendance_daily (
 -- Migrations 2026-11-10_10 and 2026-11-10_11: their tables are created ABOVE, so a fresh install is already complete.
 -- Recorded here, AFTER the tables, so a failure while creating them can never leave a false migration record.
 INSERT INTO schema_migrations (id) VALUES ('2026-11-10_10_mechanic_attendance'), ('2026-11-10_11_daily_attendance');
+
+-- Migration 2026-11-12_12 (JOB_HELPER_MECHANICS_V1): assisting mechanics of a repair job. maintenance_jobs.mechanic_id stays the lead.
+CREATE TABLE maintenance_job_helpers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  maintenance_job_id INT NOT NULL,
+  mechanic_id INT NOT NULL,
+  assigned_at DATETIME NOT NULL,
+  assigned_by INT NOT NULL,
+  released_at DATETIME NULL,
+  released_by INT NULL,
+  release_reason VARCHAR(255) NULL,
+  active_mechanic INT AS (CASE WHEN released_at IS NULL THEN mechanic_id ELSE NULL END) STORED COMMENT 'one active assisting assignment per mechanic',
+  UNIQUE KEY uq_mjh_one_active (active_mechanic),
+  INDEX idx_mjh_job (maintenance_job_id, released_at),
+  INDEX idx_mjh_mechanic (mechanic_id, assigned_at),
+  CONSTRAINT fk_mjh_job FOREIGN KEY (maintenance_job_id) REFERENCES maintenance_jobs(id),
+  CONSTRAINT fk_mjh_mechanic FOREIGN KEY (mechanic_id) REFERENCES mechanics(id),
+  CONSTRAINT fk_mjh_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id),
+  CONSTRAINT fk_mjh_released_by FOREIGN KEY (released_by) REFERENCES users(id),
+  CONSTRAINT chk_mjh_release CHECK (released_at IS NULL OR (released_at >= assigned_at AND released_by IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_migrations (id) VALUES ('2026-11-12_12_job_helper_mechanics');

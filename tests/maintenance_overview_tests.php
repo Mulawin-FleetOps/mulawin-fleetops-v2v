@@ -301,7 +301,7 @@ $before = [$snap(), $snapRows()];
 foreach ([$mp, $ops, $adm, $aud] as $u) $ov($u);
 ok([$snap(), $snapRows()] === $before, 'reading the overview (4 roles) writes nothing');
 $rm = Maintenance::read($mp, 'maintenance', []);
-ok(array_keys($rm) === ['_errors', 'jobs', 'trucks', 'mechanics', 'costTypes', 'priorities', 'can'] && $rm['can'] === ['act' => true], 'Repair Management page data unchanged (same keys)', json_encode(array_keys($rm)));
+ok(array_keys($rm) === ['_errors', 'jobs', 'trucks', 'mechanics', 'helpers', 'helpersReady', 'costTypes', 'priorities', 'can'] && $rm['can'] === ['act' => true], 'Repair Management page data: same keys plus helpers / helpersReady (JOB_HELPER_MECHANICS_V1, additive)', json_encode(array_keys($rm)));
 ok(array_key_exists('other_cost', $rm['jobs'][0]) && array_key_exists('parts_cost', $rm['jobs'][0]) && array_key_exists('open_job', $rm['trucks'][0]) && array_key_exists('on_road', $rm['trucks'][0]), 'Repair Management rows keep their fields');
 $mode = (string)$p->query('SELECT @@SESSION.sql_mode')->fetchColumn();
 $p->exec("SET SESSION sql_mode = CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'ONLY_FULL_GROUP_BY')");

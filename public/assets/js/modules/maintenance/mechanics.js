@@ -70,7 +70,8 @@ App.page('mechanics', {
     const quickTabs = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Mechanic availability shortcuts">
       ${quickStatuses.map(([value, label]) => `<button type="button" class="btn btn-sm ${String(q.inactive ? '__inactive__' : (q.availability || '')) === value ? 'btn-primary' : 'btn-outline-secondary'}" data-mechanic-quick="${UI.esc(value)}" aria-pressed="${String(q.inactive ? '__inactive__' : (q.availability || '')) === value}">${UI.esc(label)}</button>`).join('')}
     </div>`;
-    ctx.el.innerHTML = UI.statusStrip([
+    if (UI.canGo('mechanic_attendance')) UI.tool(ctx, 'Mechanic attendance', () => App.go('mechanic_attendance'), 'bi-clock-history');
+    ctx.el.innerHTML = UI.crumb('maintenance_overview', 'Maintenance Overview') + UI.statusStrip([
       { label: 'Active mechanics', value: active.length },
       { label: 'Available', value: n('Available'), color: 'green' },
       { label: 'Assigned to a repair', value: n('Assigned'), color: 'blue' },
@@ -146,29 +147,42 @@ App.page('mechanic_attendance', {
       { name: 'from', label: 'Sessions from', type: 'date', col: 6 },
       { name: 'to', label: 'Sessions to', type: 'date', col: 6 },
     ];
-    ctx.el.innerHTML = UI.statusStrip(cards) + UI.filterModal(ctx, filters, { hint: 'Showing all active mechanics and today\'s sessions.', note: `Sessions: at most ${range.max_days || 62} days at a time.` });
+    // STAGE_A_MOTORPOOL_UI: icon tiles (same values / links as the cards above) and a back link.
+    const tileIcons = ['bi-clock-history', 'bi-person-check', 'bi-wrench-adjustable', 'bi-person-dash'];
+    const tones = ['green', 'green', 'blue', 'red'];
+    const tiles = cards.map((c, i) => ({ ...c, icon: tileIcons[i], tone: c.value ? tones[i] : 'gray' }));
+    ctx.el.innerHTML = `<div class="mp-ws">${UI.crumb('maintenance_overview', 'Maintenance Overview')}${UI.kpiTiles(tiles)}</div>`
+      + UI.filterModal(ctx, filters, { hint: 'Showing all active mechanics and today\'s sessions.', note: `Sessions: at most ${range.max_days || 62} days at a time.` });
 
     // Board of active mechanics.
     const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
     const rows = board.filter(m => !duty || (duty === 'in' ? !!m.open_time_in : !m.open_time_in))
       .map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
-    const cols = [
-      ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}${m.specialization ? ' · ' + UI.esc(m.specialization) : ''}</div>`],
-      ['Attendance', 'open_time_in', (v, m) => v ? `<span class="badge-s green">Timed In</span><div class="cell-sub">since ${UI.datetime(v)}</div>`
-        : (m.last_time_out ? `<span class="badge-s amber">Timed Out</span><div class="cell-sub">${UI.datetime(m.last_time_out)}</div>` : '<span class="text-muted">Not timed in</span>')],
-      ['On duty', 'minutes_on_duty', (v, m) => m.open_time_in ? MechAtt.duration(v) : '<span class="text-muted">—</span>'],
-      ['Availability', 'availability', 'badge'],
-      ['Current repair', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck || '')} · ${UI.esc(m.job_status || '')}</div>` : '<span class="text-muted">—</span>'],
-      ...(isAdmin ? [['Daily mark (today)', 'daily_mark', (v) => v ? UI.badge(v) : '<span class="text-muted">Not marked</span>']] : []),
-    ];
-    const box = document.createElement('div');
+    // Live attendance board: one card per active mechanic. Buttons call the existing actions only
+    // (MechUI.toggle -> Mechanics.time_in / time_out, server-checked; MechUI.open -> Mechanics.details).
+    const box = document.createElement('section');
+    box.className = 'panel mp-ws';
+    const card = (m, i) => {
+      const on = !!m.open_time_in;
+      return `<article class="mech-card ${on ? 'is-on' : ''}" data-i="${i}">
+        <header><div class="mech-avatar" aria-hidden="true">${UI.esc((m.full_name || '?').replace(/[^A-Za-z ,]/g, '').split(',').map(x => x.trim()[0] || '').reverse().join(''))}</div>
+          <div class="mech-id"><b>${UI.esc(m.full_name)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}${m.specialization ? ' · ' + UI.esc(m.specialization) : ''}</div></div></header>
+        <div class="mech-state">${on ? `<span class="badge-s green">Timed in</span> <span class="mech-dur"><i class="bi bi-stopwatch"></i> ${MechAtt.duration(m.minutes_on_duty)}</span>`
+          : (m.last_time_out ? `<span class="badge-s amber">Timed out</span> <span class="cell-sub">${UI.datetime(m.last_time_out)}</span>` : '<span class="badge-s gray">Not timed in</span>')}
+          ${UI.badge(m.availability)}</div>
+        <div class="mech-job">${m.job_ref ? `<i class="bi bi-wrench-adjustable"></i> ${UI.esc(m.job_ref)} · ${UI.esc(m.job_truck || '')} <span class="cell-sub">${UI.esc(m.job_status || '')}</span>` : '<span class="text-muted">No current repair</span>'}</div>
+        ${isAdmin ? `<div class="cell-sub">Daily mark today: ${m.daily_mark ? UI.badge(m.daily_mark) : 'not marked'}</div>` : ''}
+        <footer>${can.edit ? `<button type="button" class="btn btn-sm ${on ? 'btn-outline-secondary' : 'btn-success'}" data-toggle><i class="bi bi-clock"></i> ${on ? 'Time Out' : 'Time In'}</button>` : ''}
+          <button type="button" class="btn btn-sm btn-outline-primary" data-open>Open</button></footer></article>`;
+    };
+    box.innerHTML = `<div class="panel-head"><h2 class="panel-title"><i class="bi bi-people"></i> Mechanics today</h2><span class="text-muted small">${rows.length} shown</span></div>
+      <div class="panel-body">${rows.length ? `<div class="mech-grid">${rows.map(card).join('')}</div>`
+        : `<div class="mo-empty">${board.length ? 'No mechanic matches the filter.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.'}</div>`}</div>`;
     ctx.el.append(box);
-    box.innerHTML = UI.table(cols, rows, {
-      title: 'Mechanics today',
-      actions: (m) => (can.edit ? UI.btn('toggle', m.open_time_in ? 'Time Out' : 'Time In', m.open_time_in ? 'outline-secondary' : 'success', 'bi-clock') + ' ' : '') + UI.btn('view', 'Open'),
-      onAction: (a, m, b) => (a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id)),
-      rowClick: (m) => MechUI.open(m.id),
-      empty: board.length ? 'No mechanic matches the filter.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.',
+    box.querySelectorAll('.mech-card').forEach(el => {
+      const m = rows[+el.dataset.i];
+      el.querySelector('[data-toggle]')?.addEventListener('click', (e) => MechUI.toggle(m, e.currentTarget));
+      el.querySelector('[data-open]').addEventListener('click', () => MechUI.open(m.id));
     });
 
     // Session history for the chosen dates.
