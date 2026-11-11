@@ -51,6 +51,8 @@ final class Access {
         'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
         // MAINTENANCE_OVERVIEW_PHASE1_V1: Motorpool wording (labels only; same pages and permissions).
         'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management'],
+        // STAGE_B_PURCHASING_UI: concise Purchasing workspace labels (labels only; same pages and permissions).
+        'purchasing' => ['purchasing_overview' => 'Overview', 'purchasing_reports' => 'Reports'],
     ];
 
     public static function pages(): array {
