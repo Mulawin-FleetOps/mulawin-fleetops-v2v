@@ -167,8 +167,16 @@ App.page('maintenance', {
   subtitle: 'Truck problems from the garage or from trip incidents: assessment, mechanic, repair, parts requests and verification.',
   render(ctx) {
     const d = MaintUI.data = ctx.data;
+    // MOTORPOOL_WORKSPACE_PHASE1: the former "Parts requests" tab is now its own page. Old links / remembered tab go there.
+    try {
+      if (d.can.act && sessionStorage.getItem('tab:maintenance') === 'parts') {
+        sessionStorage.removeItem('tab:maintenance');
+        if (UI.canGo('mp_parts_requests')) return App.go('mp_parts_requests');
+      }
+    } catch { /* storage unavailable: stay on Repair Management */ }
     if (d.can.act) UI.tool(ctx, 'Report truck problem', () => MaintUI.report(), 'bi-plus-lg', 'primary');
     if (d.can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-box-seam');
+    if (d.can.act && UI.canGo('mp_parts_requests')) UI.tool(ctx, 'Parts requests', () => App.go('mp_parts_requests'), 'bi-list-check');
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     const open = jobs.filter(j => !['Cancelled'].includes(j.status) && !j.verified_at);
     const by = (s) => open.filter(j => j.status === s);
@@ -196,25 +204,109 @@ App.page('maintenance', {
       ['open', `Open records <span class="tab-count">${open.length}</span>`, () => viewBar + UI.table(cols, openShown, { ...opt, empty: view ? 'No open record matches this filter.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
       ['done', 'Completed repairs', () => UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
       ['all', 'All records', () => UI.table(cols, jobs, { ...opt })],
-      // Parts requests belong to Motorpool's repair workflow; other roles that can view repairs do not get this tab.
-      ...(d.can.act ? [
-      ['parts', 'Parts requests', (body) => {
-        body.innerHTML = '<div class="text-muted small p-3"><span class="spinner-border spinner-border-sm"></span> Loading…</div>';
-        App.api('Purchasing.my_requests').then(r => {
-          const rows = r.requests.map(q => ({ ...q, progress: q.released_units + ' of ' + q.requested_units + ' released' }));
-          body.innerHTML = UI.table([['Request', 'request_ref'], ['Request date', 'created_at', 'date'], ['Truck', 'plate_number'], ['Repair record', 'job_ref'], ['Items', 'items'],
-            ['Progress', 'progress'], ['Status', 'status', 'badge']], rows,
-            { title: 'Parts requests of this department', actions: (q) => UI.btn('view', 'Details') + (q.status === 'Requested' && d.can.act ? UI.btn('cancel', 'Cancel', 'outline-danger') : ''),
-              onAction: (a, q) => a === 'view' ? MaintUI.openRequest(q) : UI.confirmAction('Cancel ' + UI.esc(q.request_ref), 'The request will not be processed.', 'Purchasing.request_cancel', { request_id: q.id }, { danger: true }),
-              empty: 'No parts requests yet. Use Request parts on a repair record.' });
-          UI.activate(body);
-        }).catch(e => { body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}</div></div>`; });
-      }],
-      ] : []),
+      // Parts requests are listed on their own page (mp_parts_requests); "Request parts" stays on every repair record.
     ], view ? 'open' : null, { forceActive: !!view });
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
     if (once.open) MaintUI.open(once.open);
+  },
+});
+
+/* MOTORPOOL_WORKSPACE_PHASE1 — Parts Requests (Motorpool Custodian).
+   Data: Purchasing::read('mp_parts_requests') — the department's requests, status counts, and what the
+   Request parts form needs (trucks, open repairs). No costs, stock counts, budget, supplier or purchase-order data.
+   Actions (existing, server-checked): Purchasing.request_create (form), Purchasing.request_details (Details),
+   Purchasing.request_cancel (only while Requested). Releasing stock stays with the Purchasing Officer.
+   URL filter: ?status=<key> with key = open | requested | partially_released | not_available | released | cancelled,
+   ?vehicle_id=<truck id>. Every card, link and the filter modal use these same keys. */
+const MpParts = {
+  /** URL key -> database status. 'open' = still waiting for parts. */
+  STATUS: { requested: 'Requested', partially_released: 'Partially Released', not_available: 'Not Available', released: 'Released', cancelled: 'Cancelled' },
+  OPEN: ['Requested', 'Partially Released', 'Not Available'],
+  match(r, key) {
+    if (!key) return true;
+    return key === 'open' ? MpParts.OPEN.includes(r.status) : r.status === MpParts.STATUS[key];
+  },
+  nextStep(r) {
+    return {
+      'Requested': 'Waiting for the Purchasing Officer to check the stock and release.',
+      'Partially Released': 'Part of the items were released; the rest waits for stock.',
+      'Not Available': 'No stock. Follow up with the Purchasing Officer.',
+      'Released': 'All items released.',
+      'Cancelled': 'Cancelled; it will not be processed.',
+    }[r.status] || '';
+  },
+};
+
+App.page('mp_parts_requests', {
+  title: 'Parts Requests',
+  subtitle: 'Request parts for repairs and follow their release by the Purchasing Officer.',
+  render(ctx) {
+    const d = MaintUI.data = ctx.data, q = ctx.query, can = d.can || {};
+    const s = d.summary && !Array.isArray(d.summary) ? d.summary : null;
+    const n = (k) => s ? +s[k] || 0 : '—';
+    if (can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-plus-lg', 'primary');
+    const trucks = Array.isArray(d.trucks) ? d.trucks : [];
+    const rows = (Array.isArray(d.requests) ? d.requests : []).map(r => ({ ...r,
+      progress: `${UI.num(+r.released_units)} of ${UI.num(+r.requested_units)} released`, next: MpParts.nextStep(r) }));
+    const key = q.status === 'open' || MpParts.STATUS[q.status] ? q.status : '';
+    const truck = q.vehicle_id ? String(q.vehicle_id) : '';
+    const shown = rows.filter(r => MpParts.match(r, key) && (!truck || String(r.vehicle_id) === truck));
+
+    // KPI cards: each one opens this page filtered by its status key.
+    const card = (label, k, color, note) => ({ label, value: n(k), color: s && s[k] ? color : '', note, go: 'mp_parts_requests?status=' + k });
+    const cards = [
+      card('Requested', 'requested', 'amber', 'waiting for Purchasing'),
+      card('Partially released', 'partially_released', 'blue', 'rest waits for stock'),
+      card('Not available', 'not_available', 'red', 'no stock: follow up'),
+      card('Released', 'released', 'green', 'all items released'),
+    ];
+    // Filter modal fields: names are the URL parameters (status, vehicle_id).
+    const statusOptions = [['open', 'Open (requested, partially released, not available)']].concat(Object.entries(MpParts.STATUS));
+    const truckOptions = trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]);
+    const filters = [
+      { name: 'status', label: 'Status', type: 'select', col: 12, options: statusOptions },
+      { name: 'vehicle_id', label: 'Truck', type: 'select', col: 12, options: truckOptions },
+    ];
+    ctx.el.innerHTML = UI.statusStrip(cards) + UI.filterModal(ctx, filters, { hint: 'Showing all parts requests of the Motorpool.' });
+
+    const cols = [
+      ['Request', 'request_ref', (v, r) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.date(r.created_at)}</div>`],
+      ['Truck', 'plate_number'],
+      ['Repair record', 'job_ref', (v) => v ? UI.esc(v) : '<span class="text-muted">—</span>'],
+      ['Items', 'items', (v) => `<span class="cell-clip">${UI.esc(v || '')}</span>`],
+      ['Progress', 'progress'],
+      ['Status', 'status', 'badge'],
+      ['Request date', 'created_at', 'date'],
+      ['Purpose', 'purpose'],
+      ['Next step', 'next'],
+      ['Notes from Purchasing', 'notes'],
+    ];
+    const cancel = (r) => UI.confirmAction('Cancel ' + UI.esc(r.request_ref), 'The request will not be processed by Purchasing.',
+      'Purchasing.request_cancel', { request_id: r.id }, { danger: true, submit: 'Cancel request' });
+    const opt = {
+      actions: (r) => UI.btn('view', 'Details') + (r.status === 'Requested' && can.act ? UI.btn('cancel', 'Cancel', 'outline-danger') : ''),
+      onAction: (a, r) => (a === 'cancel' ? cancel(r) : MaintUI.openRequest(r)),
+      rowClick: (r) => MaintUI.openRequest(r),
+    };
+    const box = document.createElement('div');
+    ctx.el.append(box);
+    if (key || truck) {
+      box.innerHTML = UI.table(cols, shown, { ...opt, title: 'Parts requests (filtered)', empty: 'No parts request matches this filter.' });
+    } else {
+      const open = rows.filter(r => MpParts.OPEN.includes(r.status));
+      UI.tabs(box, [
+        ['open', `Open <span class="tab-count">${open.length}</span>`, () => UI.table(cols, open, { ...opt, empty: 'No open parts request. Use Request parts when a repair needs parts.' })],
+        ['released', 'Released', () => UI.table(cols, rows.filter(r => r.status === 'Released'), { ...opt, empty: 'No released request yet.' })],
+        ['cancelled', 'Cancelled', () => UI.table(cols, rows.filter(r => r.status === 'Cancelled'), { ...opt, empty: 'No cancelled request.' })],
+        ['all', 'All requests', () => UI.table(cols, rows, { ...opt, empty: 'No parts requests yet. Use Request parts on a repair record.' })],
+      ]);
+    }
+    const once = UI.takeQuery(ctx, 'open');
+    if (once.open) {
+      const r = rows.find(x => String(x.id) === String(once.open));
+      if (r) MaintUI.openRequest(r);
+    }
   },
 });
 
@@ -239,7 +331,7 @@ const MaintOverview = {
     const tag = r.source === 'Incident' && r.kind === 'job' ? `<span class="mo-tag">Trip incident${r.incident_ref ? ' ' + UI.esc(r.incident_ref) : ''}</span>` : '';
     const viewBtn = r.job_id
       ? `<button type="button" class="btn btn-sm btn-outline-primary" data-open-job="${+r.job_id}">View repair</button>`
-      : (can.parts ? `<button type="button" class="btn btn-sm btn-outline-primary" data-go="${can.requestParts ? 'maintenance#_=parts' : 'parts_requests'}">View request</button>` : '');
+      : (can.parts ? `<button type="button" class="btn btn-sm btn-outline-primary" data-go="${can.requestParts ? 'mp_parts_requests?status=not_available' : 'parts_requests'}">View request</button>` : '');
     return `<li class="mo-item">
       <div class="mo-item-main">
         <div class="mo-item-top">${MaintOverview.truck(r)} <span class="mo-ref">${UI.esc(ref)}</span> ${tag}</div>
@@ -274,7 +366,7 @@ App.page('maintenance_overview', {
       { label: 'Under repair', value: s ? n('under_inspection') + n('under_repair') : '—', note: s ? `${n('under_inspection')} under inspection · ${n('under_repair')} under repair` : '', color: s && (s.under_inspection + s.under_repair) ? 'blue' : '', go: 'maintenance?view=in_progress' },
       { label: 'For verification', value: n('for_verification'), note: 'repair completed, truck still out of service', color: s && s.for_verification ? 'amber' : '', go: 'maintenance?view=verify' },
     ];
-    if (can.parts) cards.push({ label: 'Pending parts requests', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partially released` : '', color: s && s.pending_parts ? 'blue' : '', go: can.requestParts ? 'maintenance#_=parts' : 'parts_requests' });
+    if (can.parts) cards.push({ label: 'Pending parts requests', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partially released` : '', color: s && s.pending_parts ? 'blue' : '', go: can.requestParts ? 'mp_parts_requests?status=open' : 'parts_requests' });
 
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
@@ -302,7 +394,8 @@ App.page('maintenance_overview', {
               ${can.act ? '<button type="button" class="btn btn-primary" data-q="report"><i class="bi bi-plus-lg"></i> Report truck issue</button>' : ''}
               <button type="button" class="btn btn-outline-secondary" data-go="maintenance"><i class="bi bi-wrench-adjustable"></i> Repair management</button>
               <button type="button" class="btn btn-link mo-quick-link" data-go="maint_history"><i class="bi bi-clock-history"></i> Maintenance history (completed repairs)</button>
-              ${can.requestParts ? '<button type="button" class="btn btn-link mo-quick-link" data-go="maintenance#_=parts"><i class="bi bi-box-seam"></i> Parts requests</button>' : ''}
+              ${can.requestParts ? '<button type="button" class="btn btn-link mo-quick-link" data-go="mp_parts_requests"><i class="bi bi-box-seam"></i> Parts requests</button>' : ''}
+              ${UI.canGo('mechanic_attendance') ? '<button type="button" class="btn btn-link mo-quick-link" data-go="mechanic_attendance"><i class="bi bi-clock-history"></i> Mechanic attendance (Time In / Time Out)</button>' : ''}
             </div></section>
           <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-activity"></i> Recent maintenance activity</h2></div>
             <div class="panel-body flush">${activityBody}</div></section>

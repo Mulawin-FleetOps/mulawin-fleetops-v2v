@@ -105,3 +105,84 @@ App.page('mechanics', {
     });
   },
 });
+
+/* MOTORPOOL_WORKSPACE_PHASE1 — Mechanic Attendance (Time In / Time Out board + session history).
+   Data: Mechanics::read('mechanic_attendance') — board (active mechanics, open Time In, current repair;
+   Admin only: today's daily Present / Absent mark) and sessions overlapping ?from= / ?to= (default today).
+   Writes: ONLY the existing Mechanics.time_in / Mechanics.time_out through MechUI.toggle (Admin + Motorpool;
+   the server checks the role, an open session, and that a mechanic with an active repair cannot Time Out).
+   Operations Head and Audit see the page read-only. URL filter: ?duty=in|out, ?from=YYYY-MM-DD, ?to=YYYY-MM-DD. */
+const MechAtt = {
+  /** Minutes -> "3h 05m". */
+  duration(min) {
+    const m = Math.max(0, +min || 0), h = Math.floor(m / 60), r = m % 60;
+    return h ? `${h}h ${String(r).padStart(2, '0')}m` : `${r}m`;
+  },
+};
+
+App.page('mechanic_attendance', {
+  title: 'Mechanic Attendance',
+  subtitle: 'Time In and Time Out of the mechanics. Only timed-in mechanics are Available for repairs.',
+  render(ctx) {
+    const d = MechUI.data = ctx.data, q = ctx.query, can = d.can || {};
+    const board = Array.isArray(d.board) ? d.board : [];
+    const sessions = Array.isArray(d.sessions) ? d.sessions : [];
+    const range = d.range || {};
+    const isAdmin = App.me.user.role === 'admin';
+    if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
+    if (UI.canGo('mechanics')) UI.tool(ctx, 'Mechanic masterlist', () => App.go('mechanics'), 'bi-person-gear');
+
+    // KPI cards: same availability values as the Mechanic Masterlist (mechanics.availability of active mechanics).
+    const onDuty = board.filter(m => m.open_time_in);
+    const count = (s) => board.filter(m => m.availability === s).length;
+    const cards = [
+      { label: 'On duty now', value: onDuty.length, note: 'timed in', color: onDuty.length ? 'green' : '', go: 'mechanic_attendance?duty=in' },
+      { label: 'Available', value: count('Available'), note: 'can take a repair', color: 'green', go: 'mechanics?availability=Available' },
+      { label: 'Assigned to a repair', value: count('Assigned'), color: 'blue', go: 'mechanics?availability=Assigned' },
+      { label: 'Unavailable', value: count('Unavailable'), note: 'not timed in', color: count('Unavailable') ? 'red' : '', go: 'mechanics?availability=Unavailable' },
+    ];
+    const filters = [
+      { name: 'duty', label: 'Board: show', type: 'select', col: 12, options: [['in', 'Timed in only'], ['out', 'Not timed in only']] },
+      { name: 'from', label: 'Sessions from', type: 'date', col: 6 },
+      { name: 'to', label: 'Sessions to', type: 'date', col: 6 },
+    ];
+    ctx.el.innerHTML = UI.statusStrip(cards) + UI.filterModal(ctx, filters, { hint: 'Showing all active mechanics and today\'s sessions.', note: `Sessions: at most ${range.max_days || 62} days at a time.` });
+
+    // Board of active mechanics.
+    const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
+    const rows = board.filter(m => !duty || (duty === 'in' ? !!m.open_time_in : !m.open_time_in))
+      .map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
+    const cols = [
+      ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}${m.specialization ? ' · ' + UI.esc(m.specialization) : ''}</div>`],
+      ['Attendance', 'open_time_in', (v, m) => v ? `<span class="badge-s green">Timed In</span><div class="cell-sub">since ${UI.datetime(v)}</div>`
+        : (m.last_time_out ? `<span class="badge-s amber">Timed Out</span><div class="cell-sub">${UI.datetime(m.last_time_out)}</div>` : '<span class="text-muted">Not timed in</span>')],
+      ['On duty', 'minutes_on_duty', (v, m) => m.open_time_in ? MechAtt.duration(v) : '<span class="text-muted">—</span>'],
+      ['Availability', 'availability', 'badge'],
+      ['Current repair', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck || '')} · ${UI.esc(m.job_status || '')}</div>` : '<span class="text-muted">—</span>'],
+      ...(isAdmin ? [['Daily mark (today)', 'daily_mark', (v) => v ? UI.badge(v) : '<span class="text-muted">Not marked</span>']] : []),
+    ];
+    const box = document.createElement('div');
+    ctx.el.append(box);
+    box.innerHTML = UI.table(cols, rows, {
+      title: 'Mechanics today',
+      actions: (m) => (can.edit ? UI.btn('toggle', m.open_time_in ? 'Time Out' : 'Time In', m.open_time_in ? 'outline-secondary' : 'success', 'bi-clock') + ' ' : '') + UI.btn('view', 'Open'),
+      onAction: (a, m, b) => (a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id)),
+      rowClick: (m) => MechUI.open(m.id),
+      empty: board.length ? 'No mechanic matches the filter.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.',
+    });
+
+    // Session history for the chosen dates.
+    const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
+    const hist = document.createElement('div');
+    hist.className = 'mt-3';
+    ctx.el.append(hist);
+    hist.innerHTML = UI.table([
+      ['Mechanic', 'full_name', (v, s) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(s.mechanic_code)}</div>`],
+      ['Time In', 'time_in', 'datetime'],
+      ['Time Out', 'time_out', (v) => v ? UI.datetime(v) : '<span class="badge-s green">Still timed in</span>'],
+      ['Duration', 'minutes', (v) => MechAtt.duration(v)],
+      ['Timed in by', 'time_in_by'],
+      ['Timed out by', 'time_out_by'],
+    ], sessions, { title: 'Time In / Time Out sessions · ' + UI.esc(label), showDates: true, empty: 'No Time In recorded for these dates.' });
+  },
+});

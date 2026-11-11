@@ -28,15 +28,16 @@ final class Access {
     private const NAV_SECTIONS = [
         'operations_head' => [
             'funds' => 'Operations', 'maintenance_overview' => 'Operations', 'maintenance' => 'Operations', 'mechanics' => 'Operations',
+            'mechanic_attendance' => 'Operations',
         ],
         'car_carrier_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
         'container_wingvan_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
-        'motorpool' => ['trucks' => 'Maintenance', 'mechanics' => 'Maintenance'],
+        'motorpool' => ['trucks' => 'Maintenance', 'mechanics' => 'Maintenance', 'mechanic_attendance' => 'Maintenance'],
         'finance' => ['purchase_orders' => 'Accounting', 'purchasing_reports' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
         'billing' => ['trips' => 'Billing', 'clients' => 'Billing', 'routes' => 'Billing'],
         'audit' => [
             'trips' => 'Records', 'trucks' => 'Records', 'crew' => 'Records',
-            'clients' => 'Records', 'routes' => 'Records', 'mechanics' => 'Records',
+            'clients' => 'Records', 'routes' => 'Records', 'mechanics' => 'Records', 'mechanic_attendance' => 'Records',
             'maintenance_overview' => 'Records', 'maintenance' => 'Records', 'maint_history' => 'Records', 'funds' => 'Records',
             'parts_requests' => 'Records', 'purchase_orders' => 'Records', 'inventory' => 'Records',
             'stock_movements' => 'Records', 'purchasing_reports' => 'Records',
@@ -75,6 +76,10 @@ final class Access {
                               ['admin', 'operations_head', 'billing', 'finance', 'audit']],
             'mechanics'   => ['Mechanic Masterlist', 'bi-person-gear', 'Masterlists', 'Mechanics', 'maintenance/mechanics',
                               ['admin', 'operations_head', 'motorpool', 'audit']],
+            // MOTORPOOL_WORKSPACE_PHASE1: Time In / Time Out board + session history. Same roles as the Mechanic Masterlist;
+            // writes go only through the existing Mechanics.time_in / time_out (Admin + Motorpool).
+            'mechanic_attendance' => ['Mechanic Attendance', 'bi-clock-history', 'Masterlists', 'Mechanics', 'maintenance/mechanics',
+                              ['admin', 'operations_head', 'motorpool', 'audit']],
 
             // MAINTENANCE_OVERVIEW_PHASE1_V1: read-only landing page; same roles as Corrective Maintenance.
             'maintenance_overview' => ['Maintenance Overview', 'bi-speedometer2', 'Maintenance', 'Maintenance', 'maintenance/maintenance',
@@ -83,6 +88,10 @@ final class Access {
                               ['admin', 'operations_head', 'motorpool', 'audit']],
             'maint_history' => ['Maintenance History', 'bi-clock-history', 'Maintenance', 'Maintenance', 'maintenance/history',
                               ['admin', 'operations_head', 'motorpool', 'audit']],
+            // MOTORPOOL_WORKSPACE_PHASE1: Motorpool's own parts requests (request, track, cancel). Served by Purchasing::read
+            // with identification and availability labels only: no costs, stock counts, budget, supplier or PO data.
+            'mp_parts_requests' => ['Parts Requests', 'bi-box-seam', 'Maintenance', 'Purchasing', 'maintenance/maintenance',
+                              ['motorpool']],
 
             // Purchasing workspace (replaces the combined "Parts & Purchasing" page). The five Purchasing pages share
             // one backend module and one screen file. Purchasing Officer: all pages. Finance: Purchase Orders (approvals)

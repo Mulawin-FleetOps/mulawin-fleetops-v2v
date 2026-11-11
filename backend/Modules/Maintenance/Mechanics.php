@@ -27,6 +27,7 @@ final class Mechanics {
 
     public static function read(array $u, string $page, array $q): array {
         $p = db();
+        if ($page === 'mechanic_attendance') return self::attendancePage($u, $p, $q);
         $data = readSections([
             'mechanics' => fn() => many($p, "SELECT mc.*, m.id AS job_id, m.job_ref, m.status AS job_status, v.plate_number AS job_truck,
                     (SELECT COUNT(*) FROM maintenance_jobs x WHERE x.mechanic_id=mc.id AND x.status='Completed') AS completed_jobs,
@@ -36,6 +37,51 @@ final class Mechanics {
                 FROM mechanics mc LEFT JOIN maintenance_jobs m ON m.active_mechanic=mc.id LEFT JOIN vehicles v ON v.id=m.vehicle_id
                 ORDER BY mc.active DESC, mc.full_name"),
         ]);
+        $data['can'] = ['edit' => hasRole($u, ...self::EDIT)];
+        return $data;
+    }
+
+    /**
+     * MOTORPOOL_WORKSPACE_PHASE1 — Mechanic Attendance page (read only).
+     *   board     active mechanics: availability, open Time In, current repair (+ Admin only: the daily Present/Absent mark of today, information only)
+     *   sessions  Time In / Time Out sessions that overlap the chosen dates (query from / to, default today, at most 62 days)
+     * Writes stay in time_in / time_out below: this page adds no new way to change attendance or availability.
+     */
+    private const ATTENDANCE_MAX_DAYS = 62;
+
+    private static function attendancePage(array $u, PDO $p, array $q): array {
+        $today = date('Y-m-d');
+        $day = function (string $key, string $default) use ($q): string {
+            $v = (string)($q[$key] ?? '');
+            $d = $v !== '' ? DateTimeImmutable::createFromFormat('!Y-m-d', $v) : false;
+            return ($d && $d->format('Y-m-d') === $v) ? $v : $default;
+        };
+        $from = $day('from', $today); $to = $day('to', $from);
+        if ($to < $from) [$from, $to] = [$to, $from];
+        $maxFrom = (new DateTimeImmutable($to))->modify('-' . (self::ATTENDANCE_MAX_DAYS - 1) . ' days')->format('Y-m-d');
+        if ($from < $maxFrom) $from = $maxFrom;
+        $end = (new DateTimeImmutable($to))->modify('+1 day')->format('Y-m-d');
+        $data = readSections([
+            'board' => fn() => many($p, "SELECT mc.id, mc.mechanic_code, mc.full_name, mc.specialization, mc.availability,
+                    o.time_in AS open_time_in, TIMESTAMPDIFF(MINUTE, o.time_in, NOW()) AS minutes_on_duty,
+                    (SELECT lo.time_out FROM mechanic_attendance lo WHERE lo.mechanic_id=mc.id AND lo.time_out IS NOT NULL ORDER BY lo.id DESC LIMIT 1) AS last_time_out,
+                    m.id AS job_id, m.job_ref, m.status AS job_status, v.plate_number AS job_truck, ad.status AS daily_mark
+                FROM mechanics mc
+                LEFT JOIN mechanic_attendance o ON o.mechanic_id=mc.id AND o.time_out IS NULL
+                LEFT JOIN maintenance_jobs m ON m.active_mechanic=mc.id LEFT JOIN vehicles v ON v.id=m.vehicle_id
+                LEFT JOIN attendance_daily ad ON ad.mechanic_id=mc.id AND ad.duty_date=CURRENT_DATE()
+                WHERE mc.active=1 ORDER BY (o.id IS NULL), mc.full_name"),
+            'sessions' => fn() => many($p, "SELECT a.id, a.mechanic_id, mc.mechanic_code, mc.full_name, a.time_in, a.time_out,
+                    TIMESTAMPDIFF(MINUTE, a.time_in, COALESCE(a.time_out, NOW())) AS minutes, ui.full_name AS time_in_by, uo.full_name AS time_out_by
+                FROM mechanic_attendance a JOIN mechanics mc ON mc.id=a.mechanic_id
+                LEFT JOIN users ui ON ui.id=a.time_in_by LEFT JOIN users uo ON uo.id=a.time_out_by
+                WHERE a.time_in < ? AND (a.time_out IS NULL OR a.time_out >= ?)
+                ORDER BY a.time_in DESC, a.id DESC LIMIT 1000", [$end, $from]),
+        ]);
+        // The daily Present / Absent mark is an Admin-only record (Administration/Attendance.php): other roles do not receive it.
+        if (!hasRole($u, 'admin')) foreach ($data['board'] as &$r) unset($r['daily_mark']);
+        unset($r);
+        $data['range'] = ['from' => $from, 'to' => $to, 'today' => $today, 'max_days' => self::ATTENDANCE_MAX_DAYS];
         $data['can'] = ['edit' => hasRole($u, ...self::EDIT)];
         return $data;
     }

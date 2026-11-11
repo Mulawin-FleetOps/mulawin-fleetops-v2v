@@ -241,8 +241,8 @@ const App = {
       operations_head: ['dashboard', 'trips', 'trucks', 'crew', 'clients', 'routes', 'funds'],
       car_carrier_dispatcher: ['dashboard', 'trips', 'funds'],
       container_wingvan_dispatcher: ['dashboard', 'trips', 'funds'],
-      // MAINTENANCE_OVERVIEW_PHASE1_V1: Overview, Repair Management, Parts Inventory first (same permitted pages).
-      motorpool: ['maintenance_overview', 'maintenance', 'trucks', 'mechanics', 'maint_history'],
+      // MOTORPOOL_WORKSPACE_PHASE1: the Motorpool workspace in work order (server me.nav still decides what is allowed).
+      motorpool: ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maint_history', 'trucks'],
       purchasing: ['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports'],
       finance: ['dashboard', 'funds', 'finance', 'purchase_orders', 'purchasing_reports'],
       billing: ['dashboard', 'billing', 'clients', 'routes'],
@@ -253,7 +253,7 @@ const App = {
       routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance', maintenance_overview: 'Maintenance overview',
       funds: 'Trip funds', billing: 'Billing',
       finance: 'Finance', reports: 'Reports', admin: 'Users & settings',
-      maint_history: 'Maintenance history',
+      maint_history: 'Maintenance history', mp_parts_requests: 'Parts requests', mechanic_attendance: 'Mechanic attendance',
       purchasing_overview: 'Purchasing overview', parts_requests: 'Parts requests', purchase_orders: 'Purchase orders',
       inventory: 'Inventory', stock_movements: 'Stock movements', purchasing_reports: 'Purchasing reports',
     };
@@ -380,7 +380,7 @@ const App = {
     return nav.some(n => n.id === landing) ? landing : (nav[0]?.id || 'dashboard');
   },
   legacyPurchasingPage() {
-    return { motorpool: 'maintenance', purchasing: 'parts_requests' }[this.me?.user?.role] || 'purchase_orders';
+    return { motorpool: 'mp_parts_requests', purchasing: 'parts_requests' }[this.me?.user?.role] || 'purchase_orders';
   },
   go(page, query = {}) {
     const qs = new URLSearchParams(query).toString();
