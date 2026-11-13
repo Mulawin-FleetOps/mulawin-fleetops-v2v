@@ -23,13 +23,17 @@ final class Attendance {
             // CHECKLIST_42_ATTENDANCE_PHASE2_V1: the crew roster ('Driver' kind, kept for compatibility) lists drivers AND helpers.
             return many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, am.status, am.marked_at
               FROM personnel pe LEFT JOIN attendance_marks am ON am.personnel_id=pe.id AND am.duty_date=? AND am.duty_shift=?
-              WHERE pe.active=1 AND pe.person_type IN ('Driver','Helper') AND pe.duty_shift=? ORDER BY pe.person_type, pe.full_name", [$date,$shift,$shift]);
+              WHERE pe.active=1 AND pe.person_type IN ('Driver','Helper') ORDER BY pe.person_type, pe.full_name", [$date,$shift]);
         }
         return many($p, "SELECT mc.id, mc.full_name, mc.availability, am.status, am.marked_at
           FROM mechanics mc LEFT JOIN attendance_marks am ON am.mechanic_id=mc.id AND am.duty_date=? AND am.duty_shift=?
-          WHERE mc.active=1 AND mc.duty_shift=? ORDER BY mc.full_name", [$date,$shift,$shift]);
+          WHERE mc.active=1 ORDER BY mc.full_name", [$date,$shift]);
     }
     public static function action(array $u, string $action, array $d): array {
+        if(in_array($action,['dispatcher_list','dispatcher_history','time_in','time_out'],true)){
+            core('DispatcherAttendance');DispatcherScope::types($u);
+            return match($action){'dispatcher_list'=>DispatcherAttendance::read($u,$d),'dispatcher_history'=>DispatcherAttendance::history($u,$d),default=>DispatcherAttendance::record($u,$action,$d)};
+        }
         requireRole($u, 'admin');
         return match ($action) {
             'list' => self::listing($d),
@@ -59,7 +63,7 @@ final class Attendance {
             foreach($items as $item) {
                 must(is_array($item),'Invalid attendance record.');
                 $id=(int)($item['id']??0);
-                must($id>0 && isset($valid[$id]) && !isset($seen[$id]),'Unknown, duplicated or wrong-shift staff.',409);
+                must($id>0 && isset($valid[$id]) && !isset($seen[$id]),'Unknown, duplicated or inactive staff.',409);
                 $seen[$id]=true;
                 $value=$item['status']??null;
                 must(in_array($value,['Present','Absent',null],true),'Attendance must be Present, Absent or blank.');

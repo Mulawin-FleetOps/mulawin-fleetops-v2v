@@ -1,0 +1,45 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shared UI component checks</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/css/app.css">
+<div id="app"></div><div id="fixture"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/js/core.js"></script>
+<script>
+(async()=>{
+  const mount=document.querySelector('#fixture'),checks=[];
+  const assert=(ok,label)=>{if(!ok)throw new Error(label);checks.push('PASS '+label);};
+  App.me={user:{role:'operations_head'},nav:[{id:'trips'},{id:'dispatcher-monitoring'}]};App.current={page:'trips',query:{}};
+  try{
+    mount.innerHTML=UI.actionSummary([{label:'Assigned work',count:3,go:'trips?tab=active'},{label:'Restricted record',count:2,go:'finance'},{label:'Nothing',count:0,go:'trips'}]);
+    assert(mount.querySelectorAll('a').length===1&&mount.querySelector('a').getAttribute('href')==='#trips?tab=active'&&mount.textContent.includes('Restricted record')&&!mount.textContent.includes('Nothing'),'Action summaries show actual supplied counts and link only authorized destinations');
+    mount.innerHTML=UI.tripProgress({status:'Completed',attempt_number:2,vehicle_id:1,driver_id:2,completed_at:'2026-11-11 12:00:00',awaiting_arrival:1},{inspections:[{kind:'Pre-Dispatch',attempt_number:1,vehicle_id:1,completed_at:'2026-11-10 12:00:00',has_not_ok:0}]});
+    assert(mount.querySelectorAll('.ui-workflow-complete').length===2&&mount.textContent.includes('attempt 2'),'Completed status does not fabricate dispatch, creation, arrival or current-attempt checklist evidence');
+    mount.innerHTML=UI.tripProgress({status:'Completed',attempt_number:2,vehicle_id:1,driver_id:2,awaiting_arrival:1},{inspections:[{kind:'Arrival',attempt_number:2,vehicle_id:1,completed_at:'2026-11-11 12:00:00',has_not_ok:1}]});
+    assert(mount.querySelector('.ui-workflow-exception')?.textContent.includes('Arrival'),'Arrival inspection with findings/Truck hold is not shown as a released Truck');
+    mount.innerHTML=UI.tripDocuments([{category:'Waybill'},{category:'Supplier SOA'}]);
+    const items=[...mount.querySelectorAll('li')];
+    assert(items.find(n=>n.textContent.includes('Waybill')).textContent.includes('Attached')&&items.find(n=>n.textContent.includes('Delivery Receipt')).textContent.includes('Required'),'Document readiness uses existing category evidence and required completion categories');
+    assert(items.find(n=>n.textContent.includes('Diesel PO')).textContent.includes('Optional')&&!items.find(n=>n.textContent.includes('Diesel PO')).querySelector('.text-danger'),'Missing optional Diesel PO does not become a required blocker');
+    mount.innerHTML=UI.documentChecklist([{category:'Insurance',expires:'2026-01-01'}],[{category:'Insurance',expiryField:'expires',required:true},{category:'Other',applicable:false,reason:'Not applicable to this record'}],{asOf:'2026-11-11'});
+    assert(mount.textContent.includes('Expired')&&mount.textContent.includes('Not Applicable'),'Document expiry and non-applicability require explicit supporting fields/rules');
+    mount.innerHTML=UI.activity([{event_type:'<img src=x onerror=alert(1)>',actor:'Recorded actor',from_status:'Reported',to_status:'Under Repair',notes:'Saved note',created_at:'2026-11-11 12:00:00'}]);
+    assert(!mount.querySelector('img')&&mount.textContent.includes('Recorded actor')&&mount.textContent.includes('Reported → Under Repair')&&mount.textContent.includes('Saved note'),'Activity preserves recorded actor/status/notes and escapes untrusted text');
+    mount.innerHTML=UI.readiness([{label:'Server restriction',state:'blocked',detail:'Truck is held'}]);
+    assert(mount.textContent.includes('Truck is held')&&!mount.querySelector('button')&&mount.textContent.includes('server checks'),'Readiness is informational and does not enable actions');
+    const drawer=document.createElement('div');drawer.innerHTML='<div class="offcanvas-body"><p data-lead>Summary</p>'+UI.h('Documents')+'<button data-original>Existing action</button>'+UI.h('History')+'<p>Recorded history</p>'+UI.h('Unmapped field')+'<input value="unchanged"></div>';mount.replaceChildren(drawer);
+    const button=drawer.querySelector('[data-original]');let clicks=0;button.onclick=()=>clicks++;
+    UI.drawerSections(drawer,[['overview','Overview',[]],['docs','Documents',['Documents']],['history','History',['History']]]);
+    const tabs=[...drawer.querySelectorAll('[role=tab]')];tabs[1].click();button.click();tabs[0].click();tabs[1].click();button.click();
+    assert(clicks===2&&drawer.querySelectorAll('[data-original]').length===1&&button===drawer.querySelector('[data-original]'),'Drawer tabs move original action nodes once and retain handlers across switches');
+    assert(drawer.querySelector('input').value==='unchanged'&&drawer.querySelectorAll('[role=tabpanel]').length===3,'Unmapped fields and inactive details remain in mounted panels');
+    tabs[1].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+    assert(tabs[2].getAttribute('aria-selected')==='true'&&tabs[2].getAttribute('aria-controls')===drawer.querySelector('[role=tabpanel]:not([hidden])').id,'Drawer keyboard navigation selects the correctly labelled panel');
+    mount.innerHTML='<form><label>Search<input type="search" name="search"></label><label>Group<select name="group"><option value="">All</option><option value="recorded" selected>Recorded group</option></select></label><button type="button" data-reset-filters>Clear</button></form>';
+    const form=mount.querySelector('form');let applied=0;form.onchange=e=>{if(e.target===form)applied++;};const clear=form.querySelector('[data-reset-filters]');let cleared=0;clear.onclick=()=>cleared++;
+    UI.searchToolbar(form);UI.searchToolbar(form);form.querySelector('[data-toggle-record-filters]').click();form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));clear.click();
+    assert(applied===1&&cleared===1&&form.querySelectorAll('input[type=search]').length===1&&!form.querySelector('.ui-search-filters').hidden,'Shared search toolbar preserves filter/reset contracts and remains idempotent');
+    assert(form.querySelector('.ui-filter-indicators').textContent.includes('Recorded group')&&form.querySelector('[aria-expanded]').getAttribute('aria-controls')===form.querySelector('.ui-search-filters').id,'Filter indicators and expansion controls expose current selections accessibly');
+    mount.innerHTML=UI.state('empty')+UI.state('loading')+UI.state('denied',{title:'Backend permission denied'})+UI.state('error')+UI.state('success');
+    assert(mount.querySelector('.ui-state-loading[aria-busy=true]')&&mount.querySelectorAll('[role=alert]').length===2&&!mount.querySelector('.ui-state-empty').textContent.includes('denied'),'Loading, empty, failure, success and denial remain distinct accessible states');
+    document.querySelector('#results').textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+  }catch(error){document.querySelector('#results').textContent=checks.join('\n')+'\nFAIL '+error.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>

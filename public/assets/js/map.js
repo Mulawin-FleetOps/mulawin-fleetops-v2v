@@ -93,7 +93,7 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
           <button type="button" class="seg-btn active" data-pin="pickup"><span class="pin-dot pickup"></span> ${UI.esc(LBL.pickup)}</button>
           <button type="button" class="seg-btn" data-pin="delivery"><span class="pin-dot delivery"></span> ${UI.esc(LBL.delivery)}</button>
         </div>
-        <div class="loc-search"><i class="bi bi-search"></i><input type="search" class="form-control" placeholder="Search a place or address in the Philippines" aria-label="Search a place" data-locq>
+        <div class="loc-search ${opts.hideSearchBar ? 'd-none' : ''}"><i class="bi bi-search"></i><input type="search" class="form-control" placeholder="Search a place or address in the Philippines" aria-label="Search a place" data-locq>
           <button type="button" class="btn btn-sm btn-outline-secondary" data-locgo>Search</button></div>
       </div>
       <div class="loc-results d-none" data-locres></div>
@@ -103,7 +103,7 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
     </div>`;
   const note = (msg) => { const n = box.querySelector('[data-locnote]'); n.textContent = msg; n.classList.toggle('d-none', !msg); };
   if (typeof L === 'undefined') { note('The map library did not load. Type the addresses and the km.'); box.querySelector('[data-mapcanvas]').remove(); return null; }
-  const map = L.map(box.querySelector('[data-mapcanvas]'), { scrollWheelZoom: false }).setView([14.08, 121.15], 9);
+  const map = L.map(box.querySelector('[data-mapcanvas]'), { scrollWheelZoom: opts.scrollWheelZoom === true, doubleClickZoom: true, touchZoom: true, boxZoom: true }).setView([14.08, 121.15], 9);
   UI.Map.tiles(map, note);
   if (!searchReady) {
     box.querySelectorAll('[data-locq],[data-locgo]').forEach(x => x.disabled = true);
@@ -116,6 +116,29 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
   const points = () => ({ pickup: pins.pickup ? pins.pickup.getLatLng() : null, delivery: pins.delivery ? pins.delivery.getLatLng() : null });
   const picker = {
     points,
+    /** Activate a point from an external address field without changing the other pin. */
+    selectPoint(kind, address = '') {
+      if (kind !== 'pickup' && kind !== 'delivery') return;
+      setActive(kind);
+      if (address.trim() && searchReady) {
+        const target = opts.searchResultsTarget?.(kind);
+        if (target) {
+          target.classList.remove('d-none');
+          target.appendChild(res);
+        }
+        q.value = address.trim();
+        runSearch();
+      } else if (address.trim() && !searchReady) {
+        note('Address search is unavailable. Click the map to place the ' + label(kind) + ' pin.');
+      }
+    },
+    /** Clear outdated coordinates if the address is manually edited. */
+    clearPoint(kind) {
+      if (!pins[kind]) return;
+      pins[kind].remove();
+      delete pins[kind];
+      update();
+    },
     showRoute(latlngs) {
       if (routeLine) routeLine.remove();
       if (line) { line.remove(); line = null; }
@@ -138,8 +161,10 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
     if (routeLine) { routeLine.remove(); routeLine = null; }
     if (pins.pickup && pins.delivery) {
       const a = pins.pickup.getLatLng(), b = pins.delivery.getLatLng();
-      line = L.polyline([a, b], { color: '#1f2328', weight: 2, dashArray: '6 6' }).addTo(map);
-      info.textContent = `Both points set · straight-line distance ${(a.distanceTo(b) / 1000).toFixed(1)} km`;
+      if (!opts.hideStraightLine) line = L.polyline([a, b], { color: '#1f2328', weight: 2, dashArray: '6 6' }).addTo(map);
+      info.textContent = opts.hideStraightLine
+        ? 'Pickup and delivery pinned · road route requires the routing service. Straight lines are not driving routes.'
+        : `Both points set · straight-line distance ${(a.distanceTo(b) / 1000).toFixed(1)} km`;
     }
     if (!silent && opts.onChange) opts.onChange(points(), picker);
   }
@@ -155,7 +180,8 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
     tip.innerHTML = `<span>Map address for the ${UI.esc(label(k))}: <b></b></span><button type="button" class="btn btn-sm btn-link p-0">Use it</button>`;
     tip.querySelector('b').textContent = addr;
     tip.querySelector('button').onclick = () => { f.value = addr; f.dispatchEvent(new Event('input', { bubbles: true })); tip.remove(); };
-    f.parentElement.querySelectorAll('.loc-suggest').forEach(x => x.remove()); f.parentElement.append(tip);
+    const host = f.closest('.rpm-address-pin-control')?.parentElement || f.parentElement;
+    host.querySelectorAll('.loc-suggest').forEach(x => x.remove()); host.append(tip);
   };
   const place = (k, latlng, name = '', fly = false, silent = false) => {
     if (pins[k]) pins[k].setLatLng(latlng);
@@ -171,16 +197,27 @@ UI.mapPicker = (box, form, initial = {}, opts = {}) => {
   map.on('click', (e) => { place(active, e.latlng); if (active === 'pickup' && !pins.delivery) setActive('delivery'); });
   // address search (button or Enter only: no search-as-you-type, to protect the daily quota)
   const q = box.querySelector('[data-locq]'), res = box.querySelector('[data-locres]');
+  let searchSeq = 0;
   const runSearch = async () => {
     if (!searchReady) return;
+    const kind = active, seq = ++searchSeq;
     if (q.value.trim().length < 3) { res.innerHTML = '<div class="loc-res-msg">Type at least 3 letters.</div>'; res.classList.remove('d-none'); return; }
     res.innerHTML = '<div class="loc-res-msg"><span class="spinner-border spinner-border-sm"></span> Searching…</div>'; res.classList.remove('d-none');
     try {
       const list = await UI.Map.search(q.value);
+      if (seq !== searchSeq) return;
       res.innerHTML = list.length ? list.map((r, i) => `<button type="button" class="loc-res" data-ri="${i}"><i class="bi bi-geo-alt"></i> <span></span></button>`).join('') : '<div class="loc-res-msg">No place found. Try another name, or type the address in the field below.</div>';
       res.querySelectorAll('[data-ri]').forEach(b => { const r = list[+b.dataset.ri]; b.querySelector('span').textContent = r.name;
-        b.onclick = () => { place(active, L.latLng(r.lat, r.lng), r.name, true); res.classList.add('d-none'); q.value = ''; if (active === 'pickup' && !pins.delivery) setActive('delivery'); }; });
-    } catch (e) { res.innerHTML = `<div class="loc-res-msg text-danger">${UI.esc(e.message)} Type the address in the field below.</div>`; }
+        b.onclick = () => {
+          place(kind, L.latLng(r.lat, r.lng), r.name, true);
+          res.classList.add('d-none'); q.value = '';
+          if (kind === 'pickup' && !pins.delivery) setActive('delivery');
+          opts.onSearchSelect?.(kind);
+        }; });
+    } catch (e) {
+      if (seq !== searchSeq) return;
+      res.innerHTML = `<div class="loc-res-msg text-danger">${UI.esc(e.message)} You can still pin the location manually on the map.</div>`;
+    }
   };
   box.querySelector('[data-locgo]').onclick = runSearch;
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
@@ -281,24 +318,49 @@ UI.distanceWidget = (form, opts = {}) => {
   const compute = async (points) => {
     leaveRouteMode();
     st.computed = null; st.kind = null;
-    if (!cfg.routing) { say(noService); return; }
-    if (!points.pickup || !points.delivery) { say('<span class="text-muted">Pin both points to get the road distance.</span>'); return; }
     const seq = ++st.seq;
+    const mapStatus = opts.mapBox?.querySelector('[data-mapinfo]');
+    if (opts.hideStraightLine && picker) picker.clearRoute();
+    if (!cfg.routing) {
+      if (mapStatus) mapStatus.textContent = 'Road routing unavailable. Enter a verified road distance manually.';
+      say(noService); return;
+    }
+    if (!points.pickup || !points.delivery) {
+      if (mapStatus) mapStatus.textContent = 'Pin pickup and destination to preview the road route.';
+      say('<span class="text-muted">Pin both points to get the road distance.</span>'); return;
+    }
+    if (mapStatus) mapStatus.textContent = 'Calculating pickup → destination road route…';
     say('<span class="text-muted"><span class="spinner-border spinner-border-sm"></span> Computing the road distance…</span>');
     let r;
     try { r = await UI.Map.route(points.pickup, points.delivery, opt ? opt.value : cfg.defaultRouteOption); }
     catch (e) { r = { available: false, message: e.message }; }
     if (seq !== st.seq) return;   // an older answer: ignore
-    if (!r.available) { say(`<span class="text-danger">${UI.esc(r.message || 'Road distance is not available.')}</span> <span class="text-muted">Type the km.</span>`); return; }
+    if (!r.available) {
+      if (mapStatus) mapStatus.textContent = 'Road route unavailable; verify pins or enter the distance manually.';
+      const message = r.message || 'Road distance is not available.';
+      const fallback = /\btype the km\b/i.test(message) ? '' : ' <span class="text-muted">Type the km.</span>';
+      say(`<span class="text-danger">${UI.esc(message)}</span>${fallback}`); return;
+    }
     st.computed = +r.distance_km; st.kind = 'map';
     km.value = st.computed.toFixed(2); km.dispatchEvent(new Event('input', { bubbles: true }));
-    if (r.geometry && picker) picker.showRoute(UI.Map.decode(r.geometry));
+    if (r.geometry && picker) {
+      const roadPoints = UI.Map.decode(r.geometry);
+      if (roadPoints.length >= 2) {
+        picker.showRoute(roadPoints);
+        if (opts.onRoadRoute) opts.onRoadRoute(roadPoints);
+        if (mapStatus) mapStatus.textContent = 'Pickup → destination road route ready · ' + UI.num(r.distance_km, 2) + ' km';
+      } else if (mapStatus) mapStatus.textContent = 'Road distance calculated; route line unavailable.';
+    } else if (mapStatus) mapStatus.textContent = 'Road distance calculated; route line unavailable.';
     say(`Road distance: <b>${UI.num(r.distance_km, 2)} km</b> · about ${UI.num(r.duration_min, 0)} min · ${UI.esc(r.option_label)}
       <span class="text-muted">(straight line ${UI.num(r.straight_km, 1)} km)</span>
       ${r.warning ? `<div class="text-warning">${UI.esc(r.warning)}</div>` : ''}${useBtn('Use the computed km')}`);
     wireUse();
   };
-  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, onChange: (pts) => compute(pts),
+  const map = opts.mapBox ? UI.mapPicker(opts.mapBox, form, ini, { fields: opts.fields, labels: opts.labels, scrollWheelZoom: opts.scrollWheelZoom, hideStraightLine: opts.hideStraightLine,
+    hideSearchBar: opts.hideSearchBar, searchResultsTarget: opts.searchResultsTarget, onSearchSelect: opts.onSearchSelect, onChange: (pts) => {
+    if (opts.onPointsChange) opts.onPointsChange(pts);
+    compute(pts);
+  },
     footNote: opts.footNote || (cfg.routing ? 'Road distance by openrouteservice (estimate). Check it before saving.' : 'Type the km.') }) : null;
   picker = map ? map.picker : null;
   if (opt) opt.addEventListener('change', () => { if (picker && st.kind !== 'route') compute(picker.points()); });

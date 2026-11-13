@@ -62,7 +62,18 @@ const MaintUI = {
     }
     const partsCost = r.parts.reduce((a, p) => a + (+p.released_qty) * (+p.unit_cost || 0), 0), other = r.costs.reduce((a, c) => a + +c.amount, 0);
     const truckLine = `<b>${UI.esc(j.plate_number)}</b>${j.truck_number ? ' · #' + UI.esc(j.truck_number) : ''} · ${UI.esc(j.truck_type)} · ${UI.badge(j.truck_status)}`;
-    const html = `${UI.steps(MaintUI.STAGES, stage, { warn })}
+    const progress = UI.workflow(MaintUI.STAGES.map((label,index)=>{
+      const status=index===4?'Completed':label,event=(r.events||[]).find(e=>e.to_status===status);
+      const at=index===4?j.verified_at:event?.created_at;
+      const recorded=index===4?!!j.verified_at:!!event;
+      return {label,at,state:j.status==='Cancelled'&&!recorded?'exception':index<4&&j.status===label&&!j.verified_at?'current':recorded?'complete':'pending'};
+    }),{status:j.verified_at?'Returned to service':j.status,label:'Recorded corrective repair progress'});
+    const readiness=UI.readiness([
+      {label:'Inspection findings and diagnosis',state:j.findings&&j.diagnosis?'complete':'unknown'},
+      {label:'Corrective repair recorded',state:j.repair_performed&&j.completed_on?'complete':'unknown'},
+      {label:'Return-to-service verification',state:j.verified_at?'complete':'unknown',detail:j.verified_at?'Recorded verification':'The existing verification action remains required before return to service.'}
+    ],{title:'Return-to-service record'});
+    const html = `${progress}${readiness}
       <div class="next-step ${j.verified_at ? 'done' : ''}"><i class="bi ${j.verified_at ? 'bi-check-circle' : 'bi-arrow-right-circle'}"></i> ${UI.esc(MaintUI.nextStep(j))}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.map(([a, l, c, ic]) => `<button class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}"></i> ` : ''}${UI.esc(l)}</button>`).join('')}</div>` : ''}
       ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at) : 'Reported at the garage')],
@@ -81,9 +92,10 @@ const MaintUI = {
       ${r.costs.length ? UI.table([['Type', 'cost_type'], ['Description', 'description'], ['Provider', 'provider'], ['Date', 'incurred_on', 'date'], ['Amount', 'amount', 'money']], r.costs, { plain: true }) : '<div class="text-muted small mb-2">No labor or outside costs.</div>'}
       <div class="text-end small">Parts ${UI.money(partsCost)} + other ${UI.money(other)} = <b>${UI.money(partsCost + other)}</b></div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
-      ${UI.h('Status history')}<ul class="timeline">${r.events.map(e => `<li><span class="when">${UI.datetime(e.created_at)} · ${UI.esc(e.actor || 'System')}</span><br><b>${UI.esc(e.to_status)}</b>${e.mechanic ? ' · ' + UI.esc(e.mechanic) : ''}${e.details ? ' — ' + UI.esc(e.details) : ''}</li>`).join('')}</ul>
+      ${UI.h('Status history')}${UI.activity(r.events)}
       ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
     const el = UI.drawer(UI.esc(j.job_ref) + ' · ' + UI.esc(j.plate_number), html, { subtitle: 'Corrective maintenance · ' + UI.esc(j.verified_at ? 'Returned to service' : j.status) });
+    UI.drawerSections(el,[['overview','Overview',['Problem','Trip incident']],['repair','Inspection & Repairs',['Mechanic and repair']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]],{key:'maintenance-details'});
     const reopen = () => { MaintUI.open(j.id); App.route(); };
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;

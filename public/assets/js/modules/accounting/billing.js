@@ -5,6 +5,10 @@
    Backend: backend/Modules/Accounting/Billing.php */
 'use strict';
 const BillUI = {
+  async pricingReport(after=0){
+    try{const report=await App.api('Billing.pricing_report',{after_id:after});const el=UI.drawer('Historical Pricing Impact',
+      '<p>Preview only. Original invoices and payment allocations are preserved. Missing historical inputs require evidence; no prices are invented.</p>'+UI.table([['Billing','billing_id'],['Status','status'],['Existing','existing','money'],['Proposed','proposed',(v)=>v===null?'Unreconciled':UI.money(v)],['Missing inputs','missing',v=>UI.esc(v.join('; '))],['Action','correction']],report.rows,{showAllColumns:true,actions:r=>r.can_apply&&UI.role('admin')?UI.btn('apply','Review recalculation'):'' ,onAction:(a,r)=>UI.formModal('Recalculate verified open billing',[{name:'reason',label:'Reason',required:true,type:'textarea'}],'Billing.pricing_recalculate',{extra:{billing_id:r.billing_id,fingerprint:r.fingerprint},intro:'Existing '+UI.money(r.existing)+'; proposed '+UI.money(r.proposed)+'. This changes only this unpaid unissued record.',after:()=>this.pricingReport(after)})})+(report.next_after_id?'<button data-next-pricing class="btn btn-outline-secondary">Next records</button>':''));el.querySelector('[data-next-pricing]')?.addEventListener('click',()=>this.pricingReport(report.next_after_id));}catch(e){UI.toast(e.message,'error');}
+  },
   data: null,
   /* BILLING_ADJUSTMENT_APPROVAL_V1: Billing requests charges / per-trip rate adjustments; Admin approves.
      Only approved lines are in the total (r.charges). Requests and their history are r.requests. */
@@ -46,11 +50,11 @@ const BillUI = {
     const html = `<div class="mb-2">${UI.badge(b.status)} ${b.invoice_number ? `<b>${UI.esc(b.invoice_number)}</b>` : ''}</div>
       ${b.status === 'Ongoing' ? '<div class="alert alert-info py-2 small">Billing draft made at dispatch. View only while the trip is ongoing; it moves to For Billing when the trip is completed.</div>' : ''}
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}${b.status === 'For Billing' && !b.docs_verified_at ? '<div class="why">Finalizing is allowed after the supporting documents are verified.</div>' : ''}${b.status === 'For Billing' && pending.length ? `<div class="why">${pending.length} request(s) are waiting for Admin approval. The invoice can be finalized after the Admin decides.</div>` : ''}</div>` : ''}
-      ${UI.h('Billing breakdown')}<table class="breakdown w-100">
-        <tr><td>Trip ${UI.esc(t.trip_ref)}: ${UI.num(b.distance_km, 2)} km x ${UI.money(b.rate_per_km)} per km</td><td class="num">${UI.money(+b.distance_km * +b.rate_per_km)}</td></tr>
+      ${r.pricing?UI.kv([['Fixed route rate',r.pricing.fixed===null?'Unavailable':UI.money(r.pricing.fixed)],['Fuel charge',r.pricing.fuel===null?'Pending Fuel Calculation':UI.money(r.pricing.fuel)],['Dispatch pricing',r.pricing.missing.length?UI.esc(r.pricing.missing.join('; ')):'Frozen at '+UI.esc(r.pricing.at)]]):''}${UI.h('Billing breakdown')}<table class="breakdown w-100">
+        ${!r.pricing?`<tr><td>Trip ${UI.esc(t.trip_ref)}: ${UI.num(b.distance_km, 2)} km x ${UI.money(b.rate_per_km)} per km</td><td class="num">${UI.money(+b.distance_km * +b.rate_per_km)}</td></tr>`:'<tr><td>Fixed route plus fuel (fuel pending if unresolved)</td><td class="num">'+UI.money(b.base_amount)+'</td></tr>'}
         ${+b.minimum_charge > 0 ? `<tr><td class="text-muted">Minimum charge ${UI.money(b.minimum_charge)} → base amount</td><td class="num">${UI.money(b.base_amount)}</td></tr>` : ''}
         ${r.charges.map(x => `<tr><td>${UI.esc(x.description)} <span class="text-muted small">(${UI.esc(x.kind)}${x.decided_by_name ? ', approved by ' + UI.esc(x.decided_by_name) : ''})</span>${act && b.status === 'For Billing' ? (busy.has(String(x.id)) ? ' <span class="badge-s amber">change pending</span>' : ` <button class="btn btn-link btn-sm p-0" data-chg="${x.id}">change</button> <button class="btn btn-link btn-sm p-0 text-danger" data-rmc="${x.id}">remove</button>`) : ''}</td><td class="num">${BillUI.sign(x.amount)}</td></tr>`).join('')}
-        <tr class="total"><td>Total amount (approved)</td><td class="num">${UI.money(b.total_amount)}</td></tr>
+        <tr class="total"><td>${r.pricing&&r.pricing.fuel===null?'Provisional amount (fuel pending)':'Total amount (approved)'}</td><td class="num">${UI.money(b.total_amount)}</td></tr>
         ${pending.length ? `<tr><td class="text-muted small">Waiting for Admin approval (not in the total): ${pending.length} request(s)</td><td class="num text-muted small">${pendingDelta < 0 ? '− ' : '+ '}${UI.money(Math.abs(pendingDelta))}</td></tr>` : ''}
         ${+b.amount_paid ? `<tr><td>Paid</td><td class="num">${UI.money(b.amount_paid)}</td></tr><tr class="total"><td>Balance</td><td class="num">${UI.money(b.balance)}</td></tr>` : ''}</table>
       ${r.requests.length ? UI.h('Charge and adjustment requests') + '<div data-reqbox>' + UI.table([['Request', 'id', (v, x) => BillUI.reqText(x) + (x.reason ? `<div class="small text-muted">${UI.esc(x.reason)}</div>` : '')],
@@ -58,10 +62,7 @@ const BillUI = {
         ['Decision', 'decided_by_name', (v, x) => x.status === 'Pending Approval' ? '—' : UI.esc(v || '') + (x.decision_notes ? `<div class="small text-muted">${UI.esc(x.decision_notes)}</div>` : '')],
         ['', 'id', (v, x) => x.status !== 'Pending Approval' || b.status !== 'For Billing' ? '' : (decide && +x.added_by !== me ? `<button class="btn btn-sm btn-success" data-dec="approve" data-req="${v}">Approve</button> <button class="btn btn-sm btn-outline-danger" data-dec="reject" data-req="${v}">Reject</button>` : '')
           + (decide && +x.added_by === me ? '<span class="small text-muted">Another Admin decides</span>' : '') + (act && +x.added_by === me ? `<button class="btn btn-sm btn-outline-secondary" data-wd="${v}">Withdraw</button>` : '')]], r.requests, { plain: true }) + '</div>' : ''}
-      ${UI.h('Supporting documents')}<ul class="req-list mb-2"><li class="${docOk('Waybill') ? 'ok' : 'no'}"><i class="bi ${docOk('Waybill') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Waybill</li>
-        <li class="${docOk('Delivery Receipt') ? 'ok' : 'no'}"><i class="bi ${docOk('Delivery Receipt') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Delivery receipt</li>
-        <li class="${docOk('Acknowledgement Receipt') ? 'ok' : 'no'}"><i class="bi ${docOk('Acknowledgement Receipt') ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> Acknowledgement receipt</li>
-        <li class="${b.docs_verified_at ? 'ok' : 'no'}"><i class="bi ${b.docs_verified_at ? 'bi-check-circle-fill' : 'bi-hourglass'}"></i> ${b.docs_verified_at ? 'Verified by ' + UI.esc(b.verified_by_name) + ' · ' + UI.datetime(b.docs_verified_at) : 'Not verified yet'}</li></ul>${UI.docs(r.documents)}
+      ${UI.h('Supporting documents')}${UI.documentChecklist(r.documents,['Waybill','Delivery Receipt','Acknowledgement Receipt'].map(category=>({category,required:true,for:'billing document verification'})))}<ul class="req-list mb-2"><li class="${b.docs_verified_at ? 'ok' : 'no'}"><i class="bi ${b.docs_verified_at ? 'bi-check-circle-fill' : 'bi-hourglass'}"></i> ${b.docs_verified_at ? 'Verified by ' + UI.esc(b.verified_by_name) + ' · ' + UI.datetime(b.docs_verified_at) : 'Not verified yet'}</li></ul>${UI.docs(r.documents)}
       ${UI.h('Trip details')}${UI.kv([['Route', UI.esc(t.pickup_point) + ' → ' + UI.esc(t.delivery_point)], ['Truck / driver', UI.esc([t.plate_number, t.driver_name].filter(Boolean).join(' · '))],
         ['Dispatched', UI.datetime(t.dispatched_at)], ['Completed', UI.datetime(t.completed_at)], ['Waybill no.', UI.e(t.waybill_number)], t.units_delivered ? ['Units delivered', UI.e(t.units_delivered)] : null])}
       ${UI.h('Client profile')}${UI.kv([['Client', `<b>${UI.esc(c.company_name)}</b>`], ['TIN', UI.e(c.tin)], ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
@@ -70,6 +71,7 @@ const BillUI = {
       ${r.collections.length ? UI.h('Payments') + UI.table([['Payment date', 'payment_date', 'date'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number'], ['Recorded by', 'recorded_by_name'],
         ['', 'id', (v) => `<button class="btn btn-sm btn-outline-secondary" data-ar="${v}"><i class="bi bi-printer"></i> Receipt</button>`]], r.collections, { plain: true }) : ''}`;
     const el = UI.drawer('Billing · ' + UI.esc(t.trip_ref), html, { subtitle: UI.esc(c.company_name) });
+    UI.drawerSections(el,[['summary','Summary',['Trip details','Client profile','Invoice']],['charges','Transaction Breakdown',['Billing breakdown','Charge and adjustment requests']],['payments','Payments',['Payments']],['documents','Supporting Documents',['Supporting documents']]],{key:'billing-details'});
     el.querySelectorAll('[data-ar]').forEach(x => x.onclick = () => BillUI.printAR(r.collections.find(co => String(co.id) === x.dataset.ar), b, c));
     const reopen = () => { BillUI.open(id); App.route(); };
     const line = (cid) => r.charges.find(c => String(c.id) === String(cid));
@@ -107,7 +109,8 @@ const BillUI = {
   printInvoice(r) {
     const b = r.billing, t = r.trip, c = r.client, vat = +r.vatRate;
     const total = +b.total_amount, vatable = vat > 0 ? total / (1 + vat / 100) : 0, vatAmt = vat > 0 ? total - vatable : 0;
-    const lines = [[`Trucking service ${t.trip_ref} (${t.truck_type}): ${t.pickup_point} to ${t.delivery_point}; truck ${t.plate_number || ''}; waybill ${t.waybill_number || ''}`, UI.num(b.distance_km, 2) + ' km', UI.money(b.rate_per_km), UI.money(b.base_amount)],
+    const lines = [[`Trucking service ${t.trip_ref} (${t.truck_type}): ${t.pickup_point} to ${t.delivery_point}; truck ${t.plate_number || ''}; waybill ${t.waybill_number || ''}`, r.pricing?'1':UI.num(b.distance_km, 2) + ' km', r.pricing?UI.money(r.pricing.fixed):UI.money(b.rate_per_km), r.pricing?UI.money(r.pricing.fixed):UI.money(b.base_amount)],
+      ...(r.pricing?[['Fuel charge (dispatch snapshot)','1',UI.money(r.pricing.fuel),UI.money(r.pricing.fuel)]]:[]),
       ...r.charges.map(x => [x.description, '1', UI.money(x.amount), UI.money(x.amount)])];
     UI.printForm('SERVICE INVOICE', `<div class="d-flex justify-content-between"><div><span class="chk">${''}</span>CASH SALES &nbsp; <span class="chk">✓</span>CHARGE SALES</div><div><b>Date:</b> ${UI.date(b.invoice_date)} &nbsp; <b>Due:</b> ${UI.date(b.due_date)}</div></div>
       <table><tr><th colspan="2">SERVICE TO:</th></tr><tr><td style="width:24%">Registered Name</td><td>${UI.esc(c.company_name)}</td></tr><tr><td>TIN</td><td>${UI.esc(c.tin || '')}</td></tr><tr><td>Business Address</td><td>${UI.esc(c.business_address || '')}</td></tr></table>
@@ -170,6 +173,7 @@ App.page('billing', {
   title: 'Billing & Collection',
   subtitle: 'Billing drafts from dispatched trips, invoices for completed trips, client payments and receivables.',
   render(ctx) {
+    if(UI.role('admin')||UI.role('billing')||UI.role('audit'))UI.tool(ctx,'Pricing Impact',()=>BillUI.pricingReport(),'bi-clock-history','outline-secondary');
     const d = BillUI.data = ctx.data;
     const by = (s) => d.billings.filter(b => s.includes(b.status));
     const unpaid = by(['Invoiced', 'Partially Paid']);

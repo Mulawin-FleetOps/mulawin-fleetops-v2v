@@ -58,6 +58,8 @@ final class Access {
             'trips'       => ['Trip Management', 'bi-signpost-split', null, 'Trips', 'operations/trips',
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
+            'dispatcher-monitoring' => ['Dispatcher Monitoring','bi-person-workspace',null,'Trips','operations/ops-head',['operations_head']],
+
             'trucks'      => ['Truck Masterlist', 'bi-truck', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'motorpool', 'purchasing', 'audit'], $D)],
             'crew'        => ['Driver & Helper Masterlist', 'bi-person-badge', 'Masterlists', 'Fleet', 'operations/fleet',
@@ -65,6 +67,7 @@ final class Access {
             'clients'     => ['Client Masterlist', 'bi-building', 'Masterlists', 'Clients', 'operations/clients',
                               array_merge(['admin', 'operations_head', 'billing', 'finance', 'audit'], $D)],
             // Approved routes per client (Checklist #20). Roles follow Routes::POLICY['view'].
+            'fuel-adjustment' => ['Fuel Adjustment','bi-fuel-pump','Pricing','Admin','administration/admin',['admin']],
             'routes'      => ['Client Routes', 'bi-signpost-2', 'Masterlists', 'Routes', 'operations/routes',
                               ['admin', 'operations_head', 'billing', 'finance', 'audit']],
             'mechanics'   => ['Mechanic Masterlist', 'bi-person-gear', 'Masterlists', 'Mechanics', 'maintenance/mechanics',
@@ -99,6 +102,7 @@ final class Access {
                 // Existing server-side page/action authorization stays unchanged.
                 $section = self::NAV_SECTIONS[$u['role']][$id] ?? $section;
                 $label = self::NAV_LABELS[$u['role']][$id] ?? $label;
+                if($u['role']==='admin'&&$id==='routes'){$section='Pricing';$label='Route Rates';}
                 $out[] = ['id' => $id, 'label' => $label, 'icon' => $icon, 'section' => $section, 'js' => $js];
             }
         }

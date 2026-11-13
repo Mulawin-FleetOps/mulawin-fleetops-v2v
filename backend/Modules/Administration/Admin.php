@@ -22,6 +22,7 @@ core('CrewAttendance');
 final class Admin {
     public static function read(array $u, string $page, array $q): array {
         $p = db();
+        if ($page === 'fuel-adjustment') return Settings::pricingRead($u);
         if ($page === 'notifications') return self::notificationsPage($u, $q);
         requireRole($u, 'admin', 'audit');
         $from = self::d((string)($q['from'] ?? '')) ?? date('Y-m-d', strtotime('-30 days'));
@@ -56,6 +57,7 @@ final class Admin {
 
     public static function action(array $u, string $action, array $d): array {
         return match ($action) {
+            'pricing_save' => Settings::pricingSave($u,$d),
             'user_save' => self::withRoleSlotLock(fn() => self::userSave($u, $d)),
             'user_toggle' => self::withRoleSlotLock(fn() => self::userToggle($u, $d)),
             'user_password' => self::userPassword($u, $d),
@@ -88,6 +90,9 @@ final class Admin {
         must((int)($lock['acquired'] ?? 0) === 1, 'User accounts are being updated. Please try again.', 409);
         try {
             return $work();
+        } catch (PDOException $e) {
+            if(in_array((int)($e->errorInfo[1]??0),[1205,1213],true))throw new BusinessRuleException('Concurrent account or turnover update. No account change was saved. Refresh and retry after the other transaction completes.',409);
+            throw $e;
         } finally {
             try { one($p, "SELECT RELEASE_LOCK('mulawin_user_role_slots') AS released"); }
             catch (Throwable $ignored) { /* Connection shutdown releases locks too. */ }
@@ -130,6 +135,10 @@ final class Admin {
                 if ($id === $u['id']) must($role === 'admin', 'You cannot remove your own Admin role.');
                 $oldUser = one($p, 'SELECT full_name, email, role, shift, active FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
+                if($role!==$oldUser['role']||$shift!==$oldUser['shift']){
+                    core('DispatcherTurnover');
+                    DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($oldUser['role'])||roleIsDispatcher($role));
+                }
                 if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'])) self::assertRoleShiftVacancy($p, $role, $shift, $id);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=? WHERE id=?', [$name, $email, $role, $shift, $id]);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
@@ -156,8 +165,9 @@ final class Admin {
         $id = idField($d, 'user_id'); $active = !empty($d['active']) ? 1 : 0;
         must($id !== $u['id'], 'You cannot deactivate your own account.');
         return transaction(function (PDO $p) use ($u, $id, $active) {
-            $t = one($p, 'SELECT role, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
+            $t = one($p, 'SELECT role, shift, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
             must((bool)$t, 'User not found.', 404);
+            if(!$active){core('DispatcherTurnover');DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($t['role']));}
             if (!$active && $t['role'] === 'admin') must((int)one($p, "SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1")['n'] > 1, 'Keep at least one active Admin.');
             if ($active && (int)$t['active'] !== 1) self::assertRoleShiftVacancy($p, $t['role'], $t['shift'], $id);
             run($p, 'UPDATE users SET active=? WHERE id=?', [$active, $id]);
@@ -249,6 +259,8 @@ final class Admin {
 
     // ---------------------------------------------------------------- settings
     private static function settingSave(array $u, array $d): array {
+        requireRole($u,'admin');
+        must(!in_array($d['key']??$d['setting_key']??null,['km_per_liter','fuel_price_per_liter'],true),'Use Pricing > Fuel Adjustment effective history.',409);
         requireRole($u, 'admin');
         $key = field($d, 'key', 80);
         must(isset(Settings::DEFS[$key]), 'Unknown setting.');

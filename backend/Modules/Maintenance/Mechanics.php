@@ -49,15 +49,14 @@ final class Mechanics {
                 'contact_number' => optField($d, 'contact_number', 40),
                 'specialization' => optField($d, 'specialization', 150),
                 'notes' => optField($d, 'notes', 255),
-                'duty_shift' => choiceField($d, 'duty_shift', ['Day', 'Night'], false)];
-        if (hasRole($u, 'admin')) must($row['duty_shift'] !== null, 'Choose a Day or Night shift.');
+                'duty_shift' => null];
         if ($row['contact_number'] !== null) must((bool)preg_match('/^[0-9+()\-\s]{7,40}$/', $row['contact_number']), 'Contact number: digits, spaces, + ( ) - only.');
         return transaction(function (PDO $p) use ($u, $id, $row) {
             must(!one($p, 'SELECT id FROM mechanics WHERE full_name=? AND id<>?', [$row['full_name'], $id ?? 0]), 'A mechanic named ' . $row['full_name'] . ' is already in the masterlist.', 409);
             if ($id) {
                 $old = one($p, 'SELECT * FROM mechanics WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$old, 'Mechanic not found.', 404);
-                if (!hasRole($u, 'admin')) $row['duty_shift'] = $old['duty_shift']; // Admin-only shift changes.
+                $row['duty_shift'] = $old['duty_shift']; // Preserve legacy shift history without using it for eligibility.
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE mechanics SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
                 $before = ['Full name' => $old['full_name'], 'Specialization' => $old['specialization'], 'Assigned shift' => $old['duty_shift']];

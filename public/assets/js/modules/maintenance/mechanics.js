@@ -8,7 +8,6 @@ const MechUI = {
   form(m = {}) {
     UI.formModal(m.id ? 'Edit ' + UI.esc(m.full_name) : 'Add mechanic', [
       { name: 'full_name', label: 'Full name (LAST NAME, FIRST NAME)', required: true, col: 12, value: m.full_name },
-      { name: 'duty_shift', label: 'Assigned shift', type: 'select', options: [['','Choose shift'],['Day','Day Shift'],['Night','Night Shift']], required: UI.role('admin'), attrs: UI.role('admin') ? '' : 'disabled', col: 6, value: m.duty_shift || '' },
       { name: 'contact_number', label: 'Contact number', col: 6, value: m.contact_number, placeholder: '0917 123 4567' },
       { name: 'specialization', label: 'Specialization / skills', col: 6, value: m.specialization, placeholder: 'e.g. engine, electrical, brakes' },
       { name: 'notes', label: 'Notes', col: 12, value: m.notes }],
@@ -72,7 +71,6 @@ App.page('mechanics', {
       + UI.table([
         ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
         ['Specialization', 'specialization'],
-        ['Shift', 'duty_shift', (v,m) => UI.esc(v || 'Unassigned')],
         ['Availability', 'availability', (v, m) => UI.badge(+m.active ? v : 'Inactive')],
         ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
         ['Completed repairs', 'completed_jobs', 'num']], rows,

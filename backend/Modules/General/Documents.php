@@ -16,6 +16,7 @@
 declare(strict_types=1);
 core('Settings');
 core('Access');
+core('DispatcherScope');
 
 final class Documents {
     private const MIME = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
@@ -98,7 +99,7 @@ final class Documents {
             'vehicle' => fn() => in_array('vehicle', $data['uploadTypes'], true) ? many($p, 'SELECT id, plate_number AS label FROM vehicles WHERE active=1 ORDER BY plate_number') : [],
             'personnel' => fn() => in_array('personnel', $data['uploadTypes'], true) ? many($p, 'SELECT id, full_name AS label FROM personnel WHERE active=1 ORDER BY full_name') : [],
             'client' => fn() => in_array('client', $data['uploadTypes'], true) ? many($p, "SELECT id, company_name AS label FROM clients WHERE status<>'Inactive' ORDER BY company_name") : [],
-            'trip' => fn() => in_array('trip', $data['uploadTypes'], true) ? (roleIsDispatcher($u['role']) ? many($p, 'SELECT id, trip_ref AS label FROM trips WHERE dispatcher_role=? OR created_by=? ORDER BY id DESC LIMIT 300', [$u['role'], $u['id']]) : many($p, 'SELECT id, trip_ref AS label FROM trips ORDER BY id DESC LIMIT 300')) : [],
+            'trip' => function()use($p,$u,$data){if(!in_array('trip',$data['uploadTypes'],true))return [];if(!roleIsDispatcher($u['role']))return many($p,'SELECT id,trip_ref AS label FROM trips ORDER BY id DESC LIMIT 300');[$scope,$args]=DispatcherScope::tripSql($u);return many($p,"SELECT t.id,t.trip_ref AS label FROM trips t WHERE 1=1 $scope ORDER BY t.id DESC LIMIT 300",$args);},
         ]);
         $data['categories'] = self::CATEGORIES;
         $data['entityLabels'] = ['trip' => 'Trip', 'incident' => 'Incident', 'vehicle' => 'Truck', 'personnel' => 'Driver / Helper', 'client' => 'Client',
@@ -109,12 +110,11 @@ final class Documents {
     }
 
     private static function dispatcherTrip(PDO $p, array $u, int $tripId): bool {
-        return (bool)one($p, 'SELECT id FROM trips WHERE id=? AND (dispatcher_role=? OR created_by=?)', [$tripId, $u['role'], $u['id']]);
+        [$scope,$args]=DispatcherScope::tripSql($u);return (bool)one($p,"SELECT t.id FROM trips t WHERE t.id=? $scope",[$tripId,...$args]);
     }
 
     private static function dispatcherIncident(PDO $p, array $u, int $incidentId): bool {
-        return (bool)one($p, 'SELECT i.id FROM incidents i JOIN trips t ON t.id=i.trip_id WHERE i.id=? AND (t.dispatcher_role=? OR t.created_by=?)',
-            [$incidentId, $u['role'], $u['id']]);
+        [$scope,$args]=DispatcherScope::tripSql($u);return (bool)one($p,"SELECT i.id FROM incidents i JOIN trips t ON t.id=i.trip_id WHERE i.id=? $scope",[$incidentId,...$args]);
     }
 
     /**
@@ -125,15 +125,13 @@ final class Documents {
     private static function recordAllowed(PDO $p, array $u, string $type, ?int $id): bool {
         if (!roleIsDispatcher($u['role'])) return true;
         if ($id === null || $id <= 0) return false;
+        [$scope,$args]=DispatcherScope::tripSql($u);$types=DispatcherScope::types($u);$marks=implode(',',array_fill(0,count($types),'?'));
         return match ($type) {
             'trip' => self::dispatcherTrip($p, $u, $id),
             'incident' => self::dispatcherIncident($p, $u, $id),
-            'vehicle' => (bool)one($p,
-                'SELECT t.id FROM trips t WHERE t.vehicle_id=? AND (t.dispatcher_role=? OR t.created_by=?) LIMIT 1',
-                [$id, $u['role'], $u['id']]),
+            'vehicle' => (bool)one($p,"SELECT v.id FROM vehicles v WHERE v.id=? AND v.truck_type IN ($marks)",[$id,...$types]),
             'client' => (bool)one($p,
-                'SELECT t.id FROM trips t WHERE t.client_id=? AND (t.dispatcher_role=? OR t.created_by=?) LIMIT 1',
-                [$id, $u['role'], $u['id']]),
+                "SELECT t.id FROM trips t WHERE t.client_id=? $scope LIMIT 1",[$id,...$args]),
             default => false,
         };
     }

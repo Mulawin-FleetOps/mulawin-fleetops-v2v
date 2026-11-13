@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Standard Data Table verification</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css">
+<div id="fixture" style="padding:5px"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/js/core.js"></script>
+<script>
+(()=>{
+ const root=document.querySelector('#fixture'),checks=[];
+ const assert=(ok,label)=>{if(!ok)throw new Error(label);checks.push('PASS '+label);};
+ const rows=Array.from({length:25},(_,i)=>({id:i+1,name:'Fixture Person '+(i+1),role:'Driver',truck:'FIX-'+(i+1),availability:'Available',shift:'Day'}));
+ const columns=[['Name','name'],['Role','role'],['Fixed Truck','truck'],['Availability','availability','badge'],['Duty Shift','shift']];
+ let opened=[];
+ App.me={user:{id:900,role:'operations_head'},nav:[]};App.current={page:'crew',query:{}};document.body.className='operations-head';
+ const mount=(records=rows,options={})=>{root.innerHTML=UI.table(columns,records,{showAllColumns:true,actions:()=>UI.btn('view','View'),onAction:(action,row)=>opened.push(row.id),...options});UI.activate(root);};
+ try{
+  mount();let surface=root.querySelector('.fleet-data-table');
+  assert(surface&&getComputedStyle(surface).backgroundColor==='rgb(255, 255, 255)'&&getComputedStyle(surface).borderRadius==='11px'&&getComputedStyle(surface).boxShadow!=='none','Approved white rounded surface uses a subtle border and shadow');
+  assert(surface.querySelector('.fleet-table-toolbar').firstElementChild.textContent==='25 records'&&surface.querySelectorAll('[data-rpm-view]').length===2,'Record count precedes an actual List/Grid toggle');
+  assert(root.querySelector('[data-rpm-view=list]').getAttribute('aria-pressed')==='true'&&root.querySelectorAll('tbody tr[data-ri]').length===12,'List is the default and preserves the existing twelve-record page size');
+  assert(getComputedStyle(root.querySelector('th')).backgroundColor==='rgb(242, 244, 246)'&&root.querySelectorAll('th').length===6,'Header matches the light-gray reference and retains every configured column');
+  assert(root.querySelector('.fleet-view .bi-eye')&&root.querySelector('.fleet-view').textContent.trim()==='View'&&getComputedStyle(root.querySelector('.fleet-view')).minHeight==='34px','View uses an eye icon and consistent button geometry');
+  assert(root.querySelector('.badge-s.green')&&root.textContent.includes('Available'),'Status text and its semantic color class remain unchanged');
+  assert(root.querySelector('.table-pager').textContent.includes('Showing 1–12 of 25 records')&&root.querySelector('.table-pager button').disabled,'Footer stays inside the table surface and disables first-page Previous');
+  root.querySelector('.table-pager button:last-child').click();
+  assert(root.querySelector('.table-pager').textContent.includes('Showing 13–24 of 25 records'),'Pagination draws the correct next slice');
+  root.querySelector('[data-rpm-view=cards]').click();
+  assert(root.querySelectorAll('.rpm-record-card').length===12&&root.querySelectorAll('.rpm-record-card .rpm-record-field').length===60,'Grid uses the same loaded records and retains all five configured fields');
+  root.querySelector('.rpm-record-card [data-act=view]').click();assert(opened.at(-1)===1,'Grid moves the existing authorized action handler with its original record identity');
+  const input=root.querySelector('[data-tsearch]');input.value='Fixture Person 25';input.dispatchEvent(new Event('input',{bubbles:true}));
+  assert(root.querySelectorAll('.rpm-record-card').length===1&&root.textContent.includes('FIX-25'),'Filtering Grid finds records beyond the previous page');
+  root.querySelector('[data-rpm-view=list]').click();
+  assert(root.querySelectorAll('tbody tr[data-ri]').length===1&&input.value==='Fixture Person 25','Switching back to List preserves active search and the filtered dataset');
+  root.querySelector('[data-act=view]').click();assert(opened.at(-1)===25,'List View continues to target the correct filtered record');
+  input.value='NO MATCH';input.dispatchEvent(new Event('input',{bubbles:true}));
+  assert(root.querySelector('thead')&&root.querySelector('.table-empty')&&root.querySelectorAll('.table-pager button:disabled').length===2,'Filtered empty state keeps headers and disabled pagination');
+  root.querySelector('[data-rpm-view=cards]').click();assert(root.querySelector('.table-empty'),'Grid does not erase the empty state');
+  mount([]);assert(root.querySelector('.table-pager').textContent.includes('Showing 0 of 0 records')&&!root.textContent.includes('Access denied'),'A genuinely empty dataset remains distinct from permission failure');
+  mount(rows,{viewSwitch:false});assert(!root.querySelector('[data-rpm-view]'),'Unsupported Grid controls are not created');
+  const server=document.createElement('div');server.innerHTML=UI.recordPager({total:25,page:3,pages:3,pageSize:12,previous:'data-monitor-prev',next:'data-monitor-next'});
+  assert(server.textContent.includes('Showing 25–25 of 25 records')&&!server.querySelector('[data-monitor-prev]').disabled&&server.querySelector('[data-monitor-next]').disabled,'Server-page metadata renders boundaries without changing its navigation attributes');
+  root.classList.add('app-drawer');mount(rows,{plain:true});
+  assert(root.querySelector('.fleet-data-table')&&!root.querySelector('[data-rpm-view]')&&root.querySelectorAll('tbody tr[data-ri]').length===8,'Operations Head read-only drawer tables reuse the standard without Grid or page-size changes');
+  root.querySelector('.table-pager button:last-child').click();
+  assert(root.querySelector('tbody').textContent.includes('Fixture Person 9')&&root.querySelector('.table-pager').textContent.includes('of 25 records'),'Drawer pagination retains the original record slicing');
+  root.querySelector('[data-act=view]').click();assert(opened.at(-1)===9,'Standard drawer actions retain the original record identity');
+  mount([],{plain:true});assert(root.querySelector('thead')&&root.querySelector('.table-empty')&&root.querySelectorAll('.table-pager button:disabled').length===2,'Empty drawer records retain headers and disabled standard pagination');
+  root.innerHTML='<form>'+UI.table(columns,rows,{plain:true})+'</form>';UI.activate(root);
+  assert(!root.querySelector('.fleet-data-table'),'Plain tables inside workflow forms are excluded');
+  mount(rows,{plain:true,dsServerPaged:true});assert(!root.querySelector('.fleet-data-table')&&!root.querySelector('.table-pager button'),'Server-paged plain tables are excluded from automatic drawer integration');
+  App.me.user.role='dispatcher';document.body.className='dispatcher-role';mount(rows,{plain:true});assert(!root.querySelector('.fleet-data-table'),'Dispatcher plain drawer presentation remains unchanged');
+  root.classList.remove('app-drawer');
+  App.me.user.role='admin';document.body.className='';mount();assert(!root.querySelector('.fleet-data-table'),'Unrelated role tables do not opt into this presentation');
+  App.me.user.role='operations_head';document.body.className='operations-head';mount();
+  document.querySelector('#results').textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+ }catch(error){document.querySelector('#results').textContent=checks.join('\n')+'\nFAIL '+error.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>

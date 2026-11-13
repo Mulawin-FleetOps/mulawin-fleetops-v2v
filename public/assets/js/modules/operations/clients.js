@@ -27,9 +27,44 @@ const ClientUI = {
       f('business_permit', 'Business permit'), f('bir_2303', 'Certificate of Registration (BIR Form 2303)')];
   },
   create() {
-    const wrap = UI.formModalFiles('New client profile (client information sheet)', [...ClientUI.infoFields(), ...ClientUI.fileFields(true)], 'Clients.create',
-      { intro: 'The profile is saved only when every requirement is attached. Billing then sets the rate, and the client becomes Active.',
-        submit: 'Save client profile', extraFooter: '<button type="button" class="btn btn-outline-secondary btn-sm me-auto" id="ciBlank"><i class="bi bi-printer"></i> Print blank form for the client</button>' });
+    const all = ClientUI.infoFields();
+    const field = key => {
+      const found = all.find(item => item.name === key);
+      if (!found) throw new Error('Client field is missing: ' + key);
+      return { ...found };
+    };
+    const company = [
+      { ...field('company_name'), label: 'Registered Company Name', col: 12 },
+      { ...field('trade_name'), col: 6 },
+      { ...field('tin'), col: 6 },
+      { ...field('business_address'), col: 12 },
+    ];
+    const contact = [
+      { ...field('contact_person'), col: 6 },
+      { ...field('contact_position'), col: 6 },
+      { ...field('contact_number'), col: 6 },
+      { ...field('email'), col: 6 },
+    ];
+    const extra = [
+      { ...field('nature_of_business'), col: 12 },
+      { ...field('notes'), type: 'textarea', rows: 2, col: 12 },
+    ];
+    const uploads = ClientUI.fileFields(true).filter(f => f.type === 'file');
+    const docs = [
+      { type: 'html', col: 12, html: '<p class="record-file-progress" data-upload-progress aria-live="polite">0 / 5 attached</p>' },
+      ...uploads,
+    ];
+    const sections = [
+      FormComponents.section('Company Information', 'bi-building', company),
+      FormComponents.section('Contact Information', 'bi-person-lines-fill', contact),
+      FormComponents.collapsible('Additional Information', 'Nature of business and notes', 'bi-card-text', extra),
+      FormComponents.collapsible('Accreditation Requirements', '5 mandatory files before saving', 'bi-file-earmark-check', docs),
+    ];
+    const wrap = FormComponents.fileModal('Add Client', sections, 'Clients.create', {
+      intro: 'Complete the client profile and attach all five accreditation requirements before saving.',
+      submit: 'Save Client',
+      extraFooter: '<button type="button" class="btn btn-outline-secondary btn-sm me-auto" id="ciBlank"><i class="bi bi-printer"></i> Print Blank Form</button>',
+    });
     wrap.querySelector('#ciBlank').onclick = () => ClientUI.printSheet({});
   },
   printSheet(c, sigDoc) {
@@ -40,19 +75,6 @@ const ClientUI = {
       <div class="pf-note">Accreditation requirements: <span class="chk"></span>Company profile &nbsp; <span class="chk"></span>SEC / DTI registration &nbsp; <span class="chk"></span>Business permit &nbsp; <span class="chk"></span>Certificate of Registration (BIR Form 2303)</div>
       <div class="pf-signs"><div class="pf-sign"><div class="pf-line">${sigDoc ? `<img src="${UI.docUrl(sigDoc)}" alt="signature">` : ''}</div><div class="pf-sl">Client authorized representative (signature over printed name)</div></div>
       ${UI.sign('Received by (Operations Head)')}</div>`, { number: c.client_code || '' });
-  },
-  rate(c, rates = []) {
-    const get = (t, k) => (rates.find(r => r.truck_type === t) || {})[k] || '';
-    const rows = App.me.truckTypes.map(t => `<div class="row g-2 align-items-end mb-1"><div class="col-4"><label class="form-label">${UI.esc(t)}</label></div>
-      <div class="col-4"><input class="form-control form-control-sm" type="number" step="0.01" min="0" data-rate="${UI.esc(t)}" placeholder="Rate per km" value="${UI.esc(get(t, 'rate_per_km'))}"></div>
-      <div class="col-4"><input class="form-control form-control-sm" type="number" step="0.01" min="0" data-min="${UI.esc(t)}" placeholder="Minimum charge (optional)" value="${+get(t, 'minimum_charge') ? UI.esc(get(t, 'minimum_charge')) : ''}"></div></div>`).join('');
-    UI.modal('Billing rate of ' + UI.esc(c.company_name), `<p class="small text-muted">Billing amount = billable km (pickup to delivery) x rate per km, never lower than the minimum charge, plus additional charges added by Billing. Leave a truck type blank if the client does not use it.</p>
-      <div class="row g-2 small text-muted"><div class="col-4">Truck type</div><div class="col-4">Rate per km (PHP)</div><div class="col-4">Minimum charge (PHP)</div></div>${rows}
-      ${UI.fields([{ name: 'payment_terms_days', label: 'Payment terms (days; blank = default ' + (ClientUI.defaultTerms || 30) + ')', type: 'number', value: c.payment_terms_days ?? '', col: 6 }])}`,
-      async (d, form) => {
-        const list = App.me.truckTypes.map(t => ({ truck_type: t, rate_per_km: form.querySelector(`[data-rate="${t}"]`).value, minimum_charge: form.querySelector(`[data-min="${t}"]`).value })).filter(x => x.rate_per_km);
-        const r = await App.api('Clients.rate_save', { id: c.id, rates: list, payment_terms_days: d.payment_terms_days }); UI.result(r); UI.closeDrawer(); App.route();
-      }, { submit: 'Save rate' });
   },
   /** Read-only Approved routes of the client (Checklist #20; data from the Routes module). */
   async routes(el, clientId) {
@@ -72,17 +94,15 @@ const ClientUI = {
     const acts = [];
     if (d.can.edit) acts.push('<button class="btn btn-sm btn-outline-primary" data-a="edit"><i class="bi bi-pencil"></i> Edit information</button>',
       '<button class="btn btn-sm btn-outline-secondary" data-a="docs"><i class="bi bi-paperclip"></i> Upload requirements</button>');
-    if (d.can.rate && ['Pending Rate', 'Active'].includes(c.status)) acts.push(`<button class="btn btn-sm btn-${c.status === 'Pending Rate' ? 'primary' : 'outline-primary'}" data-a="rate"><i class="bi bi-cash"></i> ${c.status === 'Pending Rate' ? 'Set billing rate' : 'Change rate'}</button>`);
     acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="print"><i class="bi bi-printer"></i> Print information sheet</button>');
-    if (d.can.edit) acts.push(`<button class="btn btn-sm btn-outline-${c.status === 'Inactive' ? 'success' : 'danger'}" data-a="active">${c.status === 'Inactive' ? 'Reactivate' : 'Deactivate'}</button>`);
+    if (d.can.edit) acts.push(`<button class="btn btn-sm btn-outline-${c.status !== 'Active' ? 'success' : 'danger'}" data-a="active">${c.status !== 'Active' ? 'Activate' : 'Deactivate'}</button>`);
     const html = `<div class="mb-2">${UI.badge(c.status)} <span class="small text-muted">${UI.esc(c.client_code || '')}</span></div>
       ${c.status === 'Incomplete' ? `<div class="alert alert-warning py-2 small">Missing requirements: ${r.missing.map(UI.esc).join(', ') || 'complete the information sheet'}. The client cannot be used for trips yet.</div>` : ''}
-      ${c.status === 'Pending Rate' ? '<div class="alert alert-info py-2 small">Profile complete. Waiting for Billing to set the billing rate.</div>' : ''}
+      ${c.status === 'Pending Rate' ? '<div class="alert alert-info py-2 small">Legacy pending client: verify accreditation and reactivate using the existing client action.</div>' : ''}
       <div class="drawer-actions">${acts.join('')}</div>
       ${UI.h('Client information')}${UI.kv([['Registered name', `<b>${UI.esc(c.company_name)}</b>`], ['Trade name', UI.e(c.trade_name)], ['TIN', UI.e(c.tin)], ['Nature of business', UI.e(c.nature_of_business)],
         ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_position].filter(Boolean).join(', ') || '—')], ['Contact number / email', UI.esc([c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
         ['Payment terms', c.payment_terms_days !== null ? c.payment_terms_days + ' days' : 'default'], ['Created by', UI.e(c.created_by_name)], ['Rate set by', c.rate_set_by_name ? UI.esc(c.rate_set_by_name) + ' · ' + UI.datetime(c.rate_set_at) : '—']])}
-      ${UI.h('Billing rates')}${r.rates.length ? UI.table([['Truck type', 'truck_type'], ['Rate per km', 'rate_per_km', 'money'], ['Minimum charge', 'minimum_charge', 'money'], ['Updated by', 'updated_by_name'], ['Updated', 'updated_at', 'date']], r.rates) : '<div class="text-muted small">No rate yet.</div>'}
       ${UI.h('Approved routes')}<div data-client-routes><div class="text-muted small">Loading approved routes…</div></div>
       ${UI.h('Accreditation requirements')}<div class="mb-2"><span class="badge-s ${r.missing.length ? 'amber' : 'green'}">${need - r.missing.length} / ${need} complete</span>${r.missing.length ? `<div class="small text-muted mt-2">Missing: ${r.missing.map(UI.esc).join(', ')}</div>` : ''}</div>
       ${UI.h('Accreditation documents')}${UI.docs(r.documents)}
@@ -95,48 +115,104 @@ const ClientUI = {
       if (a === 'edit') UI.formModal('Edit ' + UI.esc(c.company_name), ClientUI.infoFields(c), 'Clients.update', { extra: { id: c.id }, after: () => { ClientUI.open(c.id, d); App.route(); } });
       if (a === 'docs') UI.formModalFiles('Upload requirements of ' + UI.esc(c.company_name), [...ClientUI.fileFields(false), { name: 'other', label: 'Other client documents (contract, ...)', type: 'file', multiple: true, col: 12 }],
         'Clients.documents', { extra: { id: c.id }, intro: r.missing.length ? 'Still missing: ' + r.missing.map(UI.esc).join(', ') : 'Upload renewed files if needed.', submit: 'Upload', after: () => { ClientUI.open(c.id, d); App.route(); } });
-      if (a === 'rate') ClientUI.rate(c, r.rates);
       if (a === 'print') ClientUI.printSheet(c, sig ? sig.id : null);
-      if (a === 'active') UI.confirmAction((c.status === 'Inactive' ? 'Reactivate ' : 'Deactivate ') + UI.esc(c.company_name), c.status === 'Inactive' ? 'The client returns to the masterlist.' : 'The client can no longer be chosen for new trips. Old trips and invoices are kept.',
-        'Clients.set_active', { id: c.id, active: c.status === 'Inactive' ? 1 : 0 }, { danger: c.status !== 'Inactive' });
+      if (a === 'active') UI.confirmAction((c.status !== 'Active' ? 'Activate ' : 'Deactivate ') + UI.esc(c.company_name), c.status !== 'Active' ? 'Activation requires complete accreditation and profile information.' : 'The client can no longer be chosen for new trips. Old trips and invoices are kept.',
+        'Clients.set_active', { id: c.id, active: c.status !== 'Active' ? 1 : 0 }, { danger: c.status === 'Active' });
     });
   },
 };
 
 App.page('clients', {
-  title: 'Client Masterlist',
-  subtitle: 'Registered clients, accreditation documents and billing rates. Only Active clients can be used for trips.',
+  title: 'Clients',
+  subtitle: 'Client profiles, accreditation and account status.',
   render(ctx) {
-    const d = ctx.data, q = ctx.query; ClientUI.defaultTerms = d.defaultTerms;
-    if (d.can.edit) { const b = document.createElement('button'); b.className = 'btn btn-sm btn-primary'; b.innerHTML = '<i class="bi bi-plus-lg"></i> New client'; b.onclick = () => ClientUI.create(); ctx.tools.append(b); }
-    const n = (s) => d.clients.filter(c => c.status === s).length;
-    const rows = d.clients.filter(c => q.status ? c.status === q.status : c.status !== 'Inactive');
-    // Quick status tabs are shortcuts. Keep the Filter modal for detailed filtering.
-    const quickStatuses = [['', 'All current'], ['Active', 'Active'], ['Pending Rate', 'Pending rate'],
-      ['Incomplete', 'Incomplete'], ['Inactive', 'Inactive']];
-    const quickTabs = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Client status shortcuts">
-      ${quickStatuses.map(([value, label]) => `<button type="button" class="btn btn-sm ${String(q.status || '') === value ? 'btn-primary' : 'btn-outline-secondary'}" data-client-quick="${UI.esc(value)}" aria-pressed="${String(q.status || '') === value}">${UI.esc(label)}</button>`).join('')}
-    </div>`;
-    ctx.el.innerHTML = UI.cards([
-      { label: 'Active clients', value: n('Active'), icon: 'bi-building-check', color: 'green' },
-      { label: 'Waiting for billing rate', value: n('Pending Rate'), icon: 'bi-hourglass-split', color: 'blue' },
-      { label: 'Incomplete requirements', value: n('Incomplete'), icon: 'bi-exclamation-circle', color: 'amber' },
-      { label: 'Inactive', value: n('Inactive'), icon: 'bi-archive', color: 'gray' },
-    ]) + quickTabs + UI.filterModal(ctx, [{ name: 'status', label: 'Status', type: 'select', options: UI.list(['Active', 'Pending Rate', 'Incomplete', 'Inactive']), col: 12 }], { hint: 'Showing all clients except inactive.' })
-      + UI.table([['Code', 'client_code'], ['Client', 'company_name', (v) => `<b>${UI.esc(v)}</b>`], ['Contact', 'contact_person'], ['Phone', 'contact_number'], ['Status', 'status', 'badge'],
-        ['Balance', 'balance', 'money']],
-        rows, { title: 'Clients', actions: (c) => UI.btn('view', 'View') + (d.can.rate && c.status === 'Pending Rate' ? UI.btn('rate', 'Set rate', 'primary') : ''),
-          onAction: (a, c) => a === 'rate' ? App.api('Clients.details', { id: c.id }).then(r => ClientUI.rate(r.client, r.rates)) : ClientUI.open(c.id, d) });
-    UI.activate(ctx.el);
-    // Quick tabs replace the redundant Filter button on this masterlist.
-    ctx.el.querySelector('.filter-summary [data-fopen]')?.remove();
-    ctx.el.querySelectorAll('[data-client-quick]').forEach(button => {
-      button.addEventListener('click', () => {
-        const next = { ...ctx.query };
-        if (button.dataset.clientQuick) next.status = button.dataset.clientQuick;
-        else delete next.status;
-        App.go(ctx.page, next);
-      });
+    const d=ctx.data,q=ctx.query;
+    ClientUI.defaultTerms=d.defaultTerms;
+    const clients=d.clients||[];
+    const count=status=>clients.filter(c=>c.status===status).length;
+    const quickStatuses=[['','All Current'],['Active','Active'],['Pending Rate','Pending Rate'],
+      ['Incomplete','Incomplete'],['Inactive','Inactive']];
+    const rows=clients.filter(c=>q.status ? c.status===q.status : c.status!=='Inactive');
+    const statusOptions=[['','All statuses'],['Active','Active'],['Pending Rate','Pending Rate'],
+      ['Incomplete','Incomplete'],['Inactive','Inactive']];
+    const toolbar=`<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger"
+      aria-controls="client-filter-panel" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger"
+      aria-controls="client-sort-panel" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>
+      <div class="record-workspace-popovers">
+        <div id="client-filter-panel" class="record-workspace-popover" hidden>
+          <strong>Filter Clients</strong>
+          <label>Client Status<select class="form-select form-select-sm" name="status">
+            ${statusOptions.map(([v,label])=>'<option value="'+UI.esc(v)+'"'+(String(q.status||'')===v?' selected':'')+'>'+UI.esc(label)+'</option>').join('')}
+          </select></label>
+          <div class="record-workspace-popover-actions">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>
+            <button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button>
+          </div>
+        </div>
+        <div id="client-sort-panel" class="record-workspace-popover record-workspace-sort-panel" hidden>
+          <strong>Sort Clients</strong>
+          <label class="record-workspace-sort-option"><input type="radio" name="client_sort" value="default" data-record-sort checked> Default order</label>
+          <label class="record-workspace-sort-option"><input type="radio" name="client_sort" value="name" data-record-sort> Client name</label>
+          <label class="record-workspace-sort-option"><input type="radio" name="client_sort" value="code" data-record-sort> Client code</label>
+          <label class="record-workspace-sort-option"><input type="radio" name="client_sort" value="status" data-record-sort> Status</label>
+        </div>
+      </div>`
+      +(d.can.edit?'<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add Client</button>':'');
+    const table=UI.table([
+      ['Code','client_code'],
+      ['Client','company_name',v=>'<b>'+UI.esc(v)+'</b>'],
+      ['Contact','contact_person'],
+      ['Phone','contact_number'],
+      ['Status','status','badge'],
+      ['Balance','balance','money'],
+    ],rows,{
+      tools:toolbar,
+      actions:()=>UI.btn('view','View'),
+      onAction:(action,c)=>ClientUI.open(c.id,d),
+      rowClick:c=>ClientUI.open(c.id,d),
+      empty:clients.length?'No clients match your search or filters.':'No clients registered yet. Add your first client to start managing profiles.',
     });
+    ctx.el.innerHTML='<div class="fleet-clients-workspace">'
+      +RecordComponents.kpis([
+        {label:'Total Clients',value:clients.length},
+        {label:'Active',value:count('Active'),color:'green'},
+        {label:'Pending Rate',value:count('Pending Rate'),color:'blue'},
+        {label:'Incomplete',value:count('Incomplete'),color:count('Incomplete')?'amber':''},
+      ])
+      +RecordComponents.panel(table,RecordComponents.categories(quickStatuses.map(([value,label])=>({value,label})),q.status||'','data-client-status'))
+      +'</div>';
+    UI.activate(ctx.el);
+    RecordComponents.mountPanel(ctx.el,{
+      title:'Client Records',
+      categorySelector:'.record-workspace-categories',
+      addSelector:'.record-workspace-add',
+    });
+    ctx.el.querySelector('.record-workspace-add')?.addEventListener('click',()=>ClientUI.create());
+    ctx.el.querySelectorAll('[data-client-status]').forEach(button=>button.addEventListener('click',()=>{
+      const next={...ctx.query},status=button.dataset.clientStatus;
+      if(status)next.status=status;else delete next.status;
+      App.go(ctx.page,next);
+    }));
+    const tbody=ctx.el.querySelector('[data-tbody]'),
+      tableState=tbody?UI._tables[tbody.dataset.tbody]:null,
+      original=tableState?tableState.rows.slice():[];
+    RecordComponents.bindDropdowns(ctx.el,{
+      apply(panel){
+        const next={...ctx.query},status=panel.querySelector('[name="status"]').value;
+        if(status)next.status=status;else delete next.status;
+        App.go(ctx.page,next);
+      },
+      reset(){
+        const next={...ctx.query};delete next.status;App.go(ctx.page,next);
+      },
+      sort(key){
+        if(!tableState||!tbody)return;
+        const field={name:'company_name',code:'client_code',status:'status'}[key];
+        tableState.rows=key==='default'?original.slice():
+          original.slice().sort((a,b)=>String(a[field]||'').localeCompare(String(b[field]||''),undefined,{numeric:true}));
+        tableState.page=0;UI.drawTable(tbody.dataset.tbody);
+      },
+    },{filter:'client-filter-panel',sort:'client-sort-panel'});
   },
 });

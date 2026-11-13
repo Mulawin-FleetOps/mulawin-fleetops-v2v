@@ -11,7 +11,7 @@
  *
  *  PROVISIONAL WORKFLOW (see POLICY below, pending company confirmation):
  *    1. Operations Head requests a route              -> "Pending Rate"
- *    2. Billing & Collection enters the rate           -> "Pending Approval"
+ *    2. Head Management enters the fixed rate           -> "Pending Approval"
  *    3. Admin approves                                  -> "Approved"
  *       (the client must STILL be eligible at approval time; rejecting is always allowed)
  *       or rejects (terminal for a new request)         -> "Rejected"
@@ -19,7 +19,7 @@
  *    Admin may deactivate an approved route             -> "Inactive"
  *
  *  RATE REVISION of an Approved route:
- *    Billing enters a new rate (new version row, "Pending Approval"); the route
+ *    Head Management enters a new rate (new version row, "Pending Approval"); the route
  *    stays Approved with its old rate. Admin approves -> the old rate becomes
  *    "Superseded" and the new one "Approved", in ONE transaction. Admin rejects
  *    -> only the revision is "Rejected"; the route and the old rate do not change.
@@ -30,8 +30,7 @@
  *  TWO READ LISTS: approvedFor() = record/display (any client status);
  *  selectableFor() = planning eligibility (Approved route + current rate + Active client).
  *
- *  NOT CONNECTED (yet) to Trip Management or billing: the old client_rates
- *  (rate per km) and BillingDraft keep working exactly as before.
+ *  Approved fixed route rates feed dispatch pricing; legacy client rates remain historical.
  *
  *  LOCK ORDER (prevents deadlocks): client row -> route row -> rate rows.
  * =====================================================================
@@ -49,7 +48,7 @@ final class Routes {
     public const POLICY = [
         'request'         => ['operations_head'],          // asks for a new route
         'withdraw'        => ['operations_head'],          // withdraws own request before approval
-        'rate'            => ['billing'],                  // enters / revises the contractual rate
+        'rate'            => ['admin'],                  // enters / revises the contractual rate
         'approve'         => ['admin'],                    // approves or rejects the rate
         'deactivate'      => ['admin'],                    // takes an approved route out of use
         'view'            => ['admin', 'operations_head', 'billing', 'finance', 'audit'],
@@ -91,6 +90,7 @@ final class Routes {
             'request' => self::allowed($u, 'request'), 'withdraw' => self::allowed($u, 'withdraw'),
             'rate' => self::allowed($u, 'rate'), 'approve' => self::allowed($u, 'approve'), 'deactivate' => self::allowed($u, 'deactivate'),
         ];
+        core('TripPricing');$data['garage']=TripPricing::ready($p)?Settings::pricingAt($p,'garage',date('Y-m-d')):null;
         return $data;
     }
 
@@ -167,8 +167,16 @@ final class Routes {
             'details' => self::details($u, $d),
             'for_client' => self::forClient($u, $d),
             'selectable' => self::selectableAction($u, $d),
+            'pricing_estimate' => self::pricingEstimate($u,$d),
             default => throw new BusinessRuleException('Unknown route action.', 404),
         };
+    }
+
+    private static function pricingEstimate(array $u,array $d): array {
+        self::mustBeAllowed($u,'view');core('TripPricing');$p=db();$r=one($p,'SELECT * FROM client_routes WHERE id=?',[idField($d,'route_id')]);must((bool)$r,'Route not found.',404);
+        $q=TripPricing::quote($p,['client_route_id'=>$r['id'],'truck_type'=>$r['truck_type'],'created_by'=>$u['id']],date('Y-m-d H:i:s'));
+        if(isset($d['rate_amount'])&&$q['fuel']!==null){$amount=moneyField($d,'rate_amount');$q['estimate_total']=one($p,'SELECT CAST(? AS DECIMAL(14,2))+CAST(? AS DECIMAL(14,2)) amount',[$amount,$q['fuel']])['amount'];}
+        return $q;
     }
 
     // ---------- helpers ----------
@@ -283,7 +291,7 @@ final class Routes {
                 . ($r['distance_computed_km'] !== null ? ', computed ' . $r['distance_computed_km'] . ' km, ' . Routing::OPTIONS[$r['route_option']]['label'] : '') . ')'
                 . ($r['distance_override_reason'] ? '. Km changed by hand: ' . $r['distance_override_reason'] : ''));
             Notify::roles($p, self::POLICY['rate'], 'Route rate', 'Route request ' . self::routeName($r) . ' for ' . $c['company_name'] . ' needs a rate.', 'routes', 'route-rate-' . $id);
-            $out = ['route_id' => $id, 'route_ref' => $ref, 'message' => "Route $ref was sent to Billing for the rate (Pending Rate)."];
+            $out = ['route_id' => $id, 'route_ref' => $ref, 'message' => "Route $ref was sent to Head Management for the fixed rate (Pending Rate)."];
             if ($distNote !== '') $out['warning'] = $distNote;
             return $out;
         });
@@ -329,7 +337,7 @@ final class Routes {
         });
     }
 
-    // ---------- 2. rate entry / revision (Billing) ----------
+    // ---------- 2. rate entry / revision (Head Management) ----------
     private static function rateEnter(array $u, array $d): array {
         self::mustBeAllowed($u, 'rate');
         $id = idField($d, 'route_id');
@@ -421,7 +429,6 @@ final class Routes {
             }
             must((bool)$rate, 'Rate not found.', 404);
             must($rate['status'] === 'Pending Approval', 'This rate was already decided (' . $rate['status'] . '). Reload the page.', 409);
-            must((int)$rate['entered_by'] !== $u['id'], 'The person who entered the rate cannot approve or reject it (separation of duties).', 403);
             $revision = $r['status'] === 'Approved';
             must($revision || $r['status'] === 'Pending Approval', 'The route is ' . $r['status'] . '.', 409);
             if ($revision) must((bool)$current, 'This approved route has no current rate. Check the route history.', 409);

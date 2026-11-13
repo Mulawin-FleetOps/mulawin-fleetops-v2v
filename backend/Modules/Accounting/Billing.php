@@ -24,6 +24,7 @@ core('Files');
 core('Money');
 core('Settings');
 
+core('TripPricing');
 final class Billing {
     public const DOC_PAYMENT = 'Payment Acknowledgement Receipt';
 
@@ -47,7 +48,7 @@ final class Billing {
                     SUM(CASE WHEN DATEDIFF(CURRENT_DATE(), b.due_date) BETWEEN 31 AND 60 THEN b.total_amount-b.amount_paid ELSE 0 END) AS d31_60,
                     SUM(CASE WHEN DATEDIFF(CURRENT_DATE(), b.due_date) > 60 THEN b.total_amount-b.amount_paid ELSE 0 END) AS d60
                 FROM billings b JOIN clients c ON c.id=b.client_id WHERE b.status IN ('Invoiced','Partially Paid') GROUP BY c.id, c.company_name ORDER BY balance DESC"),
-            'pendingRates' => fn() => (int)one($p, "SELECT COUNT(*) AS n FROM clients WHERE status='Pending Rate'")['n'],
+            'pendingRates' => fn() => 0,
             'adjustments' => fn() => many($p, "SELECT c.id, c.billing_id, c.kind, c.request_type, c.description, c.amount, c.reason, c.added_by, c.created_at,
                     o.description AS old_description, o.amount AS old_amount, u.full_name AS added_by_name, t.trip_ref, cl.company_name AS client, b.total_amount
                 FROM billing_charges c JOIN billings b ON b.id=c.billing_id JOIN trips t ON t.id=b.trip_id JOIN clients cl ON cl.id=b.client_id
@@ -62,6 +63,8 @@ final class Billing {
 
     public static function action(array $u, string $action, array $d): array {
         return match ($action) {
+            'pricing_report' => self::pricingReport($u,$d),
+            'pricing_recalculate' => self::pricingRecalculate($u,$d),
             'charge_add' => self::chargeAdd($u, $d),
             'charge_change' => self::chargeChange($u, $d),
             'charge_remove' => self::chargeRemove($u, $d),
@@ -91,6 +94,23 @@ final class Billing {
      * invoice finalization only (trip planning, dispatch and completion are not involved).
      */
     public const KINDS = ['Additional Charge', 'Rate Adjustment'];
+    private static function pricingReport(array $u,array $d): array {
+        requireRole($u,'admin','billing','audit');$p=db();must(TripPricing::ready($p),'Pricing migration 13 is required.',409);
+        $after=max(0,(int)($d['after_id']??0));$rows=many($p,'SELECT * FROM billings WHERE id>? ORDER BY id LIMIT 200',[$after]);
+        return ['rows'=>array_map(fn($b)=>TripPricing::proposal($p,$b),$rows),'next_after_id'=>count($rows)===200?(int)end($rows)['id']:null];
+    }
+    private static function pricingRecalculate(array $u,array $d): array {
+        requireRole($u,'admin');$id=idField($d,'billing_id');$reason=field($d,'reason',300);
+        return transaction(function(PDO $p)use($u,$d,$id,$reason){
+            $b=one($p,'SELECT * FROM billings WHERE id=? FOR UPDATE',[$id]);must((bool)$b,'Billing not found.',404);
+            $proposal=TripPricing::proposal($p,$b);$proposal['pricing']['frozen']=true;must($proposal['can_apply'],'Recalculation requires verified inputs and an unpaid, unissued open record.',409);
+            must(hash_equals($proposal['fingerprint'],field($d,'fingerprint',64)),'Pricing changed after review. Preview again.',409);
+            run($p,'UPDATE billing_pricing SET snapshot_json=? WHERE billing_id=?',[json_encode($proposal['pricing'],JSON_THROW_ON_ERROR),$id]);
+            run($p,'UPDATE billings SET base_amount=?,total_amount=? WHERE id=?',[$proposal['pricing']['total'],$proposal['proposed'],$id]);
+            auditWithChanges($p,$u['id'],'Pricing','billing '.$id,'verified open billing recalculated',$reason,['Total'=>$b['total_amount']],['Total'=>$proposal['proposed']]);return ['message'=>'Verified open record recalculated. Invoices and payments were not changed.'];
+        });
+    }
+
     /** Rows that count in the billing total. */
     public const COUNTED = "status='Approved' AND request_type<>'Removal'";
     /** COUNTED for a query that uses a table alias (joins with billing_charges itself). */
@@ -284,6 +304,8 @@ final class Billing {
         return transaction(function (PDO $p) use ($u, $id, $date, $number) {
             $b = self::lock($p, $id);
             must($b['status'] === 'For Billing', 'Only records in For Billing can be finalized.', 409);
+            core('TripPricing');$pricing=TripPricing::saved($p,$id);
+            if($pricing!==null)must(!$pricing['missing']&&$pricing['fuel']!==null,'Pending Fuel Calculation: resolve and review dispatch pricing before issuing an invoice.',409);
             must((bool)$b['docs_verified_at'], 'Verify the supporting documents first.', 409);
             $pending = (int)one($p, "SELECT COUNT(*) AS n FROM billing_charges WHERE billing_id=? AND status='Pending Approval'", [$id])['n'];
             must($pending === 0, "$pending billing adjustment request(s) are waiting for Admin approval. Finalize after the Admin decides, or withdraw the request.", 409);
@@ -343,7 +365,7 @@ final class Billing {
         must((bool)$b, 'Billing record not found.', 404);
         $docs = array_merge(Files::of($p, 'trip', (int)$b['trip_id']), Files::of($p, 'billing', $id));
         return [
-            'billing' => $b,
+            'billing' => $b, 'pricing' => TripPricing::saved($p,$id),
             'trip' => one($p, 'SELECT t.id, t.trip_ref, t.truck_type, t.pickup_point, t.delivery_point, t.dispatched_at, t.completed_at, t.waybill_number, t.units_delivered, v.plate_number, d1.full_name AS driver_name, d2.full_name AS driver2_name, h.full_name AS helper_name FROM trips t
                 LEFT JOIN vehicles v ON v.id=t.vehicle_id LEFT JOIN personnel d1 ON d1.id=t.driver_id LEFT JOIN personnel d2 ON d2.id=t.driver2_id LEFT JOIN personnel h ON h.id=t.helper_id WHERE t.id=?', [$b['trip_id']]),
             'client' => one($p, 'SELECT id, company_name, tin, business_address, contact_person, contact_number, email, payment_terms_days FROM clients WHERE id=?', [$b['client_id']]),

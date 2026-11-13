@@ -1,0 +1,213 @@
+/* Reusable record workspace, based on the approved Mulawin Trucks layout.
+   Component classes are independent of sidebar and department navigation. */
+.record-workspace-kpis .metric-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px;background:transparent;border:0}
+.record-workspace-kpis .metric{min-width:0;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.record-workspace-kpis .metric-label{font-size:12px}
+.record-workspace-kpis .metric-value{font-size:25px;line-height:1.2}
+.record-workspace-tabs{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.record-workspace-tab{padding:8px 13px;font-weight:600;font-size:13px;cursor:pointer;background:transparent;color:var(--text-2);border:0;border-bottom:2px solid transparent}
+.record-workspace-tab.active{color:var(--green,#13743d);border-bottom-color:currentColor}
+.record-workspace-panel>.panel{margin:0}
+.record-workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 10px}
+.record-workspace-heading h2{font-size:15px;font-weight:650;color:var(--text);margin:0 0 3px}
+.record-workspace-count{margin:0;color:var(--text-3);font-size:12px}
+.record-workspace-search{display:flex;align-items:center;gap:10px;padding:4px 16px 12px}
+.record-workspace-search .table-search{flex:1 1 auto;max-width:none;min-width:0}
+.record-workspace-search .ui-filter-toolbar{margin:0;flex:0 0 auto}
+.record-workspace-search .ui-filter-toolbar>span:not(.filter-chip){display:none}
+.record-workspace-category-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.record-workspace-categories{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.record-workspace-categories .btn{font-size:12px;padding:5px 11px}
+.record-workspace-panel .data-table th{font-size:11.5px;padding:9px 11px}
+.record-workspace-panel .data-table td{font-size:12.5px;padding:10px 11px}
+.record-workspace-panel .table-wrap:has(.table-empty)+.table-pager{display:none}
+.record-workspace-panel .table-empty{min-height:135px;justify-content:center;font-size:13px}
+.record-workspace-panel .table-tools,.record-workspace-panel .fleet-table-toolbar{display:none!important}
+@media(max-width:900px){.record-workspace-kpis .metric-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.record-workspace-search{flex-wrap:wrap}.record-workspace-search .table-search{flex-basis:100%}.record-workspace-heading{flex-wrap:wrap}.record-workspace-kpis .metric{padding:12px}.record-workspace-kpis .metric-value{font-size:22px}}
+
+
+/* Compact, floating filter/sort controls (no Bootstrap modal or backdrop). */
+.record-workspace-search {position:relative}
+.record-workspace-search .record-workspace-filter-trigger,
+.record-workspace-search .record-workspace-sort-trigger {flex:0 0 auto;white-space:nowrap;min-height:34px}
+.record-workspace-popovers {position:static}
+.record-workspace-popover {
+  position:absolute;z-index:40;right:16px;top:calc(100% - 8px);
+  width:min(310px,calc(100vw - 48px));padding:15px;
+  background:var(--surface,#fff);border:1px solid var(--border,#dce4df);
+  border-radius:12px;box-shadow:0 12px 28px rgba(15,39,27,.16);
+  display:flex;flex-direction:column;gap:11px;color:var(--text,#26392e);
+}
+.record-workspace-popover[hidden] {display:none!important}
+.record-workspace-popover strong {font-size:13px;margin-bottom:2px}
+.record-workspace-popover>label:not(.record-workspace-check):not(.record-workspace-sort-option) {
+  display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600
+}
+.record-workspace-popover .form-select {font-size:13px;min-height:35px}
+.record-workspace-check,.record-workspace-sort-option {
+  display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;margin:0
+}
+.record-workspace-check input,.record-workspace-sort-option input {accent-color:#176b3c}
+.record-workspace-popover-actions {display:flex;justify-content:flex-end;gap:7px;margin-top:4px}
+.record-workspace-sort-panel {right:16px;width:205px}
+.record-workspace-filter-trigger[aria-expanded="true"],.record-workspace-sort-trigger[aria-expanded="true"] {
+  border-color:#177541;color:#176d39;background:#f1f8f3
+}
+@media(max-width:500px) {
+  .record-workspace-popover{right:10px;top:calc(100% - 3px)}
+}
+
+
+/* Reusable compact sectioned Add/Edit forms */
+.record-form-dialog{max-width:790px;width:calc(100% - 28px)}
+.record-form-dialog .modal-content{border-radius:14px;overflow:hidden}
+.record-form-dialog .modal-header{padding:14px 20px}
+.record-form-dialog .modal-header .modal-title{font-size:17px;font-weight:650}
+.record-form-dialog .modal-body{padding:16px 20px;max-height:min(70vh,660px);overflow-y:auto}
+.record-form-dialog .modal-footer{padding:12px 20px;background:var(--surface,#fff);border-top:1px solid var(--border)}
+.record-form-dialog .form-label{font-size:12px;font-weight:550;margin-bottom:5px}
+.record-form-dialog .form-control,.record-form-dialog .form-select{min-height:37px;font-size:13px}
+.record-form-dialog .record-form .row{--bs-gutter-x:12px;--bs-gutter-y:11px}
+.record-form-hint{font-size:12px;color:var(--text-2,#5b6860);background:var(--surface-2,#f6faf7);border:1px solid var(--border);padding:10px 12px;border-radius:8px;margin-bottom:15px}
+.record-form-section{padding:2px 0 15px;margin-bottom:15px;border-bottom:1px solid var(--border)}
+.record-form-section-title{display:flex;align-items:center;gap:8px;margin:0 0 12px;color:var(--text)}
+.record-form-section-title>i{font-size:15px;color:var(--green,#176c3d)}
+.record-form-section-title h3{font-size:13.5px;font-weight:650;margin:0}
+.record-form-extra{margin:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+.record-form-extra summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;cursor:pointer;list-style:none}
+.record-form-extra summary::-webkit-details-marker{display:none}
+.record-form-extra summary:hover{background:var(--surface-2)}
+.record-form-extra summary:focus-visible{outline:2px solid var(--green,#176c3d);outline-offset:-2px}
+.record-form-extra-heading{display:flex;align-items:center;gap:10px}
+.record-form-extra-heading>i{font-size:16px;color:var(--green,#176c3d)}
+.record-form-extra-heading span{display:flex;flex-direction:column;gap:3px}
+.record-form-extra-heading strong{font-size:13px}
+.record-form-extra-heading small{font-size:11.5px;color:var(--text-3)}
+.record-form-chevron{transition:transform .15s}
+.record-form-extra[open] .record-form-chevron{transform:rotate(180deg)}
+.record-form-extra-content{border-top:1px solid var(--border);padding:14px}
+@media(max-width:575px){
+ .record-form-dialog{width:calc(100% - 16px);margin:8px auto}
+ .record-form-dialog .modal-body{max-height:72vh;padding:13px}
+ .record-form-dialog .modal-header,.record-form-dialog .modal-footer{padding:12px 13px}
+}
+
+/* Drivers & Helpers: same reusable KPI-first layout as Trucks. */
+.fleet-crew-workspace .record-workspace-help{font-size:12px;color:var(--text-3,#65766b);margin:12px 0 0}
+.fleet-crew-workspace .record-workspace-panel>.panel{overflow:visible}
+.fleet-crew-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+
+
+/* Optional compact form density for Driver/Helper Add and Edit.
+   Truck forms retain their existing section spacing. */
+.record-form-dialog-compact{max-width:750px}
+.record-form-dialog-compact .modal-header{padding:12px 18px}
+.record-form-dialog-compact .modal-body{padding:13px 18px;max-height:min(73vh,610px)}
+.record-form-dialog-compact .modal-footer{padding:10px 18px}
+.record-form-compact .record-form-section{padding:0 0 11px;margin-bottom:11px}
+.record-form-compact .record-form-section-title{margin-bottom:8px;gap:7px}
+.record-form-compact .record-form-section-title h3{font-size:13px}
+.record-form-compact .record-form-section-fields .row{--bs-gutter-x:12px;--bs-gutter-y:8px}
+.record-form-compact .form-label{font-size:12px;margin-bottom:4px}
+.record-form-compact .form-control,.record-form-compact .form-select{min-height:35px}
+.record-form-compact .form-help{font-size:11px}
+.record-form-compact .record-form-extra summary{padding:10px 12px}
+.record-form-compact .record-form-extra-content{padding:12px}
+@media(max-width:575px){
+  .record-form-dialog-compact{width:calc(100% - 16px)}
+  .record-form-dialog-compact .modal-body{max-height:73vh;padding:12px}
+}
+
+
+/* Personnel forms: compact rows, consistent accent, smaller Helper dialog. */
+.record-form-dialog-small {max-width:620px}
+.record-form-dialog-compact .modal-body {max-height:min(70vh,580px)}
+.record-form-compact .record-form-section-fields .row {--bs-gutter-x:10px;--bs-gutter-y:7px}
+.record-form-compact .record-form-section {padding-bottom:10px;margin-bottom:10px}
+.record-form-compact .record-form-extra {background:var(--surface,#fff)}
+.record-form-compact .record-form-extra-heading strong,
+.record-form-compact .record-form-extra-heading>i,
+.record-form-compact .record-form-chevron {color:var(--green,#176c3d)}
+.record-form-compact .record-form-extra-heading small {font-size:11px}
+.record-form-dialog-small .record-form-section {border-bottom:0;padding-bottom:4px;margin-bottom:7px}
+@media(max-width:767px) {
+ .record-form-dialog-small {max-width:calc(100% - 16px)}
+}
+
+
+/* Reusable client accreditation upload checklist and compact client form */
+.record-form-files .record-form-section {padding-bottom:10px;margin-bottom:11px}
+.record-form-files .record-form-extra {margin-top:9px}
+.record-form-files .record-form-extra-heading strong {color:var(--green,#176c3d)}
+.record-form-files .record-form-extra-content .row {--bs-gutter-y:11px;--bs-gutter-x:12px}
+.record-form-files .record-form-extra-content input[type=file] {
+  width:100%;min-height:39px;padding:5px;font-size:12px;
+}
+.record-form-files .record-form-extra-content input[type=file]::file-selector-button {
+  border:1px solid var(--border,#d6e3d9);border-radius:5px;
+  background:var(--surface-2,#f1f7f2);padding:4px 9px;margin-right:10px;
+}
+.record-form-files .record-file-progress {
+  font-size:12px;color:var(--green,#176c3d);font-weight:600;
+  margin:0;padding:8px 10px;background:var(--surface-2,#f3f8f4);border-radius:6px;
+}
+.record-form-files .record-form-extra input.is-invalid {border-color:#b3261e}
+
+
+/* Trips records page — shared components, wider date filter popover. */
+.fleet-trips-workspace .record-workspace-heading{flex-wrap:wrap}
+.fleet-trips-workspace .record-workspace-heading>.record-workspace-add{margin-left:0}
+.fleet-trips-workspace .record-workspace-heading>button:not(.record-workspace-add){margin-left:auto}
+.fleet-trips-workspace .record-workspace-search .table-search{flex:1 1 240px}
+.fleet-trips-workspace .record-workspace-popover-wide{width:min(355px,calc(100vw - 48px))}
+.fleet-trips-workspace .record-workspace-date-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.fleet-trips-workspace .record-workspace-date-range label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600}
+.fleet-trips-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.fleet-trips-workspace .record-workspace-help{font-size:12px;margin:4px 0 12px;color:var(--text-3)}
+@media(max-width:680px){
+ .fleet-trips-workspace .record-workspace-heading>button:not(.record-workspace-add){margin-left:0}
+ .fleet-trips-workspace .record-workspace-popover-wide{right:8px}
+}
+
+
+/* Dispatch Monitoring: operational shift overview and paginated read-only records. */
+.oh-dispatch-workspace .record-workspace-kpis{margin-bottom:16px}
+.oh-dispatch-shifts{margin:0 0 16px}
+.oh-dispatch-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.oh-dispatch-section-head h2{font-size:14px;margin:0;font-weight:650}
+.oh-dispatch-section-head span{font-size:12px;color:var(--text-3)}
+.oh-dispatch-shift-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.oh-dispatch-shift-card{display:block;padding:12px 15px;border:1px solid var(--border,#dce5df);border-radius:11px;background:var(--surface,#fff);color:inherit;text-decoration:none}
+.oh-dispatch-shift-card:hover,.oh-dispatch-shift-card.is-selected{border-color:#1d7044;background:#f5faf6;color:inherit}
+.oh-dispatch-shift-head,.oh-dispatch-shift-stats{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.oh-dispatch-shift-head b{font-size:13px}
+.oh-dispatch-shift-head span,.oh-dispatch-shift-stats{font-size:12px;color:var(--text-3,#65756b)}
+.oh-dispatch-shift-stats{justify-content:flex-start;gap:18px;margin-top:8px}
+.oh-dispatch-shift-stats strong{color:var(--text,#253d2f)}
+.oh-dispatch-records{background:var(--surface,#fff);border:1px solid var(--border,#dce5df);border-radius:12px;overflow:visible}
+.oh-dispatch-records .record-workspace-heading{flex-wrap:wrap}
+.oh-dispatch-records .record-workspace-heading>button{margin-left:auto}
+.oh-dispatch-records .record-workspace-search{padding:4px 16px 13px}
+.oh-dispatch-records [data-monitor-search]{flex:1 1 220px;min-width:0;max-width:none}
+.oh-dispatch-records .oh-dispatch-filter-panel{width:min(340px,calc(100vw - 40px))}
+.oh-dispatch-records .record-workspace-date-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.oh-dispatch-records .record-workspace-date-range label{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.oh-dispatch-table-wrap{overflow-x:auto}
+.oh-dispatch-table-wrap .data-table{width:100%}
+.oh-dispatch-pager{padding:10px 16px;border-top:1px solid var(--border,#dce5df)}
+@media(max-width:680px){.oh-dispatch-shift-grid{grid-template-columns:1fr}.oh-dispatch-records .record-workspace-search{flex-wrap:wrap}.oh-dispatch-records [data-monitor-search]{flex-basis:100%}}
+
+
+/* Fund Approvals: compact Operations Head workflow, reusable records layout. */
+.fund-approval-workspace .record-workspace-tabs{margin:2px 0 12px;gap:7px}
+.fund-approval-workspace .record-workspace-tab{font-size:12.5px;padding:9px 12px;white-space:nowrap}
+.fund-approval-workspace .record-workspace-panel{border:1px solid var(--border,#dce5df);border-radius:12px;background:var(--surface,#fff);overflow:visible}
+.fund-approval-workspace .record-workspace-panel>.panel{border:0;box-shadow:none;background:transparent}
+.fund-approval-workspace .record-workspace-heading{padding:14px 16px 9px}
+.fund-approval-workspace .record-workspace-search{padding:4px 16px 12px}
+.fund-approval-workspace .record-workspace-search .table-search{flex:1 1 auto;min-width:160px}
+.fund-approval-workspace .record-workspace-panel .data-table th{font-size:11.5px}
+.fund-approval-workspace .record-workspace-panel .data-table td{font-size:12.5px}
+.fund-approval-workspace .record-workspace-panel .data-table .cell-sub{font-size:11.5px;color:var(--text-3,#6b786f)}
+@media(max-width:700px){.fund-approval-workspace .record-workspace-tabs{flex-wrap:nowrap;overflow-x:auto}.fund-approval-workspace .record-workspace-search{flex-wrap:wrap}.fund-approval-workspace .record-workspace-search .table-search{flex-basis:100%}}
