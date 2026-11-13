@@ -48,8 +48,9 @@ test_import($p, test_sql('database/schema.sql'));
 test_import($p, test_sql('database/extension.sql'));
 $users = [];
 foreach (array_keys(ROLE_LABELS) as $role) {
-    $id = insert($p, 'users', ['username' => $role, 'email' => "$role@example.test", 'password_hash' => 'x', 'full_name' => strtoupper($role) . ' USER', 'role' => $role]);
-    $users[$role] = ['id' => $id, 'username' => $role, 'email' => "$role@example.test", 'full_name' => strtoupper($role) . ' USER', 'role' => $role, 'shift' => null];
+    $shift = roleIsDispatcher($role) ? 'Day' : null;
+    $id = insert($p, 'users', ['username' => $role, 'email' => "$role@example.test", 'password_hash' => 'x', 'full_name' => strtoupper($role) . ' USER', 'role' => $role, 'shift' => $shift]);
+    $users[$role] = ['id' => $id, 'username' => $role, 'email' => "$role@example.test", 'full_name' => strtoupper($role) . ' USER', 'role' => $role, 'shift' => $shift];
 }
 $U = fn(string $r) => $users[$r];
 $ops = $U('operations_head'); $wvd = $U('container_wingvan_dispatcher'); $ccd = $U('car_carrier_dispatcher');
@@ -64,8 +65,35 @@ $truck = function (string $type, int $n) use ($p, &$plate) { $ids = []; for ($i 
 $crew = fn(int $n) => array_map(fn($i) => [insert($p, 'personnel', ['full_name' => "DRIVER, B$i", 'person_type' => 'Driver']), insert($p, 'personnel', ['full_name' => "HELPER, B$i", 'person_type' => 'Helper'])], range(1, $n));
 $truck('Wing Van', 2); $crew(40);
 $at = fn(int $minutes) => date('Y-m-d\TH:i', time() + $minutes * 60);
-$row = fn(array $o = []) => $o + ['request_key' => uuid(), 'client_id' => (string)$cid, 'truck_type' => 'Wing Van', 'pickup_point' => 'TANAUAN WAREHOUSE', 'delivery_point' => 'MALVAR PLANT',
-                                  'scheduled_at' => $at(180), 'distance_km' => '25.50'];
+// Modern Operations Head creation requires an explicit Dispatcher account and
+// an approved client route. These are fixture-only records in a disposable test DB.
+$testRoutes = [];
+foreach ([[$cid,'Wing Van'],[$cid,'Car Carrier'],[$cid2,'Wing Van'],[$cidOff,'Wing Van']] as [$clientId,$truckType]) {
+    $routeId = insert($p,'client_routes',[
+        'route_ref'=>'BATCH-'.(string)$clientId.'-'.str_replace(' ','',$truckType),
+        'client_id'=>$clientId,'truck_type'=>$truckType,
+        'origin_label'=>'TANAUAN WAREHOUSE','destination_label'=>'MALVAR PLANT',
+        'origin_key'=>'tanauan warehouse','destination_key'=>'malvar plant',
+        'distance_km'=>'25.50','status'=>'Approved','requested_by'=>$ops['id']
+    ]);
+    insert($p,'client_route_rates',[
+        'route_id'=>$routeId,'version_no'=>1,'rate_type'=>'Flat',
+        'rate_amount'=>'1275','status'=>'Approved',
+        'entered_by'=>$U('billing')['id'],'effective_from'=>date('Y-m-d H:i:s')
+    ]);
+    $testRoutes[$clientId][$truckType]=$routeId;
+}
+$row = function(array $o=[]) use($cid,$at,$testRoutes,$wvd,$ccd):array {
+    $defaults=['request_key'=>uuid(),'client_id'=>(string)$cid,'truck_type'=>'Wing Van',
+        'pickup_point'=>'TANAUAN WAREHOUSE','delivery_point'=>'MALVAR PLANT',
+        'scheduled_at'=>$at(180),'distance_km'=>'25.50'];
+    $data=$o+$defaults;
+    $type=$data['truck_type'];$client=(int)$data['client_id'];
+    $data+=['client_route_id'=>$testRoutes[$client][$type]??null,
+        'dispatcher_assignment'=>$type==='Car Carrier'?'car_carrier_dispatcher:Day':'container_wingvan_dispatcher:Day',
+        'responsible_dispatcher_id'=>$type==='Car Carrier'?$ccd['id']:$wvd['id']];
+    return $data;
+};
 $T = fn(int $id) => one($p, 'SELECT * FROM trips WHERE id=?', [$id]);
 $tripCount = fn() => (int)$p->query('SELECT COUNT(*) FROM trips')->fetchColumn();
 $batch = fn(array $u, array $rows) => Trips::action($u, 'create_batch', ['rows' => $rows]);
