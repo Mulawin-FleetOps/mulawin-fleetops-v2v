@@ -568,11 +568,18 @@ final class Maintenance {
             audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'truck returned to service', $j['job_ref'] . ' ' . $v['plate_number'] . ': ' . cut($notes, 200));
             Notify::resolve($p, 'job-open-' . $id);
             $msg = 'Verified. Truck ' . $v['plate_number'] . ' is back in service (' . $now . ').';
+            if ($j['source'] === 'Incident' && $j['severity'] === 'Minor') $msg = 'Repair verified. Truck ' . $v['plate_number'] . ' is ' . $now . ' and stays with its trip.';
             Actions::load('Trips');
             if ($j['source'] === 'Incident') {
                 $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
                 $t = one($p, 'SELECT * FROM trips WHERE id=?', [$j['trip_id']]);
-                if ($j['severity'] === 'Minor') {
+                if ($j['severity'] === 'Minor' && $t['status'] === 'For Reschedule') {
+                    // Operations moved the trip to For Reschedule after Not Fit: the verified repair closes the incident like a Major one.
+                    run($p, "UPDATE incidents SET status='Resolved', resolved_at=NOW() WHERE id=?", [$inc['id']]);
+                    Trips::event($p, $u['id'], (int)$t['id'], 'truck repaired after not fit to continue', $t['status'], $t['status'], $inc['incident_ref']);
+                    Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Truck available again', $v['plate_number'] . ' is repaired. Reschedule ' . $t['trip_ref'] . '.', 'trips', 'trip-reschedule-' . $inc['id']);
+                    $msg .= ' The dispatcher can now reschedule the trip.';
+                } elseif ($j['severity'] === 'Minor') {
                     // INCIDENT_CLEARANCE_V1: a verified repair is not by itself a clearance; Motorpool records Fit / Not Fit next.
                     Trips::event($p, $u['id'], (int)$t['id'], 'on-site repair verified; awaiting Motorpool clearance', $t['status'], $t['status'], $inc['incident_ref']);
                     $msg .= ' Record the vehicle clearance (Fit / Not Fit to Continue) for ' . $inc['incident_ref'] . ' so the dispatcher can act on it.';
@@ -602,7 +609,8 @@ final class Maintenance {
         $id = idField($d, 'job_id');
         $decision = choiceField($d, 'decision', ['Fit to Continue', 'Not Fit to Continue']);
         $findings = field($d, 'findings', 1000);
-        return transaction(function (PDO $p) use ($u, $id, $decision, $findings) {
+        $inspectionOnly = $decision === 'Fit to Continue' && !empty($d['inspection_only']);
+        return transaction(function (PDO $p) use ($u, $id, $decision, $findings, $inspectionOnly) {
             $j = self::lockJob($p, $id);
             must($j['source'] === 'Incident' && $j['incident_id'] && $j['trip_id'], 'Clearance is recorded on a trip incident repair record.', 409);
             $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
@@ -617,21 +625,35 @@ final class Maintenance {
             must($inc['severity'] === 'Minor', 'Major damage is already recorded as Not Fit to Continue; the trip follows For Reschedule.', 409);
             must($inc['clearance'] !== 'Fit to Continue', 'Fit to Continue is already recorded for ' . $inc['incident_ref'] . '.', 409);
             must($inc['clearance'] !== $decision, $decision . ' is already recorded for ' . $inc['incident_ref'] . '.', 409);
-            if ($decision === 'Fit to Continue') {
+            if ($inspectionOnly) {
+                // No repair was needed: the inspection itself is recorded; nothing is invented (no repair text, parts, costs or labor).
+                must(in_array($j['status'], ['Under Inspection', 'Under Repair'], true), 'Inspection-only clearance is for an open, inspected record (now: ' . $j['status'] . ').', 409);
+                must(!one($p, 'SELECT 1 AS x FROM maintenance_costs WHERE maintenance_job_id=?', [$id]), 'Costs were recorded, so a repair took place: complete and verify the repair instead.', 409);
+                must(!one($p, "SELECT 1 AS x FROM part_requests WHERE maintenance_job_id=? AND status<>'Cancelled'", [$id]), 'Parts were requested for this record: complete and verify the repair instead.', 409);
+            } elseif ($decision === 'Fit to Continue') {
                 must($j['status'] === 'Completed' && $j['verified_at'] !== null,
-                    'Complete and verify the on-site repair record ' . $j['job_ref'] . ' first (record "No repair needed" with evidence when nothing was repaired).', 409);
+                    'Complete and verify the on-site repair record ' . $j['job_ref'] . ' first, or record an inspection-only clearance when no repair was needed.', 409);
             }
             $before = $inc['clearance'];
+            if ($inspectionOnly) {
+                run($p, "UPDATE maintenance_jobs SET status='Completed', findings=COALESCE(findings, ?), repair_performed=NULL, completed_on=CURRENT_DATE(), completed_by=?, completed_at=NOW(),
+                         verified_at=NOW(), verified_by=?, verification_notes=? WHERE id=?",
+                    [$findings, $u['id'], $u['id'], cut('Inspection only - no repair performed: ' . $findings, 500), $id]);
+                self::refreshMechanic($p, $j['mechanic_id'] ? (int)$j['mechanic_id'] : null);
+                self::releaseHelpers($p, $id, (int)$u['id'], 'inspection only, no repair needed');
+                self::event($p, $id, $j['status'], 'Completed', $u['id'], 'inspection only, no repair performed: ' . cut($findings, 400), $j['mechanic_id'] ? (int)$j['mechanic_id'] : null);
+            }
             run($p, 'UPDATE incidents SET clearance=?, clearance_findings=?, cleared_by=?, cleared_at=NOW()' . ($decision === 'Fit to Continue' ? ", status='Repaired - Cleared to Continue'" : '') . ' WHERE id=?',
                 [$decision, $findings, $u['id'], $inc['id']]);
-            Files::store($p, $u, 'evidence', 'incident', (int)$inc['id'], 'Repair Evidence');
+            Files::store($p, $u, 'evidence', 'incident', (int)$inc['id'], $inspectionOnly ? 'Incident Photo' : 'Repair Evidence');
+            $truckNow = FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Vehicle clearance ' . $inc['incident_ref'] . ': ' . $decision); // Not Fit -> Under Maintenance
             Actions::load('Trips');
             Trips::event($p, $u['id'], (int)$t['id'], 'vehicle clearance: ' . $decision, $t['status'], $t['status'], $inc['incident_ref'] . ': ' . cut($findings, 400));
             auditWithChanges($p, $u['id'], 'Maintenance', 'incident ' . $inc['id'], 'vehicle clearance recorded', $inc['incident_ref'] . ' (' . $t['trip_ref'] . '): ' . $decision,
                 ['Clearance' => $before], ['Clearance' => $decision]);
             if ($decision === 'Fit to Continue') {
                 Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Cleared to continue', $t['trip_ref'] . ': Motorpool recorded Fit to Continue. Resume the trip.', 'trips', 'trip-resume-' . $inc['id']);
-                return ['message' => 'Fit to Continue recorded for ' . $inc['incident_ref'] . '. The dispatcher can resume ' . $t['trip_ref'] . '.'];
+                return ['message' => 'Fit to Continue recorded for ' . $inc['incident_ref'] . ($inspectionOnly ? ' (inspection only, no repair performed)' : '') . '. The dispatcher can resume ' . $t['trip_ref'] . '.'];
             }
             Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Not fit to continue', $t['trip_ref'] . ': Motorpool recorded Not Fit to Continue. The trip stays On Hold.', 'trips');
             return ['message' => 'Not Fit to Continue recorded for ' . $inc['incident_ref'] . '. The trip stays On Hold; continue the repair in ' . $j['job_ref'] . '.'];

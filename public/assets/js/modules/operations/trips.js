@@ -349,6 +349,9 @@ const TripUI = {
     if (ops) {
       if (pre.includes(t.status)) acts.push(btn('edit', 'Edit details', 'outline-secondary', 'bi-pencil'));
       if (pre.includes(t.status)) acts.push(btn('cancel', 'Cancel trip', 'outline-danger', 'bi-x-circle'));
+      const lastInc = r.incidents[r.incidents.length - 1];
+      if (t.status === 'On Hold - Incident Reported' && lastInc && lastInc.severity === 'Minor' && lastInc.clearance === 'Not Fit to Continue')
+        acts.push(btn('increschedule', 'Move to For Reschedule (not fit)', 'outline-danger', 'bi-calendar-x'));
     }
     if (mine) {
       const curFund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
@@ -475,6 +478,9 @@ const TripUI = {
         { name: 'diesel_po', label: 'Diesel PO file(s)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/jpeg,image/png,image/webp"', help: 'PDF, JPG, PNG or WebP, up to 10 MB each.' }],
         'Trips.diesel_po', { extra: { trip_id: t.id }, intro: 'Optional. The Diesel PO is kept with the trip documents (Finance can view it).', after: () => { TripUI.open(t.id); App.route(); } });
       if (a === 'incident') TripUI.incident(t);
+      if (a === 'increschedule') UI.formModal('For Reschedule · ' + UI.esc(t.trip_ref), [{ name: 'reason', label: 'Reason (Operations decision)', type: 'textarea', required: true, col: 12 }],
+        'Trips.incident_reschedule', { extra: { trip_id: t.id }, submit: 'Move to For Reschedule', after: () => { TripUI.open(t.id); App.route(); },
+          intro: 'Motorpool recorded <b>Not Fit to Continue</b> for this Minor incident. The classification and history are kept; the dispatcher reschedules after the repair is verified, or selects another eligible fixed pair.' });
       if (a === 'resume') UI.confirmAction('Resume ' + UI.esc(t.trip_ref), 'The trip continues (In Transit). This is not a second attempt.', 'Trips.resume', { trip_id: t.id }, { submit: 'Resume trip' });
       if (a === 'reschedule') UI.formModal('Reschedule ' + UI.esc(t.trip_ref), [{ name: 'scheduled_at', label: 'New dispatch schedule', type: 'datetime', required: true, col: 12, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`, help: 'Present or future date and time (Philippine time).' }], 'Trips.reschedule',
         { extra: { trip_id: t.id }, intro: 'After rescheduling, do the pre-dispatch checklist again. Confirm Redispatch records the Second Attempt.', after: () => { TripUI.open(t.id); App.route(); } });

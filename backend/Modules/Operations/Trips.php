@@ -304,6 +304,7 @@ final class Trips {
             'dispatch' => self::dispatch($u, $d),
             'incident' => self::incident($u, $d),
             'resume' => self::resume($u, $d),
+            'incident_reschedule' => self::incidentReschedule($u, $d),
             'reschedule' => self::reschedule($u, $d),
             'progress' => self::progress($u,$d),
             'complete' => self::complete($u, $d),
@@ -1052,6 +1053,32 @@ final class Trips {
             Notify::roles($p, ['operations_head'], 'Trip resumed', $t['trip_ref'] . ' resumed after a minor repair.', 'trips');
             Notify::resolve($p, 'trip-resume-' . $inc['id']);
             return ['message' => 'Trip resumed. Status: In Transit.'];
+        });
+    }
+
+    /**
+     * INCIDENT_CLEARANCE_V1: Operations Head authorizes For Reschedule when Motorpool recorded Not Fit to Continue on the
+     * trip's CURRENT Minor incident. The Minor classification and incident history stay; the repair continues and the
+     * truck shows Under Maintenance (FleetState). The responsible Dispatcher reschedules after the verified repair
+     * (existing reschedule step), or selects another eligible fixed pair.
+     */
+    private static function incidentReschedule(array $u, array $d): array {
+        requireRole($u, 'operations_head');
+        $id = idField($d, 'trip_id');
+        $reason = field($d, 'reason', 300);
+        return transaction(function (PDO $p) use ($u, $id, $reason) {
+            $t = self::lockTrip($p, $id);
+            self::mustBeStatus($t, ['On Hold - Incident Reported'], 'move the trip to For Reschedule');
+            $inc = one($p, 'SELECT * FROM incidents WHERE trip_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE', [$id]);
+            must($inc && (int)$inc['attempt_number'] === (int)$t['attempt_number'] && (int)$inc['vehicle_id'] === (int)$t['vehicle_id'], 'The trip has no current incident for this attempt and truck.', 409);
+            must($inc['severity'] === 'Minor' && $inc['clearance'] === 'Not Fit to Continue',
+                'For Reschedule from On Hold needs Motorpool\'s Not Fit to Continue on the current Minor incident (Major damage is rescheduled by the assessment).', 409);
+            self::setStatus($p, $u['id'], $t, 'For Reschedule', 'not fit to continue: rescheduling authorized by the Operations Head',
+                $inc['incident_ref'] . ' (Minor, Not Fit to Continue): ' . $reason);
+            $now = FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Not fit to continue ' . $inc['incident_ref']);
+            audit($p, $u['id'], 'Trips', 'trip ' . $id, 'for reschedule after not fit', $t['trip_ref'] . ' / ' . $inc['incident_ref'] . ': ' . $reason);
+            Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Trip for reschedule', $t['trip_ref'] . ' is For Reschedule (truck not fit to continue, ' . $inc['incident_ref'] . '). Reschedule after the repair is verified, or select another eligible fixed pair.', 'trips', 'trip-reschedule-' . $inc['id']);
+            return ['message' => $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . '; the Minor classification and incident history are kept.'];
         });
     }
 

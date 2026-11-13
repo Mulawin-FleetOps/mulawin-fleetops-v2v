@@ -52,7 +52,7 @@ foreach (['admin' => null, 'operations_head' => null, 'container_wingvan_dispatc
 ['admin' => $adm, 'operations_head' => $ops, 'container_wingvan_dispatcher' => $wvd, 'car_carrier_dispatcher' => $ccd, 'finance' => $fin, 'motorpool' => $mp, 'audit' => $aud] = $users;
 foreach (['Trips', 'Funds', 'Maintenance', 'Mechanics', 'Oversight', 'Admin', 'Attendance'] as $m) Actions::load($m);
 $cid = insert($p, 'clients', ['company_name' => 'CLEARANCE CLIENT', 'status' => 'Active', 'created_by' => $ops['id'], 'payment_terms_days' => 15]);
-for ($i = 1; $i <= 4; $i++) {
+for ($i = 1; $i <= 7; $i++) {
     insert($p, 'vehicles', ['plate_number' => "CLR-00$i", 'truck_type' => 'Wing Van']);
     insert($p, 'personnel', ['full_name' => "CLR Driver $i", 'person_type' => 'Driver', 'license_number' => "CLR-LIC-$i", 'license_expiry' => '2099-12-31']);
     insert($p, 'personnel', ['full_name' => "CLR Helper $i", 'person_type' => 'Helper']);
@@ -68,7 +68,7 @@ $route = insert($p, 'client_routes', ['route_ref' => 'CLR-ROUTE', 'client_id' =>
     'distance_km' => '40.00', 'distance_source' => 'Map', 'status' => 'Approved', 'requested_by' => $ops['id']]);
 insert($p, 'client_route_rates', ['route_id' => $route, 'version_no' => 1, 'rate_type' => 'Flat', 'rate_amount' => '4000', 'status' => 'Approved', 'entered_by' => $ops['id'], 'effective_from' => date('Y-m-d H:i:s', time() - 60)]);
 $mech = [];
-foreach (['A', 'B', 'C', 'D'] as $n) { $mech[$n] = (int)Mechanics::action($mp, 'save', ['full_name' => "CLR Mechanic $n"])['id']; Mechanics::action($mp, 'time_in', ['id' => $mech[$n]]); }
+foreach (['A', 'B', 'C', 'D', 'E', 'F'] as $n) { $mech[$n] = (int)Mechanics::action($mp, 'save', ['full_name' => "CLR Mechanic $n"])['id']; Mechanics::action($mp, 'time_in', ['id' => $mech[$n]]); }
 $tmpDir = sys_get_temp_dir() . '/fleet_clr_' . bin2hex(random_bytes(4)); mkdir($tmpDir);
 $file = function (string $name) use ($tmpDir): array {
     $path = $tmpDir . '/' . bin2hex(random_bytes(6));
@@ -103,11 +103,12 @@ $report = function (int $tid, string $problem) use ($wvd, $p, $trip, $file): arr
     finally { $_FILES = []; }
     return [(int)$r['incident_id'], one($p, 'SELECT * FROM maintenance_jobs WHERE incident_id=?', [$r['incident_id']])];
 };
-$repairAndVerify = function (int $jobId) use ($mp, $file): void {
+$verifyMsg = [];
+$repairAndVerify = function (int $jobId) use ($mp, $file, &$verifyMsg): void {
     Maintenance::action($mp, 'inspect', ['job_id' => $jobId, 'findings' => 'Loose hose clamp', 'diagnosis' => 'Tighten and replace clamp']);
     $_FILES = ['evidence' => $file('fixed.png')];
     try { Maintenance::action($mp, 'complete', ['job_id' => $jobId, 'repair_performed' => 'Clamp replaced on site', 'completed_on' => date('Y-m-d')]); } finally { $_FILES = []; }
-    Maintenance::action($mp, 'verify', ['job_id' => $jobId, 'result' => 'Passed', 'verification_notes' => 'Engine temperature normal after 10 min idle']);
+    $verifyMsg[$jobId] = Maintenance::action($mp, 'verify', ['job_id' => $jobId, 'result' => 'Passed', 'verification_notes' => 'Engine temperature normal after 10 min idle'])['message'];
 };
 $clear = fn(array $u, int $jobId, string $decision, string $findings = 'Checked hoses, coolant level and temperature') =>
     Maintenance::action($u, 'clearance', ['job_id' => $jobId, 'decision' => $decision, 'findings' => $findings]);
@@ -124,6 +125,7 @@ ok($inc($I1)['severity'] === 'Minor' && $inc($I1)['clearance'] === null, 'Minor 
 fails(fn() => $clear($mp, (int)$J1['id'], 'Fit to Continue'), 'Fit to Continue refused while the on-site repair is not completed and verified', 409);
 $repairAndVerify((int)$J1['id']);
 ok($inc($I1)['status'] === 'Under Repair' && $inc($I1)['clearance'] === null, 'a verified repair alone does NOT clear the truck (no automatic Fit)');
+ok(!str_contains($verifyMsg[(int)$J1['id']], 'back in service') && str_contains($verifyMsg[(int)$J1['id']], 'Record the vehicle clearance'), 'verify message does not claim "back in service" while the trip waits for clearance', $verifyMsg[(int)$J1['id']]);
 fails(fn() => Trips::action($wvd, 'resume', ['trip_id' => $T1]), 'resume still refused without a recorded clearance', 409);
 $_FILES = ['evidence' => $file('clearance.png')];
 try { $clear($mp, (int)$J1['id'], 'Fit to Continue', 'Road test 2 km, temperature normal, no leaks'); } finally { $_FILES = []; }
@@ -163,12 +165,13 @@ $clear($mp, (int)$J2['id'], 'Not Fit to Continue', 'Tie-rod end loose; unsafe to
 $i2 = $inc($I2);
 ok($i2['clearance'] === 'Not Fit to Continue' && $i2['severity'] === 'Minor' && $i2['status'] === 'Under Repair', 'Not Fit recorded; Minor classification kept; incident still open');
 ok($trip($T2)['status'] === 'On Hold - Incident Reported', 'trip stays On Hold (no automatic reschedule)');
+ok($truck((int)$t2['vehicle_id']) === 'Under Maintenance', 'Not Fit: the truck shows Under Maintenance (actual condition)');
 fails(fn() => Trips::action($wvd, 'resume', ['trip_id' => $T2]), 'resume refused on Not Fit to Continue', 409);
 fails(fn() => $clear($mp, (int)$J2['id'], 'Not Fit to Continue'), 'duplicate Not Fit refused', 409);
 fails(fn() => $clear($mp, (int)$J2['id'], 'Fit to Continue'), 'Fit after Not Fit still needs the verified repair', 409);
 $repairAndVerify((int)$J2['id']);
 $clear($mp, (int)$J2['id'], 'Fit to Continue', 'Tie-rod end replaced; steering test OK');
-ok($inc($I2)['clearance'] === 'Fit to Continue', 'after the verified repair Motorpool records Fit to Continue');
+ok($inc($I2)['clearance'] === 'Fit to Continue' && $truck((int)$t2['vehicle_id']) === 'On Trip', 'after the verified repair Motorpool records Fit to Continue; truck back with its trip');
 ok($count("SELECT COUNT(*) AS n FROM trip_events WHERE trip_id=? AND event_type LIKE 'vehicle clearance:%'", [$T2]) === 2, 'both decisions stay in the trip history');
 $aud2 = one($p, "SELECT e.id, e.actor_id, c.changes_json FROM audit_events e JOIN audit_event_changes c ON c.audit_event_id=e.id WHERE e.record_ref=? AND e.action='vehicle clearance recorded' ORDER BY e.id DESC LIMIT 1", ['incident ' . $I2]);
 ok($aud2 && (int)$aud2['actor_id'] === $mp['id'] && str_contains($aud2['changes_json'], 'Not Fit to Continue') && str_contains($aud2['changes_json'], '"Fit to Continue"'), 'audit keeps the change Not Fit -> Fit with its actor', $aud2['changes_json'] ?? '');
@@ -211,6 +214,51 @@ foreach (['admin (Head Management)' => $adm, 'audit' => $aud, 'operations_head' 
     fails(fn() => Trips::action($u, 'resume', ['trip_id' => $T4]), "$label cannot resume a trip", 403);
 
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+section('G. Minor + Not Fit -> Operations Head authorizes For Reschedule (classification kept)');
+$T5 = $dispatchTrip(5); $t5 = $trip($T5);
+[$I5, $J5] = $report($T5, 'Clutch slipping');
+Maintenance::action($mp, 'assess', ['job_id' => $J5['id'], 'severity' => 'Minor', 'recommendation' => 'Check clutch on site', 'mechanic_id' => $mech['E']]);
+fails(fn() => Trips::action($ops, 'incident_reschedule', ['trip_id' => $T5, 'reason' => 'No clearance yet']), 'Ops Head cannot reschedule before Motorpool records Not Fit', 409);
+$clear($mp, (int)$J5['id'], 'Not Fit to Continue', 'Clutch plate worn; cannot be fixed on site');
+ok($truck((int)$t5['vehicle_id']) === 'Under Maintenance', 'Not Fit: truck Under Maintenance');
+fails(fn() => Trips::action($wvd, 'incident_reschedule', ['trip_id' => $T5, 'reason' => 'x']), 'the Dispatcher cannot authorize For Reschedule', 403);
+fails(fn() => Trips::action($mp, 'incident_reschedule', ['trip_id' => $T5, 'reason' => 'x']), 'Motorpool cannot move the trip to For Reschedule', 403);
+fails(fn() => Trips::action($ops, 'incident_reschedule', ['trip_id' => $T5]), 'a reason is required', 400);
+Trips::action($ops, 'incident_reschedule', ['trip_id' => $T5, 'reason' => 'Truck not fit; client agreed to a later delivery']);
+ok($trip($T5)['status'] === 'For Reschedule' && $inc($I5)['severity'] === 'Minor' && $inc($I5)['clearance'] === 'Not Fit to Continue', 'For Reschedule; Minor classification and Not Fit decision preserved (no automatic Major)');
+fails(fn() => Trips::action($ops, 'incident_reschedule', ['trip_id' => $T5, 'reason' => 'again']), 'duplicate For Reschedule refused', 409);
+fails(fn() => $clear($mp, (int)$J5['id'], 'Fit to Continue'), 'no clearance once the trip is For Reschedule', 409);
+fails(fn() => Trips::action($wvd, 'reschedule', ['trip_id' => $T5, 'scheduled_at' => date('Y-m-d\TH:i', time() + 2 * 86400)]), 'rescheduling waits for the verified repair', 409);
+$repairAndVerify((int)$J5['id']);
+ok($inc($I5)['status'] === 'Resolved' && $truck((int)$t5['vehicle_id']) === 'Assigned', 'verified repair: incident Resolved, truck back to its trip (Assigned)');
+Trips::action($wvd, 'reschedule', ['trip_id' => $T5, 'scheduled_at' => date('Y-m-d\TH:i', time() + 2 * 86400)]);
+ok($trip($T5)['status'] === 'Pre-Assigned' && (int)$trip($T5)['attempt_number'] === 2, 'the responsible Dispatcher completes the reschedule (attempt #2)');
+ok($count("SELECT COUNT(*) AS n FROM audit_events WHERE action='for reschedule after not fit' AND actor_id=?", [$ops['id']]) === 1, 'Ops Head decision audited with its actor');
+
+// ---------------------------------------------------------------------
+section('H. Inspection-only Fit to Continue (no repair needed; nothing invented)');
+$T6 = $dispatchTrip(6); $t6 = $trip($T6);
+[$I6, $J6] = $report($T6, 'Warning light on dashboard');
+Maintenance::action($mp, 'assess', ['job_id' => $J6['id'], 'severity' => 'Minor', 'recommendation' => 'Inspect sensor', 'mechanic_id' => $mech['F']]);
+fails(fn() => $clear($mp, (int)$J6['id'], 'Fit to Continue'), 'without the inspection-only flag Fit still needs a verified repair', 409);
+$_FILES = ['evidence' => $file('scan.png')];
+try { Maintenance::action($mp, 'clearance', ['job_id' => $J6['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'Loose sensor connector reseated by hand; scan shows no fault codes']); } finally { $_FILES = []; }
+$j6 = one($p, 'SELECT * FROM maintenance_jobs WHERE id=?', [$J6['id']]);
+ok($j6['status'] === 'Completed' && $j6['repair_performed'] === null && (int)$j6['verified_by'] === $mp['id'] && $j6['verified_at'] !== null && str_starts_with((string)$j6['verification_notes'], 'Inspection only'),
+   'record closed as an inspection: no repair text, Motorpool accountability and time recorded');
+ok($count('SELECT COUNT(*) AS n FROM maintenance_costs WHERE maintenance_job_id=?', [$J6['id']]) === 0 && $count('SELECT COUNT(*) AS n FROM part_requests WHERE maintenance_job_id=?', [$J6['id']]) === 0
+   && $count("SELECT COUNT(*) AS n FROM expenses WHERE source='Maintenance' AND reference_number=?", [$j6['job_ref']]) === 0, 'no parts, costs, labor or expenses invented');
+ok($inc($I6)['clearance'] === 'Fit to Continue' && $inc($I6)['status'] === 'Repaired - Cleared to Continue', 'Fit to Continue recorded on the incident');
+ok($count("SELECT COUNT(*) AS n FROM mechanics WHERE id=? AND availability='Available'", [$mech['F']]) === 1, 'the mechanic is free again');
+Trips::action($wvd, 'resume', ['trip_id' => $T6]);
+ok($trip($T6)['status'] === 'In Transit', 'Dispatcher resumes after the inspection-only clearance');
+// an inspection-only claim is refused once costs exist
+[$I8, $J8] = (function () use ($dispatchTrip, $report) { $t = $dispatchTrip(8); return $report($t, 'Mirror loose'); })();
+Maintenance::action($mp, 'assess', ['job_id' => $J8['id'], 'severity' => 'Minor', 'recommendation' => 'Fix mirror', 'mechanic_id' => $mech['A']]);
+Maintenance::action($mp, 'add_cost', ['job_id' => $J8['id'], 'cost_type' => 'Labor', 'description' => 'Mirror bracket', 'amount' => '150', 'incurred_on' => date('Y-m-d')]);
+fails(fn() => Maintenance::action($mp, 'clearance', ['job_id' => $J8['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'claim no repair']), 'inspection-only refused once a cost was recorded (a repair took place)', 409);
+
 section('F. Head Management and Audit read the outcome; schema rules');
 foreach (['admin_operations', 'admin_maintenance', 'admin_overview'] as $pg) {
     $dd = Oversight::read($adm, $pg, []); ok(empty($dd['_errors']), "$pg loads with the clearance records");
@@ -222,7 +270,7 @@ $md = Maintenance::action($mp, 'details', ['job_id' => $J2['id']]);
 ok(($md['incident']['clearance'] ?? null) === 'Fit to Continue' && ($md['incident']['cleared_by_name'] ?? '') === $mp['full_name'], 'Motorpool repair details show the clearance and its assessor');
 $h = Admin::read($aud, 'audit_history', ['record' => 'incident ' . $I2]);
 ok(empty($h['_errors']), 'Audit reads the clearance history of the incident');
-ok($count("SELECT COUNT(*) AS n FROM audit_events WHERE action='vehicle clearance recorded' AND actor_id=?", [$mp['id']]) === 4, 'every clearance action is audit-logged with the Motorpool actor (A Fit, E Fit, B Not Fit, B Fit = 4)');
+ok($count("SELECT COUNT(*) AS n FROM audit_events WHERE action='vehicle clearance recorded' AND actor_id=?", [$mp['id']]) === 6, 'every clearance action is audit-logged with the Motorpool actor (A, E, B x2, G Not Fit, H inspection-only = 6)');
 ok($count("SELECT COUNT(*) AS n FROM audit_events WHERE action='incident assessed' AND record_ref=? AND actor_id=?", ['job ' . $J3['id'], $mp['id']]) === 1, 'the Major Not Fit decision is audited with its assessment');
 try { run($p, "UPDATE incidents SET clearance='Fit to Continue' WHERE id=?", [$I4]); ok(false, 'DB refuses a clearance without assessor, time and findings'); }
 catch (PDOException $e) { ok(true, 'DB refuses a clearance without assessor, time and findings'); }

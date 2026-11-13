@@ -24,7 +24,9 @@ const MaintUI = {
   /** Plain-language next step shown on the record. */
   nextStep(j) {
     if (j.status === 'Cancelled') return 'Cancelled.';
-    if (j.verified_at) return 'Repair verified. The truck is back in service.';
+    if (j.verified_at) return j.source === 'Incident' && j.severity === 'Minor' && j.incident_status !== 'Resolved' && j.incident_status !== 'Repaired - Cleared to Continue'
+      ? 'Repair verified. The trip stays On Hold until Motorpool records the vehicle clearance.'
+      : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
     if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident (Minor or Major) and choose the mechanic.' : 'Assign an available mechanic to start the inspection.';
     if (j.status === 'Under Inspection') return 'Record the inspection findings and the diagnosis.';
     if (j.status === 'Under Repair') return 'Record the corrective action, the completion date and the evidence.';
@@ -114,6 +116,7 @@ const MaintUI = {
     let r; try { r = await App.api('Maintenance.details', { job_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
     if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading
     const j = r.job, i = r.incident, act = d.can.act;
+    if (i && j.incident_status === undefined) j.incident_status = i.status; // stage text needs the incident state
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
     if (act) {
@@ -156,7 +159,7 @@ const MaintUI = {
         ['Assisting mechanics', r.helpersReady ? MaintUI.helperList(r.helpers, act && MaintUI.ACTIVE.includes(j.status))
           : '<span class="text-muted">Not available until database update 2026-11-12_12 is applied.</span>'],
         ['Inspection findings', UI.e(j.findings)], ['Diagnosis', UI.e(j.diagnosis)],
-        ['Corrective action', UI.e(j.repair_performed)], ['Repair completion date', j.completed_on ? UI.date(j.completed_on) + ' · ' + UI.e(j.completed_by_name) : '—'],
+        ['Corrective action', j.status === 'Completed' && !j.repair_performed ? '<span class="text-muted">Inspection only — no repair performed</span>' : UI.e(j.repair_performed)], ['Repair completion date', j.completed_on ? UI.date(j.completed_on) + ' · ' + UI.e(j.completed_by_name) : '—'],
         ['Verification', j.verified_at ? `Passed · ${UI.e(j.verified_by_name)} · ${UI.datetime(j.verified_at)}<div class="small text-muted">${UI.e(j.verification_notes)}</div>` : (j.status === 'Completed' ? '<span class="badge-s amber">Waiting for verification</span>' : '—')],
         ['Remarks', UI.e(j.remarks)]])}
       ${i ? UI.h('Trip incident', `<button class="btn btn-link btn-sm p-0" data-a="printinc"><i class="bi bi-printer"></i> Incident report form</button>`) + UI.kv([['Reference', UI.esc(i.incident_ref) + ' ' + UI.badge(i.status)], ['Type', UI.e(i.incident_type)],
@@ -204,6 +207,7 @@ const MaintUI = {
       if (a === 'clearance') UI.formModalFiles('Vehicle clearance · ' + UI.esc(i.incident_ref), [
           { name: 'decision', label: 'Decision', type: 'select', required: true, col: 12, placeholder: false, options: [['Fit to Continue', 'Fit to Continue: the truck may continue this trip'], ['Not Fit to Continue', 'Not Fit to Continue: the trip stays On Hold']] },
           { name: 'findings', label: 'Findings (what was checked and the truck\'s actual condition)', type: 'textarea', required: true, col: 12 },
+          { name: 'inspection_only', label: 'Inspection only: no repair was needed (Fit to Continue; no parts, costs or labor recorded)', type: 'checkbox', col: 12 },
           { name: 'evidence', label: 'Supporting evidence (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="application/pdf,image/png,image/jpeg"' }],
         'Maintenance.clearance', { extra: { job_id: j.id }, submit: 'Record clearance', after: reopen,
           intro: `Damage classification: <b>${UI.esc(i.severity)}</b>. Fit to Continue needs the on-site repair record completed and verified (${UI.esc(j.job_ref)}); the dispatcher then resumes the trip. Not Fit to Continue keeps the trip On Hold.` });
