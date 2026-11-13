@@ -1028,7 +1028,7 @@ CREATE TABLE IF NOT EXISTS dispatcher_turnovers (
  CHECK (outgoing_id<>incoming_id),
  CHECK (status IN ('Pending','Accepted')),
  CHECK (dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher')),
- CHECK ((status='Pending' AND accepted_at IS NULL AND accepted_by IS NULL) OR (status='Accepted' AND accepted_at IS NOT NULL AND accepted_at>=endorsed_at AND accepted_by IS NOT NULL AND accepted_by=incoming_id))
+ CHECK ((status='Pending' AND accepted_at IS NULL AND accepted_by IS NULL) OR (status='Accepted' AND accepted_at IS NOT NULL AND YEAR(accepted_at)>=1000 AND YEAR(endorsed_at)>=1000 AND accepted_at>=endorsed_at AND accepted_by IS NOT NULL AND accepted_by=incoming_id))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS dispatcher_turnover_trips (
  turnover_id BIGINT UNSIGNED NOT NULL,
