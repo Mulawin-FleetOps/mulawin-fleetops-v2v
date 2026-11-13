@@ -106,8 +106,8 @@ $res = $r['results'];
 ok(count($res) === 2 && $res[0]['row'] === 1 && $res[1]['row'] === 2 && $res[0]['result'] === 'Created' && $res[1]['result'] === 'Created', 'one result per row, in the order entered');
 ok($res[0]['trip_ref'] !== $res[1]['trip_ref'] && preg_match('/^TRP-\d{4}-\d{4}$/', (string)$res[0]['trip_ref']) === 1, 'each row is its own trip with its own reference', json_encode(array_column($res, 'trip_ref')));
 $t1 = $T($res[0]['trip_id']); $t2 = $T($res[1]['trip_id']);
-ok($t1['status'] === 'Pre-Assigned' && $t2['status'] === 'Pre-Assigned' && $t1['vehicle_id'] && $t2['vehicle_id'] && $t1['vehicle_id'] !== $t2['vehicle_id'], 'both confirmed and auto-assigned (different trucks)');
-ok($t1['delivery_point'] === 'DROP ONE' && $t2['consignee'] === 'ABC STORE' && $t1['distance_km'] === '25.50' && $t1['distance_source'] === 'Manual' && $t1['intake_source'] === 'Operations Head', 'row details saved like a New trip');
+ok($t1['status'] === 'Awaiting Resources' && $t2['status'] === 'Awaiting Resources' && !$t1['vehicle_id'] && !$t2['vehicle_id'], 'both created without auto-assigning a truck (Dispatcher selects resources)');
+ok($t1['delivery_point'] === 'DROP ONE' && $t2['consignee'] === 'ABC STORE' && $t1['distance_km'] === '25.50' && $t1['distance_source'] === 'Client Route' && $t1['intake_source'] === 'Operations Head', 'row details saved like a New trip');
 ok((bool)one($p, "SELECT 1 AS x FROM trip_events WHERE trip_id=? AND event_type='trip created by Operations Head (Scenario A)'", [$t1['id']]), 'same history as a single New trip');
 ok(str_contains($r['message'], '2 created, 0 already created, 0 not created'), 'summary message', $r['message']);
 $aud = one($p, "SELECT details FROM audit_events WHERE action='trip batch planned' ORDER BY id DESC LIMIT 1");
@@ -120,21 +120,21 @@ $truck('Wing Van', 1);   // one free truck now
 $rows = [$row(['delivery_point' => 'LATE DROP', 'scheduled_at' => $at(600)]), $row(['delivery_point' => 'EARLY DROP', 'scheduled_at' => $at(90)])];
 $r = $batch($ops, $rows);
 [$late, $early] = $r['results'];
-ok($early['trip_status'] === 'Pre-Assigned' && $late['trip_status'] === 'Awaiting Resources', 'only one truck: the earlier trip gets it, the later one waits (Awaiting Resources)', json_encode($r['results']));
+ok($early['trip_status'] === 'Awaiting Resources' && $late['trip_status'] === 'Awaiting Resources', 'both wait for manual Dispatcher assignment regardless of free trucks', json_encode($r['results']));
 ok($late['result'] === 'Created' && $late['trip_ref'] && $T($late['trip_id'])['vehicle_id'] === null, 'the waiting trip is still created (no truck held)');
-ok(str_contains($r['message'], '1 trip(s) are Awaiting Resources'), 'message says how many are waiting');
+ok(str_contains($r['message'], '2 trip(s) are Awaiting Resources'), 'message says both trips are awaiting manual resources');
 ok((bool)one($p, "SELECT 1 AS x FROM trip_events WHERE trip_id=? AND event_type LIKE '%awaiting resources%'", [$late['trip_id']]) || $T($late['trip_id'])['status'] === 'Awaiting Resources', 'waiting trip uses the existing Awaiting Resources status');
 
 // ---------------------------------------------------------------------
 section('C. All-or-nothing validation');
 $n0 = $tripCount(); $a0 = (int)$p->query("SELECT COUNT(*) FROM audit_events WHERE action='trip batch planned'")->fetchColumn();
-$bad = [$row(), $row(['distance_km' => '']), $row(['scheduled_at' => date('Y-m-d\TH:i', time() - 7200)]), $row(['client_id' => (string)$cidOff]), $row(['truck_type' => 'Car Carrier', 'client_id' => (string)$cid2]),
+$bad = [$row(), $row(['client_route_id' => '999999']), $row(['scheduled_at' => date('Y-m-d\TH:i', time() - 7200)]), $row(['client_id' => (string)$cidOff]), $row(['truck_type' => 'Car Carrier', 'client_id' => (string)$cid2]),
         $row(['pickup_point' => '']), $row(['distance_km' => '12.345']), $row(['truck_type' => 'Rocket'])];
 try { $batch($ops, $bad); ok(false, 'batch with wrong rows refused'); }
 catch (BusinessRuleException $e) {
     $m = $e->getMessage();
     ok($e->httpStatus === 400 && str_starts_with($m, 'Nothing was created.'), 'batch with wrong rows refused: nothing created', $m);
-    foreach ([2 => 'billable distance', 3 => '', 4 => 'Active client', 5 => 'no billing rate for Car Carrier', 6 => 'Pickup', 7 => '', 8 => ''] as $rowNo => $part)
+    foreach ([2 => 'approved route', 3 => '', 4 => 'Active client', 5 => 'no billing rate for Car Carrier', 6 => 'Pickup', 7 => '', 8 => ''] as $rowNo => $part)
         ok(str_contains($m, "Row $rowNo:") && ($part === '' || stripos($m, $part) !== false), "row $rowNo reason listed" . ($part ? " ($part)" : ''));
     ok(!str_contains($m, 'Row 1:'), 'correct row 1 not listed');
 }
@@ -159,12 +159,12 @@ $r = $batch($ops, [$row($same), $row($same)]);
 ok(array_column($r['results'], 'result') === ['Created', 'Created'] && $tripCount() === $n3 + 2 && $r['results'][0]['trip_ref'] !== $r['results'][1]['trip_ref'],
    'two identical-looking rows (same client, truck type, route, time) -> two separate trips', json_encode($r['results']));
 $a1 = $T($r['results'][0]['trip_id']); $a2 = $T($r['results'][1]['trip_id']);
-ok($a1['vehicle_id'] && $a2['vehicle_id'] && $a1['vehicle_id'] !== $a2['vehicle_id'], 'each identical-looking trip gets its own truck');
+ok(!$a1['vehicle_id'] && !$a2['vehicle_id'], 'identical-looking trips remain separate and await manual truck assignment');
 $r2 = $batch($ops, [$row($same)]);
 ok($r2['results'][0]['result'] === 'Created' && $tripCount() === $n3 + 3, 'a third truck for the same route and time later: another trip (new key)');
 $k = uuid();
 fails(fn() => $batch($ops, [$row(['request_key' => $k, 'delivery_point' => 'K1']), $row(['request_key' => $k, 'delivery_point' => 'K2'])]), 'same form key twice refused', 400, 'Same form key as row 1');
-fails(fn() => $batch($wvd, [$rows[0]]), 'another user re-sending a key refused', 400, 'Invalid form key');
+fails(fn() => $batch($wvd, [$rows[0]]), 'Dispatcher cannot submit Operations Head batch keys', 403);
 fails(fn() => $batch($ops, [$row(['request_key' => 'not-a-key'])]), 'malformed key refused', 400, 'Invalid form key');
 // Two processes send the same batch at the same moment.
 $truck('Wing Van', 3);
