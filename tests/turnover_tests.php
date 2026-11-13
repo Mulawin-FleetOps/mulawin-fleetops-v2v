@@ -43,7 +43,7 @@ $migration=test_sql('database/migrations/2026-11-12_12_dispatcher_turnover.sql')
 turn_ok((int)one($up,"SELECT COUNT(*) AS n FROM schema_migrations WHERE id IN ('2026-11-11_11_operations_v43','2026-11-12_12_dispatcher_turnover')")['n']===2,'Sequential migrations 11 and 12 record both version markers');
 turn_ok((int)one($up,'SELECT COUNT(*) AS n FROM users WHERE id=?',[$sentinel])['n']===1,'Upgrade preserves existing records and migration is repeatable');
 turn_ok((int)one($up,'SELECT COUNT(*) AS n FROM vehicles')['n']===2&&one($up,'SELECT license_number FROM personnel WHERE id=?',[$upDriver])['license_number']==='UP-LICENSE','Sequential upgrade preserves synthetic master records and license details');
-test_import($up,test_sql('database/migrations/2026-11-13_13_fixed_route_fuel.sql'));
+test_import($up,test_sql('database/migrations/2026-11-13_13_fixed_route_fuel.sql'));test_import($up,test_sql('database/migrations/2026-11-14_14_incident_clearance.sql')); // later migration, once (not repeatable)
 turn_ok(test_fingerprint($p,$fresh)===test_fingerprint($up,$upgrade),'Fresh and upgrade schemas match, including constraints, indexes and foreign keys');
 Actions::load('Trips');Actions::load('Fleet');Actions::load('Attendance');Actions::load('Mechanics');core('DispatcherTurnover');core('Settings');
 $users=[];
