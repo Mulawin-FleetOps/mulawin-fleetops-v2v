@@ -96,14 +96,17 @@ final class Settings {
             'Confirm Dispatch / Redispatch is enabled this many minutes before the scheduled dispatch (it still needs Ready for Dispatch and a Released fund). 0 = only at the scheduled time.', 0, 240],
         // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: 1 = Warn (default), 2 = Enforce (crew must be Present for the dispatch date).
         'crew_attendance_dispatch_check' => ['Crew attendance check at Confirm Dispatch', 1, 'mode',
-            'Warn: dispatch is allowed and missing / Absent crew are noted in the trip history. Enforce: Confirm Dispatch and Redispatch need every assigned driver and helper marked Present for the date of the dispatch.', 1, 2],
+            'Warn: dispatch is allowed and crew who are not timed in or are marked Absent are noted in the trip history. Enforce: Confirm Dispatch and Redispatch need every assigned driver and helper timed in by the trip\'s Dispatcher group and not marked Absent by the Admin.', 1, 2],
         // DAILY_ATTENDANCE_V1: one daily reminder hour (0-23, Philippine time). Key name kept so the saved value stays valid.
-        'attendance_day_start_hour' => ['Daily attendance reminder starts', 6, 'Philippine time', 'Time of day from which the Admin bell reminds about driver, helper and mechanic attendance that is not marked yet for today.', 0, 23],
+        // It is also the Day label start for Dispatcher Time In sessions (CrewAttendance::shiftFor).
+        'attendance_day_start_hour' => ['Daily attendance reminder starts', 6, 'Philippine time', 'Time of day from which the Admin bell reminds about driver, helper and mechanic attendance that is not marked yet for today. Also starts the "Day" label of Dispatcher Time In sessions.', 0, 23],
+        // Kenneth (dispatcher sessions): labels a Time In session Day or Night for reports only; it does not restrict who may work.
+        'attendance_night_start_hour' => ['Night label of Dispatcher sessions starts', 18, 'Philippine time', 'Time from which a Dispatcher Time In session is labelled "Night" in reports. Labels only: it does not restrict personnel. Should differ from the daily reminder hour.', 0, 23],
         'inspection_min_minutes'      => ['Minimum checklist duration', 15, 'minutes',
             'Pre-dispatch and arrival checklists: the earliest a checklist can be submitted, counted from when the dispatcher opened it (PDF #11 section G). 0 = no minimum.', 0, 120],
     ];
     /** Settings that are a time of day (whole hour 0-23, Philippine time). */
-    public const HOUR_OF_DAY = ['attendance_day_start_hour'];
+    public const HOUR_OF_DAY = ['attendance_day_start_hour', 'attendance_night_start_hour'];
     private const FROM_CONFIG = ['purchase_approval_threshold', 'document_alert_days', 'license_alert_days',
                                  'default_payment_terms_days', 'km_per_liter', 'fuel_price_per_liter', 'units_per_trip',
                                  'inspection_min_minutes'];

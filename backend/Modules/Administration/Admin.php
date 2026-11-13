@@ -345,7 +345,7 @@ final class Admin {
         $raw = trim((string)($d['value'] ?? ''));
         must(is_numeric($raw) && (float)$raw >= $min && (float)$raw <= $max, "$label must be a number from $min to $max.");
         // DAILY_ATTENDANCE_V1: the reminder hour is a whole hour.
-        $hourKeys = ['attendance_day_start_hour' => true];
+        $hourKeys = ['attendance_day_start_hour' => true, 'attendance_night_start_hour' => true];
         if (isset($hourKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour (12:00 AM to 11:00 PM).");
         if ($key === 'crew_attendance_dispatch_check') must(in_array($raw, ['1', '2'], true), "$label must be Warn (1) or Enforce (2).");
         return transaction(function (PDO $p) use ($u, $key, $raw, $label, $hourKeys) {
