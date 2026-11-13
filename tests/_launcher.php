@@ -216,7 +216,7 @@ function test_fingerprint(PDO $p, string $db): array {
         'columns' => $q('SELECT table_name, column_name, ordinal_position, column_type, is_nullable, column_default, extra, generation_expression, column_comment
                          FROM information_schema.columns WHERE table_schema=? ORDER BY table_name, ordinal_position'),
         'indexes' => $q('SELECT table_name, index_name, seq_in_index, column_name, non_unique FROM information_schema.statistics WHERE table_schema=? ORDER BY table_name, index_name, seq_in_index'),
-        'checks' => $q('SELECT table_name, constraint_name, check_clause FROM information_schema.check_constraints WHERE constraint_schema=? ORDER BY table_name, constraint_name'),
+        'checks' => $q('SELECT tc.table_name, cc.constraint_name, cc.check_clause FROM information_schema.check_constraints cc JOIN information_schema.table_constraints tc ON tc.constraint_schema=cc.constraint_schema AND tc.constraint_name=cc.constraint_name AND tc.constraint_type=\'CHECK\' WHERE cc.constraint_schema=? ORDER BY tc.table_name, cc.constraint_name'),
         'fks' => $q('SELECT k.table_name, k.constraint_name, k.column_name, k.referenced_table_name, k.referenced_column_name FROM information_schema.key_column_usage k
                      WHERE k.table_schema=? AND k.referenced_table_name IS NOT NULL ORDER BY k.table_name, k.constraint_name, k.ordinal_position'),
     ];
