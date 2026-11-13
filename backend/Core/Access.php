@@ -53,7 +53,7 @@ final class Access {
         'car_carrier_dispatcher' => ['funds' => 'My Trip Funds'],
         'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
         // MAINTENANCE_OVERVIEW_PHASE1_V1: Motorpool wording (labels only; same pages and permissions).
-        'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management'],
+        'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management', 'maintenance_reports' => 'Reports'],
         // STAGE_B_PURCHASING_UI: concise Purchasing workspace labels (labels only; same pages and permissions).
         'purchasing' => ['purchasing_overview' => 'Overview', 'purchasing_reports' => 'Reports'],
         // FINANCE_WORKSPACE_V1: Finance labels (same pages; Approvals = purchase orders routed to Finance).
@@ -108,6 +108,10 @@ final class Access {
             // with identification and availability labels only: no costs, stock counts, budget, supplier or PO data.
             'mp_parts_requests' => ['Parts Requests', 'bi-box-seam', 'Maintenance', 'Purchasing', 'maintenance/maintenance',
                               ['motorpool']],
+            // UI_REFERENCE_V1: Maintenance Reports (Motorpool workspace "Reports"): repairs, downtime and maintenance cost.
+            // Read-only, served by Analytics::maintenanceReport. Replaces Motorpool's use of the general Reports page.
+            'maintenance_reports' => ['Maintenance Reports', 'bi-graph-up', 'Maintenance', 'Analytics', 'maintenance/maintenance',
+                              ['admin', 'operations_head', 'motorpool', 'audit']],
 
             // Purchasing workspace (replaces the combined "Parts & Purchasing" page). The five Purchasing pages share
             // one backend module and one screen file. Purchasing Officer: all pages. Finance: Purchase Orders (approvals)
@@ -123,7 +127,7 @@ final class Access {
                               ['admin', 'purchasing', 'audit']],
             'stock_movements' => ['Stock Movements', 'bi-arrow-left-right', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
                               ['admin', 'purchasing', 'audit']],
-            'purchasing_reports' => ['Purchasing Reports', 'bi-graph-up', 'Purchasing', 'Analytics', 'general/reports',
+            'purchasing_reports' => ['Purchasing Reports', 'bi-graph-up', 'Purchasing', 'Analytics', 'maintenance/purchasing',
                               ['admin', 'purchasing', 'finance', 'audit']],
 
             'funds'       => ['Trip Funds', 'bi-cash-coin', 'Accounting', 'Funds', 'accounting/funds',
@@ -144,7 +148,7 @@ final class Access {
 
             'documents'   => ['Documents', 'bi-folder2-open', 'Records', 'Documents', 'general/documents', $all],
             'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports',
-                              ['admin', 'operations_head', 'motorpool', 'finance', 'billing', 'audit']],
+                              ['admin', 'operations_head', 'finance', 'billing', 'audit']],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
             // AUDIT_WORKSPACE_V1: read-only audit pages (Admin module, audit_events). Audit uses them instead of its former
             // Activity Log view of User Management (same records, now with filters, record history and reports).
@@ -153,6 +157,16 @@ final class Access {
             'audit_history' => ['Transaction History', 'bi-clock-history', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
             'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
             'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin']],
+            // HEAD_MANAGEMENT_V1: Head Management (Admin) workspace. Read-only oversight pages (Oversight module); approval
+            // decisions use the existing Purchasing / Billing actions, which check the Admin role and the request state.
+            'admin_overview'   => ['Head Management Overview', 'bi-speedometer2', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_approvals'  => ['Approvals', 'bi-check2-square', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_operations' => ['Operations Monitoring', 'bi-signpost-split', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_maintenance' => ['Maintenance Monitoring', 'bi-wrench-adjustable', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_purchasing' => ['Purchasing Monitoring', 'bi-cart-check', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_finance'    => ['Financial Oversight', 'bi-cash-coin', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_reports'    => ['Executive Reports', 'bi-clipboard-check', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_analytics'  => ['Analytics', 'bi-graph-up', 'Records', 'Oversight', 'administration/oversight', ['admin']],
         ];
     }
 

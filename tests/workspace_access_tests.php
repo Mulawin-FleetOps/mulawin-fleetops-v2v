@@ -85,6 +85,11 @@ foreach (array_keys(ROLE_LABELS) as $r) {
 }
 foreach (['mp_parts_requests', 'mechanic_attendance'] as $p) ok(in_array($p, $mp, true), "Motorpool menu has $p");
 ok(!Access::canOpen($U('motorpool'), 'parts_requests'), 'Motorpool still cannot open the Purchasing parts_requests page');
+// UI_REFERENCE_V1: Maintenance Reports replaces Motorpool's use of the general Reports page.
+foreach (['admin', 'operations_head', 'motorpool', 'audit'] as $r) ok(Access::canOpen($U($r), 'maintenance_reports'), "$r opens maintenance_reports");
+foreach (['purchasing', 'finance', 'billing'] as $r) ok(!Access::canOpen($U($r), 'maintenance_reports'), "$r cannot open maintenance_reports");
+ok(!Access::canOpen($U('motorpool'), 'reports'), 'Motorpool no longer has the general Reports page (Maintenance Reports instead)');
+ok(str_contains(file_get_contents(__DIR__ . '/../backend/Modules/General/Analytics.php'), "must(Access::canOpen(\$u, 'maintenance_reports')"), 'maintenanceReport checks page access itself');
 $core = (string)file_get_contents($root . '/public/assets/js/core.js');
 ok(str_contains($core, "motorpool: ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maint_history', 'trucks']"), 'Motorpool sidebar order: Overview, Repair Management, Parts Requests, Mechanic Masterlist, Mechanic Attendance, Maintenance History, Truck Masterlist');
 ok(str_contains($core, "motorpool: 'mp_parts_requests'"), 'legacy #purchasing link sends Motorpool to mp_parts_requests');

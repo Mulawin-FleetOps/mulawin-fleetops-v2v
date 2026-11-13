@@ -97,6 +97,8 @@ App.page('finance_overview', {
       : '<div class="text-muted">No active purchasing budget. Purchase orders are rejected until you set one.</div>'}
       <div class="ws-foot">Expenses this month: ${UI.money(c.expenses_month || 0)} (all sources).</div></div></section>`;
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">${UI.kpiTiles(tiles)}
+      ${UI.quickBar([{ label: 'Approve purchase orders', icon: 'bi-check2-square', go: 'purchase_orders?tab=approval' }, { label: 'Release trip funds', icon: 'bi-cash-coin', go: 'funds' },
+        { label: 'Pay suppliers', icon: 'bi-wallet2', go: 'finance?tab=po' }, { label: 'Budgets & expenses', icon: 'bi-piggy-bank', go: 'finance_budgets' }])}
       <div class="mo-grid"><div class="mo-main">
         ${list('Purchase orders to approve', 'bi-check2-square', approvals, 'No purchase order is waiting for your approval.', 'purchase_orders?tab=approval')}
         ${list('Payments due', 'bi-cash-stack', dues, 'Nothing is waiting for payment.', 'finance')}

@@ -25,6 +25,8 @@ final class Documents {
         'trip' => 'trips', 'incident' => 'incidents', 'vehicle' => 'vehicles', 'personnel' => 'personnel', 'client' => 'clients',
         'maintenance' => 'maintenance_jobs', 'purchase' => 'purchase_orders', 'fund' => 'fund_requests', 'expense' => 'expenses',
         'payable' => 'payables', 'billing' => 'billings', 'company' => null,
+        // STOCK_COUNT_RECONCILIATION_V1: evidence of a physical stock count (migration 2026-11-12_13).
+        'stock_count' => 'stock_counts',
     ];
     public const CATEGORIES = ['OR/CR', 'Insurance', 'Contract / Agreement', 'Company Form / Template', 'Permit / Pass', 'Waybill', 'Acknowledgement Receipt',
                                'Receipt / Invoice', 'Incident Photo', 'Police Report', 'Repair Evidence', 'Purchase Document', 'Employee Record', 'Other'];
@@ -36,7 +38,7 @@ final class Documents {
             'operations_head' => ['trip', 'vehicle', 'personnel', 'client'],
             'car_carrier_dispatcher', 'container_wingvan_dispatcher' => ['trip', 'incident'],
             'motorpool' => ['vehicle', 'maintenance', 'incident'],
-            'purchasing' => ['purchase'],
+            'purchasing' => ['purchase', 'stock_count'],
             'finance' => ['fund', 'expense', 'payable', 'purchase'],
             'billing' => ['billing', 'client'],
             default => [],
@@ -52,7 +54,7 @@ final class Documents {
             'purchasing' => ['vehicle'],   // repair evidence and incident photos stay with Motorpool
             'finance' => ['billing', 'trip', 'client'],
             'billing' => ['trip'],
-            'audit' => ['trip', 'incident', 'fund', 'expense', 'payable', 'billing', 'purchase', 'client', 'maintenance', 'vehicle', 'company'],
+            'audit' => ['trip', 'incident', 'fund', 'expense', 'payable', 'billing', 'purchase', 'client', 'maintenance', 'vehicle', 'company', 'stock_count'],
             default => [],
         }, true);
     }
@@ -76,6 +78,7 @@ final class Documents {
                           WHEN 'fund' THEN (SELECT x.fund_ref FROM fund_requests x WHERE x.id=d.entity_id)
                           WHEN 'payable' THEN (SELECT x.payable_ref FROM payables x WHERE x.id=d.entity_id)
                           WHEN 'billing' THEN (SELECT COALESCE(x.invoice_number, CONCAT('Billing #', x.id)) FROM billings x WHERE x.id=d.entity_id)
+                          WHEN 'stock_count' THEN CONCAT('Stock count #', d.entity_id)   -- no table read: works before migration 13 too
                           ELSE 'Company file' END AS record_label
                     FROM documents d JOIN users us ON us.id=d.uploaded_by WHERE d.entity_type IN ($marks) AND d.category<>'User E-Signature' ORDER BY d.id DESC LIMIT 2000", $types);
                 // Enforce the SAME document authorization for every role on listings,

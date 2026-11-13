@@ -71,6 +71,8 @@ App.page('audit_overview', {
       { label: 'Payments and releases', value: count('Payment'), note: 'money events, last 7 days', icon: 'bi-cash-coin', tone: 'blue', go: 'audit_logs?type=Payment&' + r7 },
       { label: 'Cancellations', value: count('Cancellation'), note: 'cancelled, closed, deactivated', icon: 'bi-slash-circle', tone: count('Cancellation') ? 'amber' : 'gray', go: 'audit_logs?type=Cancellation&' + r7 },
       { label: 'Active users', value: users, note: 'users with recorded activity, last 7 days', icon: 'bi-people', tone: 'gray', go: 'audit_reports?' + r7 }])}
+      ${UI.quickBar([{ label: 'Search audit logs', icon: 'bi-search', go: 'audit_logs' }, { label: 'Trace a transaction', icon: 'bi-clock-history', go: 'audit_history' },
+        { label: 'Audit reports', icon: 'bi-clipboard-data', go: 'audit_reports' }])}
       <div class="mo-grid"><div class="mo-main" data-recent></div><div class="mo-side">
         <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Activity by area (last 7 days)</h2></div><div class="panel-body">
           ${ev.length ? AuditUI.bars(Object.entries(ev.reduce((a, e) => (a[e.area] = (a[e.area] || 0) + 1, a), {})).map(([area, n]) => ({ area, n })).sort((a, b) => b.n - a.n), 'area', 'n', (r) => 'audit_logs?area=' + encodeURIComponent(r.area) + '&' + r7) : '<div class="text-muted">No activity in the last 7 days.</div>'}

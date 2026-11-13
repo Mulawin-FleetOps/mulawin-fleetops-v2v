@@ -218,6 +218,8 @@ App.page('billing_overview', {
         + `<div class="ws-foot">Open invoices (Invoiced or Partially Paid) by days past the due date. Total ${UI.money(tot)} across ${ag.length} client(s).</div>` : '<div class="text-muted">No outstanding receivable.</div>'}</div></section>`;
     const banners = (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.${UI.canGo('clients') ? '<button type="button" class="btn btn-sm btn-light" data-go="clients?status=Pending Rate">Open clients</button>' : ''}</div>` : '');
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">${banners}${UI.kpiTiles(tiles)}
+      ${UI.quickBar([{ label: 'Bill completed trips', icon: 'bi-receipt', go: 'billing?tab=for' }, { label: 'Record a collection', icon: 'bi-cash-stack', go: 'billing_collections' },
+        { label: 'Receivables', icon: 'bi-hourglass-split', go: 'billing_receivables' }, { label: 'Billing reports', icon: 'bi-bar-chart-line', go: 'reports' }])}
       <div class="mo-grid"><div class="mo-main">
         ${list('Trips to bill', 'bi-receipt', toBill, 'No completed trip is waiting for billing.', 'billing?tab=for')}
         ${list('Overdue invoices to follow up', 'bi-alarm', overdue, 'No invoice is past its due date.', 'billing_receivables?state=overdue')}

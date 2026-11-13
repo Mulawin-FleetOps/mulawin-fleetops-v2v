@@ -41,7 +41,7 @@ final class Admin {
         $data['range'] = ['from' => $from, 'to' => $to];
         if (hasRole($u, 'admin')) {
             $data = mergeSections($data, [
-                'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, active, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, full_name'),
+                'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, active, must_change_password, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, shift, full_name'),
                 'fundCategories' => fn() => many($p, 'SELECT * FROM fund_categories ORDER BY sort_order, name'),
             ]);
             $data['settings'] = Settings::all();

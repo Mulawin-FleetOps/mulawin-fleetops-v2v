@@ -136,7 +136,7 @@ foreach (array_keys(ROLE_LABELS) as $r) {
         fails(fn() => Purchasing::read($u, 'mp_parts_requests', []), "$r is refused mp_parts_requests by the module itself (requireRole)", 403);
     }
     $canAtt = in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true);
-    $edit = in_array($r, ['admin', 'motorpool'], true);
+    $edit = $r === 'motorpool';   // HEAD_MANAGEMENT_V1: Admin monitors mechanic attendance read-only
     $res = $att($u);
     if ($canAtt) ok($res['ok'] && isset($res['data']['board'], $res['data']['sessions'], $res['data']['range']) && ($res['data']['can']['edit'] ?? null) === $edit,
         "$r opens mechanic_attendance, can.edit = " . ($edit ? 'true' : 'false'), json_encode($res['data']['can'] ?? $res));
@@ -154,7 +154,15 @@ $p->prepare('UPDATE users SET must_change_password=0 WHERE id=?')->execute([$mp[
 
 // ---------------------------------------------------------------------
 section('C. Parts request round trip');
-Purchasing::action($pur, 'part_save', ['part_number' => 'RAD-HOSE-U-H500', 'description' => 'Upper radiator hose, Hino 500', 'unit' => 'pc', 'unit_cost' => '1450', 'reorder_level' => '2', 'opening_qty' => '10']);
+// STOCK_COUNT_RECONCILIATION_V1: part_save no longer accepts an opening quantity. Test fixtures put opening stock in
+// directly (one labelled 'Adjustment' movement, as the former opening balance did).
+$fixtureStock = function (string $partNo, int $qty) use ($p, $pur): void {
+    $id = (int)one($p, 'SELECT id FROM parts WHERE part_number=?', [$partNo])['id'];
+    $p->prepare('UPDATE parts SET quantity_on_hand=quantity_on_hand+? WHERE id=?')->execute([$qty, $id]);
+    $p->prepare("INSERT INTO stock_movements (part_id, movement_type, quantity_delta, unit_cost, reason, reference_type, actor_id) SELECT id, 'Adjustment', ?, unit_cost, 'Opening balance (test fixture)', 'adjustment', ? FROM parts WHERE id=?")->execute([$qty, $pur['id'], $id]);
+};
+Purchasing::action($pur, 'part_save', ['part_number' => 'RAD-HOSE-U-H500', 'description' => 'Upper radiator hose, Hino 500', 'unit' => 'pc', 'unit_cost' => '1450', 'reorder_level' => '2']);
+$fixtureStock('RAD-HOSE-U-H500', 10);
 Purchasing::action($pur, 'part_save', ['part_number' => 'BRK-PAD-F-FVR', 'description' => 'Front brake pad set, Isuzu FVR', 'unit' => 'set', 'unit_cost' => '3250', 'reorder_level' => '1']);
 $hose = (int)one($p, "SELECT id FROM parts WHERE part_number='RAD-HOSE-U-H500'")['id'];
 $pad = (int)one($p, "SELECT id FROM parts WHERE part_number='BRK-PAD-F-FVR'")['id'];
@@ -296,8 +304,9 @@ $busy = $apiRun($mp, 'Mechanics.time_out', ['id' => $M[0]]);
 ok($denied($busy, 409) && str_contains($busy['message'], 'cannot time out'), 'Time Out during an active repair is refused (409)', json_encode($busy));
 ok($denied($apiRun($mp, 'Mechanics.time_out', ['id' => $M[3]]), 409), 'Time Out without a Time In is refused (409)');
 ok($avail($M[0]) === 'Assigned' && $avail($M[1]) === 'Available' && $avail($M[3]) === 'Unavailable' && $openCount() === 2, 'availability unchanged after the refusals');
-$r = $apiRun($adm, 'Mechanics.time_out', ['id' => $M[1]]);
-ok($r['ok'] && $r['data']['availability'] === 'Unavailable' && $avail($M[1]) === 'Unavailable', 'Admin can Time Out (existing right)', json_encode($r));
+ok($denied($apiRun($adm, 'Mechanics.time_out', ['id' => $M[1]]), 403) && $avail($M[1]) === 'Available', 'Admin cannot Time Out (Head Management monitors only)');
+$r = $apiRun($mp, 'Mechanics.time_out', ['id' => $M[1]]);
+ok($r['ok'] && $r['data']['availability'] === 'Unavailable' && $avail($M[1]) === 'Unavailable', 'Motorpool can Time Out', json_encode($r));
 $r = $apiRun($mp, 'Mechanics.time_in', ['id' => $M[1]]);
 ok($r['ok'] && $r['data']['availability'] === 'Available', 'Motorpool can Time In again', json_encode($r));
 $d = $att($ops)['data'];

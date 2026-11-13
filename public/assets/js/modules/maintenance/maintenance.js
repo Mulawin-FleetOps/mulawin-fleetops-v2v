@@ -107,9 +107,12 @@ const MaintUI = {
     UI.modal('Parts request ' + UI.esc(r.request.request_ref), `<p class="small text-muted">Truck ${UI.esc(r.request.plate_number)}${r.request.job_ref ? ' · repair ' + UI.esc(r.request.job_ref) : ''} · ${UI.esc(r.request.purpose)}<br>Status: ${UI.badge(r.request.status)}${r.request.notes ? ' · ' + UI.esc(r.request.notes) : ''}</p>
       ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
   },
-  async open(id) {
+  /** Opens the repair record; autoAct = key of a drawer action to start at once (row shortcut, same form and checks). */
+  async open(id, autoAct) {
     const d = MaintUI.data;
+    const seq = App.navSeq;
     let r; try { r = await App.api('Maintenance.details', { job_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
+    if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading
     const j = r.job, i = r.incident, act = d.can.act;
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
@@ -119,8 +122,10 @@ const MaintUI = {
       if (j.status === 'Under Inspection') acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
       if (j.status === 'Under Repair') acts.push(['complete', 'Complete repair', 'primary', 'bi-check2-circle']);
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
-      // JOB_HELPER_MECHANICS_V1: assisting mechanics once a lead is assigned (needs migration 12).
-      if (r.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status)) acts.push(['helpers', 'Add mechanics', 'outline-primary', 'bi-people']);
+      // JOB_HELPER_MECHANICS_V1: assisting mechanics once a lead is assigned. Shown (disabled, with the reason) instead of
+      // hidden when the database update is missing, so the custodian can see why it cannot be used.
+      if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status)) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
+        : ['helpers-off', 'Add mechanics (needs database update 12)', 'outline-secondary disabled', 'bi-people']);
       if (['Under Inspection', 'Under Repair'].includes(j.status)) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right'],
         ['cost', 'Add cost', 'outline-secondary', 'bi-cash'], ['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
       if (j.source !== 'Incident' && ['Reported', 'Under Inspection', 'Under Repair'].includes(j.status)) acts.push(['cancel', 'Cancel record', 'outline-danger', '']);
@@ -135,7 +140,8 @@ const MaintUI = {
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
         ])}
       ${UI.h('Mechanics and repair')}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
-        r.helpersReady ? ['Assisting mechanics', MaintUI.helperList(r.helpers, act && MaintUI.ACTIVE.includes(j.status))] : null,
+        ['Assisting mechanics', r.helpersReady ? MaintUI.helperList(r.helpers, act && MaintUI.ACTIVE.includes(j.status))
+          : '<span class="text-muted">Not available until database update 2026-11-12_12 is applied.</span>'],
         ['Inspection findings', UI.e(j.findings)], ['Diagnosis', UI.e(j.diagnosis)],
         ['Corrective action', UI.e(j.repair_performed)], ['Repair completion date', j.completed_on ? UI.date(j.completed_on) + ' · ' + UI.e(j.completed_by_name) : '—'],
         ['Verification', j.verified_at ? `Passed · ${UI.e(j.verified_by_name)} · ${UI.datetime(j.verified_at)}<div class="small text-muted">${UI.e(j.verification_notes)}</div>` : (j.status === 'Completed' ? '<span class="badge-s amber">Waiting for verification</span>' : '—')],
@@ -155,6 +161,7 @@ const MaintUI = {
     el.querySelectorAll('[data-rmh]').forEach(b => b.onclick = () => UI.confirmAction('Remove ' + UI.esc(b.dataset.name) + ' from ' + UI.esc(j.job_ref),
       'The mechanic becomes available for other repairs. The assignment stays in the record history.', 'Maintenance.helper_remove', { job_id: j.id, mechanic_id: b.dataset.rmh },
       { danger: true, submit: 'Remove mechanic', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }], after: reopen }));
+    const autoBtn = autoAct && el.querySelector(`[data-a="${autoAct}"]`);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'helpers') return MaintUI.addHelpers(j, r.helpers, reopen);
@@ -197,12 +204,22 @@ const MaintUI = {
         { danger: true, submit: 'Cancel record', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
       if (a === 'printinc') TripUI.printIncident({ ...i }, { trip_ref: j.trip_ref, plate_number: j.plate_number });
     });
+    if (autoBtn) autoBtn.click();
+  },
+  /** WS_DESIGN_V1: the one next workflow step offered directly on a Repair Management row (Motorpool only). */
+  rowStep(j) {
+    if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
+    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Select repair plan', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    if (j.status === 'Under Inspection') return ['inspect', 'Record findings', 'bi-search'];
+    if (j.status === 'Under Repair') return ['complete', 'Complete repair', 'bi-check2-circle'];
+    if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
+    return null;
   },
 };
 
 App.page('maintenance', {
   title: 'Repair Management',
-  subtitle: 'Truck problems from the garage or from trip incidents: assessment, mechanic, repair, parts requests and verification.',
+  subtitle: 'Track repairs, assign mechanics, and verify completed work.',
   render(ctx) {
     const d = MaintUI.data = ctx.data;
     // MOTORPOOL_WORKSPACE_PHASE1: the former "Parts requests" tab is now its own page. Old links / remembered tab go there.
@@ -219,33 +236,31 @@ App.page('maintenance', {
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     // STAGE_A_MOTORPOOL_UI: filters (truck, source, mechanic, stage). Field names = URL keys, so a filter survives a reload and can be linked.
     const view = MaintUI.VIEWS[q.view];
+    // MOTORPOOL_REPORTS_V2: ?from= / ?to= (date reported) so report drill-downs open exactly the period's repairs.
     const match = (j) => (!q.vehicle_id || String(j.vehicle_id) === String(q.vehicle_id)) && (!q.source || j.source === q.source)
-      && (!q.mechanic_id || String(j.mechanic_id) === String(q.mechanic_id));
+      && (!q.mechanic_id || String(j.mechanic_id) === String(q.mechanic_id))
+      && (!q.from || String(j.reported_on).slice(0, 10) >= q.from) && (!q.to || String(j.reported_on).slice(0, 10) <= q.to)
+      && (q.cancelled !== '0' || j.status !== 'Cancelled');   // ?cancelled=0: same population as the report counts
     const shownJobs = jobs.filter(match);
     const open = shownJobs.filter(j => !['Cancelled'].includes(j.status) && !j.verified_at);
     const by = (s) => open.filter(j => j.status === s);
     const reported = by('Reported'), inspection = by('Under Inspection'), repair = by('Under Repair'), verify = by('Completed');
     const done = shownJobs.filter(j => j.verified_at);
-    const keep = (extra) => { const x = { ...q, ...extra }; Object.keys(x).forEach(k => (x[k] === '' || x[k] == null) && delete x[k]); return 'maintenance' + (Object.keys(x).length ? '?' + new URLSearchParams(x) : ''); };
-    const tiles = [
-      { label: 'Reported', value: reported.length, note: reported.filter(j => j.source === 'Incident').length + ' from trip incidents', icon: 'bi-exclamation-octagon', tone: reported.length ? 'amber' : 'gray', go: keep({ view: 'reported' }) },
-      { label: 'Under inspection', value: inspection.length, note: 'findings to record', icon: 'bi-search', tone: inspection.length ? 'blue' : 'gray', go: keep({ view: 'inspection' }) },
-      { label: 'Under repair', value: repair.length, note: 'work in progress', icon: 'bi-wrench-adjustable', tone: repair.length ? 'blue' : 'gray', go: keep({ view: 'repair' }) },
-      { label: 'Awaiting verification', value: verify.length, note: 'truck still out of service', icon: 'bi-clipboard-check', tone: verify.length ? 'amber' : 'gray', go: keep({ view: 'verify' }) },
-      { label: 'Returned to service', value: done.length, note: 'all time', icon: 'bi-check2-circle', tone: 'green', go: 'maint_history?status=Returned to service' },
-    ];
     const trucks = (d.trucks || []).map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]);
     const mechs = (d.mechanics || []).map(m => [m.id, m.full_name + ' · ' + m.mechanic_code]);
+    // UI_REFERENCE_V1: the stage is chosen with status tabs (?view=); the filter modal keeps truck, mechanic and source.
     const filters = [
-      { name: 'view', label: 'Stage (open records)', type: 'select', col: 12, options: Object.entries(MaintUI.VIEWS).map(([k, v]) => [k, v[0]]) },
       { name: 'vehicle_id', label: 'Truck', type: 'select', col: 6, options: trucks },
       { name: 'mechanic_id', label: 'Mechanic', type: 'select', col: 6, options: mechs },
       { name: 'source', label: 'Source', type: 'select', col: 12, options: [['On-Premise', 'Garage report / arrival checklist'], ['Incident', 'Trip incident']] },
+      { name: 'from', label: 'Reported from', type: 'date', col: 6 }, { name: 'to', label: 'Reported to', type: 'date', col: 6 },
     ];
-    // The existing filter bar (UI.filterModal) shows the active filters and Reset.
-    const active = ['view', 'vehicle_id', 'mechanic_id', 'source'].filter(k => q[k]);
-    ctx.el.innerHTML = `<div class="mp-ws">${UI.crumb('maintenance_overview', 'Maintenance Overview')}${UI.kpiTiles(tiles)}</div>`
-      + UI.filterModal(ctx, filters, { hint: 'Showing all repair records.' });
+    const active = ['vehicle_id', 'mechanic_id', 'source', 'from', 'to', 'cancelled'].filter(k => q[k]);
+    const TABS = [['', 'Open', open.length], ['reported', 'New reports', reported.length], ['inspection', 'Under inspection', inspection.length],
+      ['repair', 'Under repair', repair.length], ['verify', 'Awaiting verification', verify.length], ['done', 'Completed', done.length], ['all', 'All records', shownJobs.length]];
+    if (q.view === 'in_progress') TABS.splice(1, 0, ['in_progress', 'Inspection or repair', inspection.length + repair.length]);
+    const tab = TABS.some(t => t[0] === (q.view || '')) ? (q.view || '') : '';
+    ctx.el.innerHTML = UI.statusTabs('maintenance', q, 'view', TABS, tab) + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
     const waited = (j) => { const days = Math.max(0, Math.floor((Date.now() - new Date(String(j.reported_on) + 'T00:00:00').getTime()) / 86400000));
       return days === 0 ? '<span class="text-muted">today</span>' : `<span class="${days >= 7 ? 'text-danger fw-semibold' : ''}">${days} day${days === 1 ? '' : 's'}</span>`; };
     const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Arrival checklist ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
@@ -255,15 +270,21 @@ App.page('maintenance', {
       ['Status', 'display_status', 'badge'], ['Date reported', 'reported_on', 'date']];
     // Open records: "Waiting" (days since reported) instead of the date column; all six columns stay visible.
     const openCols = [...cols.slice(0, 5), ['Waiting', 'reported_on', (v, j) => waited(j)]];
-    const opt = { actions: () => UI.btn('view', 'Open'), onAction: (a, j) => MaintUI.open(j.id), rowClick: (j) => MaintUI.open(j.id) };
-    const openShown = view ? open.filter(view[1]) : open;
+    // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
+    const opt = { directActions: true, showAllColumns: true,
+      actions: (j) => { const st = MaintUI.rowStep(j);
+        return (st ? UI.ibtn('step:' + st[0], st[1], st[2], 'outline-primary') : '')
+          + (d.can.act && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.ibtn('helpers', 'Add mechanics', 'bi-people') : '')
+          + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) ? UI.ibtn('parts', 'Request parts', 'bi-box-seam') : '')
+          + UI.ibtn('view', 'Open record', 'bi-eye'); },
+      onAction: (a, j) => a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id) : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
+      rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
-    UI.tabs(box, [
-      ['open', `Open records <span class="tab-count">${openShown.length}</span>`, () => UI.table(openCols, openShown, { ...opt, showAllColumns: true, empty: active.length ? 'No open record matches these filters.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' })],
-      ['done', `Completed repairs <span class="tab-count">${done.length}</span>`, () => UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, empty: 'No completed repairs yet.' })],
-      ['all', `All records <span class="tab-count">${shownJobs.length}</span>`, () => UI.table(cols, shownJobs, { ...opt, empty: 'No record matches these filters.' })],
-      // Parts requests are listed on their own page (mp_parts_requests); "Request parts" stays on every repair record.
-    ], view ? 'open' : null, { forceActive: !!view });
+    const label = TABS.find(t => t[0] === tab)[1];
+    if (tab === 'done') box.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
+    else if (tab === 'all') box.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
+    else { const rows = view ? open.filter(view[1]) : open;
+      box.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
     if (once.open) MaintUI.open(once.open);
@@ -298,72 +319,47 @@ const MpParts = {
 
 App.page('mp_parts_requests', {
   title: 'Parts Requests',
-  subtitle: 'Request parts for repairs and follow their release by the Purchasing Officer.',
+  subtitle: 'Request parts for repairs and track their availability.',
   render(ctx) {
     const d = MaintUI.data = ctx.data, q = ctx.query, can = d.can || {};
-    const s = d.summary && !Array.isArray(d.summary) ? d.summary : null;
-    const n = (k) => s ? +s[k] || 0 : '—';
     if (can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-plus-lg', 'primary');
     const trucks = Array.isArray(d.trucks) ? d.trucks : [];
     const rows = (Array.isArray(d.requests) ? d.requests : []).map(r => ({ ...r,
       progress: `${UI.num(+r.released_units)} of ${UI.num(+r.requested_units)} released`, next: MpParts.nextStep(r) }));
-    const key = q.status === 'open' || MpParts.STATUS[q.status] ? q.status : '';
+    // UI_REFERENCE_V1: status tabs (?status=) + truck filter; no KPI row on the list page (the tabs carry the counts).
+    // Keys: '' / 'open' = still waiting for parts, 'all', or one MpParts.STATUS key.
+    const key = q.status === 'all' || MpParts.STATUS[q.status] ? q.status : 'open';
     const truck = q.vehicle_id ? String(q.vehicle_id) : '';
-    const shown = rows.filter(r => MpParts.match(r, key) && (!truck || String(r.vehicle_id) === truck));
-
-    // KPI cards: each one opens this page filtered by its status key.
-    const card = (label, k, color, note) => ({ label, value: n(k), color: s && s[k] ? color : '', note, go: 'mp_parts_requests?status=' + k });
-    const cards = [
-      card('Requested', 'requested', 'amber', 'waiting for Purchasing'),
-      card('Partially released', 'partially_released', 'blue', 'rest waits for stock'),
-      card('Not available', 'not_available', 'red', 'no stock: follow up'),
-      card('Released', 'released', 'green', 'all items released'),
-    ];
-    // Filter modal fields: names are the URL parameters (status, vehicle_id).
-    const statusOptions = [['open', 'Open (requested, partially released, not available)']].concat(Object.entries(MpParts.STATUS));
+    // MOTORPOOL_REPORTS_V2: ?from= / ?to= (request date) for drill-downs from Maintenance Reports.
+    const byTruck = rows.filter(r => (!truck || String(r.vehicle_id) === truck)
+      && (!q.from || String(r.created_at).slice(0, 10) >= q.from) && (!q.to || String(r.created_at).slice(0, 10) <= q.to));
+    const inTab = (k) => byTruck.filter(r => k === 'all' || MpParts.match(r, k));
+    const shown = inTab(key);
+    const TABS = [['open', 'Open'], ...Object.entries(MpParts.STATUS).map(([k, v]) => [k, v]), ['all', 'All']].map(([k, l]) => [k, l, inTab(k).length]);
     const truckOptions = trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]);
-    const filters = [
-      { name: 'status', label: 'Status', type: 'select', col: 12, options: statusOptions },
-      { name: 'vehicle_id', label: 'Truck', type: 'select', col: 12, options: truckOptions },
-    ];
-    // STAGE_A_MOTORPOOL_UI: icon tiles (same values and links as the cards above) + removable filter chips.
-    const icons = { requested: 'bi-hourglass-split', partially_released: 'bi-box-arrow-in-down', not_available: 'bi-x-octagon', released: 'bi-check2-circle' };
-    const tiles = cards.map(c => ({ ...c, icon: icons[c.go.split('=')[1]], tone: c.color || 'gray' }));
-    ctx.el.innerHTML = `<div class="mp-ws">${UI.crumb('maintenance_overview', 'Maintenance Overview')}${UI.kpiTiles(tiles)}</div>`
-      + UI.filterModal(ctx, filters, { hint: 'Showing all parts requests of the Motorpool.' });
+    ctx.el.innerHTML = UI.statusTabs('mp_parts_requests', { ...q, status: key }, 'status', TABS, key)
+      + UI.filterModal(ctx, [{ name: 'vehicle_id', label: 'Truck', type: 'select', col: 12, options: truckOptions },
+        { name: 'from', label: 'Requested from', type: 'date', col: 6 }, { name: 'to', label: 'Requested to', type: 'date', col: 6 }], { hint: 'All trucks and dates.' });
 
     const cols = [
       ['Request', 'request_ref', (v, r) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.date(r.created_at)}</div>`],
-      ['Truck', 'plate_number'],
-      ['Repair record', 'job_ref', (v) => v ? UI.esc(v) : '<span class="text-muted">—</span>'],
+      ['Truck / repair', 'plate_number', (v, r) => `${UI.esc(v)}${r.job_ref ? `<div class="cell-sub">${UI.esc(r.job_ref)}</div>` : ''}`],
       ['Items', 'items', (v) => `<span class="cell-clip">${UI.esc(v || '')}</span>`],
       ['Progress', 'progress'],
       ['Status', 'status', 'badge'],
-      ['Request date', 'created_at', 'date'],
-      ['Purpose', 'purpose'],
-      ['Next step', 'next'],
-      ['Notes from Purchasing', 'notes'],
+      ['Next step', 'next', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
     ];
     const cancel = (r) => UI.confirmAction('Cancel ' + UI.esc(r.request_ref), 'The request will not be processed by Purchasing.',
       'Purchasing.request_cancel', { request_id: r.id }, { danger: true, submit: 'Cancel request' });
-    const opt = {
-      actions: (r) => UI.btn('view', 'Details') + (r.status === 'Requested' && can.act ? UI.btn('cancel', 'Cancel', 'outline-danger') : ''),
+    const opt = { directActions: true, showAllColumns: true,
+      actions: (r) => (r.status === 'Requested' && can.act ? UI.ibtn('cancel', 'Cancel request', 'bi-x-lg', 'outline-danger') : '') + UI.ibtn('view', 'Details', 'bi-eye'),
       onAction: (a, r) => (a === 'cancel' ? cancel(r) : MaintUI.openRequest(r)),
       rowClick: (r) => MaintUI.openRequest(r),
     };
     const box = document.createElement('div');
     ctx.el.append(box);
-    if (key || truck) {
-      box.innerHTML = UI.table(cols, shown, { ...opt, title: 'Parts requests (filtered)', empty: 'No parts request matches this filter.' });
-    } else {
-      const open = rows.filter(r => MpParts.OPEN.includes(r.status));
-      UI.tabs(box, [
-        ['open', `Open <span class="tab-count">${open.length}</span>`, () => UI.table(cols, open, { ...opt, empty: 'No open parts request. Use Request parts when a repair needs parts.' })],
-        ['released', 'Released', () => UI.table(cols, rows.filter(r => r.status === 'Released'), { ...opt, empty: 'No released request yet.' })],
-        ['cancelled', 'Cancelled', () => UI.table(cols, rows.filter(r => r.status === 'Cancelled'), { ...opt, empty: 'No cancelled request.' })],
-        ['all', 'All requests', () => UI.table(cols, rows, { ...opt, empty: 'No parts requests yet. Use Request parts on a repair record.' })],
-      ]);
-    }
+    box.innerHTML = UI.table(cols, shown, { ...opt, title: TABS.find(t => t[0] === key)[1] + ' (' + shown.length + ')',
+      empty: rows.length ? 'No parts request in this list.' : 'No parts requests yet. Use Request parts on a repair record.' });
     const once = UI.takeQuery(ctx, 'open');
     if (once.open) {
       const r = rows.find(x => String(x.id) === String(once.open));
@@ -417,9 +413,11 @@ const MaintOverview = {
 
 App.page('maintenance_overview', {
   title: 'Maintenance Overview',
-  subtitle: 'What is happening now, what needs your action, and the latest maintenance activity.',
+  subtitle: 'Monitor repairs, mechanics and trucks in service.',
   render(ctx) {
     const d = MaintUI.data = ctx.data, can = d.can || {};
+    // REF_FIDELITY_V1: the Motorpool's own workspace title (other roles keep 'Maintenance Overview').
+    if (UI.role('motorpool')) { const h = document.querySelector('#pageContent .page-title'); if (h) h.textContent = 'Motorpool Overview'; }
     const s = Array.isArray(d.summary) ? null : d.summary;   // a failed read section comes back as []
 
     const n = (k) => s ? +s[k] || 0 : '—';
@@ -427,27 +425,29 @@ App.page('maintenance_overview', {
     const crew = d.crew && !Array.isArray(d.crew) ? d.crew : null;
     const fleet = d.fleet && !Array.isArray(d.fleet) ? d.fleet : null;
     const inRepair = fleet && Array.isArray(fleet.in_repair) ? fleet.in_repair : [];
+    // UI_REFERENCE_V1: four KPI cards (each opens the related, filtered page), Quick actions, then
+    // left: Needs attention + Recent maintenance activity; right: Mechanic status + Trucks in repair.
+    const open = s ? n('new_reports') + n('under_inspection') + n('under_repair') + n('for_verification') : '—';
     const tiles = [
-      { label: 'New reports', value: n('new_reports'), note: s ? `${n('new_incidents')} from trip incidents` : '', icon: 'bi-exclamation-octagon', tone: s && s.new_reports ? 'amber' : 'gray', go: 'maintenance?view=reported' },
-      { label: 'In inspection or repair', value: s ? n('under_inspection') + n('under_repair') : '—', note: s ? `${n('under_inspection')} inspection · ${n('under_repair')} repair` : '', icon: 'bi-wrench-adjustable', tone: s && (s.under_inspection + s.under_repair) ? 'blue' : 'gray', go: 'maintenance?view=in_progress' },
-      { label: 'Awaiting verification', value: n('for_verification'), note: 'repaired, still out of service', icon: 'bi-clipboard-check', tone: s && s.for_verification ? 'amber' : 'gray', go: 'maintenance?view=verify' },
+      { label: 'Open repairs', value: open, note: s ? `${n('new_reports')} new · ${n('under_inspection') + n('under_repair')} in progress` : '', icon: 'bi-wrench-adjustable', tone: s && open ? 'blue' : 'gray', go: 'maintenance' },
+      can.parts ? { label: 'Waiting for parts', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partial` : '', icon: 'bi-box-seam', tone: s && s.pending_parts ? 'amber' : 'gray', go: can.requestParts ? 'mp_parts_requests?status=open' : 'parts_requests' }
+        : { label: 'New reports', value: n('new_reports'), note: s ? `${n('new_incidents')} from trip incidents` : '', icon: 'bi-exclamation-octagon', tone: s && s.new_reports ? 'amber' : 'gray', go: 'maintenance?view=reported' },
+      { label: 'For verification', value: n('for_verification'), note: 'repaired, still out of service', icon: 'bi-clipboard-check', tone: s && s.for_verification ? 'amber' : 'gray', go: 'maintenance?view=verify' },
+      crew ? { label: 'Mechanics on duty', value: crew.on_duty, note: `${crew.available} available · ${crew.assigned} on a repair`, icon: 'bi-person-gear', tone: crew.on_duty ? 'green' : 'gray', go: 'mechanic_attendance?duty=in' }
+        : { label: 'Trucks under maintenance', value: inRepair.length, note: fleet ? `of ${fleet.active_trucks} active trucks` : '', icon: 'bi-truck', tone: inRepair.length ? 'red' : 'gray', go: 'trucks?status=Under Maintenance' },
     ];
-    if (can.parts) tiles.push({ label: 'Pending parts requests', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partial` : '', icon: 'bi-box-seam', tone: s && s.pending_parts ? 'blue' : 'gray', go: can.requestParts ? 'mp_parts_requests?status=open' : 'parts_requests' });
-    if (fleet) tiles.push({ label: 'Trucks under maintenance', value: inRepair.length, note: `of ${fleet.active_trucks} active trucks`, icon: 'bi-truck', tone: inRepair.length ? 'red' : 'green', go: 'trucks?status=Under Maintenance' });
-    if (crew) tiles.push({ label: 'Mechanics on duty', value: crew.on_duty, note: `${crew.available} available · ${crew.assigned} on a repair`, icon: 'bi-person-gear', tone: crew.on_duty ? 'green' : 'gray', go: 'mechanic_attendance?duty=in' });
-    // Mechanic status: the Mechanic Masterlist values, each bar opens the filtered masterlist.
-    const bar = (label, value, total, tone, go) => `<div class="ws-bar${UI.canGo(go) ? ' clickable' : ''}"${UI.canGo(go) ? ` data-go="${go}" role="link" tabindex="0"` : ''}>
-        <div class="ws-bar-top"><span>${UI.esc(label)}</span><b>${UI.esc(value)}</b></div><div class="ws-bar-track"><div class="ws-bar-fill tone-${tone}" style="width:${total ? Math.round(value / total * 100) : 0}%"></div></div></div>`;
-    const crewPanel = crew ? `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-person-gear"></i> Mechanic status</h2>
-        ${UI.canGo('mechanic_attendance') ? '<button type="button" class="btn btn-sm btn-link" data-go="mechanic_attendance">Attendance <i class="bi bi-arrow-right"></i></button>' : ''}</div>
-        <div class="panel-body">${crew.active ? bar('Available', crew.available, crew.active, 'green', 'mechanics?availability=Available') + bar('On a repair', crew.assigned, crew.active, 'blue', 'mechanics?availability=Assigned')
-          + bar('Not timed in', crew.unavailable, crew.active, 'gray', 'mechanics?availability=Unavailable') : '<div class="mo-empty">No active mechanics. Add them in the Mechanic Masterlist.</div>'}
-          <div class="ws-foot">${crew.on_duty} of ${crew.active} active mechanics are timed in.</div></div></section>` : '';
+    // Mechanic status: the Mechanic Masterlist values, each row opens the filtered masterlist.
+    const crewBody = !crew ? '' : crew.active ? UI.wsList([
+        UI.wsEntry('mechanics?availability=Available', '<b>Available</b>', 'Timed in, no current repair', `<span class="badge-s green">${UI.num(crew.available)}</span>`),
+        UI.wsEntry('mechanics?availability=Assigned', '<b>On a repair</b>', 'Assigned to an open repair record', `<span class="badge-s blue">${UI.num(crew.assigned)}</span>`),
+        UI.wsEntry('mechanics?availability=Unavailable', '<b>Not timed in</b>', 'Cannot take a repair until timed in', `<span class="badge-s ${crew.unavailable ? 'amber' : 'gray'}">${UI.num(crew.unavailable)}</span>`)], '')
+      : '<div class="mo-empty">No active mechanics. Add them in the Mechanic Masterlist.</div>';
+    const crewPanel = crew ? UI.wsPanel('Mechanic status', 'bi-person-gear', crewBody, { cls: 'ws-r1', go: 'mechanics', foot: `${crew.on_duty} of ${crew.active} active mechanics are timed in.` }) : '';
     // Trucks in repair: each row opens the repair record.
-    const truckPanel = fleet ? `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-truck"></i> Trucks in repair</h2><span class="text-muted small">${inRepair.length}</span></div>
-        <div class="panel-body flush">${inRepair.length ? `<ul class="ws-trucks mo-scroll">${inRepair.map(t => `<li class="clickable" data-open-job="${+t.job_id}" role="button" tabindex="0">
+    const truckPanel = fleet ? UI.wsPanel('Trucks in repair', 'bi-truck', inRepair.length ? `<ul class="ws-trucks mo-scroll">${inRepair.map(t => `<li class="clickable" data-open-job="${+t.job_id}" role="button" tabindex="0">
           <div><b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ` <span class="text-muted">#${UI.esc(t.truck_number)}</span>` : ''}<div class="cell-sub">${UI.esc(t.job_ref)} · ${UI.esc(t.truck_type)}</div></div>
-          ${UI.badge(+t.awaiting_verification ? 'Awaiting verification' : t.status)}</li>`).join('')}</ul>` : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> Every truck is in service.</div>'}</div></section>` : '';
+          ${UI.badge(+t.awaiting_verification ? 'Awaiting verification' : t.status)}</li>`).join('')}</ul>` : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> Every truck is in service.</div>',
+      { cls: 'ws-r2', count: inRepair.length, go: 'maintenance' }) : '';
 
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
@@ -463,39 +463,162 @@ App.page('maintenance_overview', {
       : act.length ? `<ul class="mo-acts mo-scroll">${act.map(MaintOverview.activityItem).join('')}</ul>`
       : '<div class="mo-empty">No maintenance activity recorded yet.</div>';
 
-    // FINAL OVERVIEW LAYOUT: KPI tiles -> compact Quick actions row -> two columns
-    // (left: Needs attention + Recent activity; right: Mechanic status + Trucks in repair). List panels scroll internally.
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">
-      ${UI.kpiTiles(tiles)}
-      <div class="mo-quickbar" role="group" aria-label="Quick actions">
-        <span class="mo-quickbar-title"><i class="bi bi-lightning"></i> Quick actions</span>
-        ${can.act ? '<button type="button" class="btn btn-sm btn-primary" data-q="report"><i class="bi bi-plus-lg"></i> Report truck issue</button>' : ''}
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-go="maintenance"><i class="bi bi-wrench-adjustable"></i> Repair management</button>
-        ${can.requestParts ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-go="mp_parts_requests"><i class="bi bi-box-seam"></i> Parts requests</button>' : ''}
-        ${UI.canGo('mechanic_attendance') ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-go="mechanic_attendance"><i class="bi bi-clock-history"></i> Mechanic attendance</button>' : ''}
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-go="maint_history"><i class="bi bi-journal-check"></i> Maintenance history</button>
-      </div>
-      <div class="mo-grid">
-        <div class="mo-main">
-          <section class="panel mo-attention"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-flag"></i> Needs attention</h2>
-            <span class="text-muted small">${failed.attention ? '' : att.length > lim ? lim + '+ records' : att.length + ' record' + (att.length === 1 ? '' : 's')}</span></div>
-            <div class="panel-body flush">${attentionBody}</div></section>
-          <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-activity"></i> Recent maintenance activity</h2>
-            <span class="text-muted small">${act.length ? act.length + ' latest' : ''}</span></div>
-            <div class="panel-body flush">${activityBody}</div></section>
-        </div>
-        <div class="mo-side">
-          ${crewPanel}
-          ${truckPanel}
-        </div>
+      ${UI.kpiTiles(tiles, 'ws-kpi4')}
+      ${UI.quickBar([can.act ? { label: 'Report truck issue', icon: 'bi-plus-lg', act: 'report', primary: true } : null,
+        { label: 'Repair management', icon: 'bi-wrench-adjustable', go: 'maintenance' },
+        can.requestParts ? { label: 'Parts requests', icon: 'bi-box-seam', go: 'mp_parts_requests' } : null,
+        { label: 'Mechanic attendance', icon: 'bi-clock-history', go: 'mechanic_attendance' },
+        { label: 'Reports', icon: 'bi-graph-up', go: 'maintenance_reports' }])}
+      <div class="ws-grid2">
+        ${UI.wsPanel('Needs attention', 'bi-flag', attentionBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
+        ${crewPanel}
+        ${UI.wsPanel('Recent maintenance activity', 'bi-activity', activityBody, { cls: 'ws-l2', go: 'maint_history' })}
+        ${truckPanel}
       </div></div>`;
 
     const root = ctx.el.querySelector('.maint-overview');
-    root.querySelector('[data-q="report"]')?.addEventListener('click', () => MaintUI.report());
+    root.querySelector('[data-qa="report"]')?.addEventListener('click', () => MaintUI.report());
     root.querySelectorAll('[data-open-job]').forEach(x => {
       const go = () => App.go('maintenance', { open: x.dataset.openJob });
       x.addEventListener('click', go);
       if (x.tagName !== 'BUTTON') x.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     });
+  },
+});
+
+/* MOTORPOOL_REPORTS_V2 — Maintenance Reports & Analytics (Motorpool workspace "Reports").
+   Data: Analytics::maintenanceReport (read-only SQL; metric definitions and suggestion rules are documented there).
+   Row 1: Completed repairs · Ongoing repairs (now) · Trucks serviced · Maintenance cost (opens the traceable breakdown)
+   Row 2: Maintenance Activity Timeline — multi-line chart; legend toggles series; a point opens a floating period popover
+          (activity details + rule-based suggested actions + drill-downs). Keyboard: Left/Right choose a period, Enter opens.
+   Row 3: Maintenance Expense Breakdown (donut + entries) · Repair Frequency by Truck (most / least repaired).
+   Nothing on this page writes or creates records. */
+const MaintReport = {
+  charts: [],
+  SERIES: [
+    ['reported', 'Reported repairs', '#d97706', []], ['under_repair', 'Under repair', '#2563eb', []], ['completed', 'Completed repairs', '#16a34a', []],
+    ['awaiting', 'Awaiting verification', '#9333ea', [6, 4]], ['parts', 'Parts requests', '#64748b', [2, 3]],
+  ],
+  COST_COLORS: ['#2f7d57', '#d99a1e', '#2563eb', '#9333ea', '#64748b', '#0891b2'],
+  sugList(items, empty) {
+    return items && items.length ? `<ul class="ws-sug">${items.map(x => `<li>${UI.esc(x.text)}${x.go && UI.canGo(x.go) ? ` <button type="button" class="btn btn-link btn-sm" data-go="${UI.esc(x.go)}">${UI.esc(x.label || 'Open')}</button>` : ''}</li>`).join('')}</ul>`
+      : `<div class="ws-sug-empty">${UI.esc(empty)}</div>`;
+  },
+  /** Drawer with every entry behind the Maintenance Cost total (same date and inclusion rules). */
+  openCost(d) {
+    const c = d.cost || {}, e = d.entries || {}, per = d.period || {};
+    const jobLink = (v, r) => r.job_id ? `<b>${UI.esc(v)}</b>` : UI.e(v);
+    UI.drawer('Maintenance cost', `${UI.kv([['Period', UI.date(per.from) + ' – ' + UI.date(per.to)], ['Parts used', UI.money(c.parts) + ` <span class="cell-sub">${UI.num(c.parts_n)} release(s)</span>`],
+        ...(c.types || []).map(t => [t.type, UI.money(t.total) + ` <span class="cell-sub">${UI.num(t.n)} entr${t.n === 1 ? 'y' : 'ies'}</span>`]), ['Total', `<b>${UI.money(c.total)}</b>`]])}
+      <p class="small text-muted mt-2">Parts used = parts released to repairs, at the unit cost recorded on each release (release date). Other costs = labor and services recorded on repairs (date incurred). Purchase orders and payments are not included, so nothing is counted twice.</p>
+      ${UI.h('Parts used (' + UI.num((e.parts || []).length) + ')')}${UI.table([['Released', 'at', 'datetime'], ['Repair', 'job_ref', jobLink], ['Truck', 'plate_number'], ['Request', 'request_ref'], ['Part', 'part_number'], ['Qty', 'qty', 'num'], ['Value', 'value', 'money']], e.parts || [], { plain: true, limit: 10, empty: 'No parts were released in this period.' })}
+      ${UI.h('Labor and services (' + UI.num((e.costs || []).length) + ')')}${UI.table([['Date', 'at', 'date'], ['Repair', 'job_ref', jobLink], ['Truck', 'plate_number'], ['Type', 'cost_type'], ['Description', 'description'], ['Amount', 'amount', 'money']], e.costs || [], { plain: true, limit: 10, empty: 'No labor or service cost was recorded in this period.' })}`,
+      { subtitle: 'Recorded entries behind the total' });
+  },
+};
+
+App.page('maintenance_reports', {
+  title: 'Maintenance Reports',
+  subtitle: 'Repairs, maintenance activity and maintenance spending.',
+  render(ctx) {
+    MaintReport.charts.forEach(ch => { try { ch.destroy(); } catch { /* already gone */ } }); MaintReport.charts = [];
+    const d = ctx.data, per = d.period || {}, b = d.buckets || [];
+    const k = d.kpis && !Array.isArray(d.kpis) ? d.kpis : null, c = d.cost && !Array.isArray(d.cost) ? d.cost : null;
+    const tl = d.timeline && !Array.isArray(d.timeline) ? d.timeline : null, sug = d.suggestions || {};
+    const freq = Array.isArray(d.frequency) ? d.frequency : [];
+    const unit = { day: 'day', week: 'week', month: 'month' }[per.granularity] || 'period';
+    const tiles = [
+      { label: 'Completed repairs', value: k ? UI.num(k.completed) : '—', note: 'completed in the period', tone: 'gray', go: 'maint_history' },
+      { label: 'Ongoing repairs', value: k ? UI.num(k.ongoing) : '—', note: k ? `now · ${UI.num(k.awaiting_verification)} awaiting verification` : 'now', tone: 'gray', go: 'maintenance' },
+      { label: 'Trucks serviced', value: k ? UI.num(k.trucks_serviced) : '—', note: 'trucks with a completed repair', tone: 'gray', go: 'maint_history' },
+      { label: 'Maintenance cost', value: c ? UI.money(c.total) : '—', note: 'parts used + recorded repair costs', tone: 'gray' },
+    ];
+    const series = MaintReport.SERIES.filter(([key]) => tl && Array.isArray(tl[key]));
+    const notes = [];
+    if (tl) (tl.omitted || []).forEach(o => notes.push(`${o.series} not shown: ${o.reason}`));
+    const basis = tl ? `Reported by date reported, completed by completion date, parts requests by request date; under repair and awaiting verification show the status at the end of each ${unit}, from the recorded status history.` : '';
+    const timelineBody = tl ? `<div class="mr-chart" role="group" aria-label="Maintenance activity by ${unit}"><canvas id="mrTimeline" tabindex="0"
+        aria-label="Maintenance activity timeline. Use the left and right arrow keys to choose a ${unit} and Enter to open its details."></canvas></div>
+        <div class="mr-note">${UI.esc(basis)} Select a point to see that ${unit}'s details.${notes.length ? '<br>' + notes.map(UI.esc).join('<br>') : ''}</div>`
+      : '<div class="mo-empty text-danger">The activity timeline could not be loaded.</div>';
+
+    // Expense breakdown: parts used + each recorded cost type. The total equals the KPI (same query results).
+    const cats = c ? [{ label: 'Parts used', value: +c.parts, n: c.parts_n }, ...(c.types || []).map(t => ({ label: t.type === 'Outside Service' ? 'Outside services' : t.type, value: +t.total, n: t.n }))] : [];
+    const costBody = c ? `<div class="mr-cost"><div class="mr-donut">${c.total > 0 ? '<canvas id="mrCost" aria-label="Maintenance expense breakdown"></canvas>' : ''}
+        <div class="mr-donut-total"><span>Total</span><b>${UI.money(c.total)}</b></div></div>
+        <ul class="mr-legend">${cats.map((x, i) => `<li><i style="background:${MaintReport.COST_COLORS[i % MaintReport.COST_COLORS.length]}"></i><span>${UI.esc(x.label)}</span>
+          <b>${UI.money(x.value)}</b><small>${c.total > 0 ? Math.round(x.value / c.total * 100) + '%' : '—'}</small></li>`).join('')}
+          ${(c.types || []).length ? '' : '<li class="mr-legend-note">No labor or outside-service cost was recorded on repairs in this period.</li>'}</ul></div>`
+      : '<div class="mo-empty text-danger">The expense breakdown could not be loaded.</div>';
+
+    // Repair frequency: repair jobs reported in the period (cancelled excluded) for every active truck.
+    const most = freq.filter(t => +t.repairs > 0).slice(0, 5);
+    const least = freq.slice().sort((x, y) => (+x.repairs - +y.repairs) || String(x.plate_number).localeCompare(y.plate_number)).slice(0, 5);
+    const row = (t) => { const go = 'maintenance?view=all&cancelled=0&vehicle_id=' + t.id + '&from=' + per.from + '&to=' + per.to, ok = UI.canGo(go);
+      return `<li class="mr-truck${ok ? ' clickable' : ''}"${ok ? ` data-go="${UI.esc(go)}" role="link" tabindex="0"` : ''}><span><b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ` <span class="text-muted">#${UI.esc(t.truck_number)}</span>` : ''}<small>${UI.esc(t.truck_type || '')}</small></span>
+        <span class="badge-s ${+t.repairs ? 'blue' : 'gray'}">${UI.num(t.repairs)} repair${+t.repairs === 1 ? '' : 's'}</span></li>`; };
+    const freqBody = `<div class="mr-freq"><div><h3>Most repaired</h3>${most.length ? `<ul>${most.map(row).join('')}</ul>` : '<div class="ws-sug-empty">No repair was reported in this period.</div>'}</div>
+      <div><h3>Least repaired</h3>${least.length ? `<ul>${least.map(row).join('')}</ul>` : '<div class="ws-sug-empty">No active truck.</div>'}</div></div>`;
+
+    ctx.el.innerHTML = `${UI.wsPeriod('maintenance_reports', per)}${UI.kpiTiles(tiles, 'ws-kpi4')}
+      ${UI.wsPanel('Maintenance Activity Timeline', 'bi-graph-up', timelineBody, { cls: 'mr-timeline', tipHtml: MaintReport.sugList(sug.timeline, 'No action is suggested from the recorded maintenance activity.') })}
+      <div class="ws-grid2 ws-report-row mt-3">
+        ${UI.wsPanel('Maintenance Expense Breakdown', 'bi-pie-chart', costBody, { cls: 'ws-l1', foot: `<button type="button" class="btn btn-link btn-sm p-0" data-cost-open>View recorded entries</button> · parts at release date, other costs at the date incurred` })}
+        ${UI.wsPanel('Repair Frequency by Truck', 'bi-truck', freqBody, { cls: 'ws-r1', tipHtml: MaintReport.sugList(sug.trucks, 'Repair counts per truck are shown as recorded; no rule applies.'),
+          foot: `Repair jobs reported in the period for ${UI.num(freq.length)} active trucks (cancelled excluded). Not a reliability measure: truck usage is not recorded here.` })}
+      </div>`;
+    UI.bindTips(ctx.el); UI.bindPeriod(ctx.el);
+
+    // Maintenance Cost KPI opens the same traceable breakdown.
+    const costTile = [...ctx.el.querySelectorAll('.kpi-tile')][3];
+    if (costTile && c) { costTile.classList.add('clickable'); costTile.setAttribute('role', 'button'); costTile.tabIndex = 0; costTile.setAttribute('aria-label', 'Maintenance cost ' + UI.money(c.total) + ': open the recorded entries');
+      const open = () => MaintReport.openCost(d); costTile.onclick = open; costTile.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }; }
+    ctx.el.querySelector('[data-cost-open]')?.addEventListener('click', () => MaintReport.openCost(d));
+
+    if (typeof Chart === 'undefined') return;
+    // ---- timeline chart
+    const cv = ctx.el.querySelector('#mrTimeline');
+    if (cv && tl) {
+      const chart = new Chart(cv, { type: 'line',
+        data: { labels: b.map(x => x.short), datasets: series.map(([key, label, color, dash]) => ({ label, data: tl[key], borderColor: color, backgroundColor: color,
+          borderDash: dash, borderWidth: 2, pointRadius: b.length > 40 ? 2 : 3, pointHoverRadius: 6, tension: 0, fill: false })) },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Count' } }, x: { ticks: { autoSkip: true, maxRotation: 0 } } },
+          plugins: { legend: { position: 'top', align: 'start', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 18, boxHeight: 3, padding: 14, font: { size: 12 } } },
+            tooltip: { callbacks: { title: (it) => b[it[0].dataIndex] ? b[it[0].dataIndex].label : '' } } },
+          onClick: (evt, els, ch) => { const hit = ch.getElementsAtEventForMode(evt, 'index', { intersect: false }, false); if (hit.length) openPoint(hit[0].index); } } });
+      MaintReport.charts.push(chart);
+      const pointRect = (i) => () => {
+        const r = cv.getBoundingClientRect(), metas = chart.data.datasets.map((_, j) => chart.getDatasetMeta(j)).filter(m => !m.hidden && m.data[i]);
+        const x = metas.length ? metas[0].data[i].x : chart.chartArea.left, y = metas.length ? Math.min(...metas.map(m => m.data[i].y)) : chart.chartArea.top;
+        return { left: r.left + x, right: r.left + x, top: r.top + y - 6, bottom: r.top + y + 6 };
+      };
+      const openPoint = (i) => {
+        const bk = b[i]; if (!bk) return;
+        const range = 'from=' + bk.from + '&to=' + bk.to;
+        const rows = series.map(([key, label, color]) => `<li><i style="background:${color}"></i><span>${UI.esc(label)}${key === 'under_repair' || key === 'awaiting' ? ' <small>(end of ' + unit + ')</small>' : ''}</span><b>${UI.num(tl[key][i])}</b></li>`).join('');
+        const links = [['maintenance?view=all&cancelled=0&' + range, 'Open related repairs'], ['mp_parts_requests?status=all&' + range, 'Open related parts requests']]
+          .filter(([g]) => UI.canGo(g)).map(([g, l]) => `<button type="button" class="btn btn-sm btn-outline-secondary" data-go="${UI.esc(g)}">${l}</button>`).join('');
+        UI.openPointPop(cv, pointRect(i), 'Activity details: ' + bk.label, `
+          <div class="ws-pp-sec"><div class="ws-pp-h">Selected period</div><b>${UI.esc(bk.label)}</b> <span class="cell-sub">${UI.date(bk.from)}${bk.to !== bk.from ? ' – ' + UI.date(bk.to) : ''}</span></div>
+          <div class="ws-pp-sec"><div class="ws-pp-h">Maintenance activity</div><ul class="ws-pp-kv">${rows}</ul><div class="ws-pp-links">${links}</div></div>
+          <div class="ws-pp-sec ws-pp-sug"><div class="ws-pp-h"><i class="bi bi-lightbulb" aria-hidden="true"></i> Suggested actions</div>${MaintReport.sugList((sug.points || [])[i], 'No action is suggested for this period.')}</div>`);
+        chart.setActiveElements(series.map((_, j) => ({ datasetIndex: j, index: i }))); chart.update('none');
+      };
+      // keyboard: Left / Right move the highlighted period, Enter / Space opens it
+      let cur = -1;
+      cv.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); cur = cur < 0 ? (e.key === 'ArrowRight' ? 0 : b.length - 1) : Math.max(0, Math.min(b.length - 1, cur + (e.key === 'ArrowRight' ? 1 : -1)));
+          const act = series.map((_, j) => ({ datasetIndex: j, index: cur })); chart.setActiveElements(act); chart.tooltip.setActiveElements(act, { x: 0, y: 0 }); chart.update('none'); }
+        if ((e.key === 'Enter' || e.key === ' ') && cur >= 0) { e.preventDefault(); openPoint(cur); }
+      });
+    }
+    // ---- expense donut
+    const dc = ctx.el.querySelector('#mrCost');
+    if (dc && c && c.total > 0) MaintReport.charts.push(new Chart(dc, { type: 'doughnut',
+      data: { labels: cats.map(x => x.label), datasets: [{ data: cats.map(x => x.value), backgroundColor: cats.map((_, i) => MaintReport.COST_COLORS[i % MaintReport.COST_COLORS.length]), borderColor: '#fff', borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: (it) => `${it.label}: ${UI.money(it.raw)} (${Math.round(it.raw / c.total * 100)}%)` } } } } }));
   },
 });

@@ -133,7 +133,7 @@ if (isset($_GET['api'])) {
 // Screen files naka-grupo ayon sa department (public/assets/js/modules/<department>/<file>.js).
 $jsModules = ['general/dashboard', 'operations/trips', 'operations/fleet', 'operations/clients', 'operations/routes', 'maintenance/mechanics', 'maintenance/maintenance', 'maintenance/history',
               'maintenance/purchasing', 'accounting/funds', 'accounting/billing', 'accounting/finance', 'general/documents', 'general/reports',
-              'general/notifications', 'administration/admin', 'administration/audit'];
+              'general/notifications', 'administration/admin', 'administration/audit', 'administration/oversight'];
 $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filemtime(__DIR__ . '/' . $f) : '1';
 ?><!doctype html>
 <html lang="en">
@@ -149,6 +149,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link rel="stylesheet" href="assets/css/layout.css?v=<?= $v('assets/css/layout.css') ?>">
   <link rel="stylesheet" href="assets/css/login.css?v=<?= $v('assets/css/login.css') ?>">
   <link rel="stylesheet" href="assets/css/app.css?v=<?= $v('assets/css/app.css') ?>">
+  <link rel="stylesheet" href="assets/css/workspace.css?v=<?= $v('assets/css/workspace.css') ?>">
 </head>
 <body>
   <div id="app"><div class="text-center p-5 text-muted">Loading Mulawin FleetOps…</div></div>

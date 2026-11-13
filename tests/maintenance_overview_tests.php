@@ -154,8 +154,16 @@ Maintenance::action($mp, 'add_cost', ['job_id' => $j1, 'cost_type' => 'Labor', '
 ok((int)one($p, 'SELECT COUNT(*) AS n FROM maintenance_costs WHERE maintenance_job_id=?', [$j1])['n'] === 1, 'repair cost still recorded');
 
 // Parts
-Purchasing::action($pur, 'part_save', ['part_number' => 'HOSE-1', 'description' => 'Radiator hose', 'unit' => 'pc', 'unit_cost' => '150', 'reorder_level' => '1', 'opening_qty' => '10']);
-Purchasing::action($pur, 'part_save', ['part_number' => 'CLAMP-1', 'description' => 'Hose clamp', 'unit' => 'pc', 'unit_cost' => '20', 'reorder_level' => '1', 'opening_qty' => '10']);
+// STOCK_COUNT_RECONCILIATION_V1: part_save no longer accepts an opening quantity. Test fixtures put opening stock in
+// directly (one labelled 'Adjustment' movement, as the former opening balance did).
+$fixtureStock = function (string $partNo, int $qty) use ($p, $pur): void {
+    $id = (int)one($p, 'SELECT id FROM parts WHERE part_number=?', [$partNo])['id'];
+    $p->prepare('UPDATE parts SET quantity_on_hand=quantity_on_hand+? WHERE id=?')->execute([$qty, $id]);
+    $p->prepare("INSERT INTO stock_movements (part_id, movement_type, quantity_delta, unit_cost, reason, reference_type, actor_id) SELECT id, 'Adjustment', ?, unit_cost, 'Opening balance (test fixture)', 'adjustment', ? FROM parts WHERE id=?")->execute([$qty, $pur['id'], $id]);
+};
+Purchasing::action($pur, 'part_save', ['part_number' => 'HOSE-1', 'description' => 'Radiator hose', 'unit' => 'pc', 'unit_cost' => '150', 'reorder_level' => '1']);
+Purchasing::action($pur, 'part_save', ['part_number' => 'CLAMP-1', 'description' => 'Hose clamp', 'unit' => 'pc', 'unit_cost' => '20', 'reorder_level' => '1']);
+$fixtureStock('HOSE-1', 10); $fixtureStock('CLAMP-1', 10);
 $hose = (int)one($p, "SELECT id FROM parts WHERE part_number='HOSE-1'")['id']; $clamp = (int)one($p, "SELECT id FROM parts WHERE part_number='CLAMP-1'")['id'];
 Purchasing::action($mp, 'request_create', ['vehicle_id' => $V[1], 'maintenance_job_id' => $j1, 'purpose' => 'Radiator repair',
     'lines' => [['part_id' => $hose, 'quantity' => 2], ['part_id' => $clamp, 'quantity' => 4]]]);
@@ -238,6 +246,8 @@ $a = $attFor($o, $ij['job_ref']);
 ok(count($a) === 1 && $a[0]['next_action'] === 'assess' && $a[0]['source'] === 'Incident' && $a[0]['incident_ref'] !== null, 'needs attention: assess the incident (Minor or Major)');
 Maintenance::action($mp, 'assess', ['job_id' => $ij['id'], 'severity' => 'Minor', 'recommendation' => 'Change tire on site', 'mechanic_id' => $M[2]]);
 ok($job((int)$ij['id'])['status'] === 'Under Inspection' && one($p, 'SELECT status FROM trips WHERE id=?', [$tid])['status'] === 'On Hold - Incident Reported', 'assess Minor: record Under Inspection, trip stays On Hold (unchanged)');
+$pj = one($p, 'SELECT severity, priority FROM maintenance_jobs WHERE id=?', [$ij['id']]);
+ok($pj['severity'] === 'Minor' && $pj['priority'] === $ij['priority'], 'assess keeps the recorded repair plan (Minor) and derives no Critical / High priority (UNSUPPORTED_CLASSIFICATION_CLEANUP)', json_encode([$pj, $ij['priority'] ?? null]));
 ok($sum()['new_incidents'] === 0, 'assessed incident leaves New reports');
 // Cancel a garage report made by mistake.
 $r4 = $report($V[4], null, 'Reported by mistake');
@@ -301,7 +311,7 @@ $before = [$snap(), $snapRows()];
 foreach ([$mp, $ops, $adm, $aud] as $u) $ov($u);
 ok([$snap(), $snapRows()] === $before, 'reading the overview (4 roles) writes nothing');
 $rm = Maintenance::read($mp, 'maintenance', []);
-ok(array_keys($rm) === ['_errors', 'jobs', 'trucks', 'mechanics', 'helpers', 'helpersReady', 'costTypes', 'priorities', 'can'] && $rm['can'] === ['act' => true], 'Repair Management page data: same keys plus helpers / helpersReady (JOB_HELPER_MECHANICS_V1, additive)', json_encode(array_keys($rm)));
+ok(array_keys($rm) === ['_errors', 'jobs', 'trucks', 'mechanics', 'helpers', 'helpersReady', 'costTypes', 'can'] && $rm['can'] === ['act' => true], 'Repair Management page data: same keys plus helpers / helpersReady; no priority list (UNSUPPORTED_CLASSIFICATION_CLEANUP)', json_encode(array_keys($rm)));
 ok(array_key_exists('other_cost', $rm['jobs'][0]) && array_key_exists('parts_cost', $rm['jobs'][0]) && array_key_exists('open_job', $rm['trucks'][0]) && array_key_exists('on_road', $rm['trucks'][0]), 'Repair Management rows keep their fields');
 $mode = (string)$p->query('SELECT @@SESSION.sql_mode')->fetchColumn();
 $p->exec("SET SESSION sql_mode = CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'ONLY_FULL_GROUP_BY')");

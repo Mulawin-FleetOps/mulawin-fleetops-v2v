@@ -71,7 +71,7 @@ ok(one($p, 'SELECT shift FROM users WHERE id=?', [$other2['id']])['shift'] === n
 Admin::action($adm, 'user_save', ['id' => $other['id'], 'username' => 'finance2', 'full_name' => 'FINANCE TWO EDITED', 'email' => 'f2@example.test', 'role' => 'finance']);
 ok(one($p, 'SELECT full_name, shift FROM users WHERE id=?', [$other['id']]) === ['full_name' => 'FINANCE TWO EDITED', 'shift' => null], 'non-dispatcher account can be edited without a shift');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/administration/admin.js');
-ok(str_contains($js, 'dispatcherRoles.includes(role)') && str_contains($js, "['Dispatcher shift', 'shift'"), 'dispatcher shift UI is still in admin.js');
+ok(str_contains($js, 'dispatcherRoles.includes(role)') && str_contains($js, "['Division / shift', 'shift'"), 'dispatcher shift UI is still in admin.js');
 
 // ---------------------------------------------------------------------
 section('B. Mechanic masterlist without a shift');
@@ -81,10 +81,10 @@ $r = one($p, 'SELECT duty_shift, availability, active FROM mechanics WHERE id=?'
 ok($r['duty_shift'] === null && $r['availability'] === 'Unavailable' && (int)$r['active'] === 1, 'mechanic created without a shift; starts Unavailable until Time In');
 Mechanics::action($mp, 'save', ['id' => $new1, 'full_name' => 'NEW MECH ONE', 'specialization' => 'Brakes and engine', 'contact_number' => '0917 111 2222']);
 ok(one($p, 'SELECT specialization, contact_number, duty_shift FROM mechanics WHERE id=?', [$new1]) === ['specialization' => 'Brakes and engine', 'contact_number' => '0917 111 2222', 'duty_shift' => null], 'mechanic edited without a shift');
-Mechanics::action($adm, 'save', ['id' => $legacy, 'full_name' => 'LEGACY, MECH', 'specialization' => 'Welding']);
+Mechanics::action($mp, 'save', ['id' => $legacy, 'full_name' => 'LEGACY, MECH', 'specialization' => 'Welding']);
 $r = one($p, 'SELECT full_name, specialization, duty_shift FROM mechanics WHERE id=?', [$legacy]);
 ok($r['full_name'] === 'LEGACY, MECH' && $r['specialization'] === 'Welding' && $r['duty_shift'] === 'Night', 'existing mechanic keeps its name and its old duty_shift (never cleared)');
-Mechanics::action($adm, 'save', ['id' => $legacy, 'full_name' => 'LEGACY, MECH', 'duty_shift' => 'Day']);
+Mechanics::action($mp, 'save', ['id' => $legacy, 'full_name' => 'LEGACY, MECH', 'duty_shift' => 'Day']);
 ok(one($p, 'SELECT duty_shift FROM mechanics WHERE id=?', [$legacy])['duty_shift'] === 'Night', 'a duty_shift sent by a crafted request is not written');
 $mjs = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/maintenance/mechanics.js');
 ok(!str_contains($mjs, "name: 'duty_shift'") && !str_contains($mjs, "['Shift', 'duty_shift'"), 'mechanic form and list no longer show a shift');
@@ -137,13 +137,14 @@ ok(!empty(one($p, "SELECT id FROM audit_events WHERE action='mechanic time in' L
 
 // ---------------------------------------------------------------------
 section('D. Roles and CSRF');
-foreach (['purchasing', 'audit', 'operations_head', 'finance', 'billing', 'car_carrier_dispatcher'] as $role) {
+foreach (['admin', 'purchasing', 'audit', 'operations_head', 'finance', 'billing', 'car_carrier_dispatcher'] as $role) {
     fails(fn() => Mechanics::action($U($role), 'time_in', ['id' => $legacy]), "$role cannot Time In", 403);
     fails(fn() => Mechanics::action($U($role), 'time_out', ['id' => $legacy]), "$role cannot Time Out", 403);
 }
 ok(!one($p, 'SELECT id FROM mechanic_attendance WHERE mechanic_id=?', [$legacy]), 'refused roles changed nothing');
-Mechanics::action($adm, 'time_in', ['id' => $legacy]); Mechanics::action($adm, 'time_out', ['id' => $legacy]);
-ok((int)one($p, 'SELECT COUNT(*) c FROM mechanic_attendance WHERE mechanic_id=?', [$legacy])['c'] === 1, 'Admin can also manage mechanic attendance');
+Mechanics::action($mp, 'time_in', ['id' => $legacy]); Mechanics::action($mp, 'time_out', ['id' => $legacy]);
+ok((int)one($p, 'SELECT COUNT(*) c FROM mechanic_attendance WHERE mechanic_id=?', [$legacy])['c'] === 1, 'Motorpool manages mechanic attendance (Admin monitors read-only)');
+fails(fn() => Mechanics::action($adm, 'save', ['id' => $legacy, 'full_name' => 'LEGACY, MECH']), 'Admin cannot edit the mechanic masterlist (Head Management policy)', 403);
 $ix = (string)file_get_contents(dirname(__DIR__) . '/public/index.php');
 $defaultRoute = substr($ix, strpos($ix, "default:"));
 ok(str_contains($defaultRoute, "must(\$_SERVER['REQUEST_METHOD'] === 'POST'") && strpos($defaultRoute, 'checkCsrf') < strpos($defaultRoute, 'Actions::run'), 'module actions (incl. Mechanics.time_in / time_out) go through POST + checkCsrf before Actions::run (source check, not an HTTP test)');

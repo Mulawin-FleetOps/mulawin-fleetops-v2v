@@ -366,12 +366,20 @@ $parts = [   // part no., description, category, unit, unit cost, reorder level,
 $P = [];
 foreach ($parts as [$no, $desc, $cat, $unit, $cost, $reorder, $qty]) {
     $step("add part $no", fn() => Purchasing::action($pur, 'part_save', ['part_number' => $no, 'description' => $desc, 'category' => $cat, 'unit' => $unit,
-        'unit_cost' => $cost, 'reorder_level' => (string)$reorder, 'opening_qty' => (string)$qty, 'warranty_info' => $cost >= 3000 ? '6 months supplier warranty' : '']));
+        'unit_cost' => $cost, 'reorder_level' => (string)$reorder, 'warranty_info' => $cost >= 3000 ? '6 months supplier warranty' : '']));
     $P[$no] = (int)(one($p, 'SELECT id FROM parts WHERE part_number=?', [$no])['id'] ?? 0);
+    // STOCK_COUNT_RECONCILIATION_V1: part_save starts every part at 0; the demo opening stock is set here, labelled as demo setup.
+    if ($qty > 0 && !empty($P[$no])) $step("opening stock $no ($qty, demo setup)", function () use ($p, $pur, $P, $no, $qty) {
+        $p->prepare('UPDATE parts SET quantity_on_hand=quantity_on_hand+? WHERE id=?')->execute([$qty, $P[$no]]);
+        $p->prepare("INSERT INTO stock_movements (part_id, movement_type, quantity_delta, unit_cost, reason, reference_type, actor_id) SELECT id, 'Adjustment', ?, unit_cost, 'Opening balance (demo setup)', 'adjustment', ? FROM parts WHERE id=?")->execute([$qty, $pur['id'], $P[$no]]);
+    });
 }
 $step('Finance sets the purchasing budget for this month (PHP 150,000)', fn() => Finance::action($fin, 'budget_set', ['amount' => '150000',
     'period_start' => date('Y-m-01'), 'period_end' => date('Y-m-t')]));
-$step('stock adjustment: one damaged brake chamber', fn() => Purchasing::action($pur, 'adjust', ['part_id' => $P['BRK-CHMB-30'], 'quantity_delta' => '-1', 'reason' => 'Damaged in storage (cracked housing)']));
+// STOCK_COUNT_RECONCILIATION_V1: the direct adjustment is disabled. When migration 13 exists, the damaged unit is recorded as a
+// stock count waiting for Admin review (stock unchanged until posted); otherwise the step is skipped.
+if (Purchasing::countsReady($p)) $step('stock count: one damaged unit of BRK-CHMB-30 (waits for Admin review)', fn() => Purchasing::action($pur, 'count_submit', ['part_id' => $P['BRK-CHMB-30'],
+    'counted_qty' => (string)max(0, (int)one($p, 'SELECT quantity_on_hand FROM parts WHERE id=?', [$P['BRK-CHMB-30']])['quantity_on_hand'] - 1), 'reason' => 'Damaged in storage (cracked housing)']));
 
 // =====================================================================
 $section('6. Repairs (Motorpool) in every supported state');

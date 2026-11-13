@@ -23,7 +23,9 @@
 declare(strict_types=1);
 
 final class Mechanics {
-    private const EDIT = ['admin', 'motorpool'];
+    // HEAD_MANAGEMENT_V1 (admin permission policy): mechanic masterlist and Time In / Time Out are Motorpool processing.
+    // Head Management monitors them read-only (Admin's own daily Present / Absent marks stay in Administration/Attendance).
+    private const EDIT = ['motorpool'];
 
     public static function read(array $u, string $page, array $q): array {
         $p = db();

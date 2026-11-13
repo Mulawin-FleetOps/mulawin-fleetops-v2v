@@ -57,5 +57,4 @@ const ReportsPage = {
   },
 };
 App.page('reports', ReportsPage);
-App.page('purchasing_reports', { ...ReportsPage, title: 'Purchasing Reports',
-  subtitle: 'Stock-in, stock-out, adjustments, inventory value and purchase orders awaiting delivery. Choose the period, then print or download.' });
+// PURCHASING_ANALYTICS_V1: 'purchasing_reports' has its own analytics screen (maintenance/purchasing.js).

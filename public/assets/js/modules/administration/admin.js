@@ -62,10 +62,17 @@ App.page('admin', {
     const tabs = [];
     if (isAdmin) {
       tabs.push(['users', 'User accounts', (body) => {
-        const h = UI.table([['Name', 'full_name'], ['Username', 'username'], ['Email', 'email'], ['Role', 'role', (v) => UI.esc(d.roles[v] || v)], ['Dispatcher shift', 'shift', (v) => v ? UI.esc(v) : '<span class="text-muted">—</span>'], ['Active', 'active', (v) => +v ? UI.badge('Active') : UI.badge('Inactive')],
-          ['E-signature', 'has_signature', 'yes'], ['Last login', 'last_login_at', 'datetime']], d.users,
-          { title: 'Accounts (one per employee; access follows the role)', tools: '<button class="btn btn-sm btn-primary" data-adduser><i class="bi bi-person-plus"></i> New account</button>',
-            actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Reset password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
+        // HEAD_MANAGEMENT_V1: department, dispatcher division (= role) and shift, status, icon actions (same actions as before).
+        const DEPT = { admin: 'Head Management', operations_head: 'Operations', car_carrier_dispatcher: 'Operations (Dispatch)', container_wingvan_dispatcher: 'Operations (Dispatch)',
+          motorpool: 'Maintenance (Motorpool)', purchasing: 'Purchasing', finance: 'Accounting (Finance)', billing: 'Accounting (Billing)', audit: 'Audit' };
+        const DIV = { car_carrier_dispatcher: 'Car Carrier', container_wingvan_dispatcher: 'Container / Wing Van' };
+        const h = UI.table([['User', 'full_name', (v, u) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(u.username)} · ${UI.esc(u.email)}</div>`],
+          ['Department', 'role', (v) => UI.esc(DEPT[v] || '—')], ['Role', 'role', (v) => UI.esc(d.roles[v] || v)],
+          ['Division / shift', 'shift', (v, u) => DIV[u.role] ? `${UI.esc(DIV[u.role])} · <b>${UI.esc(v || 'No shift')}</b>` : '<span class="text-muted">—</span>'],
+          ['Status', 'active', (v, u) => (+v ? UI.badge('Active') : UI.badge('Inactive')) + (+u.must_change_password ? '<div class="cell-sub">Must change password</div>' : '')],
+          ['E-signature', 'has_signature', 'yes'], ['Last login', 'last_login_at', (v) => v ? UI.datetime(v) : '<span class="text-muted">Never</span>']], d.users,
+          { title: 'Accounts (one per employee; access follows the role)', showAllColumns: true, directActions: true, viewSwitch: false, tools: '<button class="btn btn-sm btn-primary" data-adduser><i class="bi bi-person-plus"></i> New account</button>',
+            actions: (u) => UI.ibtn('edit', 'Edit account', 'bi-pencil') + UI.ibtn('pw', 'Reset password', 'bi-key') + (u.id == App.me.user.id ? '' : UI.ibtn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'bi-person-x' : 'bi-person-check', +u.active ? 'outline-danger' : 'outline-success')),
             onAction: (a, u) => {
               if (a === 'edit') userForm(u);
               if (a === 'pw') {

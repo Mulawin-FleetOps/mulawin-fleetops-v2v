@@ -60,7 +60,6 @@ final class Maintenance {
                 JOIN mechanics mc ON mc.id=h.mechanic_id WHERE h.released_at IS NULL ORDER BY h.id") : [];
         $data['helpersReady'] = self::helpersReady($p);
         $data['costTypes'] = self::COST_TYPES;
-        $data['priorities'] = self::PRIORITIES;
         $data['can'] = ['act' => hasRole($u, ...self::ACT)];
         return $data;
     }
@@ -349,8 +348,8 @@ final class Maintenance {
             $msg = "Problem reported ($ref). Truck " . $v['plate_number'] . ' is Under Maintenance and cannot be assigned to trips.';
             if ($trip) { Actions::load('Trips'); $msg .= ' ' . Trips::resourceLost($p, $u, (int)$trip['id'], 'Truck ' . $v['plate_number'] . ' has a reported problem'); }
             FleetState::reconcile($p, $vid, $u['id'], "Corrective maintenance $ref");
-            audit($p, $u['id'], 'Maintenance', 'job ' . $jid, 'truck problem reported', "$ref {$v['plate_number']} ($priority): " . cut($problem, 200));
-            Notify::roles($p, ['operations_head'], 'Truck under maintenance', $v['plate_number'] . " has a reported problem ($ref, $priority priority). It cannot be assigned until the repair is verified.", 'maintenance', 'job-open-' . $jid);
+            audit($p, $u['id'], 'Maintenance', 'job ' . $jid, 'truck problem reported', "$ref {$v['plate_number']}: " . cut($problem, 200));
+            Notify::roles($p, ['operations_head'], 'Truck under maintenance', $v['plate_number'] . " has a reported problem ($ref). It cannot be assigned until the repair is verified.", 'maintenance', 'job-open-' . $jid);
             return ['job_id' => $jid, 'job_ref' => $ref, 'message' => $msg . ($mechanicId ? '' : ' Assign a mechanic to start the inspection.')];
         });
     }
@@ -453,8 +452,10 @@ final class Maintenance {
             must($t && $t['status'] === 'On Hold - Incident Reported', 'The trip is not On Hold.', 409);
             $m = self::freeMechanic($p, $mechanicId);
             self::setMechanic($p, $j, $mechanicId);
-            run($p, "UPDATE maintenance_jobs SET status='Under Inspection', severity=?, priority=?, expected_completion=?, started_by=?, started_at=NOW(), remarks=? WHERE id=?",
-                [$sev, $sev === 'Major' ? 'Critical' : 'High', $exp, $u['id'], $rec, $id]);
+            // UNSUPPORTED_CLASSIFICATION_CLEANUP: the recorded repair plan (Minor / Major) is kept; no Critical / High priority is
+            // derived from it any more (no company policy). The legacy priority column and existing values are left unchanged.
+            run($p, "UPDATE maintenance_jobs SET status='Under Inspection', severity=?, expected_completion=?, started_by=?, started_at=NOW(), remarks=? WHERE id=?",
+                [$sev, $exp, $u['id'], $rec, $id]);
             run($p, "UPDATE incidents SET severity=?, recommendation=?, status='Under Repair', assessed_by=?, assessed_at=NOW() WHERE id=?", [$sev, $rec, $u['id'], $inc['id']]);
             self::event($p, $id, 'Reported', 'Under Inspection', $u['id'], "assessed $sev: $rec", $mechanicId);
             audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'incident assessed', $inc['incident_ref'] . ': ' . $sev . '; mechanic ' . $m['full_name']);
