@@ -288,7 +288,7 @@ try { insert($p, 'client_route_rates', ['route_id' => $route1, 'version_no' => 9
 catch (PDOException $e) { ok(str_contains($e->getMessage(), 'uq_route_rate_pending'), 'database refuses a second pending rate (uq_route_rate_pending)'); }
 foreach ([['rate_type' => 'Daily'], ['rate_amount' => '0'], ['rate_type' => 'Flat', 'minimum_charge' => '5']] as $i => $bad) {
     try { insert($p, 'client_route_rates', array_merge(['route_id' => $rv, 'version_no' => 50 + $i, 'rate_type' => 'Flat', 'rate_amount' => '10', 'status' => 'Rejected', 'entered_by' => $users['admin']['id']], $bad)); ok(false, "database CHECK refuses " . json_encode($bad)); }
-    catch (PDOException $e) { ok(($e->errorInfo[1] ?? 0) === 4025, 'database CHECK refuses ' . json_encode($bad)); }
+    catch (PDOException $e) { ok(in_array((int)($e->errorInfo[1] ?? 0), [3819, 4025], true), 'database CHECK refuses ' . json_encode($bad)); }
 }
 // Per Km works when the policy enables it (schema supports both; done through reflection only in this test).
 $policyOk = (function () use ($p, $users, $rv): bool {
