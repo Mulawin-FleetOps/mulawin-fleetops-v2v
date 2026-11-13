@@ -239,6 +239,7 @@ final class Maintenance {
             'add_cost' => self::addCost($u, $d),
             'complete' => self::complete($u, $d),
             'verify' => self::verify($u, $d),
+            'clearance' => self::clearance($u, $d),
             'cancel' => self::cancel($u, $d),
             'details' => self::details($u, $d),
             default => throw new BusinessRuleException('Unknown action.', 404),
@@ -462,6 +463,8 @@ final class Maintenance {
             Notify::resolve($p, 'incident-assess-' . $inc['id']);
             Actions::load('Trips');
             if ($sev === 'Major') {
+                // INCIDENT_CLEARANCE_V1: Major damage is Motorpool's Not Fit to Continue decision, recorded with the assessment.
+                run($p, "UPDATE incidents SET clearance='Not Fit to Continue', clearance_findings=?, cleared_by=?, cleared_at=NOW() WHERE id=?", [$rec, $u['id'], $inc['id']]);
                 Trips::setStatus($p, $u['id'], $t, 'For Reschedule', 'major damage: truck returned for repair', $inc['incident_ref'] . ($exp ? '; expected back ' . $exp : ''));
                 $now = FleetState::reconcile($p, (int)$j['vehicle_id'], $u['id'], 'Major damage ' . $inc['incident_ref']);
                 Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Major damage', $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . ($exp ? ' (expected back ' . $exp . ')' : '') . '.', 'trips');
@@ -570,10 +573,9 @@ final class Maintenance {
                 $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
                 $t = one($p, 'SELECT * FROM trips WHERE id=?', [$j['trip_id']]);
                 if ($j['severity'] === 'Minor') {
-                    run($p, "UPDATE incidents SET status='Repaired - Cleared to Continue' WHERE id=?", [$inc['id']]);
-                    Trips::event($p, $u['id'], (int)$t['id'], 'repaired - cleared to continue', $t['status'], $t['status'], $inc['incident_ref']);
-                    Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Cleared to continue', $t['trip_ref'] . ': truck repaired on site. Resume the trip.', 'trips', 'trip-resume-' . $inc['id']);
-                    $msg .= ' The dispatcher was told to resume the trip.';
+                    // INCIDENT_CLEARANCE_V1: a verified repair is not by itself a clearance; Motorpool records Fit / Not Fit next.
+                    Trips::event($p, $u['id'], (int)$t['id'], 'on-site repair verified; awaiting Motorpool clearance', $t['status'], $t['status'], $inc['incident_ref']);
+                    $msg .= ' Record the vehicle clearance (Fit / Not Fit to Continue) for ' . $inc['incident_ref'] . ' so the dispatcher can act on it.';
                 } else {
                     run($p, "UPDATE incidents SET status='Resolved', resolved_at=NOW() WHERE id=?", [$inc['id']]);
                     Trips::event($p, $u['id'], (int)$t['id'], 'truck repaired after major damage', $t['status'], $t['status'], $inc['incident_ref']);
@@ -585,6 +587,54 @@ final class Maintenance {
                 if ($auto = Trips::assignWaiting($p, $u)) $msg .= ' ' . $auto;
             }
             return ['message' => $msg];
+        });
+    }
+
+    /**
+     * INCIDENT_CLEARANCE_V1: Motorpool's vehicle clearance for a trip incident. Minor / Major (severity) stays the damage
+     * classification; this is the separate technical decision. Fit to Continue (Minor only) needs the on-site repair
+     * record completed and verified; it lets the trip's Dispatcher resume. Not Fit to Continue keeps the trip On Hold.
+     * Only the trip's CURRENT incident, for the trip's current attempt and truck, can be cleared; a decision is never
+     * overwritten except Not Fit -> Fit after a verified repair (both stay in the trip history and audit).
+     */
+    private static function clearance(array $u, array $d): array {
+        requireRole($u, ...self::ACT);
+        $id = idField($d, 'job_id');
+        $decision = choiceField($d, 'decision', ['Fit to Continue', 'Not Fit to Continue']);
+        $findings = field($d, 'findings', 1000);
+        return transaction(function (PDO $p) use ($u, $id, $decision, $findings) {
+            $j = self::lockJob($p, $id);
+            must($j['source'] === 'Incident' && $j['incident_id'] && $j['trip_id'], 'Clearance is recorded on a trip incident repair record.', 409);
+            $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
+            $t = one($p, 'SELECT * FROM trips WHERE id=? FOR UPDATE', [$j['trip_id']]);
+            must($inc && $t && (int)$inc['trip_id'] === (int)$t['id'], 'The incident does not belong to this trip.', 409);
+            $latest = one($p, 'SELECT id FROM incidents WHERE trip_id=? ORDER BY id DESC LIMIT 1', [$t['id']]);
+            must((int)$latest['id'] === (int)$inc['id'] && (int)$inc['attempt_number'] === (int)$t['attempt_number'],
+                'This is an earlier incident of the trip; record the clearance on the current incident.', 409);
+            must((int)$inc['vehicle_id'] === (int)$j['vehicle_id'] && (int)$inc['vehicle_id'] === (int)$t['vehicle_id'], "The incident truck is not the trip's current truck.", 409);
+            must($t['status'] === 'On Hold - Incident Reported', 'The trip is not On Hold for this incident (status: ' . $t['status'] . ').', 409);
+            must($inc['severity'] !== null, 'Assess the incident (Minor or Major) first.', 409);
+            must($inc['severity'] === 'Minor', 'Major damage is already recorded as Not Fit to Continue; the trip follows For Reschedule.', 409);
+            must($inc['clearance'] !== 'Fit to Continue', 'Fit to Continue is already recorded for ' . $inc['incident_ref'] . '.', 409);
+            must($inc['clearance'] !== $decision, $decision . ' is already recorded for ' . $inc['incident_ref'] . '.', 409);
+            if ($decision === 'Fit to Continue') {
+                must($j['status'] === 'Completed' && $j['verified_at'] !== null,
+                    'Complete and verify the on-site repair record ' . $j['job_ref'] . ' first (record "No repair needed" with evidence when nothing was repaired).', 409);
+            }
+            $before = $inc['clearance'];
+            run($p, 'UPDATE incidents SET clearance=?, clearance_findings=?, cleared_by=?, cleared_at=NOW()' . ($decision === 'Fit to Continue' ? ", status='Repaired - Cleared to Continue'" : '') . ' WHERE id=?',
+                [$decision, $findings, $u['id'], $inc['id']]);
+            Files::store($p, $u, 'evidence', 'incident', (int)$inc['id'], 'Repair Evidence');
+            Actions::load('Trips');
+            Trips::event($p, $u['id'], (int)$t['id'], 'vehicle clearance: ' . $decision, $t['status'], $t['status'], $inc['incident_ref'] . ': ' . cut($findings, 400));
+            auditWithChanges($p, $u['id'], 'Maintenance', 'incident ' . $inc['id'], 'vehicle clearance recorded', $inc['incident_ref'] . ' (' . $t['trip_ref'] . '): ' . $decision,
+                ['Clearance' => $before], ['Clearance' => $decision]);
+            if ($decision === 'Fit to Continue') {
+                Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Cleared to continue', $t['trip_ref'] . ': Motorpool recorded Fit to Continue. Resume the trip.', 'trips', 'trip-resume-' . $inc['id']);
+                return ['message' => 'Fit to Continue recorded for ' . $inc['incident_ref'] . '. The dispatcher can resume ' . $t['trip_ref'] . '.'];
+            }
+            Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Not fit to continue', $t['trip_ref'] . ': Motorpool recorded Not Fit to Continue. The trip stays On Hold.', 'trips');
+            return ['message' => 'Not Fit to Continue recorded for ' . $inc['incident_ref'] . '. The trip stays On Hold; continue the repair in ' . $j['job_ref'] . '.'];
         });
     }
 
@@ -618,7 +668,7 @@ final class Maintenance {
             FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN trips t ON t.id=m.trip_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id
             LEFT JOIN users su ON su.id=m.started_by LEFT JOIN users cu ON cu.id=m.completed_by LEFT JOIN users vu ON vu.id=m.verified_by LEFT JOIN users ru ON ru.id=m.created_by WHERE m.id=?', [$id]);
         must((bool)$j, 'Record not found.', 404);
-        $inc = $j['incident_id'] ? one($p, 'SELECT i.*, ru.full_name AS reported_by_name, au.full_name AS assessed_by_name FROM incidents i JOIN users ru ON ru.id=i.reported_by LEFT JOIN users au ON au.id=i.assessed_by WHERE i.id=?', [$j['incident_id']]) : null;
+        $inc = $j['incident_id'] ? one($p, 'SELECT i.*, ru.full_name AS reported_by_name, au.full_name AS assessed_by_name, cu.full_name AS cleared_by_name, su.full_name AS resumed_by_name FROM incidents i JOIN users ru ON ru.id=i.reported_by LEFT JOIN users au ON au.id=i.assessed_by LEFT JOIN users cu ON cu.id=i.cleared_by LEFT JOIN users su ON su.id=i.resumed_by WHERE i.id=?', [$j['incident_id']]) : null;
         $docs = Files::of($p, 'maintenance', $id);
         if ($inc) foreach (Files::of($p, 'incident', (int)$inc['id']) as $doc) $docs[] = $doc;
         // Repair opened by an arrival checklist: show the checklist findings and its photos.

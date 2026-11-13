@@ -59,7 +59,7 @@ const TripUI = {
       case 'Dispatched': case 'In Transit': return 'On the road. Dispatcher monitors the trip and completes it with the waybill and acknowledgement receipt.';
       case 'On Hold - Incident Reported':
         if (t.incident_status === 'Reported') return 'Maintenance assesses the damage (minor or major).';
-        if (t.incident_status === 'Repaired - Cleared to Continue') return 'Repaired on site. Dispatcher resumes the trip.';
+        if (t.incident_status === 'Repaired - Cleared to Continue') return 'Motorpool recorded Fit to Continue. Dispatcher resumes the trip.';
         return 'Mechanic is repairing the truck on site.';
       case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Truck is repaired. Dispatcher reschedules the trip.' : 'Truck is being repaired (major damage). Then the dispatcher reschedules.';
       case 'Completed':
@@ -435,7 +435,7 @@ const TripUI = {
       ${UI.h('Pre-dispatch checklist' + (+t.attempt_number > 1 ? ' (attempt #' + t.attempt_number + ')' : ''))}${checklistHtml}
       ${t.status === 'Completed' ? UI.h('Arrival checklist') + TripUI.arrivalHtml(t, ins, arr) : ''}
       ${r.incidents.length ? UI.h('Incidents') + r.incidents.map(i => `<div class="border rounded p-2 mb-2 small"><div class="d-flex justify-content-between"><b>${UI.esc(i.incident_ref)} · ${UI.esc(i.incident_type)}</b>${UI.badge(i.status)}</div>
-          ${UI.esc(i.problem)} · ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}${i.recommendation ? '<br>Recommendation: ' + UI.esc(i.recommendation) : ''}${i.job_ref ? '<br>Maintenance record: ' + UI.esc(i.job_ref) + (i.job_status ? ' (' + UI.esc(i.job_status) + ')' : '') : ''}
+          ${UI.esc(i.problem)} · ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}${i.recommendation ? '<br>Recommendation: ' + UI.esc(i.recommendation) : ''}${i.job_ref ? '<br>Maintenance record: ' + UI.esc(i.job_ref) + (i.job_status ? ' (' + UI.esc(i.job_status) + ')' : '') : ''}${i.severity ? '<br>Damage classification: ' + UI.esc(i.severity) : ''}${i.clearance ? '<br>Motorpool clearance: <b>' + UI.esc(i.clearance) + '</b> · ' + UI.esc(i.cleared_by_name || '') + ' · ' + UI.datetime(i.cleared_at) + '<br><span class="text-muted">' + UI.esc(i.clearance_findings || '') + '</span>' : ''}${i.resumed_at ? '<br>Resumed by ' + UI.esc(i.resumed_by_name || '') + ' · ' + UI.datetime(i.resumed_at) : ''}
           <div><button class="btn btn-link btn-sm p-0" data-printinc="${i.id}">Print Incident Report Form</button></div></div>`).join('') : ''}
       ${t.status === 'Completed' ? UI.h('Completion') + UI.kv([['Completed', UI.datetime(t.completed_at)], ['Waybill no.', UI.e(t.waybill_number)], ['Notes', UI.e(t.delivery_notes)],
           r.billing ? ['Billing', UI.badge(r.billing.status) + ' ' + UI.money(r.billing.total_amount)] : null]) : ''}

@@ -1037,8 +1037,12 @@ final class Trips {
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['On Hold - Incident Reported'], 'resume the trip');
             $inc = one($p, 'SELECT * FROM incidents WHERE trip_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE', [$id]);
-            must($inc && $inc['status'] === 'Repaired - Cleared to Continue', 'Wait for Maintenance to confirm the repair (Repaired - Cleared to Continue).', 409);
-            run($p, "UPDATE incidents SET status='Resolved', resolved_at=NOW() WHERE id=?", [$inc['id']]);
+            // INCIDENT_CLEARANCE_V1: only Motorpool's recorded Fit to Continue for the trip's CURRENT incident, attempt and truck.
+            must($inc && $inc['status'] === 'Repaired - Cleared to Continue' && $inc['clearance'] === 'Fit to Continue',
+                'Wait for Motorpool to record Fit to Continue for the current incident.', 409);
+            must((int)$inc['attempt_number'] === (int)$t['attempt_number'] && (int)$inc['vehicle_id'] === (int)$t['vehicle_id'],
+                'The recorded clearance is for another attempt or truck of this trip.', 409);
+            run($p, "UPDATE incidents SET status='Resolved', resolved_at=NOW(), resumed_by=?, resumed_at=NOW() WHERE id=?", [$u['id'], $inc['id']]);
             self::setStatus($p, $u['id'], $t, 'In Transit', 'trip resumed after minor repair', 'Continuation of the original trip (not a second attempt).');
             FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Resumed ' . $t['trip_ref']);
             Notify::roles($p, ['operations_head'], 'Trip resumed', $t['trip_ref'] . ' resumed after a minor repair.', 'trips');
@@ -1285,7 +1289,7 @@ final class Trips {
             FROM fund_requests f JOIN users ru ON ru.id=f.requested_by LEFT JOIN users au ON au.id=f.approved_by LEFT JOIN users lu ON lu.id=f.released_by WHERE f.trip_id=? ORDER BY f.id', [$id]);
         foreach ($funds as &$f) $f['lines'] = many($p, 'SELECT category_name, amount, is_preset FROM fund_request_lines WHERE fund_request_id=? ORDER BY id', [$f['id']]);
         unset($f);
-        $incidents = many($p, 'SELECT i.*, ru.full_name AS reported_by_name, au.full_name AS assessed_by_name, m.job_ref, m.status AS job_status FROM incidents i JOIN users ru ON ru.id=i.reported_by LEFT JOIN users au ON au.id=i.assessed_by LEFT JOIN maintenance_jobs m ON m.incident_id=i.id WHERE i.trip_id=? ORDER BY i.id', [$id]);
+        $incidents = many($p, 'SELECT i.*, ru.full_name AS reported_by_name, au.full_name AS assessed_by_name, cu.full_name AS cleared_by_name, su.full_name AS resumed_by_name, m.job_ref, m.status AS job_status FROM incidents i JOIN users ru ON ru.id=i.reported_by LEFT JOIN users au ON au.id=i.assessed_by LEFT JOIN users cu ON cu.id=i.cleared_by LEFT JOIN users su ON su.id=i.resumed_by LEFT JOIN maintenance_jobs m ON m.incident_id=i.id WHERE i.trip_id=? ORDER BY i.id', [$id]);
         $docs = Files::of($p, 'trip', $id);
         foreach ($incidents as $i) foreach (Files::of($p, 'incident', (int)$i['id']) as $doc) $docs[] = $doc + ['for' => $i['incident_ref']];
         return [
