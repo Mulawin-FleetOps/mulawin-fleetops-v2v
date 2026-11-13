@@ -270,4 +270,5 @@ fails(fn() => Trips::action($aud, 'dispatch', ['trip_id' => $T2]), 'Audit cannot
 
 array_map('unlink', glob($tmpDir . '/*') ?: []); @rmdir($tmpDir);
 echo "\nPASSED: $PASS   FAILED: $FAIL\n";
+if (defined('E2E_KEEP_RUNNING')) return;   // reused as the scenario of tests/role_action_probe.php
 exit($FAIL ? 1 : 0);
