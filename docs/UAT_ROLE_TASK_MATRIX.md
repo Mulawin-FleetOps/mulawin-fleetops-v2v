@@ -15,9 +15,9 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, fuel-adjustm
 | `Admin.change_password` | BLOCKED BY POLICY | replaced by verified password change | 409 |
 | `Admin.fund_category_save` | PASS | UI handler + suites: uat_gap | 400 |
 | `Admin.notifications_read` | PASS | UI handler + suites: uat_gap | 404 |
-| `Admin.pricing_save` | PASS | UI handler + suites: dispatch_attendance, incident_clearance, integration_workflow | 400 |
+| `Admin.pricing_save` | PASS | UI handler + suites: dispatch_attendance, incident_clearance, integration_workflow, uat_browser_scenario | 400 |
 | `Admin.recovery_code_create` | BLOCKED BY POLICY | recovery codes disabled | 404 |
-| `Admin.setting_save` | PASS | UI handler + suites: crew_attendance, dispatch_attendance, incident_clearance, integration_workflow, trip_schedule | OK |
+| `Admin.setting_save` | PASS | UI handler + suites: crew_attendance, dispatch_attendance, incident_clearance, integration_workflow, trip_schedule, uat_browser_scenario | OK |
 | `Admin.signature_upload` | PASS | UI handler + suites: uat_gap | 400 |
 | `Admin.user_password` | PASS | UI handler + suites: uat_gap | 400 |
 | `Admin.user_save` | PASS | UI handler + suites: account_guard, mechanic_attendance | 400 |
@@ -25,7 +25,7 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, fuel-adjustm
 | `Attendance.dispatcher_list` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Attendance.list` | PASS | UI handler + suites: crew_attendance, dispatch_attendance, mechanic_attendance, turnover | OK |
 | `Attendance.readiness` | PASS | UI handler + suites: dispatch_attendance | OK |
-| `Attendance.save` | PASS | UI handler + suites: crew_attendance, dispatch_attendance, turnover | 400 |
+| `Attendance.save` | PASS | UI handler + suites: crew_attendance, dispatch_attendance, turnover + browser | 400 |
 | `Billing.charge_decide` | PASS | UI handler + suites: billing_adjustment, pricing | 400 |
 | `Billing.details` | PASS | UI handler + suites: billing_adjustment | OK |
 | `Billing.pricing_recalculate` | PASS | UI handler + suites: pricing | 400 |
@@ -43,7 +43,7 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, fuel-adjustm
 | `Fleet.crew_status` | PASS | UI handler + suites: uat_gap | 400 |
 | `Fleet.truck_active` | PASS | UI handler + suites: uat_gap | 409 |
 | `Fleet.truck_details` | PASS | UI handler + suites: dispatcher | OK |
-| `Fleet.truck_save` | PASS | UI handler + suites: operations_v43 | 400 |
+| `Fleet.truck_save` | PASS | UI handler + suites: operations_v43 + browser | 400 |
 | `Fleet.truck_status` | PASS | UI handler + suites: operations_v43 | 400 |
 | `Funds.details` | PASS | UI handler + suites: dispatcher, planning_dispatcher | OK |
 | `Maintenance.details` | PASS | UI handler + suites: incident_clearance, job_helpers, maintenance_overview | OK |
@@ -54,7 +54,7 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, fuel-adjustm
 | `Purchasing.count_review` | PASS | UI handler + suites: head_management, stock_count | 400 |
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Purchasing.part_history` | PASS | UI handler + suites: purchasing_finance | OK |
-| `Purchasing.po_decide` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count | 400 |
+| `Purchasing.po_decide` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count, uat_browser_scenario + browser | 400 |
 | `Purchasing.po_details` | PASS | UI handler + suites: purchasing_finance | OK |
 | `Purchasing.request_details` | PASS | UI handler + suites: uat_gap | OK |
 | `Routes.deactivate` | PASS | UI handler + suites: route | 400 |
@@ -63,15 +63,15 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, fuel-adjustm
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.pricing_estimate` | PASS | UI handler + suites: uat_gap | OK |
 | `Routes.rate_enter` | PASS | UI handler + suites: operations_v43, pricing, route | 400 |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 403 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
 | `Trips.review` | BLOCKED BY POLICY | Dispatcher request review retired (kenneth) | 403 |
@@ -100,9 +100,9 @@ Pages (server navigation): dashboard, trips, dispatcher-monitoring, trucks, crew
 | `Fleet.crew_status` | PASS | UI handler + suites: uat_gap | 400 |
 | `Fleet.truck_active` | PASS | UI handler + suites: uat_gap | 409 |
 | `Fleet.truck_details` | PASS | UI handler + suites: dispatcher | OK |
-| `Fleet.truck_save` | PASS | UI handler + suites: operations_v43 | 400 |
+| `Fleet.truck_save` | PASS | UI handler + suites: operations_v43 + browser | 400 |
 | `Fleet.truck_status` | PASS | UI handler + suites: operations_v43 | 400 |
-| `Funds.decide` | PASS | UI handler + suites: dispatch_attendance, dispatcher, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
+| `Funds.decide` | PASS | UI handler + suites: dispatch_attendance, dispatcher, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Funds.details` | PASS | UI handler + suites: dispatcher, planning_dispatcher | OK |
 | `Maintenance.details` | PASS | UI handler + suites: incident_clearance, job_helpers, maintenance_overview | OK |
 | `Mechanics.availability` | NOT APPLICABLE | refused (403) by design | 403 |
@@ -115,19 +115,19 @@ Pages (server navigation): dashboard, trips, dispatcher-monitoring, trucks, crew
 | `Routes.request` | PASS | UI handler + suites: map, operations_v43, pricing, route | 400 |
 | `Routes.selectable` | PASS | UI handler + suites: trip_routing | OK |
 | `Routes.withdraw` | PASS | UI handler + suites: route | 400 |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 409 |
 | `Trips.cancel` | PASS | UI handler + suites: fund_release, operations_v43, trip_schedule | 400 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | UI plans through Trips.create_batch (same validation) | 400 |
 | `Trips.create_batch` | PASS | UI handler + suites: operations_v43, planning_account, planning_dispatcher, trip_batch | 400 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | OK |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
 | `Trips.edit` | PASS | UI handler + suites: trip_approval, trip_routing, trip_schedule | 400 |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
-| `Trips.incident_reschedule` | PASS | UI handler + suites: incident_clearance | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
+| `Trips.incident_reschedule` | PASS | UI handler + suites: incident_clearance + browser | 400 |
 | `Trips.monitor_details` | PASS | UI handler + suites: operations_v43 | OK |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 409 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
@@ -151,31 +151,31 @@ Pages (server navigation): finance_overview, purchase_orders, funds, finance, fi
 | `Billing.soa` | PASS | UI handler + suites: uat_gap | OK |
 | `Clients.details` | PASS | UI handler + suites: route, uat_gap | OK |
 | `Clients.rate_save` | BLOCKED BY POLICY | client-level rates retired (route rates) | 409 |
-| `Finance.budget_set` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count | 400 |
+| `Finance.budget_set` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count, uat_browser_scenario | 400 |
 | `Finance.expense_add` | PASS | UI handler + suites: uat_gap | 400 |
 | `Finance.payable_add` | PASS | UI handler + suites: accounting_workspace, inventory_finance | 400 |
 | `Finance.payable_pay` | PASS | UI handler + suites: inventory_finance | 400 |
-| `Finance.po_pay` | PASS | UI handler + suites: head_management, integration_workflow, purchasing_finance | 400 |
+| `Finance.po_pay` | PASS | UI handler + suites: head_management, integration_workflow, purchasing_finance + browser | 400 |
 | `Funds.details` | PASS | UI handler + suites: dispatcher, planning_dispatcher | OK |
 | `Funds.liquidate` | PASS | UI handler + suites: fund_release, operations_v43 | 400 |
-| `Funds.release` | PASS | UI handler + suites: dispatch_attendance, dispatcher, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 409 |
+| `Funds.release` | PASS | UI handler + suites: dispatch_attendance, dispatcher, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario + browser | 409 |
 | `Mechanics.availability` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Purchasing.adjust` | BLOCKED BY POLICY | manual stock adjustment retired (stock counts reviewed by Admin) | 403 |
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
-| `Purchasing.po_decide` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count | 400 |
+| `Purchasing.po_decide` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count, uat_browser_scenario + browser | 400 |
 | `Purchasing.po_details` | PASS | UI handler + suites: purchasing_finance | OK |
 | `Routes.details` | PASS | UI handler + suites: route | OK |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.pricing_estimate` | PASS | UI handler + suites: uat_gap | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 403 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
 | `Trips.review` | BLOCKED BY POLICY | Dispatcher request review retired (kenneth) | 403 |
@@ -195,12 +195,12 @@ Pages (server navigation): billing_overview, billing, billing_collections, billi
 | `Billing.charge_change` | PASS | UI handler + suites: billing_adjustment | 400 |
 | `Billing.charge_remove` | PASS | UI handler + suites: billing_adjustment | 400 |
 | `Billing.charge_withdraw` | PASS | UI handler + suites: billing_adjustment | 404 |
-| `Billing.collect` | PASS | UI handler + suites: accounting_workspace, billing_adjustment, integration_workflow, pricing | 400 |
+| `Billing.collect` | PASS | UI handler + suites: accounting_workspace, billing_adjustment, integration_workflow, pricing + browser | 400 |
 | `Billing.details` | PASS | UI handler + suites: billing_adjustment | OK |
-| `Billing.finalize` | PASS | UI handler + suites: accounting_workspace, billing_adjustment, integration_workflow, pricing | 400 |
+| `Billing.finalize` | PASS | UI handler + suites: accounting_workspace, billing_adjustment, integration_workflow, pricing + browser | 400 |
 | `Billing.pricing_report` | PASS | UI handler + suites: pricing | OK |
 | `Billing.soa` | PASS | UI handler + suites: uat_gap | OK |
-| `Billing.verify` | PASS | UI handler + suites: accounting_workspace, billing_adjustment, integration_workflow, pricing | 409 |
+| `Billing.verify` | PASS | UI handler + suites: accounting_workspace, billing_adjustment, integration_workflow, pricing + browser | 409 |
 | `Clients.details` | PASS | UI handler + suites: route, uat_gap | OK |
 | `Clients.rate_save` | BLOCKED BY POLICY | client-level rates retired (route rates) | 409 |
 | `Mechanics.availability` | NOT APPLICABLE | refused (403) by design | 403 |
@@ -209,15 +209,15 @@ Pages (server navigation): billing_overview, billing, billing_collections, billi
 | `Routes.details` | PASS | UI handler + suites: route | OK |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.pricing_estimate` | PASS | UI handler + suites: uat_gap | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 403 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
 | `Trips.review` | BLOCKED BY POLICY | Dispatcher request review retired (kenneth) | 403 |
@@ -239,38 +239,38 @@ Pages (server navigation): trips, trucks, mechanics, mechanic_attendance, mainte
 | `Fleet.truck_details` | PASS | UI handler + suites: dispatcher | OK |
 | `Fleet.truck_status` | PASS | UI handler + suites: operations_v43 | 400 |
 | `Maintenance.add_cost` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43 | 400 |
-| `Maintenance.assess` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43 + browser | 400 |
-| `Maintenance.assign_mechanic` | PASS | UI handler + suites: job_helpers, maintenance_overview, mechanic_attendance | 409 |
+| `Maintenance.assess` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, uat_browser_scenario + browser | 400 |
+| `Maintenance.assign_mechanic` | PASS | UI handler + suites: job_helpers, maintenance_overview, mechanic_attendance, uat_browser_scenario | 409 |
 | `Maintenance.cancel` | PASS | UI handler + suites: job_helpers, maintenance_overview | 400 |
-| `Maintenance.clearance` | PASS | UI handler + suites: incident_clearance, operations_v43 + browser | 400 |
+| `Maintenance.clearance` | PASS | UI handler + suites: incident_clearance, operations_v43, uat_browser_scenario + browser | 400 |
 | `Maintenance.complete` | PASS | UI handler + suites: incident_clearance, integration_workflow, job_helpers, maintenance_overview, operations_v43 | 400 |
 | `Maintenance.details` | PASS | UI handler + suites: incident_clearance, job_helpers, maintenance_overview | OK |
 | `Maintenance.helper_remove` | PASS | UI handler + suites: job_helpers | 400 |
 | `Maintenance.helpers_add` | PASS | UI handler + suites: job_helpers | 400 |
 | `Maintenance.inspect` | PASS | UI handler + suites: incident_clearance, integration_workflow, job_helpers, maintenance_overview, operations_v43 | 400 |
-| `Maintenance.report` | PASS | UI handler + suites: job_helpers, maintenance_overview, mechanic_attendance, motorpool_workspace | 400 |
-| `Maintenance.verify` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43 | 400 |
+| `Maintenance.report` | PASS | UI handler + suites: job_helpers, maintenance_overview, mechanic_attendance, motorpool_workspace, uat_browser_scenario + browser | 400 |
+| `Maintenance.verify` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43 + browser | 400 |
 | `Mechanics.availability` | NOT APPLICABLE | availability follows Time In/Out and repairs | 409 |
 | `Mechanics.details` | PASS | UI handler + suites: mechanic_attendance | OK |
-| `Mechanics.save` | PASS | UI handler + suites: incident_clearance, integration_workflow, job_helpers, maintenance_overview, mechanic_attendance, motorpool_workspace, operations_v43, turnover | 400 |
+| `Mechanics.save` | PASS | UI handler + suites: incident_clearance, integration_workflow, job_helpers, maintenance_overview, mechanic_attendance, motorpool_workspace, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Mechanics.set_active` | PASS | UI handler + suites: job_helpers, mechanic_attendance | OK |
-| `Mechanics.time_in` | PASS | UI handler + suites: head_management, incident_clearance, integration_workflow, job_helpers, maintenance_overview, mechanic_attendance, operations_v43 | 409 |
+| `Mechanics.time_in` | PASS | UI handler + suites: head_management, incident_clearance, integration_workflow, job_helpers, maintenance_overview, mechanic_attendance, operations_v43, uat_browser_scenario | 409 |
 | `Mechanics.time_out` | PASS | UI handler + suites: job_helpers, mechanic_attendance | OK |
 | `Purchasing.adjust` | BLOCKED BY POLICY | manual stock adjustment retired (stock counts reviewed by Admin) | 403 |
 | `Purchasing.my_requests` | NOT APPLICABLE | superseded by mp_parts_requests page data | OK |
 | `Purchasing.request_cancel` | PASS | UI handler + suites: uat_gap | 409 |
 | `Purchasing.request_catalog` | PASS | UI handler + suites: uat_gap | OK |
-| `Purchasing.request_create` | PASS | UI handler + suites: integration_workflow, inventory_finance, maintenance_overview, uat_gap | 400 |
+| `Purchasing.request_create` | PASS | UI handler + suites: integration_workflow, inventory_finance, maintenance_overview, uat_browser_scenario, uat_gap | 400 |
 | `Purchasing.request_details` | PASS | UI handler + suites: uat_gap | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 403 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
 | `Trips.review` | BLOCKED BY POLICY | Dispatcher request review retired (kenneth) | 403 |
@@ -293,21 +293,21 @@ Pages (server navigation): purchasing_overview, parts_requests, purchase_orders,
 | `Purchasing.count_submit` | PASS | UI handler + suites: head_management, stock_count | 400 |
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Purchasing.part_history` | PASS | UI handler + suites: purchasing_finance | OK |
-| `Purchasing.part_save` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, maintenance_overview, motorpool_workspace, purchasing_finance, stock_count | 400 |
+| `Purchasing.part_save` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, maintenance_overview, motorpool_workspace, purchasing_finance, stock_count, uat_browser_scenario | 400 |
 | `Purchasing.po_close` | PASS | UI handler + suites: purchasing_finance | 400 |
-| `Purchasing.po_create` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, motorpool_workspace, purchasing_finance, stock_count | 400 |
+| `Purchasing.po_create` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, motorpool_workspace, purchasing_finance, stock_count, uat_browser_scenario | 400 |
 | `Purchasing.po_details` | PASS | UI handler + suites: purchasing_finance | OK |
-| `Purchasing.po_receive` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count | 409 |
+| `Purchasing.po_receive` | PASS | UI handler + suites: accounting_workspace, head_management, integration_workflow, inventory_finance, purchasing_finance, stock_count, uat_browser_scenario + browser | 409 |
 | `Purchasing.request_details` | PASS | UI handler + suites: uat_gap | OK |
-| `Purchasing.request_process` | PASS | UI handler + suites: head_management, integration_workflow, inventory_finance, maintenance_overview, motorpool_workspace | 409 |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Purchasing.request_process` | PASS | UI handler + suites: head_management, integration_workflow, inventory_finance, maintenance_overview, motorpool_workspace + browser | 409 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 403 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
 | `Trips.review` | BLOCKED BY POLICY | Dispatcher request review retired (kenneth) | 403 |
@@ -343,15 +343,15 @@ Pages (server navigation): audit_overview, audit_logs, audit_history, audit_repo
 | `Routes.details` | PASS | UI handler + suites: route | OK |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.pricing_estimate` | PASS | UI handler + suites: uat_gap | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 403 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
 | `Trips.review` | BLOCKED BY POLICY | Dispatcher request review retired (kenneth) | 403 |
@@ -367,7 +367,7 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Admin.recovery_code_create` | BLOCKED BY POLICY | recovery codes disabled | 404 |
 | `Admin.signature_upload` | PASS | UI handler + suites: uat_gap | 400 |
 | `Attendance.dispatcher_list` | NOT APPLICABLE | roster served by Fleet page data (view=attendance) | OK |
-| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover | 400 |
+| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover + browser | 400 |
 | `Attendance.time_out` | PASS | UI handler + suites: dispatcher, turnover | 400 |
 | `Clients.rate_save` | BLOCKED BY POLICY | client-level rates retired (route rates) | 409 |
 | `Mechanics.availability` | NOT APPLICABLE | refused (403) by design | 403 |
@@ -375,15 +375,15 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.selectable` | PASS | UI handler + suites: trip_routing | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 409 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | 404 |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.progress` | PASS | UI handler + suites: turnover | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
@@ -406,7 +406,7 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Admin.signature_upload` | PASS | UI handler + suites: uat_gap | 400 |
 | `Attendance.dispatcher_history` | PASS | UI handler + suites: uat_gap | OK |
 | `Attendance.dispatcher_list` | NOT APPLICABLE | roster served by Fleet page data (view=attendance) | OK |
-| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover | 400 |
+| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover + browser | 400 |
 | `Attendance.time_out` | PASS | UI handler + suites: dispatcher, turnover | 400 |
 | `Clients.details` | PASS | UI handler + suites: route, uat_gap | OK |
 | `Clients.rate_save` | BLOCKED BY POLICY | client-level rates retired (route rates) | 409 |
@@ -417,15 +417,15 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.selectable` | PASS | UI handler + suites: trip_routing | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 409 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | 404 |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.progress` | PASS | UI handler + suites: turnover | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
@@ -448,33 +448,33 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Admin.signature_upload` | PASS | UI handler + suites: uat_gap | 400 |
 | `Attendance.dispatcher_history` | PASS | UI handler + suites: uat_gap | OK |
 | `Attendance.dispatcher_list` | NOT APPLICABLE | roster served by Fleet page data (view=attendance) | OK |
-| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover | 400 |
+| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover + browser | 400 |
 | `Attendance.time_out` | PASS | UI handler + suites: dispatcher, turnover | 400 |
 | `Clients.details` | PASS | UI handler + suites: route, uat_gap | OK |
 | `Clients.rate_save` | BLOCKED BY POLICY | client-level rates retired (route rates) | 409 |
 | `Fleet.crew_details` | PASS | UI handler + suites: dispatcher | OK |
 | `Fleet.truck_details` | PASS | UI handler + suites: dispatcher | OK |
 | `Funds.details` | PASS | UI handler + suites: dispatcher, planning_dispatcher | OK |
-| `Funds.submit` | PASS | UI handler + suites: dispatch_attendance, dispatcher, fund_release, incident_clearance, integration_workflow, operations_v43, planning_dispatcher, route, trip_schedule | 409 |
+| `Funds.submit` | PASS | UI handler + suites: dispatch_attendance, dispatcher, fund_release, incident_clearance, integration_workflow, operations_v43, planning_dispatcher, route, trip_schedule, uat_browser_scenario | 409 |
 | `Mechanics.availability` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Purchasing.adjust` | BLOCKED BY POLICY | manual stock adjustment retired (stock counts reviewed by Admin) | 403 |
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.selectable` | PASS | UI handler + suites: trip_routing | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
-| `Trips.assign_resources` | PASS | UI handler + suites: _launcher, dispatcher, operations_v43, operations_v43_worker, planning_dispatcher, pricing, turnover | 409 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
+| `Trips.assign_resources` | PASS | UI handler + suites: _launcher, dispatcher, operations_v43, operations_v43_worker, planning_dispatcher, pricing, turnover + browser | 409 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 409 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | OK |
 | `Trips.diesel_po` | PASS | UI handler + suites: operations_v43, trip_documents | 400 |
-| `Trips.dispatch` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, pricing, route, trip_approval, trip_routing, trip_schedule | 409 |
+| `Trips.dispatch` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, pricing, route, trip_approval, trip_routing, trip_schedule, uat_browser_scenario | 409 |
 | `Trips.dispatcher_resources` | PASS | UI handler + suites: dispatcher, operations_v43, planning_account, planning_dispatcher, turnover | OK |
 | `Trips.edit` | PASS | UI handler + suites: trip_approval, trip_routing, trip_schedule | OK |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.progress` | PASS | UI handler + suites: turnover | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
@@ -497,7 +497,7 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Admin.recovery_code_create` | BLOCKED BY POLICY | recovery codes disabled | 404 |
 | `Admin.signature_upload` | PASS | UI handler + suites: uat_gap | 400 |
 | `Attendance.dispatcher_list` | NOT APPLICABLE | roster served by Fleet page data (view=attendance) | OK |
-| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover | 400 |
+| `Attendance.time_in` | PASS | UI handler + suites: _launcher, dispatch_attendance, dispatcher, operations_v43, pricing, turnover + browser | 400 |
 | `Attendance.time_out` | PASS | UI handler + suites: dispatcher, turnover | 400 |
 | `Clients.rate_save` | BLOCKED BY POLICY | client-level rates retired (route rates) | 409 |
 | `Mechanics.availability` | NOT APPLICABLE | refused (403) by design | 403 |
@@ -505,15 +505,15 @@ Pages (server navigation): dashboard, trips, trucks, crew, clients, funds, docum
 | `Purchasing.my_requests` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Routes.for_client` | PASS | UI handler + suites: route | OK |
 | `Routes.selectable` | PASS | UI handler + suites: trip_routing | OK |
-| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover | 400 |
+| `Trips.arrival` | PASS | UI handler + suites: integration_workflow, operations_v43, turnover, uat_browser_scenario | 400 |
 | `Trips.auto_assign` | BLOCKED BY POLICY | automatic allocation retired (kenneth V4.3) | 409 |
-| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule | 400 |
-| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover | 400 |
+| `Trips.checklist` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.checklist_start` | PASS | UI handler + suites: dispatch_attendance, fund_release, incident_clearance, integration_workflow, operations_v43, route, trip_schedule, uat_browser_scenario | 400 |
+| `Trips.complete` | PASS | UI handler + suites: integration_workflow, operations_v43, pricing, trip_documents, trip_routing, trip_schedule, turnover, uat_browser_scenario | 400 |
 | `Trips.create` | NOT APPLICABLE | refused (403) by design | 403 |
 | `Trips.crew_options` | BLOCKED BY POLICY | served the retired reassign screen | 403 |
 | `Trips.details` | PASS | UI handler + suites: crew_attendance, dispatcher, incident_clearance, planning_dispatcher, trip_documents, trip_routing, trip_schedule | 404 |
-| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule + browser | 400 |
+| `Trips.incident` | PASS | UI handler + suites: incident_clearance, integration_workflow, maintenance_overview, operations_v43, trip_schedule, uat_browser_scenario + browser | 400 |
 | `Trips.progress` | PASS | UI handler + suites: turnover | 400 |
 | `Trips.reassign` | BLOCKED BY POLICY | Ops Head truck/driver override retired (kenneth) | 403 |
 | `Trips.reschedule` | PASS | UI handler + suites: incident_clearance, operations_v43, trip_schedule | 400 |
