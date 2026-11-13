@@ -724,6 +724,10 @@ final class Trips {
             must((bool)$pre, 'Trip not found.', 404);
             must(!in_array($pre['status'], self::CLOSED, true), 'The trip is already closed.', 409);
             self::mustBeStatus($pre, ['Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], 'edit the delivery details');
+            // An approved route, required at planning (create), is not dropped by an edit that does not send it;
+            // removing it on purpose is refused like a new trip without a route. Legacy trips without a route are unchanged.
+            if (!array_key_exists('client_route_id', $d) && $pre['client_route_id']) $d['client_route_id'] = (string)$pre['client_route_id'];
+            must(!$pre['client_route_id'] || trim((string)$d['client_route_id']) !== '', 'Choose an approved client route for the trip; it cannot be removed.');
             $prepared = self::distanceColumns($u, $d, self::deliveryFields($d, false, (string)$pre['scheduled_at']), (int)$pre['client_id'], $pre['truck_type'], $pre);
             must($prepared[0]['distance_km'] !== null && $prepared[0]['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
         }
