@@ -232,7 +232,7 @@ ok(count($a) === 1 && $a[0]['job_id'] === null && $a[0]['plate_number'] === 'MNT
 
 // ---------------------------------------------------------------------
 section('E. Trip incident (assess Minor) and cancel');
-$t = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => 'P1', 'delivery_point' => 'D1', 'scheduled_at' => date('Y-m-d\TH:i', time() + 3600), 'distance_km' => '20']);
+$t = test_create_planned_trip($ops, ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => 'P1', 'delivery_point' => 'D1', 'scheduled_at' => date('Y-m-d\TH:i', time() + 3600), 'distance_km' => '20']);
 $tid = (int)$t['trip_id'];
 $trip = one($p, 'SELECT * FROM trips WHERE id=?', [$tid]);
 ok($trip['status'] === 'Pre-Assigned' && $trip['vehicle_id'], 'trip pre-assigned to a free truck', json_encode([$trip['status'], $trip['vehicle_id']]));

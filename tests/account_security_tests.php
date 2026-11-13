@@ -40,7 +40,7 @@ function section(string $t): void { echo "\n== $t ==\n"; }
 $mailDir = sys_get_temp_dir() . '/mulawin_mail_' . bin2hex(random_bytes(4)); mkdir($mailDir);
 $sinkStart = function () use ($mailDir) {
     @unlink($mailDir . '/ready');
-    $proc = proc_open([PHP_BINARY, __DIR__ . '/_smtp_sink.php', envValue('TEST_SMTP_PORT'), $mailDir], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+    $proc = proc_open([PHP_BINARY, __DIR__ . '/_smtp_sink.php', envValue('TEST_SMTP_PORT'), $mailDir], [1 => ['file', (PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null'), 'w'], 2 => ['file', (PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null'), 'w']], $pipes);
     for ($i = 0; $i < 50 && !is_file($mailDir . '/ready'); $i++) usleep(100000);
     return $proc;
 };

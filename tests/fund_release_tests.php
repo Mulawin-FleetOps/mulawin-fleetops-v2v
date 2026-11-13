@@ -79,10 +79,12 @@ $n = 0;
 /** Pre-Assigned trip with an approved (Ready for Release) fund request; schedule set directly. */
 $approvedFund = function (int $minutesAhead = 60) use ($ops, $wvd, $cid, $routeId, $p, &$n): array {
     $n++;
-    $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
+    $r = test_create_planned_trip($ops, ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
         'scheduled_at' => date('Y-m-d\TH:i', time() + 3 * 86400), 'distance_km' => '25.00', 'dispatcher_assignment'=>'container_wingvan_dispatcher:Day',
         'responsible_dispatcher_id'=>$wvd['id'], 'client_route_id'=>$routeId]);
-    // This isolated Funds fixture starts at the existing post-assignment state; actual\n    // Dispatcher resource assignment is covered by the dedicated turnover suite.\n    run($p, "UPDATE trips SET status='Pre-Assigned', scheduled_at=? WHERE id=?", [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
+    // This isolated Funds fixture starts at the existing post-assignment state; actual
+    // Dispatcher resource assignment is covered by the dedicated turnover suite.
+    run($p, "UPDATE trips SET status='Pre-Assigned', scheduled_at=? WHERE id=?", [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
     $f = Funds::action($wvd, 'submit', ['trip_id' => $r['trip_id'], 'categories' => ['Driver Meal Allowance', 'Helper Meal Allowance']]);
     Funds::action($ops, 'decide', ['fund_id' => $f['fund_id'], 'decision' => 'approve']);
     return [(int)$r['trip_id'], (int)$f['fund_id']];
@@ -251,10 +253,10 @@ $d = Funds::read($fin, 'funds', []);
 ok($d['methods'] === ['Cash'], 'Trip Funds page offers Cash only');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/accounting/funds.js');
 ok(str_contains($js, 'CHECKLIST_36_CASH_ONLY_TRIP_FUND_RELEASE_V1') && !str_contains($js, 'UI.payFields'), 'release form has no payment method / date fields');
-ok(str_contains($js, '`To Release (') && !preg_match('/`Ready for release \(/', $js), 'tab renamed: "To Release" (approved requests waiting for Finance)');
-ok(str_contains($js, '`For liquidation (') && str_contains($js, "UI.btn('liquidate', 'Liquidate'"), 'liquidation keeps its own tab and Liquidate action');
+ok(str_contains($js, "value:'release',label:'To Release'") && !preg_match('/Ready for release \(/', $js), 'tab renamed: "To Release" (approved requests waiting for Finance)');
+ok(str_contains($js, "value:'liquidate',label:'For Liquidation'") && str_contains($js, "UI.btn('liquidate', 'Liquidate'"), 'liquidation keeps its own tab and Liquidate action');
 ok(!preg_match('/All requests\s*\(/i', $js) && !preg_match('/To Liquidate/i', $js), 'no "All requests" tab and no "To Liquidate" label');
-preg_match_all("/\\['(pending|release|liquidate|revision|history)',/", $js, $m);
+preg_match_all("/\{value:'(pending|release|liquidate|revision|history)',/", $js, $m); // kenneth: tabs are view definitions
 ok($m[1] === ['pending', 'release', 'liquidate', 'revision', 'history'], 'tab order: Pending approval, To Release, For liquidation, Needs revision, History', json_encode($m[1]));
 
 // ---------------------------------------------------------------------

@@ -68,15 +68,16 @@ section('A. One duty date (Philippine time) and the daily reminder hour');
 foreach (['2026-11-08 00:30:00' => '2026-11-08', '2026-11-08 05:59:59' => '2026-11-08', '2026-11-08 18:00:00' => '2026-11-08', '2026-11-08 23:59:59' => '2026-11-08', '2028-02-29 03:00:00' => '2028-02-29'] as $local => $date)
     ok(CrewAttendance::dayFor(strtotime($local)) === ['date' => $date], "$local -> attendance date $date (no shift in the result)", json_encode(CrewAttendance::dayFor(strtotime($local))));
 ok(date_default_timezone_get() === 'Asia/Manila' && CrewAttendance::dayFor(gmmktime(16, 30, 0, 11, 8, 2026)) === ['date' => '2026-11-09'], '16:30 UTC is 00:30 of the NEXT day in Philippine time');
-ok(!method_exists('CrewAttendance', 'shiftFor') && !method_exists('CrewAttendance', 'dueShifts') && !method_exists('CrewAttendance', 'unassignedCrew'), 'the shift functions are gone from CrewAttendance');
+// Integrated with kenneth: shiftFor/shiftText only label Dispatcher Time In sessions; no permanent shift restricts anyone.
+ok(CrewAttendance::unassignedCrew($p) === [] && !array_key_exists('shift', CrewAttendance::dayFor()), 'no permanent shift: nobody waits for a shift assignment and the attendance date has no shift');
 Actions::load('Admin');
 $all = array_column(Settings::all(), null, 'key');
-ok(isset($all['attendance_day_start_hour']) && !isset($all['attendance_night_start_hour']) && $all['attendance_day_start_hour']['format'] === 'hour', 'one reminder-hour setting remains; the Night start setting is removed');
+ok(isset($all['attendance_day_start_hour'], $all['attendance_night_start_hour']) && $all['attendance_day_start_hour']['format'] === 'hour' && $all['attendance_night_start_hour']['format'] === 'hour', 'daily reminder hour + Night label hour of Dispatcher sessions (labels only)');
 ok(CrewAttendance::reminderHour() === 6, 'default reminder hour is 6 (the saved key is kept)');
 $r = Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '4']);
 ok(str_contains($r['message'], '(4:00 AM)') && Settings::value('attendance_day_start_hour') === 4.0 && CrewAttendance::reminderHour() === 4, 'Admin can still change the reminder hour (12-hour display)', $r['message']);
 fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_day_start_hour', 'value' => '6.5']), 'half hour refused', 400, 'whole hour');
-fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'attendance_night_start_hour', 'value' => '18']), 'the removed Night start setting is refused', 400, 'Unknown setting');
+$r18 = Admin::action($adm, 'setting_save', ['key' => 'attendance_night_start_hour', 'value' => '18']); ok(str_contains($r18['message'], '6:00 PM') && !array_key_exists('shift', CrewAttendance::dayFor()), 'the Night hour only labels Dispatcher sessions: it saves as an hour and the attendance date stays shift-free');
 $aud = one($p, "SELECT details FROM audit_events WHERE action='setting changed' ORDER BY id DESC LIMIT 1");
 ok($aud !== null, 'setting change still audited');
 $setting('attendance_day_start_hour', null);
@@ -165,14 +166,14 @@ $cid = insert($p, 'clients', ['company_name' => 'ATT CLIENT', 'status' => 'Activ
 insert($p, 'client_rates', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'rate_per_km' => '50.00', 'minimum_charge' => '0.00', 'updated_by' => $U('billing')['id']]);
 insert($p, 'vehicles', ['plate_number' => 'WV-1', 'truck_type' => 'Wing Van']);
 run($p, "UPDATE personnel SET availability='Unavailable' WHERE id NOT IN (?,?)", [$dLegacy, $newAdm]);   // only a shift-less pair is free
-$r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => 'A', 'delivery_point' => 'B', 'scheduled_at' => date('Y-m-d\TH:i', time() + 86400), 'distance_km' => '10']);
+$r = test_create_planned_trip($ops, ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => 'A', 'delivery_point' => 'B', 'scheduled_at' => date('Y-m-d\TH:i', time() + 86400), 'distance_km' => '10']);
 $t = one($p, 'SELECT * FROM trips WHERE id=?', [$r['trip_id']]);
 ok($t['status'] === 'Pre-Assigned' && (int)$t['driver_id'] === $dLegacy && (int)$t['helper_id'] === $newAdm, 'auto-assignment picks a driver and a helper that have no shift (a legacy "Night" value is irrelevant)');
 $det = Trips::action($ops, 'details', ['trip_id' => $t['id']]);
 ok(!preg_grep('/attendance|Present|shift/i', $det['trip']['dispatch_blockers']), 'Warn mode (default): attendance never blocks Confirm Dispatch');
 ok(CrewAttendance::mode() === CrewAttendance::MODE_WARN, 'default attendance check is Warn (enforcement suite: run_crew_dispatch_tests.php)');
 $ca = $det['trip']['crew_attendance'];
-ok(isset($ca['dispatch_day'], $ca['scheduled_day']) && !isset($ca['dispatch_shift']) && !array_key_exists('duty_shift', $ca['crew'][0]), 'trip details expose dates, not shifts');
+ok(isset($ca['crew']) && $ca['crew'] && !array_filter(array_column($ca['crew'], 'duty_shift')) && !array_filter(array_column($ca['crew'], 'outside_scheduled_shift')), 'trip details carry no permanent personnel shift (Day/Night only labels the dispatch time)');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/attendance.js');
 ok(str_contains($js, 'Crew Attendance (Drivers and Helpers)') && !str_contains($js, 'duty_shift') && !str_contains($js, 'Night Shift'), 'attendance modal: crew title, date only (no shift select)');
 
@@ -187,7 +188,7 @@ if (!is_file($baseSchema) || !is_file($baseExt)) {
     test_import($up, (string)file_get_contents($baseSchema));
     test_import($up, (string)file_get_contents($baseExt));
     $chain = test_migrations_from('2026-11-08_08_attendance');
-    ok(in_array('2026-11-10_11_daily_attendance', $chain, true) && end($chain) === '2026-11-10_11_daily_attendance', 'the new migration is last in the chain (' . implode(', ', $chain) . ')');
+    ok(in_array('2026-11-10_11_daily_attendance', $chain, true) && array_search('2026-11-10_11_daily_attendance', $chain, true) > array_search('2026-11-08_08_attendance', $chain, true), 'the daily-attendance migration follows 08 in the chain (' . implode(', ', $chain) . ')');
     foreach ($chain as $mig) { if ($mig !== '2026-11-10_11_daily_attendance') test_import($up, test_sql("database/migrations/$mig.sql")); }
     $uA = insert($up, 'users', ['username' => 'a1', 'email' => 'a1@example.test', 'password_hash' => 'x', 'full_name' => 'ADMIN ONE', 'role' => 'admin']);
     $uB = insert($up, 'users', ['username' => 'a2', 'email' => 'a2@example.test', 'password_hash' => 'x', 'full_name' => 'ADMIN TWO', 'role' => 'admin']);

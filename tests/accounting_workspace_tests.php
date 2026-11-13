@@ -60,7 +60,7 @@ insert($p, 'client_rates', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'ra
 $n = 0;
 $billing = function (float $km) use ($p, $ops, $cid, &$n): int {
     $n++;
-    $t = (int)Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "Tanauan warehouse $n", 'delivery_point' => "Calamba DC $n",
+    $t = (int)test_create_planned_trip($ops, ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "Tanauan warehouse $n", 'delivery_point' => "Calamba DC $n",
         'scheduled_at' => date('Y-m-d\TH:i', time() + 3600), 'distance_km' => (string)$km])['trip_id'];
     run($p, "UPDATE trips SET status='Completed', dispatched_at=DATE_SUB(NOW(), INTERVAL 5 HOUR), completed_at=DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id=?", [$t]);   // test database only
     $amt = number_format($km * 55, 2, '.', '');

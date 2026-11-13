@@ -79,7 +79,7 @@ $n = 0;
 /** New confirmed (Pre-Assigned) trip; the schedule is then set directly to test the windows. */
 $newTrip = function (int $minutesAhead) use ($ops, $cid, $p, $at, &$n): int {
     $n++;
-    $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
+    $r = test_create_planned_trip($ops, ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
         'scheduled_at' => date('Y-m-d\TH:i', time() + 3 * 86400), 'distance_km' => '25.00']);
     run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [$at($minutesAhead), $r['trip_id']]);
     return (int)$r['trip_id'];
