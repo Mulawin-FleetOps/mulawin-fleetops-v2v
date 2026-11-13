@@ -20,7 +20,7 @@
  *
  *  A difference above OVERRIDE_WARNING_RATIO (15%) returns a warning (never blocks).
  *  Implementation defaults, not final business policy (km billing / toll policy to be confirmed).
- *  Billing is NOT changed here: BillingDraft still uses trips.distance_km x client rate per km.
+ *  Contract pricing uses the approved fixed route rate; TripPricing snapshots fuel separately.
  * =====================================================================
  */
 declare(strict_types=1);
@@ -107,7 +107,7 @@ final class RouteDistance {
                     r.route_option, r.origin_lat, r.origin_lng, r.destination_lat, r.destination_lng, r.distance_provider,
                     cr.id AS rate_id, cr.version_no AS rate_version, cr.rate_type, cr.rate_amount, cr.minimum_charge, cr.effective_from
                 FROM client_routes r
-                JOIN client_route_rates cr ON cr.route_id=r.id AND cr.status='Approved'
+                JOIN client_route_rates cr ON cr.route_id=r.id AND cr.status='Approved' AND cr.rate_type='Flat'
                 JOIN clients c ON c.id=r.client_id
                 WHERE r.client_id=? AND r.status='Approved' AND c.status IN ($marks)";
         $args = array_merge([$clientId], self::PLANNING_CLIENT_STATUSES);

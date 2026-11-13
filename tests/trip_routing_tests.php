@@ -427,5 +427,5 @@ echo "\n----------------------------------------\n";
 echo "RESULT: $PASS passed, $FAIL failed\n";
 if ($FAILED) { echo "Failed:\n"; foreach ($FAILED as $f) echo "  - $f\n"; }
 @unlink($LOG);
-foreach ([$FRESH, $PARTIAL] as $db) test_server()->exec("DROP DATABASE IF EXISTS `$db`");
+foreach ([$FRESH, $PARTIAL] as $db) test_drop($db);
 exit($FAIL === 0 ? 0 : 1);

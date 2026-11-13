@@ -152,7 +152,7 @@ fails(fn() => Routing::route($p, 1, $TAN, $MAL, 'fly'), 'unknown route option re
 section('D. Errors from the map service -> clear messages, manual km');
 $errs = [[0, '', 'network'], [401, '{"error":"x"}', 'refused'], [403, '{"error":"Quota exceeded"}', 'refused'], [429, '{"error":"Rate"}', 'rate_limited'],
          [404, '{"error":{"code":2010,"message":"Could not find routable point"}}', 'not_near_road'], [400, '{"error":{"code":2004,"message":"too long"}}', 'too_long'],
-         [404, '{"error":{"code":2009,"message":"Route could not be found"}}', 'no_route'], [500, 'oops', 'error'], [200, 'not json', 'error'], [200, '{"routes":[]}', 'no_route']];
+         [404, '{"error":{"code":2009,"message":"Route could not be found"}}', 'no_route'], [500, 'oops', 'provider_error'], [200, 'not json', 'invalid_response'], [200, '{"routes":[]}', 'no_route']];
 $i = 0;
 foreach ($errs as [$st, $body, $reason]) {
     $NEXT = [$st, $body]; $i++;
@@ -315,7 +315,7 @@ try {
     $cfg(['ORS_BASE_URL' => "http://127.0.0.1:$port", 'ORS_API_KEY' => 'wrong-key']);
     unavailable(fn() => Routing::route($p, 1, [14.0863, 121.1497], [14.4, 121.11], 'recommended'), 'refused', 'curl: wrong key -> 403 refused');
     $cfg(['ORS_BASE_URL' => 'http://127.0.0.1:1', 'ORS_API_KEY' => 'mock-ors-key']);
-    unavailable(fn() => Routing::route($p, 1, [14.0863, 121.1497], [14.45, 121.11], 'recommended'), 'network', 'curl: nothing listening -> network message');
+    unavailable(fn() => Routing::route($p, 1, [14.0863, 121.1497], [14.45, 121.11], 'recommended'), 'connection_refused', 'curl: nothing listening -> connection refused');
 } finally { proc_terminate($proc); proc_close($proc); @unlink($mockLog); }
 $cfg(); Routing::useTransport($fake);
 

@@ -102,7 +102,7 @@ App.page('admin', {
       const settingField = (s) => s.format === 'hour'
         ? { name: 'value', label: `Time (${s.unit})`, type: 'select', options: Array.from({ length: 24 }, (_, h) => [String(h), hour12(h)]), value: String(Math.round(+s.value)), required: true, col: 12 }
         : s.format === 'attendance_mode'
-        ? { name: 'value', label: 'Mode', type: 'select', options: [['1', 'Warn (dispatch allowed; attendance noted)'], ['2', 'Enforce (dispatch needs Present crew for the dispatch date)']], value: String(Math.round(+s.value)), required: true, col: 12 }
+        ? { name: 'value', label: 'Mode', type: 'select', options: [['1', 'Warn (dispatch allowed; attendance noted)'], ['2', 'Enforce (dispatch needs valid attendance)']], value: String(Math.round(+s.value)), required: true, col: 12 }
         : { name: 'value', label: `Value (${s.unit}, ${s.min} to ${s.max})`, type: 'number', step: 'any', value: s.value, required: true, col: 12 };
       // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: show readiness before the Admin switches Warn / Enforce.
       const readinessHtml = (r) => {
@@ -139,7 +139,7 @@ App.page('admin', {
       if (e.changes_json) {
         try { const parsed = JSON.parse(e.changes_json); if (Array.isArray(parsed)) changes = parsed; } catch (_) { /* legacy or invalid optional data */ }
       }
-      const html = UI.kv(fields) + (changes.length
+      const html = UI.kv(fields) + UI.activity([{action:e.action,created_at:e.created_at,actor:e.actor,notes:e.details}]) + (changes.length
         ? UI.h('Changes made') + UI.table([['Field', 'field', v => UI.esc(v)],
           ['Before', 'before', v => UI.esc(v === null || v === '' ? '—' : String(v))],
           ['After', 'after', v => UI.esc(v === null || v === '' ? '—' : String(v))]],
@@ -161,3 +161,38 @@ App.page('admin', {
     });
   },
 });
+
+// Fuel controls reuse Settings, standard cards/tables and the existing modal system.
+const FuelAdjustmentUI={
+ edit(ctx,key){
+  const diesel=key==='diesel',current=ctx.data.current?.[key],value=current?JSON.parse(current.value_json).value:'',fields=[
+   ...(!diesel?[{name:'truck_type',label:'Truck Type',value:key,attrs:'readonly'}]:[]),
+   {name:'value',label:diesel?'New Diesel Price (PHP/L)':'Fuel Efficiency (KM/L)',type:'number',required:true,value,step:'0.0001',min:0.0001,attrs:'max="'+(diesel?'1000':'100')+'"'},
+   ...(diesel?[{name:'effective_date',label:'Effective Date',type:'date',required:true,value:UI.today()},{name:'historical_verified',label:'Historical source verified',type:'select',options:[['','Not confirmed'],['1','Verified against source']]}]:[]),
+   {name:'reference',label:'Reason / Reference',required:true,type:'textarea',attrs:'maxlength="300"'}
+  ];
+  let reviewed=null;
+  UI.modal(diesel?'Edit Weekly Diesel Price':'Edit Fuel Efficiency','<div data-fuel-fields>'+UI.fields(fields.map(f=>({...f,col:12})))+'</div><div data-fuel-review hidden></div>',async(d,form)=>{
+   const payload={setting_key:key,value:d.value,reference:d.reference,...(diesel?{effective_date:d.effective_date,historical_verified:d.historical_verified}: {})};
+   if(!reviewed||JSON.stringify(payload)!==JSON.stringify(reviewed))throw Error('Review the update before confirming.');
+   const result=await App.api('Admin.pricing_save',reviewed);UI.result(result);await ctx.reload();
+  },{submit:'Confirm Update',confirmBeforeSubmit:false,size:'',extraFooter:'<button type="button" class="btn btn-outline-secondary btn-sm" data-fuel-back hidden>Back</button><button type="button" class="btn btn-primary btn-sm" data-fuel-review-button>Review Update</button>',onShow:(wrap,form)=>{
+   const confirm=form.querySelector('[type=submit]'),reviewButton=form.querySelector('[data-fuel-review-button]'),back=form.querySelector('[data-fuel-back]'),panel=form.querySelector('[data-fuel-fields]'),review=form.querySelector('[data-fuel-review]');confirm.hidden=true;
+   const historical=()=>{if(!diesel)return;const input=form.elements.historical_verified,past=form.elements.effective_date.value<UI.today();input.parentElement.hidden=!past;input.disabled=!past;input.required=past;if(!past)input.value='';};
+   if(diesel){form.elements.effective_date.addEventListener('change',historical);historical();}
+   reviewButton.onclick=()=>{
+    historical();const invalid=[...form.querySelectorAll('input,select,textarea')].find(input=>!input.disabled&&!input.checkValidity());if(invalid){invalid.reportValidity();return;}
+    const d=UI.formData(form);reviewed={setting_key:key,value:d.value,reference:d.reference,...(diesel?{effective_date:d.effective_date,historical_verified:d.historical_verified}: {})};
+    review.innerHTML=UI.kv([['Setting',diesel?'Weekly Diesel Price':UI.esc(key)],['New value',UI.esc(d.value)+(diesel?' PHP/L':' KM/L')],...(diesel?[['Effective Date',UI.esc(d.effective_date)]]:[['Applies','Immediately on confirmation (Asia/Manila)']]),['Reason / Reference',UI.esc(d.reference)]]);
+    panel.hidden=true;review.hidden=false;reviewButton.hidden=true;confirm.hidden=false;back.hidden=false;confirm.focus();
+   };
+   back.onclick=()=>{reviewed=null;panel.hidden=false;review.hidden=true;reviewButton.hidden=false;confirm.hidden=true;back.hidden=true;};
+  }});
+ },
+ render(ctx){
+  const current=ctx.data.current||{},diesel=current.diesel,types=['Car Carrier','Container','Wing Van'],history=(ctx.data.history||[]).filter(r=>r.setting_key==='diesel'||types.includes(r.setting_key));
+  ctx.el.innerHTML='<section class="card mb-3"><div class="card-body"><h2 class="h5">Weekly Diesel Price</h2>'+UI.kv([['Current price per liter',diesel?UI.money(JSON.parse(diesel.value_json).value):'Not configured'],['Current effective date',diesel?UI.date(diesel.effective_date):'Not configured']])+'<p class="small text-muted">Updates normally occur on Tuesdays. The previous effective price remains applicable until another takes effect.</p><button class="btn btn-primary btn-sm" data-edit-diesel>Edit Price</button></div></section><section class="card mb-3"><div class="card-body"><h2 class="h5">Fuel Efficiency per Truck Type</h2>'+UI.table([['Truck Type','type'],['Current km/L','value',v=>v===null?'Not configured':UI.num(v,4)]],types.map(type=>({type,value:current[type]?JSON.parse(current[type].value_json).value:null})),{showAllColumns:true,viewSwitch:false,actions:()=>UI.btn('edit','Edit'),onAction:(a,row)=>this.edit(ctx,row.type)})+'</div></section><details class="card"><summary class="card-header">Configuration History</summary><div class="card-body">'+UI.table([['Setting','setting_key'],['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],['Value','value_json',v=>UI.esc(JSON.parse(v).value)],['Reason / Reference','reference']],history,{showAllColumns:true,viewSwitch:false,empty:'No diesel or fuel efficiency updates.'})+'</div></details>';
+  ctx.el.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');UI.activate(ctx.el);
+ }
+};
+App.page('fuel-adjustment',{title:'Fuel Adjustment',render(ctx){FuelAdjustmentUI.render(ctx);}});

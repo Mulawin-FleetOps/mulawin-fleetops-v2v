@@ -26,24 +26,46 @@ const FleetUI = {
     if (!date) return '<span class="text-muted">—</span>';
     return UI.date(date) + ' ' + UI.days(days);
   },
+  truckRows(d,q) {
+    return d.trucks.filter(v=>(q.inactive?true:+v.active)&&(!q.truck_type||v.truck_type===q.truck_type)&&(!q.status||v.status===q.status)&&(!q.docs||(q.docs==='expiring'&&((v.reg_days!==null&&+v.reg_days<=+d.alertDays)||(v.ins_days!==null&&+v.ins_days<=+d.alertDays)))));
+  },
   truckForm(v, d) {
-    const fields = [
-      { name: 'plate_number', label: 'Plate number', required: true, col: 4, value: v.plate_number, placeholder: 'NAJ5941' },
-      { name: 'truck_number', label: 'Truck / unit number', col: 4, value: v.truck_number, placeholder: 'e.g. 6 or W2' },
-      { name: 'truck_type', label: 'Truck type', type: 'select', options: UI.list(App.me.truckTypes), required: true, col: 4, value: v.truck_type },
-      { name: 'make_brand', label: 'Make / brand', col: 4, value: v.make_brand }, { name: 'model', label: 'Model', col: 4, value: v.model },
-      { name: 'mv_file_number', label: 'MV file no.', col: 4, value: v.mv_file_number },
-      { name: 'chassis_number', label: 'Chassis no.', col: 4, value: v.chassis_number }, { name: 'engine_number', label: 'Engine no.', col: 4, value: v.engine_number },
-      { name: 'or_number', label: 'OR no.', col: 4, value: v.or_number }, { name: 'cr_number', label: 'CR no.', col: 4, value: v.cr_number },
-      { name: 'registration_expiry', label: 'Registration expiry date', type: 'date', col: 4, value: v.registration_expiry },
-      { name: 'insurance_provider', label: 'Insurance provider', col: 4, value: v.insurance_provider }, { name: 'insurance_policy_number', label: 'Policy no.', col: 4, value: v.insurance_policy_number },
-      { name: 'insurance_expiry', label: 'Insurance expiry date', type: 'date', col: 4, value: v.insurance_expiry },
-      { name: 'assigned_driver_id', label: 'Regular driver', type: 'select', options: UI.opts(d.drivers, p => p.full_name), col: 6, value: v.assigned_driver_id, help: 'Chosen first by the automatic assignment when free.' },
-      { name: 'assigned_helper_id', label: 'Regular helper', type: 'select', options: UI.opts(d.helpers, p => p.full_name), col: 6, value: v.assigned_helper_id },
-      { name: 'notes', label: 'Notes', col: 12, value: v.notes },
+    const truckInfo = [
+      { name: 'plate_number', label: 'Plate Number', required: true, col: 6, value: v.plate_number, placeholder: 'NAJ5941' },
+      { name: 'truck_type', label: 'Truck Type', type: 'select', options: UI.list(App.me.truckTypes), required: true, col: 6, value: v.truck_type },
+      { name: 'truck_number', label: 'Unit Number', col: 6, value: v.truck_number, placeholder: 'e.g. W2' },
+      { name: 'make_brand', label: 'Make / Brand', col: 6, value: v.make_brand },
+      { name: 'model', label: 'Model', col: 6, value: v.model },
     ];
-    UI.formModal(v.id ? 'Edit truck ' + UI.esc(v.plate_number) : 'Add truck', fields, 'Fleet.truck_save', { extra: v.id ? { id: v.id } : {},
-      intro: 'OR/CR and insurance files can be attached in the truck details (Documents).' });
+    const fixedCrew = [
+      { name: 'assigned_driver_id', label: 'Fixed Driver', type: 'select', options: UI.opts(d.drivers, p => p.full_name), col: 6, value: v.assigned_driver_id, help: 'Regular pairing used during dispatch.' },
+      { name: 'assigned_helper_id', label: 'Regular Helper', type: 'select', options: UI.opts(d.helpers, p => p.full_name), col: 6, value: v.assigned_helper_id },
+    ];
+    const documents = [
+      { name: 'mv_file_number', label: 'MV File No.', col: 6, value: v.mv_file_number },
+      { name: 'chassis_number', label: 'Chassis No.', col: 6, value: v.chassis_number },
+      { name: 'engine_number', label: 'Engine No.', col: 6, value: v.engine_number },
+      { name: 'or_number', label: 'OR No.', col: 6, value: v.or_number },
+      { name: 'cr_number', label: 'CR No.', col: 6, value: v.cr_number },
+      { name: 'registration_expiry', label: 'Registration Expiry', type: 'date', col: 6, value: v.registration_expiry },
+      { name: 'insurance_provider', label: 'Insurance Provider', col: 6, value: v.insurance_provider },
+      { name: 'insurance_policy_number', label: 'Policy No.', col: 6, value: v.insurance_policy_number },
+      { name: 'insurance_expiry', label: 'Insurance Expiry', type: 'date', col: 6, value: v.insurance_expiry },
+      { name: 'notes', label: 'Notes', type: 'textarea', col: 12, value: v.notes },
+    ];
+    const groups = [
+      FormComponents.section('Truck Information', 'bi-truck', truckInfo),
+      FormComponents.section('Fixed Crew Assignment', 'bi-people', fixedCrew),
+      FormComponents.collapsible('Registration & Insurance', 'Vehicle documents, insurance and notes', 'bi-file-earmark-text', documents),
+    ];
+    return FormComponents.modal(
+      v.id ? 'Edit Truck ' + UI.esc(v.plate_number) : 'Add Truck',
+      groups, 'Fleet.truck_save', {
+        extra: v.id ? { id: v.id } : {},
+        intro: 'OR/CR and insurance files can be attached later in Truck Details → Documents.',
+        submit: v.id ? 'Save Changes' : 'Save Truck',
+      }
+    );
   },
   async truckDetails(id, d) {
     let r; try { r = await App.api('Fleet.truck_details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
@@ -60,7 +82,7 @@ const FleetUI = {
       `<button class="btn btn-sm btn-outline-${+v.active ? 'danger' : 'success'}" data-a="active">${+v.active ? 'Deactivate' : 'Reactivate'}</button>`);
     const html = `<div class="d-flex gap-2 align-items-center mb-2">${UI.badge(v.status)}${+v.active ? '' : ' <span class="badge-s red">Inactive</span>'}${v.status_reason ? `<span class="small text-muted">${UI.esc(v.status_reason)}</span>` : ''}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
-      ${UI.h('Truck')}${UI.kv([['Plate / unit', `<b>${UI.esc(v.plate_number)}</b>${v.truck_number ? ' #' + UI.esc(v.truck_number) : ''}`], ['Type', UI.e(v.truck_type)], ['Make / model', UI.esc([v.make_brand, v.model].filter(Boolean).join(' ') || '—')],
+      ${UI.h('Truck')}${UI.kv([['Plate / unit', `<b>${UI.esc(v.plate_number)}</b>${v.truck_number ? ' #' + UI.esc(v.truck_number) : ''}`], [UI.role('operations_head')?'Truck Type':'Type', UI.e(v.truck_type)], ['Make / model', UI.esc([v.make_brand, v.model].filter(Boolean).join(' ') || '—')],
         ['Chassis / engine', UI.esc([v.chassis_number, v.engine_number].filter(Boolean).join(' / ') || '—')], ['Regular driver', UI.e(v.driver_name)], ['Regular helper', UI.e(v.helper_name)],
         ['Notes', UI.e(v.notes)]])}
       ${r.openJob ? `<div class="next-step warn"><i class="bi bi-wrench-adjustable"></i> Under corrective maintenance: <a href="#maintenance?open=${r.openJob.id}">${UI.esc(r.openJob.job_ref)}</a> (${UI.esc(r.openJob.status === 'Completed' ? 'repair done, waiting for verification' : r.openJob.status)}). The truck cannot be assigned until the repair is verified.</div>` : ''}
@@ -88,7 +110,8 @@ const FleetUI = {
       if (a === 'active') UI.confirmAction((+v.active ? 'Deactivate ' : 'Reactivate ') + UI.esc(v.plate_number), +v.active ? 'The truck leaves the masterlist choices. Its past trips and records stay.' : 'The truck returns to the masterlist.', 'Fleet.truck_active', { id: v.id, active: +v.active ? 0 : 1 }, { danger: +v.active });
     });
   },
-  crewForm(p) {
+  crewForm(p, d = {}) {
+    if(UI.role('operations_head'))return FleetUI.opsCrewForm(p,d);
     UI.formModal(p.id ? 'Edit ' + UI.esc(p.full_name) : 'Add driver or helper', [
       { name: 'full_name', label: 'Name (LAST NAME, FIRST NAME)', required: true, col: 8, value: p.full_name, placeholder: 'JUEGOS, HECTOR' },
       { name: 'person_type', label: 'Type', type: 'select', options: UI.list(['Driver', 'Helper']), required: true, col: 4, value: p.person_type },
@@ -98,6 +121,65 @@ const FleetUI = {
       { name: 'address', label: 'Address', col: 12, value: p.address }, { name: 'notes', label: 'Notes', col: 12, value: p.notes }],
       'Fleet.crew_save', { extra: p.id ? { id: p.id } : {}, intro: 'Drivers need a license number and expiry. A driver with an expired license is not assigned automatically.' });
   },
+  async opsCrewForm(p,d) {
+    if(!d.assignmentTrucks||!d.assignmentHelpers){
+      try { d=await App.data('crew'); }
+      catch(error){ return UI.toast(error.message,'error'); }
+    }
+    const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
+    const trucks=(d.assignmentTrucks||[]).filter(t=>!t.assigned_driver_id||String(t.assigned_driver_id)===String(p.id));
+    const identity=[
+      {name:'person_type',type:'hidden',value:type},
+      {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
+      {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
+      {name:'contact_number',label:'Contact Number',col:4,value:p.contact_number},
+      {name:'date_hired',label:'Start Date',type:'date',col:4,value:p.date_hired},
+      ...(!driver ? [
+        {name:'license_number',type:'hidden',value:p.license_number},
+        {name:'license_expiry',type:'hidden',value:p.license_expiry},
+      ] : []),
+    ];
+    const licensing=driver?[
+      {name:'license_number',label:'License Number',required:true,col:6,value:p.license_number},
+      {name:'license_expiry',label:'License Expiry',type:'date',required:true,col:6,value:p.license_expiry},
+    ]:[];
+    const assignment=driver?[
+      {name:'fixed_truck_id',label:'Fixed Truck',type:'select',required:true,col:6,value:p.fixed_truck_id,
+        options:trucks.map(t=>[t.id,t.plate_number+' - '+t.truck_type])},
+      {name:'regular_helper_id',label:'Regular Helper',type:'select',col:6,value:p.regular_helper_id,
+        options:(d.assignmentHelpers||[]).map(h=>[h.id,h.full_name])},
+    ]:[];
+    const additional=[
+      {name:'address',label:'Address',col:12,value:p.address},
+      {name:'notes',label:'Notes',type:'textarea',rows:2,col:12,value:p.notes},
+    ];
+    const sections=[
+      FormComponents.section('Personal Information','bi-person-badge',identity),
+      ...(driver?[FormComponents.section('License & Assignment','bi-card-checklist',[...licensing,...assignment])]:[]),
+      FormComponents.collapsible('Additional Information','Address and notes','bi-file-earmark-text',additional),
+    ];
+    return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
+      extra:p.id?{id:p.id}:{},
+      submit:'Save '+type,
+      compact:true,
+      compactSize:driver?'normal':'small',
+      after(){UI.closeDrawer();App.route();},
+      onShow(wrap,form){
+        if(!driver)return;
+        const pick=form.querySelector('[name=fixed_truck_id]'),
+          helper=form.querySelector('[name=regular_helper_id]');
+        const refresh=()=>{
+          const truck=trucks.find(t=>String(t.id)===pick.value),cc=truck?.truck_type==='Car Carrier';
+          helper.closest('[class*=col-]').hidden=cc;
+          helper.disabled=cc;
+          helper.required=!cc;
+          if(cc)helper.value='';
+          else if(truck?.assigned_helper_id&&!helper.value)helper.value=truck.assigned_helper_id;
+        };
+        pick.onchange=refresh;refresh();
+      },
+    });
+  },
   async crewDetails(id, d) {
     let r; try { r = await App.api('Fleet.crew_details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
     const p = r.person;
@@ -106,15 +188,15 @@ const FleetUI = {
       `<button class="btn btn-sm btn-outline-${+p.active ? 'danger' : 'success'}" data-a="active">${+p.active ? 'Deactivate' : 'Reactivate'}</button>`] : [];
     const html = `<div class="mb-2">${UI.badge(p.availability)} ${+p.active ? '' : '<span class="badge-s red">Inactive</span>'} ${p.unavailable_reason ? `<span class="small text-muted">${UI.esc(p.unavailable_reason)}</span>` : ''}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
-      ${UI.h('Details')}${UI.kv([['Type', UI.e(p.person_type)], ['Employee no.', UI.e(p.employee_no)], ['Contact', UI.e(p.contact_number)], ['Address', UI.e(p.address)],
+      ${UI.h(UI.role('operations_head')?'Overview':'Details')}${UI.kv([[UI.role('operations_head')?'Role':'Type', UI.e(p.person_type)], ['Employee no.', UI.e(p.employee_no)], ['Contact', UI.e(p.contact_number)], ['Address', UI.e(p.address)],
         ["License", UI.esc([p.license_number, p.license_expiry ? 'expires ' + UI.date(p.license_expiry) : ''].filter(Boolean).join(' · ') || '—')], ['Date hired', UI.date(p.date_hired)], ['Notes', UI.e(p.notes)]])}
       ${UI.h('Trip history')}${UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
     const el = UI.drawer(UI.esc(p.full_name), html, { subtitle: UI.esc(p.person_type) });
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
-      if (a === 'edit') FleetUI.crewForm(p);
+      if (a === 'edit') FleetUI.crewForm(p,d);
       if (a === 'avail') UI.confirmAction('Set ' + UI.esc(p.full_name) + ' Available', 'This person can be assigned to trips again.', 'Fleet.crew_status', { id: p.id, availability: 'Available' });
-      if (a === 'unavail') UI.confirmAction('Set ' + UI.esc(p.full_name) + ' Unavailable', 'A pre-assigned trip is re-assigned automatically.', 'Fleet.crew_status', { id: p.id, availability: 'Unavailable' },
+      if (a === 'unavail') UI.confirmAction('Set ' + UI.esc(p.full_name) + ' Unavailable', 'An affected trip returns to manual Dispatcher assignment.', 'Fleet.crew_status', { id: p.id, availability: 'Unavailable' },
         { danger: true, fields: [{ name: 'reason', label: 'Reason (leave, sick, ...)', required: true, col: 12 }] });
       if (a === 'active') UI.confirmAction((+p.active ? 'Deactivate ' : 'Reactivate ') + UI.esc(p.full_name), +p.active ? 'Past trips keep the name.' : 'The person returns to the masterlist.', 'Fleet.crew_active', { id: p.id, active: +p.active ? 0 : 1 }, { danger: +p.active });
     });
@@ -122,33 +204,125 @@ const FleetUI = {
 };
 
 App.page('trucks', {
-  title: 'Truck Masterlist',
-  subtitle: 'All registered trucks, their availability, current trip, documents and maintenance.',
+  title: 'Trucks',
+  subtitle: 'Fleet records, fixed crew assignments and availability.',
   render(ctx) {
-    const d = ctx.data;
-    if (d.can.edit) UI.tool(ctx, 'Add truck', () => FleetUI.truckForm({}, d), 'bi-plus-lg', 'primary');
-    const q = ctx.query;
-    let rows = d.trucks.filter(v => (q.inactive ? true : +v.active) && (!q.truck_type || v.truck_type === q.truck_type) && (!q.status || v.status === q.status)
-      && (!q.docs || (q.docs === 'expiring' && ((v.reg_days !== null && +v.reg_days <= +d.alertDays) || (v.ins_days !== null && +v.ins_days <= +d.alertDays)))));
-    const act = d.trucks.filter(v => +v.active), n = (s) => act.filter(v => v.status === s).length;
-    ctx.el.innerHTML = UI.statusStrip([
-      { label: 'Total trucks', value: act.length },
-      { label: 'Available', value: n('Available'), color: 'green', go: 'trucks?status=Available' },
-      { label: 'Assigned / on trip', value: n('Assigned') + n('On Trip'), color: 'blue', note: n('On Trip') + ' on the road' },
-      { label: 'Under maintenance', value: n('Under Maintenance'), color: n('Under Maintenance') ? 'red' : '', go: 'trucks?status=Under%20Maintenance' },
-      { label: 'Unavailable', value: n('Unavailable'), color: n('Unavailable') ? 'red' : '', go: 'trucks?status=Unavailable' },
-    ]) + `<div class="d-flex flex-wrap align-items-center gap-2 mb-3">${FleetUI.masterlistTypeTabs('trucks', 'truck_type', [['', 'All trucks'], ...(App.me.truckTypes || []).map(t => [t, t])], q.truck_type)}` + UI.filterModal(ctx, [
-      { name: 'status', label: 'Status', type: 'select', options: UI.list(['Available', 'Assigned', 'On Trip', 'Under Maintenance', 'Unavailable']), col: 6 },
-      { name: 'docs', label: 'Documents', type: 'select', options: [['expiring', 'Registration or insurance expiring / expired']], col: 6 },
-      { name: 'inactive', label: 'Include inactive trucks', type: 'checkbox', col: 12 }], { hint: 'Showing all active trucks.' }) + `</div>` + UI.table([
-      ['Truck', 'plate_number', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${r.truck_number ? 'Unit #' + UI.esc(r.truck_number) : 'No unit no.'}</div>`],
-      ['Type', 'truck_type'],
-      ['Availability', 'status', (v, r) => UI.badge(v) + (r.status_reason && v === 'Unavailable' ? `<div class="cell-sub">${UI.esc(r.status_reason)}</div>` : '')],
-      ['Current assignment', 'trip_ref', (v, r) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(r.trip_status)}</div>` : (r.open_job ? `${UI.esc(r.open_job)}<div class="cell-sub">${UI.esc(r.open_job_status === 'Completed' ? 'waiting for verification' : r.open_job_status)}${r.expected_back ? ' · back ' + UI.date(r.expected_back) : ''}</div>` : '<span class="text-muted">—</span>')],
-      ['Regular driver', 'driver_name'], ['Registration', 'registration_expiry', (v, r) => FleetUI.docBadge(r.reg_days, v)], ['Insurance', 'insurance_expiry', (v, r) => FleetUI.docBadge(r.ins_days, v)]], rows,
-      { actions: () => UI.btn('view', 'Open'), onAction: (a, v) => FleetUI.truckDetails(v.id, d), rowClick: (v) => FleetUI.truckDetails(v.id, d), empty: 'No truck matches the filter.' });
+    const d = ctx.data, q = ctx.query;
+    const availabilityView = q.tab === 'availability';
+    const rows = FleetUI.truckRows(d, { ...q, inactive: availabilityView ? '' : q.inactive });
+    const active = d.trucks.filter(v => +v.active);
+    const count = status => active.filter(v => v.status === status).length;
+    const statuses = ['Available', 'Assigned', 'On Trip', 'Under Maintenance', 'Unavailable'];
+    const filterOption = (value, label, selected) => '<option value="' + UI.esc(value) + '"'
+      + (String(selected || '') === String(value) ? ' selected' : '') + '>' + UI.esc(label) + '</option>';
+    const toolbar = `<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger"
+      aria-controls="truck-filter-panel" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger"
+      aria-controls="truck-sort-panel" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>
+      <div class="record-workspace-popovers">
+        <div id="truck-filter-panel" class="record-workspace-popover" hidden>
+          <strong>Filter Trucks</strong>
+          <label>Status<select name="status" class="form-select form-select-sm">
+            ${filterOption('', 'All statuses', q.status)}
+            ${statuses.map(status => filterOption(status, status, q.status)).join('')}
+          </select></label>
+          <label>Documents<select name="docs" class="form-select form-select-sm">
+            ${filterOption('', 'All documents', q.docs)}
+            ${filterOption('expiring', 'Expiring / expired', q.docs)}
+          </select></label>
+          <label class="record-workspace-check"><input type="checkbox" name="inactive" ${q.inactive ? 'checked' : ''}> Include inactive trucks</label>
+          <div class="record-workspace-popover-actions">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>
+            <button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button>
+          </div>
+        </div>
+        <div id="truck-sort-panel" class="record-workspace-popover record-workspace-sort-panel" hidden>
+          <strong>Sort Trucks</strong>
+          <label class="record-workspace-sort-option"><input type="radio" name="truck_sort" value="default" data-record-sort checked> Default order</label>
+          <label class="record-workspace-sort-option"><input type="radio" name="truck_sort" value="plate" data-record-sort> Plate number</label>
+          <label class="record-workspace-sort-option"><input type="radio" name="truck_sort" value="type" data-record-sort> Truck type</label>
+          <label class="record-workspace-sort-option"><input type="radio" name="truck_sort" value="status" data-record-sort> Status</label>
+        </div>
+      </div>`
+      + (d.can.edit ? '<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add Truck</button>' : '');
+    const typeTabs = [['', 'All Trucks'], ...(App.me.truckTypes || []).map(t => [t, t])];
+    const columns = [
+      ['Plate No.', 'plate_number', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${r.truck_number ? 'Unit #' + UI.esc(r.truck_number) : 'No unit no.'}</div>`],
+      ['Truck Type', 'truck_type'],
+      ['Status', 'status', (v, r) => UI.badge(v) + (r.status_reason && v === 'Unavailable' ? `<div class="cell-sub">${UI.esc(r.status_reason)}</div>` : '')],
+      ['Current Assignment', 'trip_ref', (v, r) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(r.trip_status)}</div>` : (r.open_job ? `${UI.esc(r.open_job)}<div class="cell-sub">${UI.esc(r.open_job_status === 'Completed' ? 'waiting for verification' : r.open_job_status)}${r.expected_back ? ' · back ' + UI.date(r.expected_back) : ''}</div>` : '<span class="text-muted">—</span>')],
+      ['Fixed Driver', 'driver_name'],
+      ['Regular Helper', 'helper_name'],
+    ];
+    const tableHtml = UI.table(columns, rows, {
+      tools: toolbar,
+      actions: () => UI.btn('view', 'View'),
+      onAction: (action, vehicle) => FleetUI.truckDetails(vehicle.id, d),
+      rowClick: vehicle => FleetUI.truckDetails(vehicle.id, d),
+      empty: active.length === 0 ? 'No trucks registered yet. Add your first truck to start managing fleet records.' : 'No trucks match these filters. Try clearing your search or filters.',
+    });
+    ctx.el.innerHTML = `<div class="fleet-trucks-page">
+      ${RecordComponents.kpis([
+        { label: 'Total Trucks', value: active.length },
+        { label: 'Available', value: count('Available'), color: 'green', go: 'trucks?status=Available' },
+        { label: 'Assigned / On Trip', value: count('Assigned') + count('On Trip'), color: 'blue' },
+        { label: 'Under Maintenance', value: count('Under Maintenance'), color: count('Under Maintenance') ? 'red' : '', go: 'trucks?status=Under%20Maintenance' },
+      ])}
+      ${RecordComponents.tabs([{value:'master',label:'Master List'},{value:'availability',label:'Availability'}], availabilityView ? 'availability' : 'master','data-truck-view')}
+      ${RecordComponents.panel(tableHtml, RecordComponents.categories(typeTabs.map(([value,label]) => ({value,label})),q.truck_type||'','data-truck-type'))}
+    </div>`;
+    const panel = ctx.el.querySelector('.record-workspace-panel .panel');
     UI.activate(ctx.el);
-    FleetUI.bindMasterlistTypeTabs(ctx);
+    RecordComponents.mountPanel(ctx.el, {
+      title: 'Truck Records',
+      categorySelector: '.record-workspace-categories',
+      addSelector: '.record-workspace-add',
+    });
+    ctx.el.querySelectorAll('[data-truck-view]').forEach(button => button.addEventListener('click', () => {
+      const next = { ...ctx.query };
+      if (button.dataset.truckView === 'availability') next.tab = 'availability';
+      else delete next.tab;
+      delete next.inactive;
+      App.go(ctx.page, next);
+    }));
+    ctx.el.querySelectorAll('[data-truck-type]').forEach(button => button.addEventListener('click', () => {
+      const next = { ...ctx.query }, value = button.dataset.truckType;
+      if (value) next.truck_type = value; else delete next.truck_type;
+      App.go(ctx.page, next);
+    }));
+    ctx.el.querySelector('.record-workspace-add')?.addEventListener('click', () => FleetUI.truckForm({}, d));
+    const tableBox = panel?.querySelector('[data-tbody]');
+    const tableState = tableBox ? UI._tables[tableBox.dataset.tbody] : null;
+    const originalOrder = tableState ? tableState.rows.slice() : [];
+    RecordComponents.bindDropdowns(ctx.el, {
+      apply(filterPanel) {
+        const next = { ...ctx.query };
+        const status = filterPanel.querySelector('[name="status"]').value;
+        const docs = filterPanel.querySelector('[name="docs"]').value;
+        const inactive = filterPanel.querySelector('[name="inactive"]').checked;
+        if (status) next.status = status; else delete next.status;
+        if (docs) next.docs = docs; else delete next.docs;
+        if (inactive) next.inactive = '1'; else delete next.inactive;
+        App.go(ctx.page, next);
+      },
+      reset() {
+        const next = { ...ctx.query };
+        delete next.status; delete next.docs; delete next.inactive;
+        App.go(ctx.page, next);
+      },
+      sort(key) {
+        if (!tableState || !tableBox) return;
+        if (key === 'default') tableState.rows = originalOrder.slice();
+        else {
+          const field = {plate:'plate_number', type:'truck_type', status:'status'}[key];
+          if (!field) return;
+          tableState.rows = originalOrder.slice().sort((a,b) =>
+            String(a[field] || '').localeCompare(String(b[field] || ''), undefined, {numeric:true}));
+        }
+        tableState.page = 0;
+        UI.drawTable(tableBox.dataset.tbody);
+      },
+    });
     if (q.open) FleetUI.truckDetails(q.open, d);
   },
 });

@@ -90,16 +90,7 @@ const RPMDashboard = {
     </section>`;
   },
   alerts(alerts) {
-    const list = (alerts || []).slice(0, 4);
-    return `<section class="rpm-summary-panel rpm-alert-panel"><h2 class="rpm-panel-title">Needs attention <span class="rpm-alert-count">${(alerts || []).length}</span></h2>
-      ${list.length ? `<ul class="rpm-alert-list">${list.map(a => {
-        const go = a.page && UI.canGo(a.page);
-        const level = ['danger', 'warning', 'success'].includes(a.level) ? a.level : 'info';
-        return `<li class="rpm-alert-${level}"><span class="rpm-alert-mark"><i class="bi ${level === 'danger' ? 'bi-exclamation-circle' : level === 'success' ? 'bi-check-circle' : 'bi-info-circle'}" aria-hidden="true"></i></span>
-          <span>${UI.esc(a.text)}</span>${go ? `<button type="button" data-go="${UI.esc(a.page)}" class="rpm-alert-link" aria-label="Open related module"><i class="bi bi-chevron-right"></i></button>` : ''}</li>`;
-      }).join('')}</ul>${(alerts || []).length > 4 ? `<p class="rpm-alert-more">${(alerts || []).length - 4} more notices. See Notifications for details.</p>` : ''}`
-        : '<p class="rpm-all-clear"><i class="bi bi-check-circle"></i> No pending dashboard alerts right now.</p>'}
-    </section>`;
+    return UI.actionSummary((alerts||[]).map(a=>({label:a.text,go:a.page,level:a.level})),{title:'Needs attention',empty:'No pending dashboard alerts right now.'});
   },
   links(role) {
     const cfg = this.roles[role];
@@ -133,6 +124,11 @@ App.page('dashboard', {
     btn.innerHTML = '<i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh';
     btn.onclick = () => ctx.reload();
     ctx.tools.append(stamp, btn);
+    if (role === 'operations_head' || UI.isDispatcher()) {
+      const create = document.createElement('button'); create.type = 'button'; create.className = 'btn btn-sm btn-primary';
+      create.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i> New Trip';
+      create.onclick = () => App.go('trips', { new: 1 }); ctx.tools.append(create);
+    }
 
     const cards = d.cards || [], alerts = d.alerts || [], charts = d.charts || [], tables = d.tables || [];
     const breakdown = RPMDashboard.breakdown(cards, role);

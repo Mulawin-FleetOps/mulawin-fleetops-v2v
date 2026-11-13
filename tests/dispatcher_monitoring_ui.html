@@ -1,0 +1,99 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Dispatcher Monitoring regression checks</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css">
+<div id="app"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../public/assets/js/core.js"></script>
+<script src="../public/assets/js/modules/general/dashboard.js"></script>
+<script src="../public/assets/js/modules/operations/trips.js"></script>
+<script src="../public/assets/js/modules/operations/trip-planner.js"></script>
+<script src="../public/assets/js/modules/operations/fleet.js"></script>
+<script src="../public/assets/js/modules/operations/clients.js"></script>
+<script src="../public/assets/js/modules/operations/routes.js"></script>
+<script src="../public/assets/js/modules/accounting/funds.js"></script>
+<script src="../public/assets/js/modules/general/reports.js"></script>
+<script src="../public/assets/js/modules/general/documents.js"></script>
+<script src="../public/assets/js/modules/operations/ops-head.js"></script>
+<script src="../public/assets/js/modules/operations/dispatcher-monitoring.js"></script>
+<script>
+// Database-free browser test. Keep the real router, App.data and request serialization.
+(async()=>{
+  const output=document.querySelector('#results'),checks=[],requests=[];
+  const assert=(ok,label)=>{if(!ok)throw new Error(label);checks.push('PASS '+label);};
+  const role='container_wingvan_dispatcher',groups=[{role,shift:'Night',label:'Container / Wing Van Dispatcher - Night',active:13,completed:13}];
+  let expectedDetails=false,pending;
+  const originalFetch=window.fetch;
+  window.fetch=async(url,options={})=>{
+    const q=new URL(url,location.href).searchParams;requests.push({url:String(url),options});
+    if(q.get('api')==='Trips.monitor_details'){
+      expectedDetails=true;
+      return new Response(JSON.stringify({ok:true,data:{read_only:true,trip:{id:1,trip_ref:'MONITOR-1',client:'Fixture client',dispatcher_role:role,dispatcher_shift:'Night',status:'Completed'},documents:[],inspections:[],incidents:[],updates:[],events:[]}}));
+    }
+    if(q.get('api')!=='data'||q.get('page')!=='dispatcher-monitoring')return new Response(JSON.stringify({ok:false,error:'You do not have access to this page.'}),{status:403});
+    if(q.get('search')==='api-error')return new Response(JSON.stringify({ok:false,error:'Fixture service unavailable'}),{status:500});
+    const history=q.get('tab')==='history',empty=q.get('search')==='no-match',total=empty?0:13;
+    const page=Math.max(1,Math.min(Math.max(1,Math.ceil(total/12)),Number(q.get('trip_page')||1)));
+    const rows=Array.from({length:Math.min(12,Math.max(0,total-(page-1)*12))},(_,i)=>({id:(page-1)*12+i+1,trip_ref:'MONITOR-'+((page-1)*12+i+1),client:'Fixture client',status:history?['Completed','Cancelled','Rejected'][i%3]:'In Transit',scheduled_at:'2026-11-12 08:00:00',completed_at:i%3===0?'2026-11-13 17:00:00':null,dispatcher_role:role,dispatcher_shift:'Night'}));
+    return new Response(JSON.stringify({ok:true,data:{groups,summary:{total:26,active:13,completed:13},rows,tab:history?'history':'active',total,page,pages:Math.max(1,Math.ceil(total/12)),statuses:['Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','In Transit','On Hold - Incident Reported','For Reschedule','Completed','Cancelled','Rejected']}}));
+  };
+  const navigate=async hash=>{location.hash=hash;await App.route();};
+  App.go=(page,q={})=>{pending=navigate('#'+page+(Object.keys(q).length?'?'+new URLSearchParams(q):''));return pending;};
+  const latest=()=>new URL(requests.at(-1).url,location.href).searchParams;
+  try{
+    App.me={user:{id:1,role:'operations_head',full_name:'Fixture Operations Head'},nav:[{id:'dispatcher-monitoring',label:'Dispatcher Monitoring'}],notifications:[],unread:0};
+    App.shell();
+    await navigate('#dispatcher-monitoring');
+    assert(document.querySelector('[data-monitor-trip]'),'Operations Head opens monitoring through the real router');
+    await navigate(document.querySelector('.oh-monitor-group').getAttribute('href'));
+    assert(latest().get('page')==='dispatcher-monitoring'&&latest().get('group')===role&&latest().get('shift')==='Night','Group selection preserves the authorized page identifier in the API URL');
+    await navigate([...document.querySelectorAll('.oh-tabs a')].find(a=>a.textContent==='Trip History').getAttribute('href'));
+    assert(latest().get('page')==='dispatcher-monitoring'&&latest().get('tab')==='history'&&latest().get('group')===role&&latest().get('shift')==='Night','History preserves group/shift and loads the authorized monitoring endpoint');
+    assert(document.querySelector('.oh-monitor-records').textContent.includes('Completed'),'History renders completed records');
+    document.querySelector('[data-monitor-next]').click();await pending;
+    assert(latest().get('page')==='dispatcher-monitoring'&&latest().get('trip_page')==='2'&&latest().get('tab')==='history'&&document.querySelector('.oh-pagination').textContent.includes('Page 2 of 2'),'History pagination reaches page two without changing the page identifier');
+    document.querySelector('[data-monitor-prev]').click();await pending;
+    assert(latest().get('trip_page')==='1','Previous page preserves monitoring pagination');
+    await DispatcherMonitorUI.details(1,groups);
+    assert(expectedDetails&&document.querySelector('.app-drawer').textContent.includes('Read-only Dispatcher monitoring')&&!document.querySelector('.app-drawer form, .app-drawer [type=submit]'),'Completed details use monitor_details and expose no editing form');
+    assert([...document.querySelectorAll('.app-drawer [role=tab]')].map(n=>n.textContent).join('|')==='Overview|Checklists|Incidents & Repairs|Documents|Activity','Translated monitoring headings retain the correct information in separate details tabs');
+    await navigate([...document.querySelectorAll('.oh-tabs a')].find(a=>a.textContent==='Active Trips').getAttribute('href'));
+    assert(latest().get('tab')==='active'&&latest().get('group')===role&&latest().get('shift')==='Night'&&document.querySelector('.oh-monitor-records').textContent.includes('In Transit'),'Active tab preserves group/shift and renders operational trips');
+    const form=document.querySelector('[data-monitor-filter]');form.elements.search.value='no-match';form.elements.status.value='In Transit';form.elements.from.value='2026-11-01';form.elements.to.value='2026-11-30';
+    form.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));await pending;
+    assert(latest().get('search')==='no-match'&&latest().get('status')==='In Transit'&&latest().get('from')==='2026-11-01'&&latest().get('to')==='2026-11-30'&&latest().get('shift')==='Night','Search and date/status filters preserve the selected group/shift');
+    assert(document.querySelector('.table-empty')?.textContent==='No trips match these filters.'&&!document.querySelector('.module-down'),'Empty results display an empty state instead of access denied');
+    const tabLink=label=>[...document.querySelectorAll('.oh-tabs a')].find(a=>a.textContent===label).getAttribute('href');
+    await navigate('#dispatcher-monitoring?group='+role+'&shift=Night&status=In+Transit&search=FIX&from=2026-11-01&to=2026-11-30&trip_page=2');
+    assert(![...document.querySelector('[name=status]').options].some(o=>['Pending Review','Completed','Cancelled','Rejected'].includes(o.value)),'Active filter contains only operational statuses');
+    await navigate(tabLink('Trip History'));
+    assert(!latest().has('status')&&latest().get('trip_page')==='1'&&latest().get('search')==='FIX'&&latest().get('from')==='2026-11-01'&&latest().get('shift')==='Night','History resets incompatible status/page while retaining search, dates and group/shift');
+    assert([...document.querySelector('[name=status]').options].filter(o=>o.value).map(o=>o.value).join('|')==='Completed|Cancelled|Rejected','History filter exposes exactly the terminal statuses');
+    assert(document.querySelector('thead').textContent.includes('Completion / Closure')&&document.querySelector('thead').textContent.includes('Final Status'),'History uses closure and final-status column labels');
+    const historyRows=[...document.querySelectorAll('.oh-monitor-records tbody tr')];
+    assert(historyRows[0].cells[3].textContent.includes('13 Nov 2026')||historyRows[0].cells[3].textContent.includes('Nov 13, 2026'),'Completed history uses the persisted completion date');
+    assert(historyRows[1].cells[3].textContent.includes('Closure date not recorded')&&historyRows[2].cells[3].textContent.includes('Closure date not recorded')&&historyRows[1].cells[3].textContent.includes('Scheduled:'),'Cancelled and Rejected history has no fictional closure date and keeps schedule secondary');
+    assert(document.querySelector('.fleet-data-table .fleet-view .bi-eye')&&!document.querySelector('[data-rpm-view]')&&document.querySelectorAll('.oh-pagination').length===1,'Monitoring keeps the standard List-only surface, eye View and one server footer');
+    await navigate('#dispatcher-monitoring?tab=history&status=Cancelled&search=FIX&trip_page=2');
+    await navigate(document.querySelector('.oh-monitor-group').getAttribute('href'));
+    assert(latest().get('tab')==='history'&&latest().get('status')==='Cancelled'&&latest().get('search')==='FIX'&&latest().get('trip_page')==='1'&&document.querySelector('.oh-monitor-group[aria-current=page]'),'Group card preserves compatible filters and tab, resets page and indicates selection');
+    await navigate(document.querySelector('[data-clear-group]').getAttribute('href'));
+    assert(!latest().get('group')&&!latest().get('shift')&&latest().get('tab')==='history'&&latest().get('status')==='Cancelled','Clear Group retains compatible tab/status/search while removing group and shift');
+    await navigate(tabLink('Active Trips'));
+    assert(!latest().has('status')&&latest().get('trip_page')==='1','Returning to Active clears a terminal-only status');
+    let currentForm=document.querySelector('[data-monitor-filter]'),calls=requests.length;
+    currentForm.elements.from.value='2026-11-30';currentForm.elements.to.value='2026-11-01';currentForm.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+    assert(requests.length===calls&&!currentForm.elements.to.validity.valid,'Inverted date ranges are rejected before a request');
+    currentForm.querySelector('[data-reset-filters]').click();await pending;
+    assert(latest().get('tab')==='active'&&latest().get('trip_page')==='1'&&!latest().has('search')&&!latest().has('status')&&!latest().has('from')&&!latest().has('shift'),'Clear Filters removes page-wide filters and preserves the active tab');
+    await navigate('#dispatcher-monitoring?search=api-error');
+    assert(!document.querySelector('.table-empty')&&document.body.textContent.includes('Fixture service unavailable'),'API errors remain distinct from empty matching records');
+    await navigate('#dispatcher-monitoring');
+    const before=requests.length;
+    for(const deniedRole of ['car_carrier_dispatcher','container_wingvan_dispatcher','admin','billing','motorpool','audit']){
+      App.me.user.role=deniedRole;App.me.nav=[];await navigate('#dispatcher-monitoring?tab=history');
+      assert(document.title.startsWith('Access denied')&&requests.length===before,deniedRole+' is denied before requesting monitoring data');
+    }
+    output.textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+  }catch(error){output.textContent=checks.join('\n')+'\nFAIL '+error.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+  finally{window.fetch=originalFetch;}
+})();
+</script></html>

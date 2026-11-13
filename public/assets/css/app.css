@@ -2009,6 +2009,13 @@ button.docfm-folder:focus-visible {
 .fleet-action-chooser { display: flex; flex-direction: column; gap: 8px; }
 .fleet-action-chooser .btn { width: 100%; text-align: left; justify-content: flex-start; min-height: 40px; white-space: normal; }
 /* Active Trips has a custom HTML table outside UI.table. Match the same density. */
+.ops-filter { width: auto; max-width: 230px; }
+.ops-next-step { background: var(--bs-tertiary-bg, #f3f7fc); border-radius: 8px; padding: 12px; margin: 12px 0; font-size: .85rem; }
+.ops-next-copy { max-width: 320px; white-space: normal; margin-top: 6px; }
+.ops-review-list { padding-left: 1.4rem; }
+.ops-review-list li { padding: 10px 0; border-bottom: 1px solid var(--bs-border-color, #dce2ea); }
+.ops-planner .data-table { min-width: 760px; }
+.ops-planner .form-section-title { margin: 0; }
 .rpm-trip-table { min-width: 620px; }
 .rpm-trip-table th, .rpm-trip-table td { padding: 10px 14px; font-size: 14px; line-height: 1.4; }
 .rpm-trip-table .rpm-trip-route { max-width: 320px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -2171,3 +2178,224 @@ button.docfm-folder:focus-visible {
 .mech-pick { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r); }
 .mech-pick-row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 14px; margin: 0; }
 .mech-pick-row:last-child { border-bottom: 0; } .mech-pick-row:hover { background: var(--surface-2); }
+
+
+/* Operations > Client Routes: focused, responsive request modal */
+.modal-dialog.rpm-route-dialog { max-width: min(1120px, calc(100vw - 36px)); width: 100%; }
+.rpm-route-dialog .modal-content { max-height: calc(100dvh - 28px); overflow: hidden; }
+.rpm-route-dialog .modal-header, .rpm-route-dialog .modal-footer { flex-shrink: 0; }
+.rpm-route-dialog .modal-body { overflow-x: hidden; }
+.rpm-route-intro { margin: 0 0 14px; color: var(--text-2); font-size: 13px; line-height: 1.55; }
+.rpm-route-garage { display: flex; gap: 12px; padding: 14px 16px; align-items: center; border: 1px solid #d3e4d8; border-radius: 10px; background: #f3faf5; }
+.rpm-route-garage-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 10px; background: #dbefe2; color: #246742; font-size: 20px; }
+.rpm-route-garage-copy { min-width: 0; color: #244831; font-size: 13px; line-height: 1.55; }
+.rpm-route-garage-copy small { display: block; color: #596e60; font-size: 12px; }
+.rpm-route-garage-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rpm-route-garage-top strong { font-size: 14px; }
+.rpm-route-garage-top span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; background: #e2f0e6; border-radius: 20px; font-size: 11px; color: #34724b; }
+.rpm-route-map-shell { overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.rpm-route-map-heading { padding: 10px 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.rpm-route-map-heading > div { font-weight: 650; color: var(--text); }
+.rpm-route-map-heading i { margin-right: 5px; color: #277346; }
+.rpm-route-map-heading > span { color: var(--text-3); font-size: 12px; }
+.rpm-route-map-shell .loc-picker { border: 0; border-radius: 0; margin: 0; }
+.rpm-route-map-shell .map-canvas { height: 275px; }
+.rpm-route-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; border-top: 1px solid var(--border); padding: 8px 13px; font-size: 12px; color: var(--text-2); }
+.rpm-route-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.rpm-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #446079; }
+.rpm-legend-dot.pickup { background: #248348; }
+.rpm-legend-dot.delivery { background: #cc4343; }
+.rpm-route-line-key { width: 20px; height: 0; border-top: 4px solid; border-radius: 2px; display: inline-block; vertical-align: middle; }
+.rpm-route-line-key.garage-road { border-color: #187d85; }
+.rpm-route-line-key.delivery-road { border-color: #0b5cad; }
+.rpm-route-distances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rpm-route-distances > div { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 12px; min-width: 0; }
+.rpm-route-distances span { display: block; font-size: 11px; color: var(--text-2); margin-bottom: 5px; }
+.rpm-route-distances strong { font-size: 15px; color: var(--text); font-weight: 650; overflow-wrap: anywhere; }
+.rpm-route-distance-note { font-size: 11px; margin: -4px 0 2px; color: var(--text-3); }
+.rpm-route-footer-note { font-size: 11px; color: var(--text-2); margin-right: auto; }
+@media (max-width: 767.98px) {
+  .modal-dialog.rpm-route-dialog { max-width: calc(100vw - 16px); margin: 8px; }
+  .rpm-route-dialog .modal-content { max-height: calc(100dvh - 16px); }
+  .rpm-route-map-heading > span { display: none; }
+  .rpm-route-map-shell .map-canvas { height: 230px; }
+  .rpm-route-distances { grid-template-columns: 1fr; gap: 7px; }
+  .rpm-route-distances > div { padding: 9px 12px; }
+  .rpm-route-footer-note { width: 100%; }
+}
+
+
+/* Route sequence clarity: distinguish starting garage, pickup and delivery. */
+.rpm-route-steps { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 9px 12px; background: #f4faf6; border-bottom: 1px solid var(--border); color: #355949; font-size: 12px; }
+.rpm-route-steps span { display: inline-flex; align-items: center; gap: 6px; }
+.rpm-route-steps b { display: inline-grid; place-items: center; width: 21px; height: 21px; color: #fff; background: #326d51; border-radius: 50%; font-size: 11px; }
+.rpm-route-steps .bi-arrow-right { color: #6b8e7c; }
+.rpm-route-stop-label { background: transparent; border: 0; pointer-events: none; }
+.rpm-route-stop-label span { display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid #fff; border-radius: 50%; background: #1f3144; color: #fff; font-size: 12px; font-weight: 750; box-shadow: 0 1px 5px #0006; }
+.rpm-route-arrow-icon { background: none; border: 0; pointer-events: none; }
+.rpm-route-arrow-icon span { display: block; width: 24px; height: 24px; font-size: 22px; font-weight: 800; line-height: 24px; text-align: center; -webkit-text-stroke: 1px white; filter: drop-shadow(0 1px 2px #0009); }
+@media (max-width: 767.98px) {
+  .rpm-route-steps { gap: 6px; font-size: 11px; }
+  .rpm-route-steps b { width: 18px; height: 18px; font-size: 10px; }
+}
+
+
+/* Client route map polish: compact hierarchy, subtle direction, readable stop labels. */
+.rpm-route-map-shell { border-color: #dbe7df; box-shadow: 0 1px 3px rgba(20, 55, 38, .04); }
+.rpm-route-map-heading { padding: 12px 16px; background: #fff; }
+.rpm-route-map-heading > div { font-size: 14px; letter-spacing: -.01em; }
+.rpm-route-map-heading > span { font-size: 12px; }
+.rpm-route-steps { justify-content: flex-start; padding: 9px 16px; gap: 9px; background: #f8fbf9; }
+.rpm-route-steps span { gap: 7px; font-size: 12px; font-weight: 600; color: #465c4f; }
+.rpm-route-steps b { width: 22px; height: 22px; background: #405d70; border-radius: 7px; font-weight: 700; }
+.rpm-route-steps .rpm-step-pickup b { background: #24834d; }
+.rpm-route-steps .rpm-step-delivery b { background: #c54748; }
+.rpm-route-steps .bi-chevron-right { color: #a1b3aa; font-size: 11px; }
+.rpm-route-map-shell .loc-toolbar { background: #fff; }
+.rpm-route-map-shell .map-canvas { height: 320px; }
+.rpm-route-legend { background: #fff; gap: 18px; padding: 10px 16px; }
+.rpm-route-legend > span { gap: 8px; }
+.rpm-route-line-key { width: 26px; border-top-width: 4px; }
+.rpm-route-legend-note { color: #788880; margin-left: auto; font-size: 11px; }
+.rpm-route-stop-label { width: auto !important; height: auto !important; overflow: visible; }
+.rpm-route-stop-label > span { display: inline-flex; align-items: center; gap: 5px; width: max-content; max-width: 120px; height: 26px; padding: 3px 8px 3px 4px; border: 1px solid #d7e1e4; border-radius: 7px; background: rgba(255,255,255,.96); color: #334e61; font-size: 11px; font-weight: 650; box-shadow: 0 2px 7px rgba(24, 39, 51, .15); white-space: nowrap; }
+.rpm-route-stop-label > span b { display: grid; place-items: center; flex: 0 0 17px; width: 17px; height: 17px; border-radius: 5px; color: white; background: #405d70; font-size: 10px; border: 0; box-shadow: none; }
+.rpm-route-stop-label.rpm-stop-2 > span b { background: #24834d; }
+.rpm-route-stop-label.rpm-stop-3 > span b { background: #c54748; }
+.rpm-route-arrow-icon > span { display: grid; place-items: center; width: 20px; height: 20px; color: var(--route-arrow-color); background: rgba(255,255,255,.93); border: 1px solid rgba(255,255,255,.95); border-radius: 50%; font-size: 13px; line-height: 19px; -webkit-text-stroke: 0; filter: drop-shadow(0 1px 2px #0004); }
+@media (max-width: 767.98px) {
+  .rpm-route-map-heading { padding: 10px 12px; }
+  .rpm-route-steps { justify-content: center; gap: 5px; padding: 8px 7px; }
+  .rpm-route-steps span { font-size: 11px; gap: 4px; }
+  .rpm-route-steps b { width: 18px; height: 18px; font-size: 10px; }
+  .rpm-route-map-shell .map-canvas { height: 260px; }
+  .rpm-route-legend { gap: 9px; padding: 9px 12px; }
+  .rpm-route-legend-note { flex: 1 1 100%; margin-left: 0; }
+}
+
+
+/* Address-based map pin actions — Client Routes request form. */
+.rpm-route-dialog .rpm-address-pin-control { display: flex; align-items: stretch; width: 100%; min-width: 0; }
+.rpm-route-dialog .rpm-address-pin-control > .form-control { flex: 1 1 auto; min-width: 0; width: 1%; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.rpm-address-pin-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 66px; padding: 7px 11px; border: 1px solid #9dcdb0; border-left: 0; border-radius: 0 7px 7px 0; background: #e6f5ec; color: #17653c; font-size: 12px; font-weight: 650; cursor: pointer; transition: background .15s, box-shadow .15s; }
+.rpm-address-pin-btn:hover { background: #d3eddd; }
+.rpm-address-pin-btn:focus-visible { outline: 2px solid #196b40; outline-offset: 2px; }
+.rpm-address-pin-btn .bi { font-size: 15px; }
+.rpm-address-pin-status { color: #637568; font-size: 11px; min-height: 0; margin-top: 3px; }
+.rpm-address-pin-status:empty { display: none; }
+@media (max-width: 575.98px) { .rpm-address-pin-btn { min-width: 44px; padding: 7px 9px; } .rpm-address-pin-btn span { display: none; } }
+
+
+/* Route address fields: pin controls and geocoding suggestions stay within each column. */
+.rpm-route-dialog .rpm-address-pin-control { max-width: 100%; }
+.rpm-route-dialog .loc-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; width: 100%; margin: 6px 0 0; padding: 7px 10px; border: 1px solid #dce9e0; border-radius: 7px; background: #f7faf8; font-size: 11px; overflow-wrap: anywhere; }
+.rpm-route-dialog .loc-suggest > span { flex: 1 1 180px; min-width: 0; }
+.rpm-route-dialog .loc-suggest .btn { flex: 0 0 auto; white-space: nowrap; }
+.rpm-route-dialog .rpm-address-search-results { position: relative; min-width: 0; }
+.rpm-route-dialog .rpm-address-search-results:empty { display: none; }
+.rpm-route-dialog .rpm-address-search-results > .loc-results { margin: 6px 0 0; width: 100%; max-height: 190px; overflow: auto; border: 1px solid #d4e4db; border-radius: 8px; box-shadow: 0 3px 12px rgba(22, 58, 36, .08); }
+.rpm-route-dialog .rpm-address-search-results .loc-res { align-items: flex-start; white-space: normal; overflow-wrap: anywhere; }
+.rpm-route-dialog .rpm-address-search-results .loc-res:last-child { border-bottom: 0; }
+.rpm-route-dialog .rpm-address-pin-status { line-height: 1.35; overflow-wrap: anywhere; }
+.rpm-route-map-shell .loc-toolbar { justify-content: flex-start; }
+.rpm-route-map-shell .loc-toolbar .seg { flex: 0 0 auto; }
+
+
+/* Client Routes request — refined, compact desktop/mobile form hierarchy. */
+.rpm-route-dialog .modal-header { padding: 16px 22px; background: #fff; border-bottom: 1px solid #e3ebe5; }
+.rpm-route-dialog .modal-body { padding: 18px 22px 22px; background: #fbfcfb; }
+.rpm-route-dialog .modal-footer { padding: 12px 22px; border-top: 1px solid #e3ebe5; background: #fff; }
+.rpm-route-dialog .modal-body > form > .row { row-gap: 13px !important; }
+.rpm-route-intro { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 16px; padding: 10px 12px; background: #edf6f0; border: 1px solid #d9e9df; border-radius: 8px; color: #4a6354; font-size: 12px; line-height: 1.55; }
+.rpm-route-intro .bi { font-size: 14px; flex: 0 0 auto; color: #28744a; }
+.rpm-route-garage { padding: 14px 16px; gap: 14px; background: linear-gradient(110deg, #f1faf4, #f8fcf9); border: 1px solid #d8eadf; border-left: 4px solid #258751; border-radius: 11px; box-shadow: 0 2px 8px rgba(34,91,59,.035); }
+.rpm-route-garage-icon { width: 46px; height: 46px; flex-basis: 46px; border-radius: 12px; background: #def1e5; font-size: 21px; }
+.rpm-route-garage-copy { flex: 1; line-height: 1.45; }
+.rpm-route-garage-top { gap: 10px; margin-bottom: 3px; }
+.rpm-route-garage-top .rpm-garage-eyebrow { display: inline-block; padding: 0; background: transparent; color: #47805c; letter-spacing: .075em; font-size: 10px; font-weight: 750; }
+.rpm-route-garage-top .rpm-garage-fixed { background: #dff1e5; padding: 3px 9px; color: #2d744b; font-size: 11px; font-weight: 600; }
+.rpm-route-garage-copy .rpm-garage-name { display: block; color: #1f4731; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.rpm-route-garage-copy small { font-size: 12px; line-height: 1.45; color: #647c6b; }
+.rpm-route-garage-copy small .bi { margin-right: 3px; }
+.rpm-route-dialog .form-label { margin-bottom: 6px; color: #314a3b; font-size: 12px; font-weight: 700; }
+.rpm-route-dialog .form-select, .rpm-route-dialog .form-control { min-height: 43px; border-color: #cbdcd1; border-radius: 8px; background-color: #fff; font-size: 13px; }
+.rpm-route-dialog .form-select:focus, .rpm-route-dialog .form-control:focus { border-color: #4b9a68; box-shadow: 0 0 0 3px rgba(42,133,78,.12); }
+.rpm-route-dialog .rpm-address-pin-control .form-control { border-radius: 8px 0 0 8px; }
+.rpm-route-dialog .rpm-address-pin-btn { min-height: 43px; border-color: #c4decf; background: #e7f5eb; border-radius: 0 8px 8px 0; color: #206b41; font-size: 12px; }
+.rpm-route-dialog .rpm-address-pin-btn:hover { background: #d7eedd; }
+.rpm-route-dialog .rpm-route-map-shell { margin-top: 2px; border-radius: 11px; border: 1px solid #dce7df; box-shadow: 0 3px 13px rgba(31,76,49,.04); }
+.rpm-route-dialog .rpm-route-map-heading { padding: 12px 15px; background: #fff; }
+.rpm-route-dialog .rpm-route-map-heading > span { color: #647d6d; }
+.rpm-route-dialog .rpm-route-steps { padding: 8px 15px; background: #f5faf7; }
+.rpm-route-dialog .rpm-route-legend { padding: 10px 15px; }
+.rpm-route-dialog .form-help { font-size: 11px; line-height: 1.5; color: #728176; }
+@media (max-width: 767.98px) {
+  .rpm-route-dialog .modal-header { padding: 13px 15px; }
+  .rpm-route-dialog .modal-body { padding: 13px 14px 16px; }
+  .rpm-route-dialog .modal-footer { padding: 10px 14px; }
+  .rpm-route-intro { margin-bottom: 12px; }
+  .rpm-route-garage { padding: 12px; gap: 10px; }
+  .rpm-route-garage-icon { width: 40px; height: 40px; flex-basis: 40px; }
+  .rpm-route-garage-copy .rpm-garage-name { font-size: 13px; }
+  .rpm-route-dialog .rpm-route-map-heading > span { display: none; }
+}
+/* Shared record components. Scoped classes preserve existing role layouts. */
+.ui-state{display:flex;align-items:flex-start;justify-content:center;gap:.75rem;padding:1.25rem;color:#53615b;overflow-wrap:anywhere}
+.ui-state>i{font-size:1.3rem;color:#217340}.ui-state p{margin:.3rem 0 0;font-size:.875rem}.ui-state-error>i,.ui-state-denied>i{color:#a3302c}
+.ui-state-loading>i{animation:ui-loading-pulse 1.2s ease-in-out infinite}@keyframes ui-loading-pulse{50%{opacity:.35}}
+.ui-action-summary{background:#fff;border:1px solid #dce7df;border-radius:12px;padding:1rem;margin-bottom:1rem;min-width:0}
+.ui-action-summary h2{font-size:1rem;font-weight:700;margin:0 0 .75rem;color:#195b33}.ui-action-list{display:grid;gap:.5rem}
+.ui-action-item{display:flex;align-items:center;gap:.75rem;padding:.65rem .8rem;border:1px solid #e1e9e3;border-radius:8px;color:#243a2d;text-decoration:none;overflow-wrap:anywhere}
+.ui-action-item>span{flex:1;min-width:0}.ui-action-item strong{border-radius:20px;background:#edf8ef;padding:.15rem .6rem;color:#176033}
+a.ui-action-item:hover{background:#f2f9f4;border-color:#8db99a}
+.ui-action-danger{border-left:3px solid #ad392c}.ui-action-warning{border-left:3px solid #bd8b16}.ui-action-success{border-left:3px solid #26783d}
+.ui-workflow{margin:.75rem 0 1rem;min-width:0}.ui-workflow ol{list-style:none;padding:0;margin:.6rem 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:.7rem}
+.ui-workflow li{display:flex;gap:.5rem;padding:.6rem;background:#f7f9f7;border:1px solid #e1e8e3;border-radius:8px;font-size:.8rem;min-width:0;overflow-wrap:anywhere}
+.ui-workflow small,.ui-workflow li span:not(.ui-workflow-dot){display:block;color:#627069;margin-top:.25rem}.ui-workflow-dot{font-weight:800;color:#65736b}.ui-workflow-complete .ui-workflow-dot{color:#19753d}.ui-workflow-current{outline:2px solid #286e41}.ui-workflow-exception .ui-workflow-dot{color:#b54724}
+.ui-readiness,.ui-document-checklist{border:1px solid #dce7df;background:#fbfdfb;padding:.85rem;border-radius:9px;margin:.75rem 0;min-width:0}
+.ui-readiness h3,.ui-document-checklist h3{font-size:.95rem;font-weight:700;margin:0 0 .65rem}.ui-readiness ul,.ui-document-checklist ul{list-style:none;margin:0;padding:0}
+.ui-readiness li{display:flex;gap:.6rem;padding:.4rem 0}.ui-readiness small{display:block;color:#59685f;margin-top:.2rem}.ui-check-complete>i{color:#1d753d}.ui-check-blocked>i{color:#af3b27}.ui-check-unknown>i{color:#66716b}
+.ui-readiness-note{font-size:.75rem;color:#5a675f;margin:.6rem 0 0}.ui-document-checklist li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.3rem .7rem;border-bottom:1px solid #e6ece7;padding:.5rem 0;font-size:.85rem}.ui-document-checklist li:last-child{border:0}.ui-document-checklist li>small{flex-basis:100%;color:#647268}.ui-document-checklist span small{color:#647268;margin-left:.4rem}
+.ui-activity p{margin:.3rem 0;white-space:pre-wrap;overflow-wrap:anywhere}.ui-record-sections .line-tabs{display:flex;flex-wrap:wrap;gap:.25rem}.ui-record-sections .tab-body{padding-top:.5rem;min-width:0}.ui-record-sections [role=tabpanel][hidden]{display:none!important}
+.ui-search-toolbar{display:flex;gap:.65rem;align-items:center;flex-wrap:wrap}.ui-search-toolbar>label{flex:1;min-width:140px;display:flex;align-items:center;gap:.5rem;margin:0}.ui-search-toolbar input{min-width:0;width:100%}.ui-search-filters{display:flex;gap:.65rem;align-items:end;flex-wrap:wrap;margin-top:.75rem}.ui-search-filters[hidden]{display:none!important}.ui-filter-indicators{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}.ui-filter-toolbar{flex-wrap:wrap;gap:.5rem}
+.ui-record-sections button:focus-visible,.ui-action-item:focus-visible,.ui-search-form button:focus-visible{outline:3px solid #d3a513;outline-offset:2px}
+@media(max-width:600px){.ui-workflow ol{grid-template-columns:1fr}.ui-search-toolbar>label{flex-basis:100%}.ui-record-sections .line-tabs .tab{white-space:normal;min-width:0}.ui-readiness,.ui-document-checklist{padding:.7rem}.ui-action-item{padding:.6rem}}
+@media(prefers-reduced-motion:reduce){.ui-state-loading>i{animation:none}}
+/* Approved record-table surface. Explicit classes keep other roles and forms unchanged. */
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .table-responsive,body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .table-wrap{overflow-x:auto;max-width:100%;min-width:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table{display:table;min-width:600px;table-layout:auto}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table tbody{display:table-row-group}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table tr{display:table-row;width:auto;margin:0;padding:0;border-radius:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table td{display:table-cell;width:auto;min-width:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table td::before{display:none}
+body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar>[data-report-count]{margin:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-shell{border:0;box-shadow:none;background:transparent}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table]{background:#fff;border:1px solid #dce7df;border-radius:11px;box-shadow:0 2px 8px #214b340d;overflow:hidden;min-width:0;margin-bottom:16px}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table]>.oh-panel-body{padding:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .fleet-table-toolbar{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:12px;min-height:56px;margin:0;padding:12px 15px;background:#fff;border:0;border-bottom:1px solid #dce7df;font-size:12px;color:#526078}
+body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar>[data-tcount],body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar>[data-standard-count]{flex:0 0 auto;white-space:nowrap}
+body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar .table-tools-right{margin-left:auto}
+body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar .table-search{margin-left:auto;max-width:340px}
+body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar h2{font-size:12px;margin:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .rpm-record-controls{display:flex;align-items:center;gap:10px;margin:0}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .rpm-record-toggle{display:inline-flex;gap:2px;padding:3px;border:1px solid #d9e9dd;border-radius:7px;background:#f1f8f3}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .rpm-record-toggle button{display:inline-flex;align-items:center;justify-content:center;width:32px;min-height:30px;border:0;border-radius:5px;color:#5b8067;background:transparent}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .rpm-record-toggle button.active{background:#217d44;color:#fff;box-shadow:none}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table{width:100%;margin:0;border-collapse:collapse;font-size:12px;line-height:1.45;box-shadow:none}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table thead{display:table-header-group}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table th{padding:11px 12px;background:#f2f4f6;color:#182332;font-size:11px;font-weight:700;border:0;border-bottom:1px solid #dce7df;text-transform:none;letter-spacing:normal}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table td{padding:10px 12px;height:52px;color:#47566f;vertical-align:middle;border:0;border-bottom:1px solid #e0e9e3;box-shadow:none}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table tbody tr{background:#fff;box-shadow:none}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table tbody tr:nth-child(even){background:#f6faf8}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table tbody tr:hover{background:#f0f7f2}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table .cell-sub,body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .data-table small{font-size:11px;color:#65748a}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .badge-s{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:20px;border:1px solid currentColor;font-size:11px;line-height:1.3;max-width:100%;white-space:normal}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .badge-s::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex:0 0 5px}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .fleet-view{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:64px;min-height:34px;padding:6px 10px;border:1px solid #b9ddc4;border-radius:6px;background:#fff;color:#227442;font-size:12px;font-weight:500;box-shadow:0 1px 3px #214b3410;white-space:nowrap}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] :is(.table-pager,.oh-pagination,.ds-pagination,.oh-report-pagination){display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;min-height:56px;margin:0;padding:11px 15px;border:0;border-top:1px solid #e0e9e3;background:#fff;color:#596a82;font-size:12px}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] :is(.pager-pages,.oh-report-pagination nav){display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] :is(.pg,.oh-report-pagination button){min-height:33px;padding:6px 9px;border:1px solid #aab9ca;border-radius:5px;font-size:11px;color:#41536d;background:#f6f8fb}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] button:disabled{opacity:.55;cursor:default}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] button:focus-visible{outline:3px solid #b68c0a;outline-offset:2px}
+body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .table-empty{padding:26px 12px;text-align:center;color:#62718a}
+@media(max-width:600px){body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .fleet-table-toolbar{padding:10px;gap:8px}body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] :is(.table-pager,.oh-pagination,.ds-pagination,.oh-report-pagination){padding:10px;gap:8px}body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar .table-search{flex-basis:100%;max-width:none}body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .rpm-record-size-label{font-size:11px}}

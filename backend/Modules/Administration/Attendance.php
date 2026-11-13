@@ -29,6 +29,10 @@ final class Attendance {
           WHERE mc.active=1 ORDER BY mc.full_name", [$date]);
     }
     public static function action(array $u, string $action, array $d): array {
+        if(in_array($action,['dispatcher_list','dispatcher_history','time_in','time_out'],true)){
+            core('DispatcherAttendance');DispatcherScope::types($u);
+            return match($action){'dispatcher_list'=>DispatcherAttendance::read($u,$d),'dispatcher_history'=>DispatcherAttendance::history($u,$d),default=>DispatcherAttendance::record($u,$action,$d)};
+        }
         requireRole($u, 'admin');
         return match ($action) {
             'list' => self::listing($d),

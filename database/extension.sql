@@ -46,6 +46,7 @@ CREATE TABLE trips (
   consignee VARCHAR(120) NULL COMMENT 'brand / consignee (CLIENT column of the monitoring sheets)',
   truck_type VARCHAR(25) NULL,
   dispatcher_role VARCHAR(40) NULL,
+  dispatcher_shift VARCHAR(5) NULL COMMENT 'Manual planning ownership; NULL for legacy group-wide trips',
   dispatcher_id INT NULL,
   pickup_point VARCHAR(200) NOT NULL,
   pickup_lat DECIMAL(10,7) NULL,
@@ -90,6 +91,8 @@ CREATE TABLE trips (
   INDEX idx_trip_schedule (scheduled_at),
   INDEX idx_trip_status (status),
   INDEX idx_trip_vehicle (vehicle_id, status),
+  INDEX idx_trip_dispatcher_shift (dispatcher_role,dispatcher_shift,status),
+  CONSTRAINT chk_trip_dispatcher_shift CHECK (dispatcher_shift IS NULL OR (dispatcher_shift IN ('Day','Night') AND dispatcher_role IS NOT NULL AND dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher'))),
   CONSTRAINT chk_trip_status CHECK (status IN ('Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched',
                                                'On Hold - Incident Reported','In Transit','For Reschedule','Completed','Cancelled','Rejected')),
   CONSTRAINT chk_trip_type CHECK (truck_type IS NULL OR truck_type IN ('Car Carrier','Container','Wing Van')),
@@ -1043,3 +1046,136 @@ CREATE TABLE stock_counts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_migrations (id) VALUES ('2026-11-12_13_stock_count_reconciliation');
+
+
+-- Additive Dispatcher attendance sessions. Existing attendance_marks and operational rows are untouched.
+CREATE TABLE IF NOT EXISTS dispatcher_attendance_sessions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  personnel_id INT NOT NULL,
+  dispatcher_role VARCHAR(40) NOT NULL,
+  duty_date DATE NOT NULL,
+  duty_shift VARCHAR(5) NOT NULL,
+  time_in DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  time_out DATETIME NULL,
+  timed_in_by INT NOT NULL,
+  timed_out_by INT NULL,
+  request_key CHAR(36) NOT NULL,
+  time_out_key CHAR(36) NULL,
+  open_personnel_id INT GENERATED ALWAYS AS (CASE WHEN time_out IS NULL THEN personnel_id ELSE NULL END) STORED,
+  UNIQUE KEY uq_dispatcher_open_person (open_personnel_id),
+  UNIQUE KEY uq_dispatcher_time_in_key (request_key),
+  UNIQUE KEY uq_dispatcher_time_out_key (time_out_key),
+  INDEX idx_dispatcher_session_person (personnel_id,id),
+  INDEX idx_dispatcher_session_shift (duty_date,duty_shift),
+  CONSTRAINT fk_ds_person FOREIGN KEY (personnel_id) REFERENCES personnel(id),
+  CONSTRAINT fk_ds_in_user FOREIGN KEY (timed_in_by) REFERENCES users(id),
+  CONSTRAINT fk_ds_out_user FOREIGN KEY (timed_out_by) REFERENCES users(id),
+  CONSTRAINT chk_ds_role CHECK (dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher')),
+  CONSTRAINT chk_ds_shift CHECK (duty_shift IN ('Day','Night')),
+  CONSTRAINT chk_ds_times CHECK (time_out IS NULL OR time_out>=time_in)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-10_09_dispatcher_sessions');
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-10_10_trip_dispatcher_shift');
+
+-- V4.3: reuse the authoritative vehicle/person relationships; never backfill or rewrite assignments.
+-- Preflight: SELECT assigned_driver_id, COUNT(*) FROM vehicles WHERE active=1
+-- AND assigned_driver_id IS NOT NULL GROUP BY assigned_driver_id HAVING COUNT(*)>1;
+-- If duplicates exist the UNIQUE constraint deliberately fails. Resolve them explicitly before retrying.
+SET @fleetops_v43_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='vehicles' AND COLUMN_NAME='active_fixed_driver_id'),
+  'DO 0',
+  'ALTER TABLE vehicles ADD COLUMN active_fixed_driver_id INT GENERATED ALWAYS AS (CASE WHEN active=1 THEN assigned_driver_id ELSE NULL END) STORED, ADD UNIQUE KEY uq_vehicle_active_fixed_driver (active_fixed_driver_id)'
+);
+PREPARE fleetops_v43_stmt FROM @fleetops_v43_sql;
+EXECUTE fleetops_v43_stmt;
+DEALLOCATE PREPARE fleetops_v43_stmt;
+SET @fleetops_v43_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='vehicles' AND INDEX_NAME='uq_vehicle_active_fixed_driver'),
+  'DO 0',
+  'ALTER TABLE vehicles ADD UNIQUE KEY uq_vehicle_active_fixed_driver (active_fixed_driver_id)'
+);
+PREPARE fleetops_v43_stmt FROM @fleetops_v43_sql;
+EXECUTE fleetops_v43_stmt;
+DEALLOCATE PREPARE fleetops_v43_stmt;
+SET @fleetops_v43_sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='trips' AND COLUMN_NAME='helper_substitution_reason'),
+  'DO 0',
+  'ALTER TABLE trips ADD COLUMN helper_substitution_reason VARCHAR(255) NULL COMMENT ''Trip-only helper substitution; permanent helper remains on vehicles'''
+);
+PREPARE fleetops_v43_stmt FROM @fleetops_v43_sql;
+EXECUTE fleetops_v43_stmt;
+DEALLOCATE PREPARE fleetops_v43_stmt;
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-11_11_operations_v43');
+
+-- Additive, no original ownership/history backfill. Apply before deploying turnover code.
+CREATE TABLE IF NOT EXISTS trip_responsibilities (
+ trip_id INT NOT NULL PRIMARY KEY,
+ initial_dispatcher_id INT NOT NULL,
+ current_dispatcher_id INT NOT NULL,
+ assigned_by INT NOT NULL,
+ assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ version INT UNSIGNED NOT NULL DEFAULT 1,
+ FOREIGN KEY (trip_id) REFERENCES trips(id),
+ FOREIGN KEY (initial_dispatcher_id) REFERENCES users(id),
+ FOREIGN KEY (current_dispatcher_id) REFERENCES users(id),
+ FOREIGN KEY (assigned_by) REFERENCES users(id),
+ INDEX idx_responsible_account(current_dispatcher_id,trip_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS dispatcher_turnovers (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ outgoing_id INT NOT NULL,
+ incoming_id INT NOT NULL,
+ dispatcher_role VARCHAR(40) NOT NULL,
+ status VARCHAR(10) NOT NULL DEFAULT 'Pending',
+ endorsed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ accepted_at DATETIME NULL,
+ accepted_by INT NULL,
+ remarks VARCHAR(1000) NULL,
+ request_key CHAR(36) NOT NULL UNIQUE,
+ FOREIGN KEY(outgoing_id) REFERENCES users(id),
+ FOREIGN KEY(incoming_id) REFERENCES users(id),
+ FOREIGN KEY(accepted_by) REFERENCES users(id),
+ INDEX idx_turnover_incoming(incoming_id,status,id),
+ INDEX idx_turnover_outgoing(outgoing_id,status,id),
+ CHECK (outgoing_id<>incoming_id),
+ CHECK (status IN ('Pending','Accepted')),
+ CHECK (dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher')),
+ CHECK ((status='Pending' AND accepted_at IS NULL AND accepted_by IS NULL) OR (status='Accepted' AND accepted_at IS NOT NULL AND YEAR(accepted_at)>=1000 AND YEAR(endorsed_at)>=1000 AND accepted_at>=endorsed_at AND accepted_by IS NOT NULL AND accepted_by=incoming_id))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS dispatcher_turnover_trips (
+ turnover_id BIGINT UNSIGNED NOT NULL,
+ trip_id INT NOT NULL,
+ responsibility_version INT UNSIGNED NOT NULL,
+ summary_json LONGTEXT NOT NULL,
+ pending_trip_id INT NULL,
+ PRIMARY KEY(turnover_id,trip_id),
+ UNIQUE KEY uq_pending_trip_turnover(pending_trip_id),
+ FOREIGN KEY(turnover_id) REFERENCES dispatcher_turnovers(id),
+ FOREIGN KEY(trip_id) REFERENCES trips(id),
+ FOREIGN KEY(pending_trip_id) REFERENCES trips(id),
+ CHECK(pending_trip_id IS NULL OR pending_trip_id=trip_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations(id) VALUES ('2026-11-12_12_dispatcher_turnover');
+
+-- Additive pricing history. No defaults, backfill, invoice or payment changes.
+CREATE TABLE IF NOT EXISTS pricing_settings_history (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ setting_key VARCHAR(40) NOT NULL,
+ effective_date DATE NOT NULL,
+ value_json LONGTEXT NOT NULL,
+ reference VARCHAR(300) NOT NULL,
+ actor_id INT NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_pricing_effective(setting_key,effective_date),
+ FOREIGN KEY(actor_id) REFERENCES users(id),
+ CHECK(JSON_VALID(value_json)),
+ CHECK(setting_key IN ('diesel','Wing Van','Container','Car Carrier','garage'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS billing_pricing (
+ billing_id INT PRIMARY KEY,
+ snapshot_json LONGTEXT NOT NULL,
+ captured_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(billing_id) REFERENCES billings(id),
+ CHECK(JSON_VALID(snapshot_json))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations(id) VALUES('2026-11-13_13_fixed_route_fuel');

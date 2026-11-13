@@ -9,6 +9,21 @@
 'use strict';
 const PurUI = {
   data: null,
+  async details(id, kind = 'po') {
+    let r;try{r=await App.api(kind==='po'?'Purchasing.po_details':'Purchasing.request_details',kind==='po'?{po_id:id}:{request_id:id});}catch(error){return UI.toast(error.message,'error');}
+    const order=kind==='po',record=order?r.po:r.request,lines=r.lines||[],reference=order?record.po_ref:record.request_ref;
+    const received=order?lines.reduce((sum,line)=>sum+Number(line.received_qty||0),0):lines.reduce((sum,line)=>sum+Number(line.released_qty||0),0);
+    const requested=lines.reduce((sum,line)=>sum+Number(line.quantity||0),0);
+    const rejected=String(record.status).startsWith('Rejected')||record.status==='Cancelled';
+    const milestones=order?[
+      {label:'Submitted',at:record.created_at,state:record.created_at?'complete':'pending'},
+      {label:rejected?record.status:'Approval decision',at:record.decided_at,state:rejected?'exception':record.decided_at?'complete':'pending'},
+      {label:'Parts received',state:received>0&&received===requested?'complete':received>0?'current':'pending',note:received+' of '+requested+' units recorded; dated receiving history is not provided by this endpoint.'}
+    ]:[{label:'Requested',at:record.created_at,state:record.created_at?'complete':'pending'},{label:'Parts released',state:received>0&&received===requested?'complete':rejected?'exception':received>0?'current':'pending',note:received+' of '+requested+' units recorded.'}];
+    const html=UI.workflow(milestones,{status:record.status})+UI.h('Overview')+UI.kv([['Reference',UI.e(reference)],['Status',UI.badge(record.status)],['Requested by',UI.e(record.requested_by_name)],['Created',UI.datetime(record.created_at)],['Maintenance record',UI.e(record.job_ref)],['Approval role',UI.e(record.approver_role)],['Purpose',UI.e(record.purpose)],['Supplier',UI.e(record.supplier)],['Truck',UI.e(record.plate_number)],['Payment status',UI.e(record.payment_status)],...(order?[['Order total',UI.money(record.total_amount)],['Paid amount',UI.money(record.paid_amount)],['Received value',UI.money(lines.reduce((sum,line)=>sum+Number(line.received_qty||0)*Number(line.unit_price||0),0))],['Supplier invoice',UI.e(record.supplier_invoice_no)]]:[])])+UI.h('Items and Quantities')+UI.table([['Part','part_number'],['Description','description'],['Requested / Ordered','quantity','num'],[order?'Received':'Released',order?'received_qty':'released_qty','num'],...(order?[['Unit price','unit_price','money']]:[])],lines,{plain:true})+UI.h('Processing Record')+UI.kv([['Decision by',UI.e(record.decided_by_name)],['Decision date',UI.datetime(record.decided_at)],['Decision notes',UI.e(record.decision_notes)],['Processed by',UI.e(record.processed_by_name)],['Notes',UI.e(record.notes)]])+UI.h('Payments')+UI.table([['Voucher','voucher_number'],['Amount','amount','money'],['Released','released_on','date'],['Recorded by','recorded_by_name']],r.payments||[],{plain:true,empty:'No payment details returned for this record and role.'})+UI.h('Documents')+UI.docs(r.documents||[]);
+    const drawer=UI.drawer(UI.esc(reference),html,{subtitle:'Read-only '+(order?'Purchase Order':'Parts Request')});
+    UI.drawerSections(drawer,[['summary','Overview',['Overview']],['items','Items & Quantities',['Items and Quantities']],['record','Processing Record',['Processing Record']],['payments','Payments',['Payments']],['docs','Documents',['Documents']]],{key:'purchasing-details'});
+  },
   lineEditor(withPrice, lines = []) {
     const parts = PurUI.data.parts.filter(p => +p.active);
     const row = (l = {}) => `<div class="row g-2 mb-1 pl-row"><div class="col-${withPrice ? 6 : 9}"><select class="form-select form-select-sm" data-part><option value="">Choose part…</option>
@@ -130,6 +145,7 @@ PurUI.kit = (d, can) => {
       + (can.stock && ['Not Available', 'Partially Released'].includes(r.status) ? a('po', 'Create PO for the shortage', 'bi-cart-plus', 'outline-primary') : '')
       + a('print', 'Print request form', 'bi-printer', 'outline-secondary'); };
     const reqAct = async (a, r) => {
+      if (a === 'details') return PurUI.details(r.id, 'request');
       if (a === 'print') PurUI.printRequest(r);
       if (a === 'process') PurUI.processRequest(r);
       if (a === 'po') { const x = await App.api('Purchasing.request_details', { request_id: r.id });
@@ -142,6 +158,7 @@ PurUI.kit = (d, can) => {
       return h + a('print', 'Print PO', 'bi-printer', 'outline-secondary');
     };
     const poAct = (a, o) => {
+      if (a === 'details') return PurUI.details(o.id);
       if (a === 'print') PurUI.printPO(o);
       if (a === 'approve') UI.confirmAction('Approve ' + UI.esc(o.po_ref), `Approve ${UI.money(o.total_amount)} to ${UI.esc(o.supplier)}? The system checks the purchasing budget and reserves the amount; if the budget is not enough the PO is rejected automatically.`
         + (App.me.user.has_signature ? '' : '<div class="small text-warning mt-2">You have no e-signature yet (name menu > My e-signature). Your name is printed instead.</div>'), 'Purchasing.po_decide', { po_id: o.id, decision: 'approve' }, { submit: 'Approve' });

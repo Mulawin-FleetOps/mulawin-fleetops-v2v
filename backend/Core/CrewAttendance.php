@@ -1,36 +1,70 @@
 <?php
 /*
- * =====================================================================
- *  backend/Core/CrewAttendance.php  —  Crew attendance rules (Checklist #42)
- * =====================================================================
- *  DAILY_ATTENDANCE_V1 — no permanent Day/Night shifts for drivers, helpers or mechanics any more:
- *   - dayFor(): the ONE place that turns a moment (Philippine time) into the attendance duty date (calendar date).
- *     Attendance is one mark per person per date in attendance_daily. personnel.duty_shift / mechanics.duty_shift and the
- *     legacy attendance_marks table are kept as untouched history and are never read for rosters or dispatch checks.
- *  Enforcement (CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1):
- *   - mode(): Admin setting crew_attendance_dispatch_check, 1 = Warn (default), 2 = Enforce.
- *   - dispatchFindings(): attendance of every assigned driver / Driver 2 / helper for the date of the ACTUAL
- *     dispatch time (Philippine time). Warn: reported and noted; Enforce: Confirm Dispatch / Redispatch refused.
- *   - Present never bypasses availability, license or double-booking (FleetState::personBlocker in Enforce).
- * =====================================================================
+ * Crew attendance (integrated luis-maintenance-ui + kenneth):
+ *  - Admin marks drivers/helpers/mechanics Present/Absent once per calendar date in attendance_daily (DAILY_ATTENDANCE_V1:
+ *    dayFor/dayText/planningDay; no permanent Day/Night shifts).
+ *  - Dispatch readiness uses Dispatcher Time In/Out sessions (DispatcherAttendance); an Admin "Absent" mark in
+ *    attendance_daily still blocks Time In and dispatch.
+ *  - shiftFor/shiftText/planningShift only label legacy Day/Night reporting buckets and session rows.
  */
 declare(strict_types=1);
 core('Settings');
 
 final class CrewAttendance {
+    public const SHIFTS = ['Day', 'Night'];
     public const CREW_TYPES = ['Driver', 'Helper'];
 
-    /** ['date' => 'Y-m-d'] for a Unix time (default: now), Philippine time. */
-    public static function dayFor(?int $ts = null): array {
-        return ['date' => date('Y-m-d', $ts ?? time())];
+    /** ['date' => 'Y-m-d', 'shift' => 'Day'|'Night'] for a Unix time (default: now). */
+    public static function shiftFor(?int $ts = null): array {
+        $ts ??= time();
+        [$day, $night] = self::startHours();
+        $h = (int)date('G', $ts);
+        // Normal setup: Day start < Night start (default 6 and 18). If an Admin sets them the other way
+        // round, the Day shift is the part from the Day start that wraps past midnight.
+        $isDay = $day < $night ? ($h >= $day && $h < $night) : ($h >= $day || $h < $night);
+        if ($isDay) {
+            $date = $day < $night || $h >= $day ? date('Y-m-d', $ts) : date('Y-m-d', strtotime('-1 day', $ts));
+            return ['date' => $date, 'shift' => 'Day'];
+        }
+        // Night: before the Night start hour (early morning) it belongs to the previous date's Night shift.
+        $date = $h >= $night ? date('Y-m-d', $ts) : date('Y-m-d', strtotime('-1 day', $ts));
+        return ['date' => $date, 'shift' => 'Night'];
     }
 
-    /** Hour (0-23) from which the Admin bell reminds about unmarked attendance of the current date. */
-    public static function reminderHour(): int {
-        return max(0, min(23, (int)Settings::value('attendance_day_start_hour')));
+    /**
+     * Day and Night start hours (Admin settings). Saving identical hours is refused (Admin settings); if an old or
+     * manually edited value is identical anyway, the defaults 6 / 18 are used so a Night shift always exists.
+     */
+    public static function startHours(): array {
+        $day = (int)Settings::value('attendance_day_start_hour');
+        $night = (int)Settings::value('attendance_night_start_hour');
+        if ($day === $night) {
+            error_log('CrewAttendance: Day and Night shift start hours are identical (' . $day . '); using 6 and 18.');
+            return [6, 18];
+        }
+        return [$day, $night];
     }
 
-    /** 12-hour display of an hour (0-23): 0 -> "12:00 AM", 6 -> "6:00 AM", 12 -> "12:00 PM", 18 -> "6:00 PM". */
+    /**
+     * Shifts the Admin bell reminds about at a moment: every shift that has STARTED on the current calendar date
+     * (Philippine time) plus the shift in progress (which may have started the previous date and crossed midnight).
+     * Works for both orderings of the start hours (Day before Night, or Day after Night), with the same duty
+     * dates as shiftFor(). Returns [['Day'|'Night', 'Y-m-d'], ...] without duplicates, earliest start first.
+     */
+    public static function dueShifts(?int $ts = null): array {
+        $ts ??= time();
+        [$day, $night] = self::startHours();
+        $today = date('Y-m-d', $ts); $h = (int)date('G', $ts);
+        $started = [];
+        foreach (['Day' => $day, 'Night' => $night] as $shift => $start) if ($h >= $start) $started[$start] = [$shift, $today];
+        ksort($started);
+        $due = array_values($started);
+        $cur = self::shiftFor($ts);
+        if (!in_array([$cur['shift'], $cur['date']], $due, true)) array_unshift($due, [$cur['shift'], $cur['date']]);
+        return $due;
+    }
+
+    /** 12-hour display of a start hour (0-23): 0 -> "12:00 AM", 6 -> "6:00 AM", 12 -> "12:00 PM", 18 -> "6:00 PM". */
     public static function hourLabel(int $h): string {
         return (($h % 12) ?: 12) . ':00 ' . ($h < 12 ? 'AM' : 'PM');
     }
@@ -42,80 +76,82 @@ final class CrewAttendance {
     }
     public static function modeName(?int $mode = null): string { return ($mode ?? self::mode()) === self::MODE_ENFORCE ? 'Enforce' : 'Warn'; }
 
-    /** "Nov 8, 2026". */
-    public static function dayText(array $s): string {
-        return date('M j, Y', strtotime($s['date']));
+    /** "Night shift of Nov 8, 2026 (from 6:00 PM)". */
+    public static function shiftText(array $s): string {
+        [$day, $night] = self::startHours();
+        return $s['shift'] . ' shift of ' . date('M j, Y', strtotime($s['date'])) . ' (from ' . self::hourLabel($s['shift'] === 'Day' ? $day : $night) . ')';
     }
 
     /**
      * Attendance of the trip crew for a moment (default now = the actual dispatch time).
-     * Returns ['day' => dayFor(ts), 'crew' => [per person: id, name, role, status, issue, problem|null]].
+     * Returns ['shift' => shiftFor(ts), 'crew' => [per person: id, name, role, duty_shift, status, problem|null]].
      * $lock: read the attendance rows FOR SHARE inside the dispatch transaction, so an Admin change made at the
      * same moment waits for the dispatch (or the dispatch waits for it) — never a half-old decision.
      */
     public static function dispatchFindings(PDO $p, array $t, ?int $ts = null, bool $lock = false): array {
-        $s = self::dayFor($ts);
-        $crew = [];
-        foreach (['driver_id' => 'Driver', 'driver2_id' => 'Driver 2', 'helper_id' => 'Helper'] as $col => $role) {
-            if (empty($t[$col])) continue;
-            $pe = one($p, 'SELECT id, full_name FROM personnel WHERE id=?', [(int)$t[$col]]);
-            if (!$pe) continue;
-            $mark = one($p, 'SELECT status FROM attendance_daily WHERE duty_date=? AND personnel_id=?' . ($lock ? ' LOCK IN SHARE MODE' : ''),
-                [$s['date'], (int)$pe['id']]);
-            $status = $mark['status'] ?? null;
-            $name = $pe['full_name'] . ' (' . $role . ')';
-            $issue = null;
-            if ($status === 'Absent') $issue = 'Absent';
-            elseif ($status !== 'Present') $issue = 'Not Yet Marked';
-            if ($status === 'Absent') $problem = $name . ' is marked Absent for ' . self::dayText($s) . '. The Operations Head reassigns the crew, or the Admin corrects the attendance.';
-            elseif ($status !== 'Present') $problem = $name . ' is not yet marked Present for ' . self::dayText($s) . '. The Admin marks attendance.';
-            else $problem = null;
-            $crew[] = ['id' => (int)$pe['id'], 'name' => $pe['full_name'], 'role' => $role, 'status' => $status ?? 'Not Yet Marked', 'issue' => $issue, 'problem' => $problem];
+        core('DispatcherAttendance');$crew=[];
+        foreach(['driver_id'=>'Driver','driver2_id'=>'Driver 2','helper_id'=>'Helper'] as $key=>$role){
+            if(empty($t[$key]))continue;
+            $pe=one($p,'SELECT id,full_name FROM personnel WHERE id=?',[(int)$t[$key]]);if(!$pe)continue;
+            $session=DispatcherAttendance::ready($p)?DispatcherAttendance::current($p,(int)$pe['id'],$lock):null;
+            $absent=DispatcherAttendance::absent($p,(int)$pe['id'],$session,$lock);
+            $present=$session&&empty($session['time_out'])&&$session['dispatcher_role']===($t['dispatcher_role']??null);
+            $issue=$absent?'Absent':($present?null:'Not Timed In');
+            $crew[]=['id'=>(int)$pe['id'],'name'=>$pe['full_name'],'role'=>$role,'duty_shift'=>null,'status'=>$absent?'Absent':($present?'Present':'Not Timed In'),'issue'=>$issue,'problem'=>$issue?$pe['full_name'].' ('.$role.'): '.$issue.'. Correct attendance before new dispatch.':null];
         }
-        return ['day' => $s, 'crew' => $crew];
+        return ['shift'=>self::shiftFor($ts),'day'=>self::dayFor($ts),'crew'=>$crew];
     }
 
     /**
-     * Readiness before / while using Enforce: upcoming not-dispatched trips (overdue or scheduled in the next 48 hours)
-     * whose assigned crew are already marked Absent for the trip's date. Read-only; nothing is changed.
+     * Read-only attendance issues for upcoming not-dispatched trips. No permanent resource shifts.
      */
     public static function readiness(PDO $p): array {
-        $trips = many($p, "SELECT id, trip_ref, scheduled_at, status, driver_id, driver2_id, helper_id FROM trips
-                           WHERE status IN ('Pre-Assigned','Ready for Dispatch','For Reschedule') AND scheduled_at <= DATE_ADD(NOW(), INTERVAL 48 HOUR)
-                           ORDER BY scheduled_at LIMIT 200");
-        $out = [];
-        foreach ($trips as $t) {
-            $day = self::dayFor(strtotime((string)$t['scheduled_at']));
-            $issues = [];
-            foreach (['driver_id' => 'Driver', 'driver2_id' => 'Driver 2', 'helper_id' => 'Helper'] as $col => $role) {
-                if (!$t[$col]) continue;
-                $pe = one($p, 'SELECT full_name FROM personnel WHERE id=?', [(int)$t[$col]]);
-                $mark = one($p, 'SELECT status FROM attendance_daily WHERE duty_date=? AND personnel_id=?', [$day['date'], (int)$t[$col]]);
-                if (($mark['status'] ?? null) === 'Absent') $issues[] = $pe['full_name'] . " ($role): marked Absent";
-            }
-            if ($issues) $out[] = ['trip_id' => (int)$t['id'], 'trip_ref' => $t['trip_ref'], 'scheduled_at' => $t['scheduled_at'], 'status' => $t['status'],
-                                   'scheduled_day' => self::dayText($day), 'issues' => $issues];
+        $trips=many($p,"SELECT id,trip_ref,scheduled_at,status,dispatcher_role,driver_id,driver2_id,helper_id FROM trips WHERE status IN ('Pre-Assigned','Ready for Dispatch','For Reschedule') AND scheduled_at<=DATE_ADD(NOW(),INTERVAL 48 HOUR) ORDER BY scheduled_at LIMIT 200");
+        $out=[];
+        foreach($trips as $trip){$findings=self::dispatchFindings($p,$trip);$issues=array_values(array_filter(array_column($findings['crew'],'problem')));
+            if($issues)$out[]=['trip_id'=>(int)$trip['id'],'trip_ref'=>$trip['trip_ref'],'scheduled_at'=>$trip['scheduled_at'],'status'=>$trip['status'],'scheduled_shift'=>'Open attendance sessions','issues'=>$issues];
         }
-        return ['mode' => self::modeName(), 'trips' => $out];
+        return ['mode'=>self::modeName(),'unassigned'=>[],'trips'=>$out]; // No permanent shifts to backfill.
     }
 
-    /**
-     * The date that decides crew for a trip that is not dispatched yet: its scheduled date, or today once the
-     * schedule has passed (an overdue trip leaves with whoever is on duty now).
-     */
+    /** DAILY_ATTENDANCE_V1: the attendance duty date (calendar date, Philippine time) of a moment. */
+    public static function dayFor(?int $ts = null): array {
+        return ['date' => date('Y-m-d', $ts ?? time())];
+    }
+    /** Hour the Admin bell starts reminding about today's daily attendance. */
+    public static function reminderHour(): int {
+        return max(0, min(23, (int)Settings::value('attendance_day_start_hour')));
+    }
+    /** "Nov 8, 2026". */
+    public static function dayText(array $s): string {
+        return date('M j, Y', strtotime($s['date']));
+    }
+    /** The date that decides crew for a trip not dispatched yet: its scheduled date, or today once overdue. */
     public static function planningDay(array $t, ?int $now = null): array {
         $now ??= time();
         $ts = strtotime((string)$t['scheduled_at']) ?: $now;
         return self::dayFor($ts < $now ? $now : $ts);
     }
 
-    /** Assignment check of one person for a planning date: ['name', 'type', 'attendance', 'absent']. */
-    public static function assignmentCheck(PDO $p, int $personId, array $day): ?array {
-        $pe = one($p, 'SELECT full_name, person_type FROM personnel WHERE id=?', [$personId]);
-        if (!$pe) return null;
-        $m = one($p, 'SELECT status FROM attendance_daily WHERE duty_date=? AND personnel_id=?', [$day['date'], $personId]);
-        return ['name' => $pe['full_name'], 'type' => $pe['person_type'], 'attendance' => $m['status'] ?? 'Not Yet Marked',
-                'absent' => ($m['status'] ?? null) === 'Absent'];
+    /**
+     * Legacy reporting bucket for planning response fields. It does not decide personnel eligibility
+     * or Dispatcher account responsibility.
+     */
+    public static function planningShift(array $t, ?int $now = null): array {
+        $now ??= time();
+        $ts = strtotime((string)$t['scheduled_at']) ?: $now;
+        return self::shiftFor($ts < $now ? $now : $ts);
+    }
+
+    /**
+     * Assignment check of one person for a planning shift: ['name', 'type', 'duty_shift', 'attendance', 'absent', 'issue'].
+     * Legacy response keys are retained; permanent shift mismatches no longer restrict personnel.
+     */
+    public static function assignmentCheck(PDO $p, int $personId, array $shift): ?array {
+        core('DispatcherAttendance');$pe=one($p,'SELECT full_name,person_type FROM personnel WHERE id=?',[$personId]);if(!$pe)return null;
+        $session=DispatcherAttendance::ready($p)?DispatcherAttendance::current($p,$personId):null;
+        $absent=DispatcherAttendance::absent($p,$personId,$session);
+        return ['name'=>$pe['full_name'],'type'=>$pe['person_type'],'duty_shift'=>null,'attendance'=>$absent?'Absent':($session?'Present':'Not Timed In'),'absent'=>$absent,'issue'=>null];
     }
 
     /**
@@ -138,4 +174,7 @@ final class CrewAttendance {
         }
         return $why;
     }
+
+    /** Compatibility response: no permanent personnel shifts remain to backfill. */
+    public static function unassignedCrew(PDO $p): array { return []; }
 }

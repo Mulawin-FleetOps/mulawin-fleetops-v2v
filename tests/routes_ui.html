@@ -1,0 +1,117 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Client Routes regression fixture</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/vendor/leaflet/leaflet.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css">
+<div id="fixture"></div><div id="toastZone"></div><pre id="results">RUNNING</pre>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/vendor/leaflet/leaflet.js"></script><script src="../public/assets/js/core.js"></script><script src="../public/assets/js/map.js"></script><script src="../public/assets/js/modules/operations/routes.js"></script>
+<script>
+// Real form, distance widget and Leaflet; API responses and tiles are isolated from external services.
+(async()=>{
+  const checks=[],calls=[],errors=[],maps=[],results=document.querySelector('#results');
+  const assert=(ok,label)=>{if(!ok)throw new Error(label);checks.push('PASS '+label);};
+  const pause=()=>new Promise(resolve=>setTimeout(resolve,40));
+  const wait=async test=>{for(let i=0;i<100;i++){if(test())return;await pause();}throw new Error('UI did not settle');};
+  window.addEventListener('error',event=>errors.push(event.message));window.addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
+  App.me={user:{id:1,role:'operations_head'},truckTypes:['Container','Wing Van'],map:{routing:true,defaultRouteOption:'avoid_tolls',routeOptions:{recommended:'Recommended',avoid_tolls:'Avoid toll roads',general_roads:'General roads'},overrideWarningRatio:0.15}};
+  App.current={page:'routes',query:{}};UI.toast=()=>{};UI.askWithinModal=async()=>true;UI.confirmProceed=async()=>true;
+  let refreshed=0,feedback=0,roadAvailable=true,searchUnavailable=false,routeError='Fixture routing unavailable';App.route=()=>{refreshed++;};UI.result=()=>{feedback++;};
+  UI.Map.tiles=()=>true;const realPicker=UI.mapPicker;UI.mapPicker=(...args)=>{const map=realPicker(...args);if(map)maps.push(map);return map;};
+  bootstrap.Modal.prototype._isAnimated=()=>false;
+  const encode=points=>{let last=[0,0],out='';for(const point of points)for(let i=0;i<2;i++){const n=Math.round(point[i]*1e5),delta=n-last[i];last[i]=n;let v=delta<0?~(delta<<1):delta<<1;while(v>=32){out+=String.fromCharCode((32|(v&31))+63);v>>=5;}out+=String.fromCharCode(v+63);}return out;};
+  App.api=async(action,payload)=>{
+    calls.push({action,payload:structuredClone(payload)});
+    if(action==='Maps.geocode'){
+      if(searchUnavailable)throw new Error('The connection to the map service timed out. Type the km.');
+      const pickup=payload.q.includes('Tanauan');
+      return {results:[{name:pickup?'Tanauan City, Batangas, Philippines':'Malvar, Batangas, Philippines',lat:pickup?14.0863:14.0447,lng:pickup?121.1497:121.1588},{name:'<b>Alternative location</b>',lat:14.1,lng:121.1}]};
+    }
+    if(action==='Maps.reverse')return {address:'Verified reverse-geocoding fixture address'};
+    if(action==='Maps.route'){
+      if(!roadAvailable)return {available:false,message:routeError};
+      const garage=payload.from_lat==='14.126449';
+      return {available:true,distance_km:garage?10:50,duration_min:30,straight_km:8,option_label:'Avoid toll roads',geometry:encode([[+payload.from_lat,+payload.from_lng],[+payload.to_lat,+payload.to_lng]]),warning:''};
+    }
+    if(action==='Routes.request')return {route_id:99,message:'Route request sent for billing rate entry.'};
+    throw new Error('Unexpected API '+action);
+  };
+  const data={clients:[{id:1,company_name:'Fixture Client',status:'Active'}],truckTypes:App.me.truckTypes,routes:[],maxDistance:3000,routing:true,me:1,can:{request:true}};
+  const open=(options={},extra={})=>{RouteUI.request({...data,filterClient:1,filterType:'Wing Van',...extra},options);const modal=[...document.querySelectorAll('.modal')].at(-1);return {modal,form:modal.querySelector('form'),map:maps.at(-1)};};
+  const field=(form,name)=>form.querySelector('[name='+name+']');
+  const set=(form,name,value)=>{const input=field(form,name);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
+  const fill=form=>{set(form,'origin','Fixture Pickup');set(form,'destination','Fixture Destination');};
+  const pin=async({form,map})=>{fill(form);map.fire('click',{latlng:L.latLng(14.14,121.08)});form.querySelector('[data-pin=delivery]').click();map.fire('click',{latlng:L.latLng(14.18,121.12)});await wait(()=>form._distance.state.computed===50);};
+  const submit=async form=>{await form.onsubmit(new Event('submit',{bubbles:true,cancelable:true}));await pause();};
+  const closed=()=>wait(()=>!document.querySelector('.modal'));
+  try{
+    const ctx={el:document.querySelector('#fixture'),tools:document.createElement('div'),query:{},page:'routes',data,reload(){}};App.pages.routes.render(ctx);
+    assert(ctx.tools.textContent.includes('Request route')&&ctx.el.textContent.includes('Approved'),'Client Routes registers and renders after script parsing');
+    let callbackResult;let x=open({after:result=>{callbackResult=result;}});await pause();
+    if(new URLSearchParams(location.search).has('preview')){await pin(x);results.hidden=true;results.textContent='ROUTE PREVIEW READY';return;}
+    assert(field(x.form,'client_id').value==='1'&&field(x.form,'truck_type').value==='Wing Van','Planner client and truck-type preselection are preserved');
+    assert(x.modal.querySelector('.rpm-route-dialog')&&x.form.querySelector('.rpm-route-map-shell')&&x.form.querySelector('.rpm-route-garage'),'Merged form retains styled garage and route preview');
+    assert(x.form.querySelectorAll('.rpm-route-steps b').length===3&&x.form.querySelector('.rpm-route-legend'),'Garage, pickup and destination sequence and map legend remain');
+    assert(x.modal.querySelector('.rpm-route-footer-note').textContent.includes('Admin approval'),'Billing and Admin approval footer remains');
+    assert(field(x.form,'route_option').type==='select-one'&&x.form.querySelector('select[name=route_option]'),'Route Option is visible and selectable in Client Routes');
+    assert(field(x.form,'route_option').value==='avoid_tolls'&&!field(x.form,'distance_km').readOnly,'Configured default and editable distance are retained');
+    assert(x.map&&x.form.querySelectorAll('.rpm-address-pin-btn').length===2,'Actual Leaflet picker and both address pin actions remain');
+    await pin(x);
+    assert(field(x.form,'distance_km').value==='50.00'&&x.form.querySelector('[data-client-km]').textContent==='50.00 km','Pickup-to-delivery road distance populates the editable field and summary');
+    await wait(()=>x.form.querySelector('[data-total-km]').textContent==='60.00 km');assert(x.form.querySelector('[data-garage-km]').textContent.includes('10.00'),'Garage leg remains separate from billable distance');
+    assert(calls.filter(c=>c.action==='Maps.route').every(c=>c.payload.option==='avoid_tolls'),'Both routing legs use the configured selected option');
+    set(x.form,'distance_km','65');assert(!field(x.form,'distance_override_reason').closest('[class*=col-]').classList.contains('d-none'),'Edited computed km exposes the required reason');
+    const before=calls.filter(c=>c.action==='Routes.request').length;await submit(x.form);assert(calls.filter(c=>c.action==='Routes.request').length===before,'Missing override reason blocks submission');
+    set(x.form,'distance_override_reason','Verified access restriction');await submit(x.form);await closed();
+    let sent=calls.filter(c=>c.action==='Routes.request').at(-1).payload;
+    assert(sent.route_option==='avoid_tolls'&&sent.distance_km==='65'&&sent.distance_override_reason==='Verified access restriction','Computed-route payload retains default option, edited km and reason');
+    assert(sent.client_id==='1'&&sent.truck_type==='Wing Van'&&sent.origin_lat&&sent.destination_lat,'Client, truck and actual pin coordinates reach Routes.request');
+    assert(!('garage_lat' in sent)&&!('garage_lng' in sent),'Provisional garage coordinates never become submitted route endpoints');
+    assert(callbackResult?.route_id===99&&refreshed===0&&feedback===1,'Successful planner callback receives the result without page refresh');
+    App.me.map.routing=false;x=open();await pause();fill(x.form);set(x.form,'distance_km','25');await submit(x.form);await closed();sent=calls.filter(c=>c.action==='Routes.request').at(-1).payload;
+    assert(!('route_option' in sent)&&!('distance_override_reason' in sent)&&sent.distance_km==='25','Manual-distance fallback removes computed-route metadata');
+    assert(refreshed===1&&feedback===2,'Without a callback successful submission keeps the default App.route refresh');
+    App.me.map.routing=true;roadAvailable=false;x=open();await pause();fill(x.form);x.map.fire('click',{latlng:L.latLng(14.14,121.08)});x.form.querySelector('[data-pin=delivery]').click();x.map.fire('click',{latlng:L.latLng(14.18,121.12)});await pause();set(x.form,'distance_km','30');await submit(x.form);await closed();sent=calls.filter(c=>c.action==='Routes.request').at(-1).payload;
+    assert(sent.distance_km==='30'&&!('route_option' in sent),'Routing outage permits verified manual distance without mislabeling it as computed');
+    roadAvailable=true;x=open({}, {routes:[{id:8,route_ref:'R-8',client_id:1,truck_type:'Wing Van',status:'Pending Approval',origin_label:'Fixture Pickup',destination_label:'Fixture Destination'}]});await pause();fill(x.form);set(x.form,'distance_km','25');const previous=calls.filter(c=>c.action==='Routes.request').length;await submit(x.form);assert(calls.filter(c=>c.action==='Routes.request').length===previous&&x.form.querySelector('.form-error').textContent.includes('Similar route'),'Similar-route warning still blocks the first submission');await submit(x.form);await closed();assert(calls.filter(c=>c.action==='Routes.request').length===previous+1,'Explicit repeat submission retains the existing duplicate-warning acknowledgement');
+    assert(UI.distanceFieldDefs().some(f=>f.name==='route_option'&&f.type==='select'),'Shared Route Option remains available to other screens');
+    x=open();await pause();
+    set(x.form,'origin','Tanauan Batangas');x.form.querySelector('[data-point=pickup]').click();
+    await wait(()=>x.form.querySelector('[data-pin-results=pickup] .loc-res'));
+    assert(!field(x.form,'origin_lat').value&&x.form.querySelectorAll('[data-pin-results=pickup] .loc-res').length===2,'Search presents Philippine candidates without automatically choosing one');
+    assert(!x.form.querySelector('[data-pin-results=pickup] .loc-res b'),'Provider result labels are rendered as text');
+    x.form.querySelector('[data-pin-results=pickup] .loc-res').click();
+    assert(field(x.form,'origin_lat').value==='14.0863000'&&field(x.form,'origin_lng').value==='121.1497000','Explicit pickup selection populates the intended coordinates');
+    assert(field(x.form,'origin').value==='Tanauan Batangas','Search selection preserves the typed address pending explicit replacement');
+    set(x.form,'destination','Malvar Batangas');x.form.querySelector('[data-point=delivery]').click();
+    await wait(()=>x.form.querySelector('[data-pin-results=delivery] .loc-res'));
+    x.form.querySelector('[data-pin-results=delivery] .loc-res').click();await wait(()=>x.form._distance.state.computed===50);
+    assert(field(x.form,'destination_lat').value==='14.0447000'&&field(x.form,'destination_lng').value==='121.1588000','Destination selection triggers automatic road KM');
+    let roadLine=false;x.map.eachLayer(layer=>{if(layer instanceof L.Polyline&&layer.options.color==='#0b5cad'&&layer.getLatLngs().length>=2)roadLine=true;});
+    assert(roadLine&&field(x.form,'distance_km').value==='50.00','Returned route geometry is displayed by real Leaflet and road KM fills the form');
+    for(const option of ['recommended','avoid_tolls','general_roads']){
+      const before=calls.length;field(x.form,'route_option').value=option;field(x.form,'route_option').dispatchEvent(new Event('change',{bubbles:true}));
+      await wait(()=>x.form._distance.state.computed===50);
+      assert(calls.slice(before).some(c=>c.action==='Maps.route'&&c.payload.option===option),'Road routing preserves option '+option);
+    }
+    let pickupMarker;x.map.eachLayer(layer=>{if(layer instanceof L.Marker&&layer.options.title==='Pickup')pickupMarker=layer;});
+    pickupMarker.setLatLng([14.09,121.15]);pickupMarker.fire('dragend');
+    await wait(()=>calls.some(c=>c.action==='Maps.reverse'&&c.payload.lat==='14.090000'));
+    await wait(()=>x.form.querySelector('.loc-suggest')?.textContent.includes('Verified reverse-geocoding fixture address'));
+    assert(field(x.form,'origin_lat').value==='14.0900000'&&field(x.form,'origin').value==='Tanauan Batangas','Dragging a pin updates coordinates and requests reverse lookup without silently overwriting its address');
+    x.form.querySelector('.loc-suggest button').click();
+    assert(field(x.form,'origin').value==='Verified reverse-geocoding fixture address','Reverse-geocoded address is applied only after choosing Use it');
+    searchUnavailable=true;set(x.form,'destination','Unknown fixture search');x.form.querySelector('[data-point=delivery]').click();
+    await wait(()=>x.form.querySelector('[data-pin-results=delivery] .text-danger'));
+    assert(x.form.querySelector('[data-pin-results=delivery]').textContent.includes('pin the location manually'),'Geocoding failure keeps manual pin placement available');
+    searchUnavailable=false;roadAvailable=false;
+    for(const message of ['The map service did not answer (no internet or timeout). Type the km.','Fixture routing unavailable']){
+      routeError=message;field(x.form,'route_option').dispatchEvent(new Event('change',{bubbles:true}));
+      await wait(()=>x.form.querySelector('[data-kminfo]').textContent.includes(message));
+      assert((x.form.querySelector('[data-kminfo]').textContent.match(/type the km/gi)||[]).length===1,'Routing error displays the manual KM instruction exactly once: '+message);
+    }
+    set(x.form,'distance_km','30');
+    assert(!field(x.form,'distance_km').readOnly&&x.form._distance.clean({distance_km:'30',route_option:'general_roads'}).route_option===undefined,'Provider failure retains editable manual KM and clears computed metadata');
+    x.modal.querySelector('[data-bs-dismiss=modal]').click();
+    x.modal.querySelector('[data-unsaved-discard]')?.click();await closed();
+    assert(errors.length===0,'No unhandled route-form or map errors');
+    results.textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+  }catch(error){results.textContent=checks.join('\n')+'\nFAIL '+error.stack+'\nERRORS '+JSON.stringify(errors)+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>

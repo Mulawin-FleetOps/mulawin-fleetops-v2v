@@ -251,23 +251,57 @@ final class Routing {
                     'User-Agent: MulawinFleetOps/2 (' . (envValue('COMPANY_NAME') ?: 'RP Mulawin Trucking') . ')'];
         if ($body !== null) $headers[] = 'Content-Type: application/json; charset=utf-8';
         self::$outboundCalls++;
-        [$status, $raw] = self::$transport ? (self::$transport)($method, $url, $headers, $body) : self::curl($method, $url, $headers, $body);
+        $result = self::$transport ? (self::$transport)($method, $url, $headers, $body) : self::curl($method, $url, $headers, $body);
+        return self::response($service, $result[0], $result[1], $result[2] ?? []);
+    }
+
+    /** Validate before caching: a malformed geocoder response must not become "no places found". */
+    private static function response(string $service, int $status, string $raw, array $diagnostics = []): array {
         $j = is_string($raw) ? json_decode($raw, true) : null;
-        if ($status >= 200 && $status < 300 && is_array($j)) return $j;
-        $code = is_array($j) ? (int)($j['error']['code'] ?? 0) : 0;
-        error_log("ORS $service failed: HTTP $status, ORS code $code");   // never logs the key or the URL with the key
-        throw match (true) {
+        $valid = is_array($j) && is_array($j[$service === 'route' ? 'routes' : 'features'] ?? null);
+        if ($status >= 200 && $status < 300 && $valid) return $j;
+        $code = is_array($j['error'] ?? null) ? (int)($j['error']['code'] ?? 0) : 0;
+        $errno = (int)($diagnostics['curl_errno'] ?? 0);
+        $osErrno = (int)($diagnostics['os_errno'] ?? 0);
+        $error = match (true) {
+            $status === 0 && in_array($errno, [CURLE_COULDNT_RESOLVE_HOST, CURLE_COULDNT_RESOLVE_PROXY], true)
+                => new RoutingUnavailable('The server could not find the map service (DNS lookup failed). Try again, or type the km.', 'dns'),
+            $status === 0 && $errno === CURLE_OPERATION_TIMEDOUT && (float)($diagnostics['connect_ms'] ?? 0) === 0.0
+                => new RoutingUnavailable('The connection to the map service timed out. Try again, or type the km.', 'connect_timeout'),
+            $status === 0 && $errno === CURLE_OPERATION_TIMEDOUT
+                => new RoutingUnavailable('The map service took too long to answer. Try again, or type the km.', 'timeout'),
+            // libcurl error 83 (issuer validation) has no named constant in XAMPP PHP 8.2.
+            $status === 0 && in_array($errno, [CURLE_SSL_CACERT, CURLE_SSL_CACERT_BADFILE, 83], true)
+                => new RoutingUnavailable('The server could not verify the map service certificate. Ask the administrator to check the CA bundle. Type the km.', 'ssl_certificate'),
+            $status === 0 && $errno === CURLE_SSL_CONNECT_ERROR
+                => new RoutingUnavailable('A secure connection to the map service could not be established. Type the km.', 'tls'),
+            $status === 0 && $errno === CURLE_COULDNT_CONNECT && in_array($osErrno, [61, 111, 10061], true)
+                => new RoutingUnavailable('The connection to the map service was refused. Ask the administrator to check network or proxy access. Type the km.', 'connection_refused'),
+            $status === 0 && $errno === CURLE_COULDNT_CONNECT
+                => new RoutingUnavailable('The server could not connect to the map service. Check network or proxy access, or type the km.', 'connection_failed'),
             $status === 0 => new RoutingUnavailable('The map service did not answer (no internet or timeout). Type the km.', 'network'),
             $status === 401 || $status === 403 => new RoutingUnavailable('The map service refused the request (API key or daily quota). Type the km.', 'refused'),
             $status === 429 => new RoutingUnavailable('The map service is busy (too many requests per minute). Try again in a minute, or type the km.', 'rate_limited'),
+            $status >= 500 => new RoutingUnavailable('The map provider is temporarily unavailable. Try again later, or type the km.', 'provider_error'),
+            $status >= 200 && $status < 300 => new RoutingUnavailable('The map service returned an invalid response. Try again, or type the km.', 'invalid_response'),
             $code === 2010 => new RoutingUnavailable('A pin is too far from a road. Move the pin closer to a road, or type the km.', 'not_near_road'),
             $code === 2004 => new RoutingUnavailable('The route is too long for the map service. Type the km.', 'too_long'),
             $code === 2009 => new RoutingUnavailable('No road route was found between the two pins. Check the pins or type the km.', 'no_route'),
+            $status === 404 => new RoutingUnavailable('The map service endpoint was not found. Ask the administrator to check ORS_BASE_URL. Type the km.', 'endpoint'),
             default => new RoutingUnavailable('The map service could not calculate the distance now. Type the km.', 'error'),
         };
+        // Only numeric transport facts and libcurl's generic description are logged.
+        // Raw curl_error(), URLs, headers, request/response bodies can contain private data.
+        $safe = [];
+        foreach (['curl_errno', 'os_errno', 'ssl_verify_result', 'connect_ms', 'tls_ms', 'elapsed_ms'] as $name) {
+            if (isset($diagnostics[$name])) $safe[$name] = (int)$diagnostics[$name];
+        }
+        if ($errno && function_exists('curl_strerror')) $safe['curl_error'] = curl_strerror($errno);
+        error_log("ORS $service failed: HTTP $status, ORS code $code, reason {$error->reason}, transport " . json_encode($safe));
+        throw $error;
     }
 
-    /** Real HTTPS call: TLS verified, no redirects, short timeouts. Returns [status, body] (status 0 = network error). */
+    /** Real HTTPS call: TLS verified, no redirects. Returns [status, body, safe diagnostics]. */
     private static function curl(string $method, string $url, array $headers, ?string $body): array {
         if (!function_exists('curl_init')) throw new RoutingUnavailable('The PHP curl extension is missing on this server. Type the km.', 'config');
         $h = curl_init($url);
@@ -278,7 +312,12 @@ final class Routing {
         curl_setopt_array($h, $opts);
         $raw = curl_exec($h);
         $status = $raw === false ? 0 : (int)curl_getinfo($h, CURLINFO_RESPONSE_CODE);
-        curl_close($h);
-        return [$status, $raw === false ? '' : (string)$raw];
+        $diagnostics = ['curl_errno' => curl_errno($h), 'os_errno' => curl_getinfo($h, CURLINFO_OS_ERRNO),
+            'ssl_verify_result' => curl_getinfo($h, CURLINFO_SSL_VERIFYRESULT),
+            'connect_ms' => round(curl_getinfo($h, CURLINFO_CONNECT_TIME) * 1000),
+            'tls_ms' => round(curl_getinfo($h, CURLINFO_APPCONNECT_TIME) * 1000),
+            'elapsed_ms' => round(curl_getinfo($h, CURLINFO_TOTAL_TIME) * 1000)];
+        // The cURL handle is released automatically; curl_close() is deprecated in PHP 8.5+.
+        return [$status, $raw === false ? '' : (string)$raw, $diagnostics];
     }
 }

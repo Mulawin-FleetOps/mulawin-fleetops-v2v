@@ -464,11 +464,11 @@ final class Maintenance {
             if ($sev === 'Major') {
                 Trips::setStatus($p, $u['id'], $t, 'For Reschedule', 'major damage: truck returned for repair', $inc['incident_ref'] . ($exp ? '; expected back ' . $exp : ''));
                 $now = FleetState::reconcile($p, (int)$j['vehicle_id'], $u['id'], 'Major damage ' . $inc['incident_ref']);
-                Notify::roles($p, [$t['dispatcher_role'], 'operations_head'], 'Major damage', $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . ($exp ? ' (expected back ' . $exp . ')' : '') . '.', 'trips');
+                Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Major damage', $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . ($exp ? ' (expected back ' . $exp . ')' : '') . '.', 'trips');
                 return ['message' => 'Assessed as MAJOR. ' . $m['full_name'] . ' is assigned. Truck is ' . $now . ' and the trip is For Reschedule.'];
             }
             Trips::event($p, $u['id'], (int)$t['id'], 'minor damage: mechanic sent to the location', $t['status'], $t['status'], $inc['incident_ref'] . '; ' . $m['full_name']);
-            Notify::roles($p, [$t['dispatcher_role'], 'operations_head'], 'Minor damage', $t['trip_ref'] . ': ' . $m['full_name'] . ' sent for on-site repair.', 'trips');
+            Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Minor damage', $t['trip_ref'] . ': ' . $m['full_name'] . ' sent for on-site repair.', 'trips');
             return ['message' => 'Assessed as MINOR. ' . $m['full_name'] . ' is sent to the location. Record the findings, the repair, then verify the truck.'];
         });
     }
@@ -572,12 +572,12 @@ final class Maintenance {
                 if ($j['severity'] === 'Minor') {
                     run($p, "UPDATE incidents SET status='Repaired - Cleared to Continue' WHERE id=?", [$inc['id']]);
                     Trips::event($p, $u['id'], (int)$t['id'], 'repaired - cleared to continue', $t['status'], $t['status'], $inc['incident_ref']);
-                    Notify::roles($p, [$t['dispatcher_role']], 'Cleared to continue', $t['trip_ref'] . ': truck repaired on site. Resume the trip.', 'trips', 'trip-resume-' . $inc['id']);
+                    Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Cleared to continue', $t['trip_ref'] . ': truck repaired on site. Resume the trip.', 'trips', 'trip-resume-' . $inc['id']);
                     $msg .= ' The dispatcher was told to resume the trip.';
                 } else {
                     run($p, "UPDATE incidents SET status='Resolved', resolved_at=NOW() WHERE id=?", [$inc['id']]);
                     Trips::event($p, $u['id'], (int)$t['id'], 'truck repaired after major damage', $t['status'], $t['status'], $inc['incident_ref']);
-                    Notify::roles($p, [$t['dispatcher_role'], 'operations_head'], 'Truck available again', $v['plate_number'] . ' is repaired. Reschedule ' . $t['trip_ref'] . '.', 'trips', 'trip-reschedule-' . $inc['id']);
+                    Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Truck available again', $v['plate_number'] . ' is repaired. Reschedule ' . $t['trip_ref'] . '.', 'trips', 'trip-reschedule-' . $inc['id']);
                     $msg .= ' The dispatcher can now reschedule the trip.';
                 }
             } else {

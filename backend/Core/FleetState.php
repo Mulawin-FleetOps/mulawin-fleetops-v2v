@@ -26,7 +26,7 @@ final class FleetState {
     /** Trip statuses that hold a truck and crew (reserved or on the road). */
     public const HOLDING = ['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule'];
     /**
-     * A Completed trip that still holds its TRUCK (not the crew) = the truck is driving back
+     * A Completed trip that still holds its truck and personnel = the truck is driving back
      * and the arrival checklist is not done yet (PDF #11 section G). The truck is "On Trip"
      * until the dispatcher submits the arrival checklist.
      */
@@ -123,11 +123,9 @@ final class FleetState {
         return $vehicle;
     }
 
-    /**
-     * Trip completed: the driver, 2nd driver and helper are free at once, but the truck stays
-     * held by the trip until the arrival checklist (then release() frees the truck).
-     */
+    /** Explicit personnel release. Returning duties must end through the arrival checklist. */
     public static function releaseCrew(PDO $p, int $tripId): void {
+        must(!self::awaitingArrival($p, $tripId), 'Personnel remain held until the arrival checklist is completed.', 409);
         $rows = many($p, "SELECT resource_id FROM trip_assignments WHERE trip_id=? AND resource_type='person'", [$tripId]);
         run($p, "DELETE FROM trip_assignments WHERE trip_id=? AND resource_type='person'", [$tripId]);
         foreach ($rows as $r) run($p, "UPDATE personnel SET availability='Available' WHERE id=? AND availability='On Trip'", [(int)$r['resource_id']]);
@@ -139,14 +137,31 @@ final class FleetState {
                               WHERE a.trip_id=? AND a.resource_type='vehicle' AND t.status=?", [$tripId, self::RETURNING]);
     }
 
+    /** Explicit holds, plus returning duties recorded before personnel holds were retained. */
+    public static function personTrip(PDO $p, int $personId, ?int $exceptTrip = null, bool $lock = false): ?array {
+        $suffix = $lock ? ' FOR UPDATE' : '';
+        $held = one($p, "SELECT t.trip_ref, a.trip_id FROM trip_assignments a JOIN trips t ON t.id=a.trip_id
+            WHERE a.resource_type='person' AND a.resource_id=? AND a.trip_id<>?".$suffix, [$personId, $exceptTrip ?? 0]);
+        if ($held) return $held;
+        // Do not recreate historical holds or infer assignments: use the recorded trip personnel
+        // only while the Completed trip still has its authoritative pending-arrival vehicle hold.
+        return one($p, "SELECT t.trip_ref, t.id AS trip_id FROM trips t
+            WHERE t.status='Completed' AND t.id<>? AND (t.driver_id=? OR t.driver2_id=? OR t.helper_id=?)
+            AND EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle')
+            ORDER BY t.id LIMIT 1".$suffix, [$exceptTrip ?? 0, $personId, $personId, $personId]);
+    }
+
     /** Is the person free for a new trip? Returns null when free, otherwise the reason. */
     public static function personBlocker(PDO $p, int $personId, ?int $exceptTrip = null): ?string {
-        $pe = one($p, 'SELECT full_name, active, availability, person_type, license_expiry FROM personnel WHERE id=?', [$personId]);
+        $pe = one($p, 'SELECT full_name, active, availability, person_type, license_number, license_expiry FROM personnel WHERE id=?', [$personId]);
         if (!$pe || !(int)$pe['active']) return 'not an active driver/helper';
         if ($pe['availability'] === 'Unavailable') return $pe['full_name'] . ' is marked Unavailable';
-        $a = one($p, "SELECT t.trip_ref, a.trip_id FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='person' AND a.resource_id=?", [$personId]);
-        if ($a && (int)$a['trip_id'] !== (int)$exceptTrip) return $pe['full_name'] . ' is already on ' . $a['trip_ref'];
-        if ($pe['person_type'] === 'Driver' && $pe['license_expiry'] && $pe['license_expiry'] < date('Y-m-d')) return $pe['full_name'] . "'s license is expired";
+        $a = self::personTrip($p, $personId, $exceptTrip);
+        if ($a) return $pe['full_name'] . ' is already on ' . $a['trip_ref'];
+        if ($pe['person_type'] === 'Driver') {
+            if (trim((string)$pe['license_number']) === '' || empty($pe['license_expiry'])) return $pe['full_name'] . ' needs a license number and expiry date before trip assignment';
+            if ($pe['license_expiry'] < date('Y-m-d')) return $pe['full_name'] . "'s license is expired";
+        }
         return null;
     }
 

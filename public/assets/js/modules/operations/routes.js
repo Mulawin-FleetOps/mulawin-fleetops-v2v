@@ -2,7 +2,7 @@
    Approved routes per client and truck type, with versioned contractual rates.
    Provisional flow: Operations Head requests -> Billing enters the rate -> Admin approves / rejects.
    A rate revision of an Approved route keeps the old rate in use until the Admin approves the new one.
-   Only Approved routes will be selectable in planning (not connected to Trip Management yet).
+   Approved route selection is integrated with planning; final acceptance and billing policies are separate.
    Backend: backend/Modules/Operations/Routes.php */
 'use strict';
 const RouteUI = {
@@ -19,22 +19,36 @@ const RouteUI = {
   name: (r) => `${r.origin_label} → ${r.destination_label}`,
   waiting: (r) => ['Pending Rate', 'Pending Approval'].includes(r.status) || (r.status === 'Approved' && r.pending_rate_id),
 
-  request(d) {
+  request(d, options = {}) {
     const fields = [
+      { type: 'html', col: 12, html: `<section class="rpm-route-garage" aria-label="Fixed company initial point">
+        <div class="rpm-route-garage-icon"><i class="bi bi-house-door" aria-hidden="true"></i></div>
+        <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><span class="rpm-garage-eyebrow">STARTING LOCATION</span><span class="rpm-garage-fixed"><i class="bi bi-lock" aria-hidden="true"></i> Fixed for all trips</span></div>
+        <strong class="rpm-garage-name">R.P. Mulawin Trucking Service</strong><small><i class="bi bi-geo-alt" aria-hidden="true"></i> Purok 2, 86-A, Luyos, Tanauan City, Batangas</small></div>
+      </section>` },
       { name: 'client_id', label: 'Client', type: 'select', required: true, col: 8, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
-      { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes) },
-      { name: 'origin', label: 'Origin (pickup point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
-      { name: 'destination', label: 'Destination (delivery point)', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
-      { type: 'html', col: 12, html: '<div data-routemapbox></div>' },
+      { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes), value:d.filterType||'' },
+      { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
+      { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
+      { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
+        <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Live road route · Garage → Pickup → Destination</span></div>
+        <div class="rpm-route-steps" aria-label="Driving sequence"><span class="rpm-step-garage"><b>1</b> Garage</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-pickup"><b>2</b> Pickup</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-delivery"><b>3</b> Destination</span></div>
+        <div data-routemapbox></div>
+        <div class="rpm-route-legend"><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span><span class="rpm-route-legend-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Garage location approximate</span></div>
+      </section>` },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
-      // Route option, km, distance info and override reason: shared widget (assets/js/map.js), same as Trip Management.
       ...UI.distanceFieldDefs().filter(f => f.name === 'route_option'),
-      { name: 'distance_km', label: 'Distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
+      { name: 'distance_km', label: 'Pickup → delivery distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
         help: d.routing ? 'Filled in from the road distance when both points are pinned. You may change it (a reason is required).' : 'Type the km (automatic road distance is not set up on the server).' },
       ...UI.distanceFieldDefs().filter(f => f.name !== 'route_option'),
+      { type: 'html', col: 12, html: `<div class="rpm-route-distances" aria-label="Distance summary">
+        <div><span>Empty-truck travel · Garage → Pickup</span><strong data-garage-km>Not available</strong></div>
+        <div><span>Loaded delivery · Pickup → Destination (billable)</span><strong data-client-km>Enter distance</strong></div>
+        <div><span>Estimated total journey</span><strong data-total-km>Not available</strong></div>
+      </div><p class="rpm-route-distance-note" data-garage-note>Garage distance is optional operational information. The client's billable route remains pickup to delivery.</p>` },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    UI.modal('Request a new route', '<p class="modal-intro">Pin the origin and the destination on the map (or search them). The road distance fills in the km. Origin to destination is one direction: the return trip is a separate route. The route is sent to Billing for the rate, then to the Admin for approval.</p>'
+    UI.modal('Request a new route', '<p class="rpm-route-intro"><i class="bi bi-info-circle" aria-hidden="true"></i> Choose a client and truck, then enter and pin the pickup and delivery addresses. The garage is already set.</p>'
       + UI.fields(fields), async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
       if (form._distance) form._distance.clean(f);
@@ -47,32 +61,236 @@ const RouteUI = {
         form.dataset.ack = o + '|' + t;
         throw new Error('Similar route already exists: ' + similar.map(r => `${r.route_ref} ${RouteUI.name(r)} (${r.status})`).join('; ') + '. Check it first. Click "Send request" again to continue anyway.');
       }
-      const r = await App.api('Routes.request', f); UI.result(r); App.route();
-    }, { submit: 'Send request', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form) });
+      const r = await App.api('Routes.request', f); UI.result(r); if(options.after)await options.after(r);else App.route();
+    }, { submit: 'Send request', size: 'rpm-route-dialog', onShow: (wrap, form) => RouteUI.wireDistance(wrap, form,d.garage), extraFooter: '<small class="rpm-route-footer-note">Next: Billing rate → Admin approval</small>' });
   },
 
   /** Map, route option, automatic km and manual override of the Request route form (Checklist #5; shared widget in map.js). */
-  wireDistance(wrap, form) {
-    const w = UI.distanceWidget(form, {
+  wireDistance(wrap, form,garageSetting=null) {
+    // The two road geometries are independent: the existing distance widget
+    // continues to own the billable Pickup → Delivery segment (blue), while
+    // this screen draws Garage → Pickup (teal) as an operational overlay.
+    let garageLine = null, garageRoad = null, clientRoad = null;
+    let garageArrows = [], clientArrows = [], stopLabels = [];
+    let updateGarageDistance = () => {};
+    // Draw direction arrows in travel order, not just a road polyline.
+    // This is important when the garage-to-pickup road passes close to the
+    // destination: a road without arrows can look like a reversed trip.
+    const clearMarkers = (markers) => { markers.forEach(m => m.remove()); markers.length = 0; };
+    const drawArrows = (points, color, out) => {
+      clearMarkers(out);
+      if (!w?.map || !Array.isArray(points) || points.length < 2) return;
+      const lengths = [0];
+      for (let i = 1; i < points.length; i++) {
+        lengths.push(lengths[i - 1] + L.latLng(points[i - 1]).distanceTo(L.latLng(points[i])));
+      }
+      const total = lengths[lengths.length - 1];
+      if (total < 100) return;
+      for (const fraction of [0.52]) {
+        const distance = total * fraction;
+        let j = lengths.findIndex(v => v >= distance);
+        if (j < 1) j = 1;
+        const a = L.latLng(points[j - 1]), b = L.latLng(points[j]);
+        const segment = lengths[j] - lengths[j - 1];
+        const t = segment ? (distance - lengths[j - 1]) / segment : 0;
+        const point = L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
+        const east = (b.lng - a.lng) * Math.cos(point.lat * Math.PI / 180);
+        const north = b.lat - a.lat;
+        const degrees = Math.atan2(north, east) * 180 / Math.PI;
+        const icon = L.divIcon({
+          className: 'rpm-route-arrow-icon',
+          html: '<span style="--route-arrow-color:' + color + ';transform:rotate(' + (-degrees) + 'deg)" aria-hidden="true">➤</span>',
+          iconSize: [20, 20], iconAnchor: [10, 10],
+        });
+        out.push(L.marker(point, { icon, interactive: false, keyboard: false, zIndexOffset: 500 }).addTo(w.map));
+      }
+    };
+    const updateStopLabels = () => {
+      clearMarkers(stopLabels);
+      if (!w?.map) return;
+      const points = w.map.picker?.points();
+      const locations = [[L.latLng([14.126449, 121.070384]), '1', 'Garage'],
+        [points?.pickup, '2', 'Pickup'], [points?.delivery, '3', 'Destination']];
+      for (const [pos, n, title] of locations) {
+        if (!pos) continue;
+        const icon = L.divIcon({ className: 'rpm-route-stop-label rpm-stop-' + n,
+          html: '<span><b>' + n + '</b> ' + title + '</span>',
+          iconSize: [110, 26], iconAnchor: [-12, 15] });
+        stopLabels.push(L.marker(pos, { icon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(w.map));
+      }
+    };
+    let w;
+    const fitFullRoute = () => {
+      if (!w?.map || !garageRoad?.length || !clientRoad?.length) return;
+      const bounds = L.latLngBounds(garageRoad.concat(clientRoad));
+      if (bounds.isValid()) w.map.fitBounds(bounds.pad(0.12), { maxZoom: 14 });
+    };
+    w = UI.distanceWidget(form, {
       mapBox: form.querySelector('[data-routemapbox]'),
       fields: { pickup: { addr: 'origin', lat: 'origin_lat', lng: 'origin_lng' }, delivery: { addr: 'destination', lat: 'destination_lat', lng: 'destination_lng' } },
-      labels: { pickup: 'Origin', delivery: 'Destination' },
-      footNote: UI.Map.serviceReady() ? 'Road distance by openrouteservice (estimate). Check it before sending.' : 'Type the km.',
+      labels: { pickup: 'Pickup', delivery: 'Destination' },
+      scrollWheelZoom: true,
+      hideStraightLine: true,
+      hideSearchBar: true,
+      searchResultsTarget: (kind) => form.querySelector('[data-pin-results="' + kind + '"]'),
+      onSearchSelect: (kind) => {
+        form.querySelector('[data-pin-results="' + kind + '"]')?.classList.add('d-none');
+        form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      },
+      // Clear stale geometry as soon as the user moves either pin.
+      onPointsChange: () => {
+        clientRoad = null;
+        clearMarkers(clientArrows);
+        updateStopLabels();
+        updateGarageDistance();
+      },
+      onRoadRoute: (points) => {
+        clientRoad = points;
+        drawArrows(points, '#0b5cad', clientArrows);
+        fitFullRoute();
+      },
+      footNote: UI.Map.serviceReady() ? 'Teal: garage to pickup. Blue: pickup to delivery. Scroll or pinch to zoom.' : 'Road routing is unavailable; use verified manual km.',
     });
-    wrap.addEventListener('shown.bs.modal', () => w.map && w.map.invalidateSize());
+    // Address inputs stay editable. The adjacent pin action chooses which map pin
+    // to place, and optionally searches the entered address. Search results must
+    // be selected by the user; never silently choose an approximate first match.
+    for (const [kind, fieldName, title] of [
+      ['pickup', 'origin', 'Pickup'], ['delivery', 'destination', 'Destination'],
+    ]) {
+      const address = form.querySelector('[name="' + fieldName + '"]');
+      if (!address) continue;
+      const controls = document.createElement('div');
+      controls.className = 'rpm-address-pin-control';
+      address.parentNode.insertBefore(controls, address);
+      controls.appendChild(address);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'rpm-address-pin-btn';
+      button.dataset.point = kind;
+      button.setAttribute('aria-label', 'Locate ' + title.toLowerCase() + ' address on the map');
+      button.title = 'Locate address or select the ' + title.toLowerCase() + ' pin on the map';
+      button.innerHTML = '<i class="bi bi-geo-alt" aria-hidden="true"></i><span>Pin</span>';
+      controls.appendChild(button);
+      const status = document.createElement('div');
+      status.className = 'rpm-address-pin-status';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      controls.after(status);
+      const results = document.createElement('div');
+      results.className = 'rpm-address-search-results';
+      results.dataset.pinResults = kind;
+      status.after(results);
+      const showStatus = (message) => { status.textContent = message; };
+      button.addEventListener('click', () => {
+        if (!w.map?.picker) { showStatus('Map unavailable. Enter the address manually.'); return; }
+        w.map.picker.selectPoint(kind, address.value);
+        const searching = address.value.trim() && UI.Map.serviceReady();
+        showStatus(searching
+          ? 'Choose the correct search result below, or click the map to place this pin.'
+          : 'Click the map to place the ' + title.toLowerCase() + ' pin.');
+        // Show matching locations below the corresponding address field.
+        // Only scroll to the map when the user needs to place the point manually.
+        if (!searching) form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+      address.addEventListener('input', (event) => {
+        // Only a person editing the address should invalidate its old position.
+        // Programmatic suggestions from the map already manage their pin.
+        if (event.isTrusted && w.map?.picker?.points()?.[kind]) {
+          w.map.picker.clearPoint(kind);
+          showStatus('Address changed. Press Pin to select the updated location.');
+        }
+      });
+    }
+    // A local, reference-only garage pin: coordinates are provisional until the
+    // actual yard entrance has been verified. Never submit these to the route API.
+    const configuredGarage=garageSetting?JSON.parse(garageSetting.value_json):null;
+    const garage = configuredGarage?[+configuredGarage.lat,+configuredGarage.lng]:[14.126449, 121.070384];
+    if (w.map && typeof L !== 'undefined') {
+      L.circleMarker(garage, { radius: 8, color: '#34526a', fillColor: '#34526a', fillOpacity: 0.95, weight: 2, interactive: true })
+        .addTo(w.map).bindTooltip(configuredGarage?'Stop 1: verified company garage':'Stop 1: R.P. Mulawin garage (approximate; entrance not verified)');
+      updateStopLabels();
+    }
+    const billable = form.querySelector('[name="distance_km"]');
+    const clientKm = form.querySelector('[data-client-km]');
+    const garageKm = form.querySelector('[data-garage-km]');
+    const totalKm = form.querySelector('[data-total-km]');
+    const garageNote = form.querySelector('[data-garage-note]');
+    let operationalKm = null, lastPickup = '', lastOption = '';
+    const updateDistances = () => {
+      const value = billable && billable.value !== '' && +billable.value > 0 ? +billable.value : null;
+      clientKm.textContent = value === null ? 'Enter distance' : value.toFixed(2) + ' km';
+      totalKm.textContent = value !== null && operationalKm !== null ? (value + operationalKm).toFixed(2) + ' km' : 'Not available';
+    };
+    billable?.addEventListener('input', updateDistances);
+    updateDistances();
+    let requestSeq = 0;
+    updateGarageDistance = async () => {
+      if (!w.map || !w.map.picker) return;
+      const pickup = w.map.picker.points().pickup;
+      const option = form.querySelector('[name="route_option"]')?.value || UI.Map.cfg().defaultRouteOption;
+      const key = pickup ? pickup.lat.toFixed(6) + ',' + pickup.lng.toFixed(6) : '';
+      if (key === lastPickup && option === lastOption) return;
+      lastPickup = key;
+      lastOption = option;
+      const seq = ++requestSeq;
+      if (garageLine) { garageLine.remove(); garageLine = null; }
+      clearMarkers(garageArrows);
+      garageRoad = null;
+      operationalKm = null;
+      garageKm.textContent = pickup ? 'Checking…' : 'Pin pickup first';
+      garageNote.textContent = configuredGarage?'Using the verified company garage. Financial amounts are calculated by the backend.':'Garage location on the map is approximate. Verify the garage entrance before using operational distance estimates.';
+      updateDistances();
+      if (!pickup || !UI.Map.serviceReady()) {
+        garageKm.textContent = UI.Map.serviceReady() ? 'Pin pickup first' : 'Routing unavailable';
+        return;
+      }
+      try {
+        const r = await UI.Map.route(L.latLng(garage), pickup, option);
+        if (seq !== requestSeq) return;
+        if (r.available && Number.isFinite(+r.distance_km) && r.geometry) {
+          const points = UI.Map.decode(r.geometry);
+          if (points.length < 2) throw new Error('Missing garage road geometry');
+          operationalKm = +r.distance_km;
+          garageRoad = points;
+          garageLine = L.polyline(garageRoad, {
+            color: '#187d85', weight: 5, opacity: 0.95, lineJoin: 'round',
+          }).addTo(w.map).bindTooltip('Garage → Pickup · ' + operationalKm.toFixed(2) + ' km (approximate garage)');
+          garageKm.textContent = operationalKm.toFixed(2) + ' km (estimate)';
+          drawArrows(garageRoad, '#187d85', garageArrows);
+          fitFullRoute();
+        } else garageKm.textContent = 'Route unavailable';
+      } catch (e) {
+        if (seq === requestSeq) garageKm.textContent = 'Route unavailable';
+      }
+      updateDistances();
+    };
+    // The picker change callback covers clicks and dragged markers. Do not
+    // request on every map mouseup: that wastes routing quota while panning.
+    // The shared widget recalculates the billable leg on this same option
+    // change; this listener independently refreshes the empty-truck leg.
+    form.querySelector('[name="route_option"]')?.addEventListener('change', () => {
+      clientRoad = null;
+      clearMarkers(clientArrows);
+      updateGarageDistance();
+    });
+    wrap.addEventListener('shown.bs.modal', () => {
+      w.map?.invalidateSize();
+      updateGarageDistance();
+    });
   },
 
-  rate(route, d) {
+  async rate(route, d) {
+    let pricing;try{pricing=await App.api('Routes.pricing_estimate',{route_id:route.id});}catch(e){UI.toast(e.message,'error');return;}
     const revision = route.status === 'Approved';
     const fields = [
-      { name: 'rate_amount', label: 'Rate (PHP)', type: 'money', required: true, col: 6 },
+      { name: 'rate_amount', label: 'Fixed Client Route Rate (PHP)', type: 'money', required: true, col: 6 },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="300"' },
     ];
     const intro = `<p class="modal-intro"><b>${UI.esc(route.route_ref)}</b> · ${UI.esc(route.client)} · ${UI.esc(RouteUI.name(route))} · ${UI.esc(route.truck_type)} · ${UI.num(route.distance_km, 2)} km</p>`
       + (revision ? `<div class="alert alert-info py-2 small">Current approved rate: <b>${RouteUI.rateText(route.rate_type, route.rate_amount, route.minimum_charge)}</b>. It stays in use until the Admin approves this revision.</div>` : '');
-    UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), intro + UI.fields(fields), async (f) => {
+    UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), intro + UI.kv([['Pickup to delivery km',pricing.delivery_km===null?'Unavailable':UI.num(pricing.delivery_km,2)],['Garage to pickup km',pricing.garage_km===null?'Unavailable':UI.num(pricing.garage_km,2)],['Current diesel price',pricing.diesel_value?UI.money(pricing.diesel_value.value):'Unavailable'],['Truck km/L',pricing.efficiency_value?UI.num(pricing.efficiency_value.value,4):'Unavailable'],['Estimated liters',pricing.liters??'Unavailable'],['Current fuel charge',pricing.fuel===null?'Fuel Estimate Unavailable':UI.money(pricing.fuel)],['Estimated total billing','<span data-pricing-total>Enter fixed rate</span>']])+UI.fields(fields), async (f) => {
       const r = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' }); UI.result(r); UI.closeDrawer(); App.route();
-    }, { submit: 'Send for approval', size: '' });
+    }, { submit: 'Send for approval', size: '', onShow:(wrap,form)=>{const input=form.querySelector('[name=rate_amount]');let sequence=0;input.addEventListener('change',async()=>{const current=++sequence;try{const estimate=await App.api('Routes.pricing_estimate',{route_id:route.id,rate_amount:input.value});if(current===sequence)form.querySelector('[data-pricing-total]').textContent=estimate.estimate_total===undefined?'Fuel Estimate Unavailable':UI.money(estimate.estimate_total)+' (current estimate only)';}catch(e){if(current===sequence)form.querySelector('[data-pricing-total]').textContent=e.message;}});} });
   },
 
   decide(route, decision) {
@@ -95,8 +313,7 @@ const RouteUI = {
     if (can.rate && (x.status === 'Pending Rate' || (x.status === 'Approved' && !x.pending_rate_id)))
       acts.push(`<button class="btn btn-sm btn-primary" data-a="rate"><i class="bi bi-cash"></i> ${x.status === 'Approved' ? 'Revise rate' : 'Enter rate'}</button>`);
     if (can.approve && x.pending_rate_id) {
-      if (+x.pending_entered_by === +me) acts.push('<span class="small text-muted align-self-center">You entered this rate, so another approver must decide it.</span>');
-      else acts.push('<button class="btn btn-sm btn-success" data-a="approve"><i class="bi bi-check-lg"></i> Approve rate</button>', '<button class="btn btn-sm btn-outline-danger" data-a="reject"><i class="bi bi-x-lg"></i> Reject rate</button>');
+      acts.push('<button class="btn btn-sm btn-success" data-a="approve"><i class="bi bi-check-lg"></i> Approve rate</button>', '<button class="btn btn-sm btn-outline-danger" data-a="reject"><i class="bi bi-x-lg"></i> Reject rate</button>');
     }
     if (can.withdraw && ['Pending Rate', 'Pending Approval'].includes(x.status) && +x.requested_by === +me) acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="withdraw">Withdraw request</button>');
     if (can.deactivate && x.status === 'Approved') acts.push('<button class="btn btn-sm btn-outline-danger" data-a="deactivate">Deactivate route</button>');
@@ -148,7 +365,7 @@ App.page('routes', {
     const actions = (r) => {
       let b = UI.btn('view', 'View');
       if (d.can.rate && r.status === 'Pending Rate') b += UI.btn('rate', 'Enter rate', 'primary');
-      if (d.can.approve && r.pending_rate_id && +r.pending_entered_by !== +me) b += UI.btn('decide', 'Review rate', 'primary');
+      if (d.can.approve && r.pending_rate_id ) b += UI.btn('decide', 'Review rate', 'primary');
       return b;
     };
     const onAction = (a, r) => { if (a === 'rate') RouteUI.rate(r, d); else RouteUI.open(r.id, d); };

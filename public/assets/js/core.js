@@ -26,7 +26,7 @@ const App = {
     try { data = await res.json(); }
     catch { throw new Error('The server returned an invalid answer. Check the PHP error log.'); }
     if (res.status === 401 && this.me) { this.me = null; clearInterval(this.timer); this.loginScreen(data.error); throw new Error(data.error || 'Please log in.'); }
-    if (!res.ok || !data.ok) throw new Error(data.error || 'Request failed.');
+    if (!res.ok || !data.ok) { const error = new Error(data.error || 'Request failed.'); error.status = res.status; throw error; }
     return data;
   },
   async api(action, payload = {}) {
@@ -265,8 +265,10 @@ const App = {
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
-    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : nameOf(n.id) || n.label)}</span></a>`;
-    let nav = `<div class="nav-section">My workspace</div>${primary.map(link).join('')}`;
+    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : n.id === 'funds' && ['car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role) ? 'My Trip Funds' : nameOf(n.id) || n.label)}</span></a>`;
+    const operationsRole = ['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role);
+    const tripLink = (label, icon, query) => `<a href="#trips?${query}" class="nav-item-link" data-nav="trips" data-trip-section="${query}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`;
+    let nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
     if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
     // WS_SHELL_V1: Maintenance and Accounting roles (Motorpool, Purchasing, Finance, Billing, Audit) get one grouped
     // workspace menu with the profile at the bottom. Links come only from me.nav (server-side permissions); nothing is added.
@@ -422,7 +424,8 @@ const App = {
     if (UI.WS_PAGES.has(page)) ['open', 'new', 'report'].forEach(k => { if (query[k] !== undefined) { once[k] = query[k]; delete query[k]; } });
     const canon = '#' + page + (Object.keys(query).length ? '?' + new URLSearchParams(query) : '');
     if (Object.keys(once).length) history.replaceState(null, '', canon);
-    const nav = this.me.nav.find(n => n.id === page);
+    const entry = this.me.nav.find(n => n.id === page);
+    const nav = entry ? {...entry,label:UI.operationsLabel(entry.label)} : null;
     // FLEETOPS_ACCESS_ANALYTICS_V1: render an explicit denial without requesting restricted page data.
     // The server independently enforces Access::canOpen() and returns HTTP 403 for forbidden data.
     if (!nav) {
@@ -449,7 +452,17 @@ const App = {
       return;
     }
     this.current = { page, query };
-    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === page));
+    const routeState = this.current;
+    document.querySelectorAll('[data-nav]').forEach(a => {
+      const tripSection = query.new || query.batch ? 'new=1' : 'tab=' + (query.tab || (query.q || query.status || query.from ? 'history' : 'active'));
+      const active = a.dataset.nav === page && (a.dataset.dispatchSection
+        ? a.dataset.dispatchSection === (page === 'trucks' ? 'trucks' : page === 'crew' ? (query.view === 'attendance' ? 'attendance' : 'personnel') : query.new || query.batch || ['requests','new-request'].includes(query.view) ? 'requests' : query.tab === 'incidents' || query.view === 'incidents' ? 'incidents' : query.tab === 'history' ? 'history' : 'management')
+        : a.dataset.opsSection
+        ? a.dataset.opsSection === (query.view === 'approvals' ? 'approvals' : query.new || query.batch ? 'planning' : query.tab === 'incidents' ? 'incidents' : 'management')
+        : (!a.dataset.tripSection || a.dataset.tripSection === tripSection));
+      a.classList.toggle('active', active);
+      if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
     // Expand the supporting-tools group only when the current route is inside it.
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
     if (secondary) document.getElementById('sidebarMore').open = true;
@@ -469,7 +482,7 @@ const App = {
         <div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>This page's screen file (assets/js/modules/${UI.esc(nav.js)}.js) did not load. The other pages still work. Reload the page or check the file.</div></div>`;
       return;
     }
-    el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(def.title || nav.label)}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
+    el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(UI.operationsLabel(def.title || nav.label))}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
         <div class="page-actions no-print" id="pageTools"></div>
         <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
@@ -495,19 +508,30 @@ const App = {
     const body = document.getElementById('pageBody');
     const ctx = { page, query, once, el: body, tools: document.getElementById('pageTools'), me: this.me, data: null,
       reload: () => this.route(), go: (p, q) => this.go(p, q), setQuery: (q) => this.go(page, { ...query, ...q }),
-      setTitle: (t, s) => { document.getElementById('pageTitle').textContent = t; const st = document.getElementById('pageSubtitle'); if (st) st.textContent = s || ''; } };
+      setTitle: (t, s) => { t=UI.operationsLabel(t);if(UI.role('operations_head')||UI.isDispatcher()){document.title=t+' \u00b7 Mulawin FleetOps';const crumbs=document.getElementById('crumbs');if(crumbs)crumbs.textContent=t;} document.getElementById('pageTitle').textContent = t; const st = document.getElementById('pageSubtitle'); if (st) st.textContent = s || ''; } };
     try {
       ctx.data = def.noData ? {} : await this.data(page, query);
-      if (this.current.page !== page) return;
+      if (this.current !== routeState) return;
       body.innerHTML = '';
       await def.render(ctx);
       UI.activate(body);
       if (ctx.data && ctx.data._errors && Object.keys(ctx.data._errors).length) {
-        body.insertAdjacentHTML('afterbegin', `<div class="alert alert-warning">${Object.values(ctx.data._errors).map(UI.esc).join('<br>')}</div>`);
+        const warnings = [...new Set(Object.values(ctx.data._errors).map(String))];
+        // Avoid repeating generic partial-data boilerplate on views which
+        // already render a specific unavailable-data state when needed.
+        const tripSection = query.tab === 'incidents' ? 'incidents' : query.tab === 'history' ? 'history' : 'active';
+        const hasOwnState = page === 'crew' || (page === 'trips'
+          && Array.isArray(ctx.data[tripSection]));
+        const shown = hasOwnState
+          ? warnings.filter(message => !/^This part is temporarily unavailable\. The rest of the page still works\.$/i.test(message.trim()))
+          : warnings;
+        if (shown.length) body.insertAdjacentHTML('afterbegin', `<div class="alert alert-warning">${shown.map(UI.esc).join('<br>')}</div>`);
       }
     } catch (e) {
       console.error(e);
-      body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}<div class="small mt-1">Only this page is affected. You can keep using the other pages.</div></div></div>`;
+      if (this.current !== routeState) return;
+      body.innerHTML = UI.state(e.status === 403 ? 'denied' : 'error', { title: e.message, message: 'Only this page is affected. You can keep using the other pages.', actionHtml: e.status === 403 ? '' : '<button type="button" class="btn btn-outline-secondary mt-2" data-page-retry>Try again</button>' });
+      body.querySelector('[data-page-retry]')?.addEventListener('click', () => ctx.reload());
     }
   },
 };
@@ -717,6 +741,16 @@ UI.wsPeriod = (page, per) => {
     <span class="small text-muted">${UI.date(per.from)} – ${UI.date(per.to)}</span></div>`;
 };
 UI.bindPeriod = (root) => root.querySelector('[data-ws-period]')?.addEventListener('change', (e) => { if (e.target.value) UI.goTo(e.target.value); });
+UI.operationsLabel = label => {
+  const role=App.me?.user?.role;if(!['operations_head','car_carrier_dispatcher','container_wingvan_dispatcher'].includes(role))return label;
+  const names={'Trip Management':'Trips','Dispatcher Monitoring':'Dispatch Monitoring','Trip Fund Approvals':'Fund Approvals','Truck Masterlist':'Trucks','Truck Master List':'Trucks','Driver & Helper Masterlist':'Drivers & Helpers','Client Masterlist':'Clients','Incidents & Maintenance':'Incidents & Repairs','Plate Number':'Plate No.','Plate number':'Plate No.','Personnel Name':'Name','Personnel Role':'Role','Permanent Truck':'Fixed Truck','Current Availability':'Availability','Operational Status':'Status','View Details':'View','Action Required Summary':'Needs Action','Workflow Progress Timeline':'Progress','Eligibility & Readiness Panel':'Readiness'};
+  if(label==='Trip Funds')return role==='operations_head'?'Fund Approvals':'Funds & Fuel';
+  if(role==='operations_head'){
+    const headNames={'Truck & Crew':'Truck & Personnel','Trip Funds & Fuel':'Funds & Fuel','Incident & Maintenance Coordination':'Incident & Repairs','Incidents & Corrective Maintenance':'Incidents & Repairs','Maintenance Record':'Repair Record','Maintenance Status':'Repair Status','Helper Replacement Reason':'Replacement Reason','Truck type':'Truck Type','Truck & Crew Assignment':'Truck & Personnel','Regular driver':'Fixed Driver','Regular helper':'Regular Helper','Plate / unit':'Plate No. / Unit','Add truck':'Add Truck','Add client':'Add Client','Add Client Profile':'Add Client','Client profile':'Client Profile','Truck / unit number':'Unit No.','MV file no.':'MV File No.','Chassis no.':'Chassis No.','Engine no.':'Engine No.','OR no.':'OR No.','CR no.':'CR No.','New truck':'Add Truck','Vehicle documents':'Truck Documents','Trip history':'Trip History','Status history':'Status History','Maintenance history':'Repair History','Recorded Activity':'Activity','Request Information':'Request','Trip Information':'Trip','Expense Breakdown':'Expenses','Recorded Progress':'Progress','Assignment & Activity History':'Activity','Trip Summary':'Overview','Trip Overview':'Overview','Planning Dispatcher Shift':'Dispatcher Shift','Recorded Approved Rate':'Approved Rate','Delivery Details / Instructions':'Delivery Instructions','View Related Trip':'View Trip','View Fund Request':'View Fund','Approve Request':'Approve','Close Details':'Close','Related Trip':'Trip','Requested By':'Requested By','Request Date':'Requested','Requested Amount':'Amount','Personnel Role':'Role','No authorized availability records match.':'No matching records found.'};
+    if(Object.hasOwn(headNames,label))return headNames[label];
+  }
+  return names[label]||label;
+};
 UI.esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 UI.money = (v) => (v === null || v === undefined || v === '') ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 UI.num = (v, d = 0) => (v === null || v === undefined || v === '') ? '—' : Number(v).toLocaleString('en-PH', { maximumFractionDigits: d });
@@ -781,7 +815,7 @@ UI.logoTag = (cls = '') => `<img src="assets/img/logo.svg" alt="RPM" class="${cl
 /** A button in the page header (top right). */
 UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-' + cls;
-  b.innerHTML = (icon ? `<i class="bi ${icon}"></i> ` : '') + UI.esc(label); b.onclick = fn; ctx.tools.append(b); return b;
+  b.innerHTML = (icon ? `<i class="bi ${icon}"></i> ` : '') + UI.esc(UI.operationsLabel(label)); b.onclick = fn; ctx.tools.append(b); return b;
 };
 
 /**
@@ -790,7 +824,7 @@ UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
  */
 UI.statusStrip = (items) => `<div class="metric-strip">${(items || []).map(c => { const go = c.go && UI.canGo(c.go);
   return `<div class="metric ${c.color || ''} ${go ? 'clickable' : ''}" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
-    <div class="metric-label">${c.color ? '<span class="dot"></span>' : ''}${UI.esc(c.label)}</div>
+    <div class="metric-label">${c.color ? '<span class="dot"></span>' : ''}${UI.esc(UI.operationsLabel(c.label))}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
     ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div>`; }).join('')}</div>`;
 /**
@@ -821,7 +855,7 @@ UI.goTo = (spec) => {
 UI.bindGo = (root) => root.querySelectorAll('[data-go]').forEach(x => { x.onclick = () => UI.goTo(x.dataset.go); x.onkeydown = (e) => { if (e.key === 'Enter') UI.goTo(x.dataset.go); }; });
 
 /** Panel with a title row (used by tables, charts and sections). */
-UI.card = (title, body, tools = '') => `<section class="panel">${title || tools ? `<div class="panel-head"><h2 class="panel-title">${title}</h2><div class="panel-tools">${tools}</div></div>` : ''}<div class="panel-body flush">${body}</div></section>`;
+UI.card = (title, body, tools = '') => `<section class="panel">${title || tools ? `<div class="panel-head"><h2 class="panel-title">${UI.operationsLabel(title)}</h2><div class="panel-tools">${tools}</div></div>` : ''}<div class="panel-body flush">${body}</div></section>`;
 
 /**
  * Data table with search and paging; bulk CSV export is intentionally unavailable.
@@ -898,6 +932,33 @@ UI.table = (columns, rows, opts = {}) => {
   return opts.title ? UI.card(opts.title, html) : `<section class="panel"><div class="panel-body flush">${html}</div></section>`;
 };
 UI._tables = {};
+/** Presentation metadata only; callers keep their existing paging, filtering and permissions. */
+UI.recordPager = ({total,page=1,pages=1,pageSize=10,previous='data-prev',next='data-next',note=''}) => {
+  const first=total?(page-1)*pageSize+1:0,last=total?Math.min(page*pageSize,total):0;
+  return `<span class="pager-info">Showing ${first}${total?'\u2013'+last:''} of ${total} records${note?` <small>${UI.esc(note)}</small>`:''}</span><nav class="pager-pages" aria-label="Record pages"><button type="button" class="pg" ${previous} ${page<=1?'disabled':''} aria-label="Previous page">Previous</button><span>Page ${page} of ${pages}</span><button type="button" class="pg" ${next} ${page>=pages?'disabled':''} aria-label="Next page">Next</button></nav>`;
+};
+/** Decorate existing nodes: never clone records/actions or infer a data scope. */
+UI.standardTable = (root, meta = {}) => {
+  if(!root)return;
+  root.classList.add('fleet-data-table');root.dataset.standardTable='';
+  let toolbar=meta.toolbar||root.querySelector(':scope > .fleet-table-toolbar, :scope > .table-tools, :scope > .ds-record-controls');
+  if(!toolbar&&meta.total!=null){toolbar=document.createElement('div');toolbar.className='fleet-table-toolbar';root.prepend(toolbar);}
+  if(toolbar){toolbar.classList.add('fleet-table-toolbar');
+    let count=toolbar.querySelector('[data-tcount], [data-standard-count]')||meta.count;
+    if(!count){count=document.createElement('span');count.dataset.standardCount='';toolbar.prepend(count);}
+    if(meta.total!=null)count.textContent=meta.total+' record'+(meta.total===1?'':'s');
+    const toggle=toolbar.querySelector('.rpm-record-controls');
+    // Count, working view switch, then the original search/tools (if this page uses them).
+    toolbar.prepend(count);if(toggle)count.after(toggle);
+  }
+  root.querySelectorAll('th.actions-col .visually-hidden').forEach(label=>{label.classList.remove('visually-hidden');label.textContent='Action';});
+  root.querySelectorAll('button').forEach(button=>{
+    if(['View','View Details'].includes(button.textContent.trim())){
+      button.classList.add('fleet-view');
+      if(!button.querySelector('.bi-eye'))button.insertAdjacentHTML('afterbegin','<i class="bi bi-eye" aria-hidden="true"></i>');
+    }
+  });
+};
 UI.tableRows = (id) => {
   const t = UI._tables[id]; if (!t) return [];
   const f = t.filter.toLowerCase();
@@ -906,6 +967,7 @@ UI.tableRows = (id) => {
 /** Draws one page of a table, with page numbers. */
 /** Consistent, formal labels across every table in FleetOps. */
 UI.columnLabel = (label, type = '') => {
+  label=UI.operationsLabel(label);
   const text = String(label || '');
   if (text === 'When') return 'Date and time';
   if (text === 'Schedule' || text === 'Scheduled') return type === 'datetime' ? 'Scheduled date and time' : 'Scheduled date';
@@ -918,7 +980,7 @@ UI.columnLabel = (label, type = '') => {
 };
 /** Date input labels use dates, not ambiguous 'from/to/when'. */
 UI.formLabel = (field) => {
-  const label = String(field.label || '');
+  const label = String(UI.operationsLabel(field.label || ''));
   if (!['date', 'datetime'].includes(field.type)) return label;
   if (label === 'From') return 'Start date';
   if (label === 'To') return 'End date';
@@ -935,7 +997,14 @@ UI.drawTable = (id) => {
   if (count) count.textContent = rows.length === t.rows.length ? `${rows.length} record${rows.length === 1 ? '' : 's'}` : `${rows.length} of ${t.rows.length}`;
   const pager = box.parentElement.querySelector(`[data-tpager="${id}"]`);
   if (pager) pager.innerHTML = '';
-  if (!rows.length) { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; return; }
+  if (!rows.length) {
+    if((!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
+      const message=t.filter?'No records match the current search or filters.':t.opts.empty||'No records found.';
+      box.innerHTML='<table class="data-table"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
+      if(pager&&!t.opts.dsServerPaged)pager.innerHTML=UI.recordPager({total:0});
+    } else { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; }
+    return;
+  }
   const pages = Math.ceil(rows.length / t.limit);
   t.page = Math.min(Math.max(t.page, 0), pages - 1);
   const first = t.page * t.limit, shown = rows.slice(first, first + t.limit);
@@ -945,7 +1014,11 @@ UI.drawTable = (id) => {
   const grow = UI.refPage() ? t.columns.map(([, k, f]) => typeof f === 'function' && shown.some(r => /cell-cl(?:ip|amp)/.test(String(f(r[k], r) || '')))) : [];
   box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
     <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
-  if (pager && pages > 1) {
+  if(pager&&t.opts.dsServerPaged){pager.innerHTML='';}
+  else if(pager&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
+    pager.innerHTML=UI.recordPager({total:rows.length,page:t.page+1,pages:Math.max(1,pages),pageSize:t.limit,previous:'data-tpg="'+(t.page-1)+'"',next:'data-tpg="'+(t.page+1)+'"'});
+    pager.querySelectorAll('[data-tpg]').forEach(button=>button.onclick=()=>{t.page=Number(button.dataset.tpg);UI.drawTable(id);});
+  } else if (pager && pages > 1) {
     const nums = [];
     for (let i = 0; i < pages; i++) if (i === 0 || i === pages - 1 || Math.abs(i - t.page) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
     pager.innerHTML = `<span class="pager-info">${first + 1}–${first + shown.length} of ${rows.length}</span><nav class="pager-pages" aria-label="Pages">
@@ -1074,7 +1147,7 @@ UI.activate = (root) => {
 UI.ibtn = (act, label, icon, cls = 'outline-secondary') =>
   `<button type="button" class="btn btn-sm btn-${cls} icon-act" data-act="${UI.esc(act)}" title="${UI.esc(label)}" aria-label="${UI.esc(label)}"><i class="bi ${UI.esc(icon)}" aria-hidden="true"></i></button>`;
 UI.btn = (act, label, cls = 'outline-secondary', icon = '') => {
-  const text = label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label;
+  const text = UI.operationsLabel(label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label);
   const isView = act === 'view' || (act === 'trip' && text === 'View trip');
   const variant = isView && cls === 'outline-secondary' ? 'outline-primary' : cls;
   const viewIcon = isView && !icon ? 'bi-eye' : icon;
@@ -1190,6 +1263,7 @@ UI.confirmProceed = (title, message, label = 'Yes, proceed') => {
 };
 
 UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
+  title=UI.operationsLabel(title);if(opts.submit)opts={...opts,submit:UI.operationsLabel(opts.submit)};
   const wrap = document.createElement('div');
   wrap.className = 'modal fade'; wrap.tabIndex = -1; wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('role', 'dialog');
   wrap.innerHTML = `<div class="modal-dialog ${opts.size ?? 'modal-lg'} modal-dialog-scrollable modal-dialog-centered"><form class="modal-content" novalidate>
@@ -1310,18 +1384,30 @@ UI.confirm = (title, text, onYes, opts = {}) => UI.modal(UI.esc(title), `<p clas
 UI.tabs = (root, tabs, active, opts = {}) => {
   if (!tabs.length) return;
   const id = 'tabs' + Math.random().toString(36).slice(2, 6);
-  const mem = 'tab:' + App.current.page + (opts.key ? ':' + opts.key : '');
+  const mem = 'tab:' + (App.current?.page || 'record') + (opts.key ? ':' + opts.key : '');
   active = active || tabs[0][0];
   root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
   const body = document.getElementById(id + 'body');
+  const retained = new Map();
+  const buttons = [...document.querySelectorAll(`#${id} > [data-tab]`)];
+  buttons.forEach((button, index) => { button.id = id + '-tab-' + index; button.setAttribute('aria-controls', opts.retainPanels ? id + '-panel-' + index : body.id); });
+  if (!opts.retainPanels) body.setAttribute('role', 'tabpanel');
   const show = (k) => {
-    document.querySelectorAll(`#${id} > [data-tab]`).forEach(b => { const on = b.dataset.tab === k; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); });
+    buttons.forEach(b => { const on = b.dataset.tab === k; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; if(on) body.setAttribute('aria-labelledby', b.id); });
     const t = tabs.find(x => x[0] === k);
-    try { body.innerHTML = ''; const out = t[2](body); if (typeof out === 'string') body.innerHTML = out; UI.activate(body); }
+    try {
+      if (opts.retainPanels) {
+        // Move existing nodes once. Keep hidden panels mounted so handlers, inputs and audit text survive.
+        tabs.forEach(([key, , render], index) => {
+          if (!retained.has(key)) { const panel = document.createElement('section'); panel.id = id + '-panel-' + index; panel.setAttribute('role','tabpanel'); panel.setAttribute('aria-labelledby',buttons[index].id); panel.tabIndex=0; body.append(panel); const out=render(panel); if(typeof out==='string')panel.innerHTML=out; retained.set(key,panel); UI.activate(panel); }
+          retained.get(key).hidden=key!==k;
+        });
+      } else { body.innerHTML = ''; const out = t[2](body); if (typeof out === 'string') body.innerHTML = out; UI.activate(body); }
+    }
     catch (e) { console.error(e); body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}</div></div>`; }
     sessionStorage.setItem(mem, k);
   };
-  document.querySelectorAll(`#${id} > [data-tab]`).forEach(b => b.onclick = () => show(b.dataset.tab));
+  buttons.forEach((b,index) => { b.onclick = () => show(b.dataset.tab); b.onkeydown = event => { let next; if(event.key==='ArrowRight')next=(index+1)%buttons.length;else if(event.key==='ArrowLeft')next=(index+buttons.length-1)%buttons.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=buttons.length-1;else return;event.preventDefault();buttons[next].click();buttons[next].focus(); }; });
   const remembered = sessionStorage.getItem(mem);
   show(opts.forceActive && tabs.some(t => t[0] === active) ? active : (tabs.some(t => t[0] === remembered) ? remembered : active));
 };
@@ -1565,6 +1651,7 @@ UI.filterModal = (ctx, fields, opts = {}) => {
   const reset = () => { const q = { ...ctx.query }; keys.forEach(k => delete q[k]); App.go(ctx.page, q); };
   const open = () => {
     const wrap = UI.modal('Filter records', UI.fields(fields.map(f => ({ ...f, value: ctx.query[f.name] ?? '' }))) + (opts.note ? `<div class="form-help mt-2">${UI.esc(opts.note)}</div>` : ''), async (d) => {
+      if (d.from && d.to && d.from > d.to) throw new Error('End date must be on or after the start date.');
       const q = { ...ctx.query }; keys.forEach(k => { if (d[k]) q[k] = d[k]; else delete q[k]; });
       App.go(ctx.page, q);
     }, { size: '', submit: 'Apply filters', confirmBeforeSubmit: false, extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-freset>Clear filters</button>' });
@@ -1572,7 +1659,7 @@ UI.filterModal = (ctx, fields, opts = {}) => {
   };
   const label = (k) => { const f = fields.find(x => x.name === k); const o = (f.options || []).find(o => String(Array.isArray(o) ? o[0] : o) === String(ctx.query[k])); return `${f.label}: ${o ? (Array.isArray(o) ? o[1] : o) : ctx.query[k]}`; };
   UI._filters[id] = { open, reset };
-  return `<div class="filter-summary" data-fid="${id}"><button type="button" class="btn btn-sm btn-outline-secondary" data-fopen><i class="bi bi-funnel"></i> Filter${active.length ? ` <span class="badge bg-warning text-dark">${active.length}</span>` : ''}</button>
+  return `<div class="filter-summary ui-filter-toolbar" data-fid="${id}"><button type="button" class="btn btn-sm btn-outline-secondary" data-fopen><i class="bi bi-funnel"></i> Filter${active.length ? ` <span class="badge bg-warning text-dark">${active.length}</span>` : ''}</button>
     ${active.length ? active.map(k => `<span class="filter-chip">${UI.esc(label(k))}</span>`).join('') + '<button type="button" class="btn btn-link btn-sm p-0 ms-1" data-fclear>Reset</button>' : `<span>${UI.esc(opts.hint || 'Showing all records.')}</span>`}</div>`;
 };
 
@@ -1615,7 +1702,7 @@ UI.drawer = (title, html, opts = {}) => {
   // Re-use the open drawer (refresh its content) so backdrops never stack up.
   let el = document.querySelector('.offcanvas.app-drawer');
   const head = `<div><h5 class="offcanvas-title mb-0">${title}</h5>${opts.subtitle ? `<div class="small text-muted">${opts.subtitle}</div>` : ''}</div>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>`;
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close details"></button>`;
   if (el) {
     el.querySelector('.offcanvas-header').innerHTML = head;
     el.querySelector('.offcanvas-body').innerHTML = html;
@@ -1640,7 +1727,7 @@ UI.steps = (stages, current, opts = {}) => `<div class="wf-steps ${opts.compact 
     <span class="dot">${i < current ? '<i class="bi bi-check"></i>' : i + 1}</span><span class="lbl">${UI.esc(s)}</span></div>`).join('')}</div>`;
 
 /** Label / value grid. pairs = [[label, html], ...] (values are already escaped / formatted). */
-UI.kv = (pairs) => `<dl class="kv">${pairs.filter(Boolean).map(([k, v]) => `<dt>${UI.esc(k)}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd>`).join('')}</dl>`;
+UI.kv = (pairs) => `<dl class="kv">${pairs.filter(Boolean).map(([k, v]) => `<dt>${UI.esc(UI.operationsLabel(k))}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd>`).join('')}</dl>`;
 UI.e = (v) => (v === null || v === undefined || v === '') ? '—' : UI.esc(v);
 
 /* CHECKLIST_25_INLINE_DOCUMENT_PREVIEW_V1 */
@@ -1687,7 +1774,91 @@ if (!UI._documentPreviewBound) {
 }
 
 /** Section heading inside drawers. */
-UI.h = (text, extra = '') => `<div class="drawer-h"><span>${UI.esc(text)}</span>${extra}</div>`;
+UI.h = (text, extra = '') => `<div class="drawer-h"><span>${UI.esc(UI.operationsLabel(text))}</span>${extra}</div>`;
+
+// Shared presentation only: callers supply already-authorized records and server decisions.
+UI.state = (kind, opts = {}) => {
+  const states = { empty:['bi-inbox','No records found.'], loading:['bi-hourglass-split','Loading records…'], error:['bi-exclamation-triangle','Unable to load records.'], denied:['bi-shield-lock','Access denied.'], success:['bi-check-circle','Saved successfully.'] };
+  const [icon, title] = states[kind] || states.error;
+  return `<div class="ui-state ui-state-${UI.esc(kind)}" role="${['error','denied'].includes(kind)?'alert':'status'}"${kind==='loading'?' aria-busy="true"':''}><i class="bi ${icon}" aria-hidden="true"></i><div><strong>${UI.esc(opts.title||title)}</strong>${opts.message?`<p>${UI.esc(opts.message)}</p>`:''}${opts.actionHtml||''}</div></div>`;
+};
+UI.actionSummary = (items, opts = {}) => {
+  const visible = (items||[]).filter(item => item && (item.count == null || Number(item.count)>0));
+  return `<section class="ui-action-summary" aria-label="${UI.esc(opts.title||'Action required')}"><h2>${UI.esc(opts.title||'Action required')}</h2>${visible.length?'<div class="ui-action-list">'+visible.map(item=>{
+    const go=item.go&&UI.canGo(item.go),tag=go?'a':'div';
+    const level=['danger','warning','success'].includes(item.level)?item.level:'info';
+    return `<${tag} class="ui-action-item ui-action-${level}"${go?` href="#${UI.esc(item.go.replace(/^#/,''))}"`:''}><span>${UI.esc(item.label||item.text)}</span>${item.count!=null?`<strong>${UI.num(item.count)}</strong>`:''}${go?'<i class="bi bi-chevron-right" aria-hidden="true"></i>':''}</${tag}>`;
+  }).join('')+'</div>':UI.state('empty',{title:opts.empty||'No action items in the available records.'})}</section>`;
+};
+UI.workflow = (milestones, opts = {}) => `<section class="ui-workflow" aria-label="${UI.esc(opts.label||'Recorded workflow progress')}">${opts.status?`<div class="ui-workflow-status">${UI.badge(opts.status)}</div>`:''}<ol>${(milestones||[]).map(m=>{
+  const state=['complete','current','pending','exception'].includes(m.state)?m.state:'pending';
+  return `<li class="ui-workflow-${state}"><span class="ui-workflow-dot" aria-hidden="true">${state==='complete'?'✓':state==='exception'?'!':'•'}</span><div><b>${UI.esc(m.label)}</b><small>${UI.esc({complete:'Recorded',current:'Current',pending:'Not recorded',exception:'Needs attention'}[state])}${m.at?' · '+UI.datetime(m.at):''}</small>${m.note?`<span>${UI.esc(m.note)}</span>`:''}</div></li>`;
+}).join('')}</ol></section>`;
+UI.activity = (records, opts = {}) => !(records||[]).length?UI.state('empty',{title:opts.empty||'No recorded activity.'}):`<ol class="timeline ui-activity">${records.map(e=>`<li><div class="when">${e.created_at||e.completed_at?UI.datetime(e.created_at||e.completed_at):'Time not recorded'}${e.actor?' · '+UI.esc(e.actor):''}</div><b>${UI.esc(e.event_type||e.update_type||e.action||e.to_status||e.kind||'Recorded activity')}</b>${e.from_status!==e.to_status&&e.to_status?`<div>${UI.esc(e.from_status||'Not recorded')} → ${UI.esc(e.to_status)}</div>`:''}${e.notes||e.note||e.details?`<p>${UI.esc(e.notes||e.note||e.details)}</p>`:''}${e.mechanic?`<small>Mechanic: ${UI.esc(e.mechanic)}</small>`:''}${e.reference?`<small>${UI.esc(e.reference)}</small>`:''}</li>`).join('')}</ol>`;
+UI.readiness = (checks, opts = {}) => `<section class="ui-readiness" aria-label="${UI.esc(opts.title||'Recorded readiness')}"><h3>${UI.esc(opts.title||'Recorded readiness')}</h3>${(checks||[]).length?'<ul>'+checks.map(c=>`<li class="ui-check-${c.state==='complete'?'complete':c.state==='blocked'?'blocked':'unknown'}"><i class="bi ${c.state==='complete'?'bi-check-circle':c.state==='blocked'?'bi-exclamation-circle':'bi-info-circle'}" aria-hidden="true"></i><span><b>${UI.esc(c.label)}</b>${c.detail?`<small>${UI.esc(c.detail)}</small>`:''}</span></li>`).join('')+'</ul>':'<p>No validation details are available.</p>'}<p class="ui-readiness-note">${UI.esc(opts.note||'Informational only. The server checks eligibility and permissions again when an action is submitted.')}</p></section>`;
+UI.documentChecklist = (documents, requirements, opts = {}) => `<section class="ui-document-checklist" aria-label="Document readiness"><h3>${UI.esc(opts.title||'Document readiness')}</h3><ul>${(requirements||[]).map(rule=>{
+  const files=(documents||[]).filter(d=>d.category===rule.category);
+  const expired=files.length&&rule.expiryField&&opts.asOf&&files.every(d=>d[rule.expiryField]&&String(d[rule.expiryField]).slice(0,10)<opts.asOf);
+  const state=rule.applicable===false?'Not Applicable':expired?'Expired':files.length?'Attached':'Missing';
+  return `<li><span>${UI.esc(rule.label||rule.category)} <small>${rule.required?'Required': 'Optional'}</small></span><b class="${state==='Attached'?'text-success':rule.required&&state!=='Not Applicable'?'text-danger':'text-muted'}">${state}</b>${state==='Missing'?`<small>${UI.esc(rule.required?'Required for '+(rule.for||'the existing workflow')+'.':'Optional attachment; does not block completion.')}</small>`:''}${rule.applicable===false&&rule.reason?`<small>${UI.esc(rule.reason)}</small>`:''}</li>`;
+}).join('')}</ul></section>`;
+UI.tripDocuments = documents => UI.documentChecklist(documents,[
+  ...['Waybill','Acknowledgement Receipt','Delivery Receipt'].map(category=>({category,required:true,for:'trip completion'})),
+  {category:'Diesel PO',required:false},{category:'Supplier SOA',required:false}
+]);
+UI.fundProgress = fund => UI.workflow([
+  {label:'Submitted',at:fund.created_at,state:fund.created_at?'complete':'pending'},
+  {label:fund.status==='Rejected'?'Rejected':'Approved',at:fund.approved_at,state:fund.status==='Rejected'?'exception':fund.approved_at?'complete':'pending',note:fund.rejected_reason},
+  {label:'Released',at:fund.released_at,state:fund.released_at?'complete':'pending'},
+  {label:'Liquidated',at:fund.liquidated_at,state:fund.liquidated_at?'complete':'pending'}
+],{status:fund.status,label:'Recorded fund progress'});
+UI.tripProgress = (trip, data = {}) => {
+  const attempt=Number(trip.attempt_number||1);
+  const inspections=(data.inspections||[]).filter(i=>Number(i.attempt_number)===attempt&&Number(i.vehicle_id)===Number(trip.vehicle_id));
+  const pre=inspections.find(i=>i.kind==='Pre-Dispatch'&&i.completed_at),arrival=inspections.find(i=>i.kind==='Arrival'&&i.completed_at);
+  const exceptional=['Cancelled','Rejected','On Hold - Incident Reported','For Reschedule'].includes(trip.status);
+  const milestones=[
+    {label:'Created',at:trip.created_at,state:trip.created_at?'complete':'pending'},
+    {label:'Resources assigned',state:trip.vehicle_id&&trip.driver_id?'complete':'pending',note:'Current recorded assignment; see history for previous attempts.'},
+    {label:'Pre-dispatch · attempt '+attempt,at:pre?.completed_at,state:pre?(Number(pre.has_not_ok)?'exception':'complete'):'pending'},
+    {label:'Dispatched',at:trip.dispatched_at,state:trip.dispatched_at?'complete':'pending'},
+    {label:'Completed',at:trip.completed_at,state:trip.completed_at?'complete':'pending'},
+    {label:'Arrival inspection / Truck release',at:arrival?.completed_at,state:arrival?(Number(arrival.has_not_ok)||Number(trip.awaiting_arrival)?'exception':'complete'):'pending',note:'Applies to the recorded Truck and attempt.'}
+  ];
+  // Never infer past completion merely from the current status. Preserve full multi-attempt history separately.
+  if(exceptional){const first=milestones.find(m=>m.state==='pending');if(first)first.state='exception';}
+  else { const current = {'Awaiting Resources':1,'Pre-Assigned':2,'Ready for Dispatch':3,'Dispatched':4,'In Transit':4,'Completed':5}[trip.status]; if(current!=null&&milestones[current].state==='pending')milestones[current].state='current'; }
+  return UI.workflow(milestones,{status:trip.status,label:'Recorded trip milestones'});
+};
+/** Organize existing drawer nodes with UI.tabs; never clone actions, forms or document handlers. */
+UI.drawerSections = (drawer, definitions, opts = {}) => {
+  const body=drawer.querySelector('.offcanvas-body');if(!body||body.querySelector('[data-record-sections]'))return;
+  const groups=definitions.map(([key,label,titles])=>({key,label,titles,nodes:[]}));
+  const selector=opts.selector||'.drawer-h';let current=groups[0];
+  [...body.childNodes].forEach(node=>{
+    if(node.nodeType===1&&node.matches(selector)){const title=(node.querySelector(opts.titleSelector||'span')?.textContent||'').trim();current=groups.find(g=>g.titles.some(t=>title===UI.operationsLabel(t)||title.startsWith(UI.operationsLabel(t)+' (')))||groups[0];}
+    current.nodes.push(node);
+  });
+  const host=document.createElement('div');host.dataset.recordSections='';host.className='ui-record-sections';body.replaceChildren(host);
+  UI.tabs(host,groups.filter(g=>g.nodes.some(n=>n.nodeType===1||n.textContent.trim())).map(g=>[g.key,UI.esc(UI.operationsLabel(g.label)),panel=>panel.append(...g.nodes)]),groups[0].key,{key:opts.key||'record-details',forceActive:true,retainPanels:true});
+};
+/** Standardize an existing search/filter form while preserving its submit/change contract. */
+UI.searchToolbar = (form) => {
+  const search=form.querySelector('input[type=search]');if(!search||form.dataset.uiToolbar)return;form.dataset.uiToolbar='';
+  form.classList.add('ui-search-form','oh-compact-filter');const label=search.closest('label');if(!label)return;
+  const others=[...form.children].filter(node=>node!==label);
+  [...label.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim()).forEach(node=>{const span=document.createElement('span');span.className='visually-hidden';span.textContent=node.textContent;node.replaceWith(span);});
+  const toolbar=document.createElement('div');toolbar.className='ui-search-toolbar oh-record-toolbar';label.classList.add('oh-search');
+  if(!label.querySelector('.bi-search'))label.insertAdjacentHTML('afterbegin','<i class="bi bi-search" aria-hidden="true"></i>');
+  toolbar.append(label);toolbar.insertAdjacentHTML('beforeend','<button type="submit" class="btn btn-primary">Search</button><button type="button" class="btn btn-outline-success" data-toggle-record-filters aria-expanded="false">Filters</button>');
+  const panel=document.createElement('div');panel.className='ui-search-filters oh-record-filter-panel';panel.id='filters-'+UI.uuid();panel.hidden=true;panel.append(...others);panel.insertAdjacentHTML('beforeend','<button type="button" class="btn btn-primary" data-apply-record-filters>Apply Filters</button>');
+  const toggle=toolbar.querySelector('[data-toggle-record-filters]');toggle.setAttribute('aria-controls',panel.id);toggle.onclick=()=>{panel.hidden=!panel.hidden;toggle.setAttribute('aria-expanded',String(!panel.hidden));};
+  const chips=document.createElement('div');chips.className='ui-filter-indicators';chips.setAttribute('aria-label','Active filters');
+  const refresh=()=>{chips.replaceChildren();[...form.elements].filter(e=>e.name&&e!==search&&e.value&&e.type!=='hidden').forEach(e=>{const chip=document.createElement('span');chip.className='filter-chip';const caption=e.closest('label')?.firstChild?.textContent?.trim()||e.name;chip.textContent=caption+': '+(e.tagName==='SELECT'?e.selectedOptions[0]?.textContent:e.value);chips.append(chip);});};
+  const apply=()=>{refresh();form.dispatchEvent(new Event('change',{bubbles:true}));};
+  panel.querySelector('[data-apply-record-filters]').onclick=apply;
+  form.onsubmit=event=>{event.preventDefault();apply();};form.append(toolbar,panel,chips);form.addEventListener('change',refresh);refresh();
+};
 
 /**
  * Printable form with the company header used on every printout (PDF #13 formats).
@@ -1795,7 +1966,7 @@ UI.signatureModal = () => {
     const actions = `<div class="rpm-record-controls no-print" data-rpm-controls="${marker}" aria-label="Record view and page size">
       <div class="rpm-record-toggle" role="group" aria-label="View records as">
         <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">List</span></button>
-        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">Cards</span></button>
+        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">${UI.role('operations_head')||UI.isDispatcher()?'Grid':'Cards'}</span></button>
       </div>
       <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
     </div>`;
@@ -1826,7 +1997,7 @@ UI.signatureModal = () => {
       const size = control.querySelector('[data-rpm-size]');
       if (size) size.value = String(t.limit);
     }
-    if (t.rpmView !== 'cards') return;
+    if (t.rpmView !== 'cards' || !UI.tableRows(id).length) return;
     const table = container.querySelector('table.data-table');
     if (!table) return; // empty list is handled by existing table renderer
     const grid = document.createElement('div');
@@ -1841,7 +2012,7 @@ UI.signatureModal = () => {
       const fields = document.createElement('div');
       fields.className = 'rpm-record-fields';
       columns.forEach(([label, , format], idx) => {
-        if (idx >= 4) return; // RPM CARD COMPACT V2: hide secondary fields; full details through View action. // Keep cards concise; the View action opens full details.
+        if (idx >= 4 && !(UI.role('operations_head')||UI.isDispatcher())) return; // RPM CARD COMPACT V2: hide secondary fields; full details through View action. // Keep cards concise; the View action opens full details.
         const td = cells[idx];
         if (!td) return;
         const field = document.createElement('div');
@@ -1912,6 +2083,15 @@ UI.signatureModal = () => {
   };
 })();
 /* RPM SHARED RECORD VIEW SWITCH V1 END */
+// Standard record presentation is opt-in by caller role, not an authorization decision.
+(() => {
+  const draw=UI.drawTable,activate=UI.activate;
+  const scoped=()=>UI.role('operations_head')||UI.isDispatcher();
+  const decorate=id=>{const box=document.querySelector('[data-tbody="'+id+'"]'),t=UI._tables[id];if(box&&t&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))){UI.standardTable(box.parentElement,{total:UI.tableRows(id).length});box.closest('.panel')?.classList.add('fleet-data-shell');}};
+  UI.drawTable=id=>{draw(id);if(scoped())decorate(id);};
+  UI.activate=root=>{activate(root);if(scoped())root.querySelectorAll('[data-tbody]').forEach(box=>decorate(box.dataset.tbody));};
+})();
+
 
 // Maps (UI.Map, UI.mapPicker, UI.routeMap) moved to assets/js/map.js (Checklist #5: OpenStreetMap + server-side road distance).
 

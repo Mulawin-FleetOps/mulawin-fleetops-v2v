@@ -497,5 +497,5 @@ ok($T($id)['status'] === 'Pre-Assigned' && $T($id)['driver2_id'] !== null, 'seco
 echo "\n----------------------------------------\n";
 echo "RESULT: $PASS passed, $FAIL failed\n";
 if ($FAILED) { echo "Failed:\n"; foreach ($FAILED as $f) echo "  - $f\n"; }
-test_server()->exec("DROP DATABASE IF EXISTS `$FRESH`");
+test_drop($FRESH);
 exit($FAIL === 0 ? 0 : 1);

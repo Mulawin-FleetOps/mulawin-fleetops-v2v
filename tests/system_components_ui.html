@@ -1,0 +1,75 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cross-module UI behavior checks</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/css/app.css">
+<div id="app"></div><div id="fixture" style="padding:12px"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/js/core.js"></script>
+<script src="../public/assets/js/modules/general/dashboard.js"></script><script src="../public/assets/js/modules/maintenance/maintenance.js"></script><script src="../public/assets/js/modules/maintenance/purchasing.js"></script><script src="../public/assets/js/modules/accounting/funds.js"></script><script src="../public/assets/js/modules/accounting/finance.js"></script><script src="../public/assets/js/modules/accounting/billing.js"></script><script src="../public/assets/js/modules/administration/admin.js"></script>
+<script>
+(async()=>{
+  const checks=[],calls=[],mount=document.querySelector('#fixture');
+  const assert=(ok,label)=>{if(!ok)throw new Error(label);checks.push('PASS '+label);};
+  const pause=()=>new Promise(r=>setTimeout(r,40));
+  bootstrap.Modal.prototype._isAnimated=()=>false;bootstrap.Offcanvas.prototype._isAnimated=()=>false;
+  const setRole=role=>{App.me={user:{id:1,role,full_name:'Fixture user'},nav:['maintenance','purchasing','finance','funds','billing','admin','reports','trips'].map(id=>({id})),roles:{}};};
+  const ctx=(page,data,query={})=>{App.current={page,query};mount.replaceChildren();return {page,data,query,el:mount,tools:document.createElement('div'),reload(){},setTitle(){}};};
+  const job={id:10,job_ref:'JOB-FIX',vehicle_id:1,plate_number:'TEST-1',truck_type:'Container',status:'Under Inspection',source:'On-Premise',problem:'Recorded brake problem',reported_on:'2026-11-01',created_at:'2026-11-01 10:00:00'};
+  const po={id:20,po_ref:'PO-FIX',status:'Partially Received',purpose:'Existing repair',supplier:'Fixture supplier',created_at:'2026-11-01 10:00:00',decided_at:'2026-11-02 10:00:00',decided_by_name:'Recorded approver',total_amount:100,paid_amount:0,payment_status:'Pending Payment'};
+  const request={id:21,request_ref:'REQ-FIX',status:'Requested',created_at:'2026-11-01 10:00:00',purpose:'Existing repair'};
+  const lines=[{id:1,part_id:1,part_number:'PART-1',description:'Recorded part',quantity:5,received_qty:2,released_qty:1,unit_price:20,quantity_on_hand:3}];
+  const fund={id:30,fund_ref:'FUND-FIX',trip_id:40,trip_ref:'TRIP-FIX',status:'Released',amount:100,created_at:'2026-11-01 10:00:00',approved_at:'2026-11-02 10:00:00',released_at:'2026-11-03 10:00:00',lines:[{category_name:'Meal',amount:100}],documents:[],history:[]};
+  const billing={id:50,status:'For Billing',trip_ref:'TRIP-FIX',total_amount:100,balance:100,amount_paid:0};
+  const originalApi=App.api;App.api=async(action,payload)=>{
+    calls.push({action,payload});
+    if(action==='Maintenance.details')return {job,incident:null,parts:[],costs:[],documents:[],events:[{to_status:'Reported',created_at:job.created_at,actor:'Recorded reporter'}],history:[]};
+    if(action==='Purchasing.po_details')return {po,lines,documents:[],payments:App.me.user.role==='finance'?[{voucher_number:'PV-FIX',amount:20,recorded_by_name:'Recorded finance'}]:[]};
+    if(action==='Purchasing.request_details')return {request,lines,documents:[]};
+    if(action==='Funds.details')return {fund};
+    if(action==='Billing.details')return {billing,trip:{id:40,trip_ref:'TRIP-FIX'},client:{company_name:'Fixture client'},charges:[],requests:[],documents:[{id:1,category:'Waybill',original_filename:'waybill.pdf',mime_type:'application/pdf'}],collections:[]};
+    throw new Error('Unexpected API '+action);
+  };
+  try{
+    setRole('motorpool');MaintUI.data={can:{act:true},mechanics:[]};await MaintUI.open(job.id);
+    let drawer=document.querySelector('.app-drawer');
+    assert(drawer.querySelectorAll('[role=tabpanel]').length===5&&drawer.querySelector('.ui-workflow-current').textContent.includes('Under Inspection'),'Maintenance uses recorded repair milestones and retained section tabs');
+    assert(!drawer.querySelectorAll('.ui-workflow-complete')[1]&&!drawer.textContent.includes('Repair verified. The truck is back in service.'),'Inspection status does not imply repair completion or return to service');
+    const formModal=UI.formModalFiles;let submission;UI.formModalFiles=(title,fields,action,options)=>submission={title,fields,action,options};
+    drawer.querySelector('[data-a=inspect]').click();UI.formModalFiles=formModal;
+    assert(submission.action==='Maintenance.inspect'&&submission.options.extra.job_id===10&&submission.fields.some(f=>f.name==='diagnosis'&&f.required),'Existing inspection action retains endpoint, record identity and required validation');
+    MaintUI.data.can.act=false;await MaintUI.open(job.id);drawer=document.querySelector('.app-drawer');
+    assert(!drawer.querySelector('[data-a=inspect]')&&!drawer.querySelector('[data-a=verify]'),'Read-only Maintenance payload does not gain processing controls');
+    setRole('purchasing');await PurUI.details(po.id);drawer=document.querySelector('.app-drawer');
+    assert(drawer.textContent.includes('2 of 5 units recorded')&&drawer.querySelector('.ui-workflow-current').textContent.includes('Parts received'),'PO progress shows actual partial receiving quantities rather than claiming completion');
+    assert(drawer.textContent.includes('No payment details returned for this record and role.')&&!drawer.textContent.includes('PV-FIX'),'Purchasing details do not invent or expose Finance-only payment records');
+    assert(!drawer.querySelector('form,[data-act=approve],[data-act=receive]'),'New Purchasing drawer is read-only and adds no duplicate processing controls');
+    setRole('finance');await PurUI.details(po.id);drawer=document.querySelector('.app-drawer');
+    assert(drawer.textContent.includes('PV-FIX')&&drawer.textContent.includes('Recorded finance'),'Finance details render payment records already authorized by the endpoint');
+    await PurUI.details(request.id,'request');assert(document.querySelector('.app-drawer').textContent.includes('1 of 5 units recorded'),'Parts-request progress uses recorded released quantities');
+    await FundUI.details(fund.id);drawer=document.querySelector('.app-drawer');
+    assert(drawer.querySelectorAll('.ui-workflow-complete').length===3&&drawer.querySelector('.ui-workflow-pending').textContent.includes('Liquidated'),'Fund progress distinguishes recorded release from unrecorded liquidation');
+    assert(!drawer.querySelector('form,[data-act=release]'),'Fund details do not duplicate the existing release action');
+    setRole('billing');BillUI.data={can:{act:true,decide:false,me:1}};await BillUI.open(billing.id);drawer=document.querySelector('.app-drawer');
+    assert(drawer.querySelectorAll('.ui-document-checklist li').length===3&&drawer.textContent.includes('Waybill'),'Billing retains its three existing required document categories');
+    assert(drawer.querySelectorAll('[data-a=verify]').length===1&&drawer.querySelectorAll('[role=tabpanel]').length>=2,'Billing verification remains a single existing action inside retained details');
+    const confirmation=UI.confirmAction;let verification;UI.confirmAction=(...args)=>verification=args;
+    drawer.querySelector('[data-a=verify]').click();UI.confirmAction=confirmation;
+    assert(verification[2]==='Billing.verify'&&verification[3].billing_id===50,'Billing verification retains its original endpoint and billing record identity');
+    setRole('finance');sessionStorage.removeItem('tab:finance');
+    App.pages.finance.render(ctx('finance',{can:{act:true},budgets:[],poPayables:[{...po,received_value:40,approved_by_name:'Recorded approver'}],payables:[],expenses:[],disbursements:[],methods:['Cash'],categories:[],trucks:[],cashflow:[],period:{from:'2026-11-01',to:'2026-11-30'}},{tab:'po'}));UI.activate(mount);
+    mount.querySelector('[data-fleet-manage]').click();
+    assert(mount.querySelector('.ui-action-summary').textContent.includes('1')&&document.querySelector('.modal [data-act=pay]'),'Finance follow-up counts do not remove the authorized payment action');
+    let payment;const save=UI.formModalFiles;UI.formModalFiles=(title,fields,action,options)=>payment={fields,action,options};document.querySelector('.modal [data-act=pay]').click();await pause();UI.formModalFiles=save;
+    assert(payment.action==='Finance.po_pay'&&payment.options.extra.po_id===20&&payment.fields.find(f=>f.name==='amount').value==='40.00'&&payment.fields.find(f=>f.name==='or_doc').required,'Finance payment retains received-value amount, existing endpoint and required receipt');
+    const financeData={can:{act:false},budgets:[],poPayables:[],payables:[{id:1,payable_ref:'AP-FIX',status:'Unpaid',balance:25}],expenses:[],disbursements:[],methods:['Cash'],categories:[],trucks:[],cashflow:[],period:{from:'2026-11-01',to:'2026-11-30'}};
+    sessionStorage.setItem('tab:finance','po');App.pages.finance.render(ctx('finance',financeData,{tab:'ap'}));UI.activate(mount);
+    assert(mount.querySelector('[data-tab=ap]').getAttribute('aria-selected')==='true'&&mount.textContent.includes('AP-FIX')&&!mount.querySelector('[data-act=pay]'),'Follow-up destination overrides remembered tab while read-only Finance retains no payment controls');
+    const alert=RPMDashboard.alerts([{text:'2 recorded repairs awaiting verification',page:'maintenance',level:'danger'},{text:'1 restricted record',page:'not-authorized'}]);mount.innerHTML=alert;
+    assert(mount.querySelectorAll('a').length===1&&mount.textContent.includes('2 recorded repairs')&&mount.querySelector('.ui-action-danger'),'Dashboard summaries preserve supplied counts/urgency and do not link restricted modules');
+    assert(calls.every(c=>['Maintenance.details','Purchasing.po_details','Purchasing.request_details','Funds.details','Billing.details'].includes(c.action)),'Cross-module detail navigation makes only existing read API calls');
+    setRole('audit');const event={id:1,created_at:'2026-11-11 12:00:00',actor:'Recorded admin',action:'Existing account update',details:'Recorded notes',role:'admin'};
+    sessionStorage.removeItem('tab:admin');App.pages.admin.render(ctx('admin',{can:{admin:false},roles:{admin:'Administrator'},users:[],actors:[],range:{from:'2026-11-01',to:'2026-11-30'},events:[event]},{}));UI.activate(mount);
+    const table=mount.querySelector('[data-tbody]'),recordTable=UI._tables[table.dataset.tbody];recordTable.opts.rowClick(event);
+    assert(document.querySelector('.app-drawer .ui-activity').textContent.includes('Recorded admin')&&!mount.querySelector('[data-adduser]'),'Audit activity uses recorded actors and does not gain account-management actions');
+    document.querySelector('#results').textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+  }catch(error){document.querySelector('#results').textContent=checks.join('\n')+'\nFAIL '+error.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+  finally{App.api=originalApi;}
+})();
+</script></html>

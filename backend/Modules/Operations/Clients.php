@@ -1,31 +1,15 @@
 <?php
-/*
- * =====================================================================
- *  backend/Modules/Operations/Clients.php  —  CLIENT MASTERLIST
- * =====================================================================
- *  Objective 1.2: client profiles with client information, accreditation
- *  documents and applicable billing rates.
- *  Objective 3.1: client billing rates based on billable distance.
- *
- *  PDF #12 Scenario A step 2 (client profile creation):
- *   1. Operations Head fills in the digital client information sheet
- *      (printable, so a clean copy can be given to the client).
- *   2. Attaches the client signature image and the accreditation files:
- *      company profile, SEC/DTI registration, business permit, BIR Form 2303.
- *   3. Only when ALL requirements are complete can the profile be saved
- *      -> status "Pending Rate" and it appears to Billing.
- *   4. Billing creates the client rate -> status "Active" and the complete
- *      profile (with rate) appears to the Operations Head. Only Active
- *      clients can be chosen for trips.
- * =====================================================================
+/** Accredited client profiles. Fixed contractual pricing belongs to approved Client Routes.
+ * Historical client_rates rows and billing fields are retained read-only.
  */
 declare(strict_types=1);
 core('Files');
 core('Notify');
 core('Settings');
+core('DispatcherScope');
 
 final class Clients {
-    /** input name => document category (all required before "Pending Rate"). */
+    /** input name => document category (all required before activation). */
     public const REQUIRED_DOCS = [
         'signature' => 'Client Signature',
         'company_profile' => 'Company Profile',
@@ -34,13 +18,14 @@ final class Clients {
         'bir_2303' => 'BIR Form 2303',
     ];
     private const EDIT = ['admin', 'operations_head'];
-    private const RATE = ['admin', 'billing'];
+    private const RATE = [];
 
     public static function read(array $u, string $page, array $q): array {
         $p = db();
+        if(roleIsDispatcher($u['role'])){$types=DispatcherScope::types($u);$marks=implode(',',array_fill(0,count($types),'?'));return ['clients'=>many($p,"SELECT c.id,c.company_name,c.status FROM clients c WHERE EXISTS(SELECT 1 FROM client_routes r WHERE r.client_id=c.id AND r.status='Approved' AND r.truck_type IN ($marks)) ORDER BY c.company_name",$types),'can'=>['edit'=>false,'rate'=>false],'requiredDocs'=>[],'defaultTerms'=>null];}
         $data = readSections([
             'clients' => fn() => many($p, "SELECT c.*,
-                    (SELECT GROUP_CONCAT(CONCAT(r.truck_type, ': ', FORMAT(r.rate_per_km,2), '/km') ORDER BY r.truck_type SEPARATOR '; ') FROM client_rates r WHERE r.client_id=c.id) AS rates,
+                    NULL AS rates,
                     (SELECT COUNT(DISTINCT d.category) FROM documents d WHERE d.entity_type='client' AND d.entity_id=c.id AND d.category IN ('" . implode("','", self::REQUIRED_DOCS) . "')) AS docs_done,
                     (SELECT COUNT(*) FROM trips t WHERE t.client_id=c.id AND t.status NOT IN ('Cancelled','Rejected')) AS trip_count,
                     (SELECT COALESCE(SUM(b.total_amount - b.amount_paid),0) FROM billings b WHERE b.client_id=c.id AND b.status IN ('Invoiced','Partially Paid')) AS balance
@@ -48,7 +33,7 @@ final class Clients {
         ]);
         $data['requiredDocs'] = self::REQUIRED_DOCS;
         $data['defaultTerms'] = Settings::value('default_payment_terms_days');
-        $data['can'] = ['edit' => hasRole($u, ...self::EDIT), 'rate' => hasRole($u, ...self::RATE)];
+        $data['can'] = ['edit' => hasRole($u, ...self::EDIT), 'rate' => false];
         return $data;
     }
 
@@ -57,7 +42,7 @@ final class Clients {
             'create' => self::create($u, $d),
             'update' => self::update($u, $d),
             'documents' => self::documents($u, $d),
-            'rate_save' => self::rateSave($u, $d),
+            'rate_save' => throw new BusinessRuleException('Client-level rates are retired. Use approved fixed Client Route Rates.',409),
             'set_active' => self::setActive($u, $d),
             'details' => self::details($u, $d),
             default => throw new BusinessRuleException('Unknown action.', 404),
@@ -103,12 +88,11 @@ final class Clients {
         must(!$missing, 'The client profile can be saved only when all requirements are attached. Missing: ' . implode(', ', $missing) . '.');
         return transaction(function (PDO $p) use ($u, $row) {
             self::assertUnique($p, $row);
-            $id = insert($p, 'clients', $row + ['status' => 'Pending Rate', 'created_by' => $u['id']]);
+            $id = insert($p, 'clients', $row + ['status' => 'Active', 'created_by' => $u['id']]);
             run($p, 'UPDATE clients SET client_code=? WHERE id=?', ['CL-' . str_pad((string)$id, 3, '0', STR_PAD_LEFT), $id]);
             foreach (self::REQUIRED_DOCS as $input => $cat) Files::store($p, $u, $input, 'client', $id, $cat, true, $cat);
-            audit($p, $u['id'], 'Clients', 'client ' . $id, 'client profile created', $row['company_name'] . ' -> Pending Rate');
-            Notify::roles($p, ['billing'], 'Client rate needed', 'New client ' . $row['company_name'] . ' is waiting for its billing rate.', 'clients', 'client-rate-' . $id);
-            return ['id' => $id, 'message' => 'Client profile saved. It now waits for Billing to set the rate (Pending Rate).'];
+            audit($p, $u['id'], 'Clients', 'client ' . $id, 'client profile created', $row['company_name'] . ' -> Active');
+            return ['id' => $id, 'message' => 'Client profile saved. Accreditation is complete; the client is Active.'];
         });
     }
 
@@ -134,7 +118,7 @@ final class Clients {
         });
     }
 
-    /** Upload missing or renewed accreditation files. An Incomplete client becomes Pending Rate when complete. */
+    /** Upload missing or renewed accreditation files. An Incomplete client becomes Active when complete. */
     private static function documents(array $u, array $d): array {
         requireRole($u, ...self::EDIT);
         $id = idField($d, 'id');
@@ -149,63 +133,18 @@ final class Clients {
             $msg = $n . ' file(s) uploaded.';
             if ($c['status'] === 'Incomplete' && !$missing) {
                 foreach (['business_address', 'contact_person', 'contact_number'] as $f) must(!empty($c[$f]), 'Complete the client information sheet (address, contact person, contact number) first.');
-                run($p, "UPDATE clients SET status='Pending Rate' WHERE id=?", [$id]);
+                run($p, "UPDATE clients SET status='Active' WHERE id=?", [$id]);
                 // Adjustment #5G: client lifecycle status audit
-                auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client requirements completed', $c['company_name'] . ' -> Pending Rate',
-                    ['Client status' => $c['status']], ['Client status' => 'Pending Rate']);
-                Notify::roles($p, ['billing'], 'Client rate needed', 'Client ' . $c['company_name'] . ' is complete and waiting for its billing rate.', 'clients', 'client-rate-' . $id);
-                $msg .= ' All requirements are complete; the client now waits for Billing to set the rate.';
+                auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client requirements completed', $c['company_name'] . ' -> Active',
+                    ['Client status' => $c['status']], ['Client status' => 'Active']);
+                Notify::resolve($p,'client-rate-'.$id);
+                $msg .= ' All requirements are complete; the client is Active.';
             } elseif ($missing) $msg .= ' Still missing: ' . implode(', ', $missing) . '.';
             return ['message' => $msg];
         });
     }
 
-    /** Billing sets the rate per truck type (rate per km and optional minimum charge) and payment terms. */
-    private static function rateSave(array $u, array $d): array {
-        requireRole($u, ...self::RATE);
-        $id = idField($d, 'id');
-        $rates = $d['rates'] ?? null;
-        must(is_array($rates), 'Enter at least one rate.');
-        $clean = [];
-        foreach ($rates as $r) {
-            if (!is_array($r) || trim((string)($r['rate_per_km'] ?? '')) === '') continue;
-            $type = choiceField($r, 'truck_type', TRUCK_TYPES);
-            $clean[$type] = ['rate_per_km' => moneyField($r, 'rate_per_km'), 'minimum_charge' => trim((string)($r['minimum_charge'] ?? '')) === '' ? '0.00' : moneyField($r, 'minimum_charge', true)];
-        }
-        must((bool)$clean, 'Enter the rate per km for at least one truck type.');
-        $terms = intField($d, 'payment_terms_days', 0, false);
-        if ($terms !== null) must($terms <= 365, 'Payment terms must be 365 days or less.');
-        return transaction(function (PDO $p) use ($u, $id, $clean, $terms) {
-            $c = one($p, 'SELECT * FROM clients WHERE id=? FOR UPDATE', [$id]);
-            must((bool)$c, 'Client not found.', 404);
-            must(in_array($c['status'], ['Pending Rate', 'Active'], true), 'Rates are set after the Operations Head completes the client profile (status is ' . $c['status'] . ').', 409);
-            $oldRates = []; $newRates = [];
-            foreach ($clean as $type => $r) {
-                $previous = one($p, 'SELECT rate_per_km, minimum_charge FROM client_rates WHERE client_id=? AND truck_type=?', [$id, $type]);
-                $oldRates[$type . ' rate/km'] = $previous['rate_per_km'] ?? null;
-                $newRates[$type . ' rate/km'] = $r['rate_per_km'];
-                $oldRates[$type . ' minimum charge'] = $previous['minimum_charge'] ?? null;
-                $newRates[$type . ' minimum charge'] = $r['minimum_charge'];
-                $p->prepare('INSERT INTO client_rates (client_id, truck_type, rate_per_km, minimum_charge, updated_by) VALUES (?,?,?,?,?)
-                             ON DUPLICATE KEY UPDATE rate_per_km=VALUES(rate_per_km), minimum_charge=VALUES(minimum_charge), updated_by=VALUES(updated_by)')
-                  ->execute([$id, $type, $r['rate_per_km'], $r['minimum_charge'], $u['id']]);
-            }
-            run($p, "UPDATE clients SET status='Active', payment_terms_days=?, rate_set_by=?, rate_set_at=NOW() WHERE id=?", [$terms, $u['id'], $id]);
-            $txt = implode('; ', array_map(fn($t, $r) => "$t {$r['rate_per_km']}/km" . ((float)$r['minimum_charge'] > 0 ? " (min {$r['minimum_charge']})" : ''), array_keys($clean), $clean));
-            // Adjustment #5G: include the lifecycle transition and payment terms with the approved rate changes.
-            $oldRates['Client status'] = $c['status'];
-            $newRates['Client status'] = 'Active';
-            $oldRates['Payment terms (days)'] = $c['payment_terms_days'];
-            $newRates['Payment terms (days)'] = $terms;
-            auditWithChanges($p, $u['id'], 'Clients', 'client ' . $id, 'client rate set', $c['company_name'] . ': ' . $txt, $oldRates, $newRates);
-            if ($c['status'] === 'Pending Rate') {
-                Notify::resolve($p, 'client-rate-' . $id);
-                Notify::roles($p, ['operations_head'], 'Client ready', 'Client ' . $c['company_name'] . ' is complete with its billing rate and can now be used for trips.', 'clients');
-            }
-            return ['message' => 'Rate saved. ' . $c['company_name'] . ' is Active and can be selected for trips.'];
-        });
-    }
-
+    /** Accreditation controls activation; no legacy pricing dependency. */
     private static function setActive(array $u, array $d): array {
         requireRole($u, ...self::EDIT);
         $id = idField($d, 'id'); $active = !empty($d['active']);
@@ -213,8 +152,8 @@ final class Clients {
             $c = one($p, 'SELECT * FROM clients WHERE id=? FOR UPDATE', [$id]);
             must((bool)$c, 'Client not found.', 404);
             if ($active) {
-                $hasRate = (bool)one($p, 'SELECT id FROM client_rates WHERE client_id=? LIMIT 1', [$id]);
-                $status = self::missingDocs($p, $id) ? 'Incomplete' : ($hasRate ? 'Active' : 'Pending Rate');
+                $profileComplete=!empty($c['business_address'])&&!empty($c['contact_person'])&&!empty($c['contact_number']);
+                $status = self::missingDocs($p, $id)||!$profileComplete ? 'Incomplete' : 'Active';
             } else $status = 'Inactive';
             run($p, 'UPDATE clients SET status=? WHERE id=?', [$status, $id]);
             // Adjustment #5G: record the actual status, which can also be Incomplete or Pending Rate.
@@ -227,6 +166,10 @@ final class Clients {
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'clients') || Access::canOpen($u, 'trips'), 'Not allowed.', 403);
         $id = idField($d, 'id'); $p = db();
+        if(roleIsDispatcher($u['role'])){
+            $types=DispatcherScope::types($u);$marks=implode(',',array_fill(0,count($types),'?'));$c=one($p,"SELECT c.id,c.company_name,c.status FROM clients c WHERE c.id=? AND EXISTS(SELECT 1 FROM client_routes r WHERE r.client_id=c.id AND r.status='Approved' AND r.truck_type IN ($marks))",[$id,...$types]);must((bool)$c,'Client is outside your operational scope.',403);[$scope,$args]=DispatcherScope::tripSql($u);
+            return ['client'=>$c,'rates'=>[],'documents'=>[],'missing'=>[],'trips'=>many($p,"SELECT t.id,t.trip_ref,t.status,t.scheduled_at,t.pickup_point,t.delivery_point,t.truck_type FROM trips t WHERE t.client_id=? $scope ORDER BY t.scheduled_at DESC LIMIT 30",[$id,...$args]),'billing'=>null];
+        }
         $c = one($p, 'SELECT c.*, cu.full_name AS created_by_name, ru.full_name AS rate_set_by_name FROM clients c LEFT JOIN users cu ON cu.id=c.created_by LEFT JOIN users ru ON ru.id=c.rate_set_by WHERE c.id=?', [$id]);
         must((bool)$c, 'Client not found.', 404);
         return [

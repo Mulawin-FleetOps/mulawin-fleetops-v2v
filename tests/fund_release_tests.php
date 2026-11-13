@@ -52,8 +52,9 @@ test_import($p, test_sql('database/schema.sql'));
 test_import($p, test_sql('database/extension.sql'));
 $users = [];
 $mk = function (string $username, string $role) use ($p, &$users) {
-    $id = insert($p, 'users', ['username' => $username, 'email' => "$username@example.test", 'password_hash' => 'x', 'full_name' => strtoupper($username) . ' USER', 'role' => $role]);
-    $users[$username] = ['id' => $id, 'username' => $username, 'email' => "$username@example.test", 'full_name' => strtoupper($username) . ' USER', 'role' => $role, 'shift' => null];
+    $shift = roleIsDispatcher($role) ? 'Day' : null;
+    $id = insert($p, 'users', ['username' => $username, 'email' => "$username@example.test", 'password_hash' => 'x', 'full_name' => strtoupper($username) . ' USER', 'role' => $role, 'shift' => $shift]);
+    $users[$username] = ['id' => $id, 'username' => $username, 'email' => "$username@example.test", 'full_name' => strtoupper($username) . ' USER', 'role' => $role, 'shift' => $shift];
 };
 foreach (array_keys(ROLE_LABELS) as $role) $mk($role, $role);
 $mk('finance2', 'finance');
@@ -62,6 +63,11 @@ $ops = $U('operations_head'); $wvd = $U('container_wingvan_dispatcher'); $fin = 
 Actions::load('Trips'); Actions::load('Funds');
 $cid = insert($p, 'clients', ['company_name' => 'FUND CLIENT', 'status' => 'Active', 'created_by' => $ops['id']]);
 insert($p, 'client_rates', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'rate_per_km' => '50.00', 'minimum_charge' => '0.00', 'updated_by' => $U('billing')['id']]);
+$routeId = insert($p, 'client_routes', ['route_ref'=>'FUNDS-TEST-WV', 'client_id'=>$cid, 'truck_type'=>'Wing Van',
+    'origin_label'=>'FUND PICKUP', 'destination_label'=>'FUND DELIVERY', 'origin_key'=>'fund pickup', 'destination_key'=>'fund delivery',
+    'distance_km'=>'25', 'status'=>'Approved', 'requested_by'=>$ops['id']]);
+insert($p, 'client_route_rates', ['route_id'=>$routeId, 'version_no'=>1, 'rate_type'=>'Flat', 'rate_amount'=>'1250',
+    'status'=>'Approved', 'entered_by'=>$U('billing')['id'], 'effective_from'=>date('Y-m-d H:i:s')]);
 for ($i = 1; $i <= 30; $i++) {
     insert($p, 'vehicles', ['plate_number' => "WV-$i", 'truck_type' => 'Wing Van']);
     insert($p, 'personnel', ['full_name' => "DRIVER, NO $i", 'person_type' => 'Driver']);
@@ -71,11 +77,12 @@ $T = fn(int $id) => one($p, 'SELECT * FROM trips WHERE id=?', [$id]);
 $F = fn(int $id) => one($p, 'SELECT * FROM fund_requests WHERE id=?', [$id]);
 $n = 0;
 /** Pre-Assigned trip with an approved (Ready for Release) fund request; schedule set directly. */
-$approvedFund = function (int $minutesAhead = 60) use ($ops, $wvd, $cid, $p, &$n): array {
+$approvedFund = function (int $minutesAhead = 60) use ($ops, $wvd, $cid, $routeId, $p, &$n): array {
     $n++;
     $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
-        'scheduled_at' => date('Y-m-d\TH:i', time() + 3 * 86400), 'distance_km' => '25.00']);
-    run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
+        'scheduled_at' => date('Y-m-d\TH:i', time() + 3 * 86400), 'distance_km' => '25.00', 'dispatcher_assignment'=>'container_wingvan_dispatcher:Day',
+        'responsible_dispatcher_id'=>$wvd['id'], 'client_route_id'=>$routeId]);
+    // This isolated Funds fixture starts at the existing post-assignment state; actual\n    // Dispatcher resource assignment is covered by the dedicated turnover suite.\n    run($p, "UPDATE trips SET status='Pre-Assigned', scheduled_at=? WHERE id=?", [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
     $f = Funds::action($wvd, 'submit', ['trip_id' => $r['trip_id'], 'categories' => ['Driver Meal Allowance', 'Helper Meal Allowance']]);
     Funds::action($ops, 'decide', ['fund_id' => $f['fund_id'], 'decision' => 'approve']);
     return [(int)$r['trip_id'], (int)$f['fund_id']];
@@ -274,5 +281,5 @@ ok((float)one($p, 'SELECT SUM(amount) AS s FROM expenses WHERE trip_id=?', [$tid
 echo "\n----------------------------------------\n";
 echo "RESULT: $PASS passed, $FAIL failed\n";
 if ($FAILED) { echo "Failed:\n"; foreach ($FAILED as $f) echo "  - $f\n"; }
-test_server()->exec("DROP DATABASE IF EXISTS `$FRESH`");
+test_drop($FRESH);
 exit($FAIL === 0 ? 0 : 1);

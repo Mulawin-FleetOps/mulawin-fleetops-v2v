@@ -58,3 +58,97 @@ Safety rules:
   `cmd.exe` drops an unquoted `^`, which loaded the schema AFTER the migration and broke the upgrade checks.
 
 Exit code 0 = all tests passed. Details: `docs/CLAUDE_20_CLIENT_ROUTES.md`.
+
+
+## Unified PHPUnit runner (PHP 8.2 / PHPUnit 11.5)
+
+Run from the project root in PowerShell:
+
+```powershell
+& C:\xampp\php\php.exe vendor/phpunit/phpunit/phpunit
+& C:\xampp\php\php.exe composer.phar test
+& C:\xampp\php\php.exe vendor/phpunit/phpunit/phpunit --log-junit tests/reports/safe.xml
+```
+
+The default `Safe` suite runs environment and unit tests without the application .env.
+`--testsuite Unit`, `--filter Checklist`, `--testdox` and other PHPUnit options work normally.
+The bootstrap copies backend/config into a temporary directory with an unusable local DB endpoint;
+only the functions under test are loaded. Unexpected DB access fails instead of reaching development.
+
+Integration is opt-in and runs each existing suite in its own process to avoid global helper collisions:
+
+```powershell
+$env:FLEETOPS_DB_TESTS = '1'
+$env:TEST_DB_USER = 'fleetops_test' # dedicated local user, never application credentials
+# Set TEST_DB_PASS explicitly in the session, using your secret manager. An empty value is
+# not retained by some Windows shells; use a dedicated password-protected test account.
+& C:\xampp\php\php.exe vendor/phpunit/phpunit/phpunit --testsuite Integration --log-junit tests/reports/integration.xml
+```
+
+Missing opt-in/credentials/extension yields an explicit skip; an enabled suite with a DB connection,
+migration or assertion failure fails the run. A green default run does not prove DB workflows.
+Use a local MySQL user with CREATE/DROP and table privileges limited to the intended test prefix
+(wildcard grants must escape literal underscores). Do not grant global privileges. No user is
+created automatically. Never substitute credentials read from the application's .env.
+
+Database names now include a random per-run identifier: `<prefix>_<random>_<suffix>_test`.
+Only loopback DB hosts are accepted. A manifest binds the temporary directory, DB names and
+connection configuration. A database must have this run's ownership marker before reset or deletion.
+Pre-existing/unowned databases are refused, even with a `_test` suffix. Cleanup runs after child
+failure as well as success and removes only owned databases. Forced process termination can leave
+artifacts; inspect them manually, never remove databases by suffix alone. The launcher reads only
+DB_NAME from the project .env as a refusal check; it does not use application credentials.
+Legacy direct launcher commands remain supported with explicit TEST_DB_USER.
+
+HTTP feature checks require real Apache and an explicit URL:
+
+```powershell
+$env:TEST_BASE_URL = 'http://localhost/mulawin-fleetops-v2v'
+& C:\xampp\php\php.exe vendor/phpunit/phpunit/phpunit --testsuite Feature --log-junit tests/reports/feature.xml
+```
+
+Reports are ignored by Git. Legacy results appear as one PHPUnit test per script; individual legacy
+assertions remain in subprocess output on failure. This is scenario coverage, not measured code coverage.
+See COVERAGE_INVENTORY.md for existing assertions and remaining workflow gaps. Quantity expansion,
+preventive maintenance and a Delayed trip status have not been introduced.
+
+
+`run_inventory_finance_tests.php` adds stock-release and payable/budget reconciliation scenarios.
+It uses the same isolated launcher and is automatically discovered by the Integration suite.
+It has not been database-verified in this session; see IMPLEMENTATION_REPORT.md.
+
+## Operations Head redesign browser checks
+
+Operations Head Reports now has its own role-scoped three-tab projection and screen. The default safe PHPUnit suite includes `OperationsReportsTest.php`; the same Chrome runner includes `ops_reports_ui.html`, five report layouts, and an actual fixture CSV download containing the full matching set from page four. Open that fixture locally with `?preview=trips`, `?preview=trucks`, `?preview=incidents`, or `?preview=empty`. Mocked CSV downloads are written under ignored `tests/reports/operations-reports-download-*`. Never serve fixtures through Apache.
+
+`run_operations_reports_tests.php` reuses the existing guarded disposable launcher for query/date/distinct-count/export scenarios and is discovered by Integration. It has not been DB-executed because isolated credentials were absent. See `docs/OPERATIONS_HEAD_REPORTS.md` for actual results, retained-dispatch utilization semantics, and manual checks. The generic Reports renderer and other roles' report queries remain intact.
+
+The subsequent New Trip improvement adds a required manual Dispatcher group/shift per planning entry and renames quantity to Number of Required Trucks, while retaining the approved layout. See `docs/TRIP_PLANNING_DISPATCHER_ASSIGNMENT.md` for the migration, account-slot behavior, strict access integration, and actual results. New local-file previews are `ops_head_ui.html?preview=planner-filled` (three entries / nine required trucks) and `?preview=planner-review` (nine individual drafts); API calls remain mocked. The existing Chrome runner checks these at desktop/tablet/mobile sizes.
+
+`tests/Unit/DispatcherPlanningTest.php` is included in the default safe PHPUnit suite. `run_planning_dispatcher_tests.php` adds guarded disposable-DB creation/ownership/route/retry/notification scenarios and is discovered by Integration. It has only been syntax-checked; isolated credentials were absent. Historical NULL-shift trips stay group-wide. Legacy Operations Head creation fixtures need the new manual `dispatcher_assignment` value (for example `container_wingvan_dispatcher:Day`) and an actually approved client/type route. No schedule-based shift inference or automatic backfill should be added to tests or production to satisfy old assumptions.
+
+Run `node tests/run_ops_head_browser.cjs` from the repository root. This uses local headless Chrome and Node's built-in WebSocket support, with no npm dependencies. `operations_ui.html`, `ops_head_ui.html`, `trip_approvals_ui.html`, and `dispatcher_ui.html` mock every API call; no login or database is used. The runner also checks exact desktop/tablet/mobile viewports, including fully settled drawers and visible fixed footers, writes screenshots/results to ignored `tests/reports/`, and safely removes its generated browser profile.
+
+Open `ops_head_ui.html` directly as a local file for manual fixture results. Its `?preview=dashboard`, `?preview=planner`, `?preview=active`, and `?preview=incidents` modes display clearly labeled fixture records for visual review. Do not serve these test files through Apache. See `docs/OPERATIONS_HEAD_REDESIGN.md` for the implementation, actual results, business-rule discrepancies, and live verification limitations.
+
+`trip_approvals_ui.html` adds dedicated approval-list and drawer scenarios; `?preview=list` and `?preview=drawer` show test-only visuals. See `docs/TRIP_APPROVALS_REDESIGN.md` for the current sidebar, evidence-based counts, unchanged maintenance read policy, and actual results.
+
+`run_trip_approval_tests.php` uses the existing guarded isolated launcher and is automatically discovered by the PHPUnit Integration suite. It covers approval/rejection evidence, server pagination, lifecycle history, request-date filters, stale decisions, authorization, and a two-process approval race. It was added and syntax-checked but not database-executed in this session because dedicated isolated credentials were absent. Run only with the disposable-database protections above; do not run `trip_approval_tests.php` directly.
+
+## Dispatcher redesign checks
+
+The latest Dispatcher UI cleanup fixes page-record tables at ten rows, removes their size selectors, and removes redundant page-header access badges. Shared component defaults for other roles remain intact. Run the same safe PHPUnit and mocked Chrome commands; see `docs/DISPATCHER_UI_CLEANUP.md` for exact pages, executed results, boundary/search/filter coverage, and skipped server-integration limits. The guarded `dispatcher_tests.php` adds server request-size enforcement and unchanged Operations Head size assertions; these have not been database-executed in this session.
+
+The latest workflow update supersedes the earlier combined availability page and eight-link sidebar. See `docs/DISPATCHER_WORKFLOW_IMPLEMENTATION.md` for the current attendance, regular-driver assignment, strict operational scoping, six-pill trip details, actual verification results, and limitations. The additive `2026-11-10_09_dispatcher_sessions.sql` migration is required for sessions; it has been installed in the verified local development database without seeding operational records. `database/extension.sql` also includes it for fresh isolated installs.
+
+Run `C:\xampp\php\php.exe vendor/phpunit/phpunit/phpunit --do-not-cache-result` for safe scope/session/assignment tests, and `node tests/run_ops_head_browser.cjs` for mocked browser contracts and responsive checks. New fixture previews include `attendance`, `assignment-form`, `drawer-fuel`, and `drawer`; existing `availability` and `personnel` previews now show separate read-only master lists. Add `&role=cc` to inspect Car Carrier labels. Fixtures remain local files with mocked APIs.
+
+`run_dispatcher_tests.php` now includes real session idempotency/history, held-person checkout rejection, fixed-truck validation, two-distinct-driver Car Carrier assignments, group-transfer history, and cross-scope direct access scenarios. These require the guarded disposable-database launcher above. They have not been DB-executed in this session. The full legacy DB regression suite is also unverified; older automatic-assignment fixtures assume crew without regular links/current sessions and need adaptation to the new prerequisites before their old expectations are applicable. Do not weaken application eligibility or run those fixtures on development records to make them pass.
+
+The final approved visual refinement restores professional green/neutral surfaces, yellow active navigation, pastel icons, and layered elevation. The same browser runner now also exercises actual router selection, custom trip pagination and page size, shared List/Grid controls, empty-table headers/footers, five additional History/availability layouts, and a real reduced-motion hover check. Test-only preview modes `history` and `history-empty` show the final Trip History layouts. See `docs/DISPATCHER_FINAL_REFINEMENT.md` for the final design and executed results; its visual direction supersedes the earlier Controlled Vivid stage.
+
+The subsequent Dispatcher refinement adds centralized filter draft/apply/clear/search/date checks, grouped-form checks, computed color contrast checks, native Escape/Enter focus checks, and additional responsive captures. Run the same `node tests/run_ops_head_browser.cjs` command. Detailed Dispatcher results are saved to ignored `tests/reports/dispatcher-refinement-checks.txt`; see `docs/DISPATCHER_REFINEMENT.md` for the measured contrast and actual results. Additional test-only preview modes are `filters`, `fund-form`, `incident-form`, `request-records`, `diesel`, `availability`, and `documents` (for example, open the fixture file with `?preview=filters&role=cc`). These remain fully mocked and must not be served through Apache.
+
+`dispatcher_ui.html` covers both Dispatcher roles, summary-card mappings, requests/recovery, fund presets/totals, Diesel document controls, both incident entry points, reference/history/documents, and action restrictions. Open it directly as a file; `?preview=dashboard`, `?preview=operations`, `?preview=requests`, `?preview=funds`, `?preview=incidents`, and `?preview=drawer` provide test-only visuals. Add `&role=cc` for Car Carrier. The shared browser runner checks 1920px, 1440px, 820px, and 390px layouts.
+
+`run_dispatcher_tests.php` uses the guarded disposable-database launcher and is discovered by PHPUnit Integration. Its new read-scope, creator-key recovery, preset-authority, attendance/arrival, and document scenarios are syntax-checked but have not been database-executed because isolated credentials were absent. Do not run `dispatcher_tests.php` directly or use the development database. See `docs/DISPATCHER_REDESIGN.md` for actual results and the explicitly unimplemented Diesel PO request/approval/issuance workflow.
