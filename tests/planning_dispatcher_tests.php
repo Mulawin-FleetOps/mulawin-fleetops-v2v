@@ -22,7 +22,21 @@ foreach($clients as $client)foreach(TRUCK_TYPES as $type){
     insert($p,'client_route_rates',['route_id'=>$route,'version_no'=>1,'rate_type'=>'Flat','rate_amount'=>'1250','status'=>'Approved','entered_by'=>$ops['id'],'effective_from'=>date('Y-m-d H:i:s')]);
     $routes[$client][$type]=$route;
 }
-$base=function(string $type,string $shift,int $client)use($routes):array{return ['request_key'=>planning_key(),'client_id'=>$client,'truck_type'=>$type,'client_route_id'=>$routes[$client][$type],'dispatcher_assignment'=>dispatcherRoleFor($type).':'.$shift,'scheduled_at'=>date('Y-m-d',strtotime('+1 day')).'T08:00','pickup_point'=>'Fixture origin '.$client,'delivery_point'=>'Fixture destination '.$client,'distance_km'=>'25','delivery_details'=>'Isolated parent instructions'];};
+$responsibleAccounts=[
+    'container_wingvan_dispatcher:Day'=>$cwDay['id'],
+    'container_wingvan_dispatcher:Night'=>$cwNight['id'],
+    'car_carrier_dispatcher:Day'=>$ccDay['id'],
+    'car_carrier_dispatcher:Night'=>$ccNight['id'],
+];
+$base=function(string $type,string $shift,int $client)use($routes,$responsibleAccounts):array{
+    $assignment=dispatcherRoleFor($type).':'.$shift;
+    return ['request_key'=>planning_key(),'client_id'=>$client,'truck_type'=>$type,
+        'client_route_id'=>$routes[$client][$type],'dispatcher_assignment'=>$assignment,
+        'responsible_dispatcher_id'=>$responsibleAccounts[$assignment],
+        'scheduled_at'=>date('Y-m-d',strtotime('+1 day')).'T08:00',
+        'pickup_point'=>'Fixture origin '.$client,'delivery_point'=>'Fixture destination '.$client,
+        'distance_km'=>'25','delivery_details'=>'Isolated parent instructions'];
+};
 $rows=[];foreach([['Wing Van','Day',3,$clients[0]],['Container','Night',2,$clients[1]],['Car Carrier','Day',4,$clients[0]]] as [$type,$shift,$quantity,$client])for($i=0;$i<$quantity;$i++)$rows[]=$base($type,$shift,$client);
 $result=Trips::action($ops,'create_batch',['rows'=>$rows]);
 $ids=array_map('intval',array_column($result['results'],'trip_id'));
