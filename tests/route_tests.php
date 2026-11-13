@@ -13,7 +13,7 @@
  *    B. Role permissions (actions and page access)
  *    C. Route request validation and normalization
  *    D. Rate entry validation
- *    E. Approval / rejection (new route vs revision), separation of duties
+ *    E. Approval / rejection (new route vs revision), Admin-only rate decision
  *    F. Rate revision safety: atomic supersede, rollback on failure, concurrent approval
  *    G. Duplicate prevention (application and database keys), truck types, directional routes
  *    H. Selectable routes, withdraw, deactivate, history
@@ -305,15 +305,14 @@ ok($policyOk, 'database accepts a Per Km rate with a minimum charge (ready for t
 // ---------------------------------------------------------------------
 section('E. Approval and rejection');
 $before = $checksums();
-// separation of duties: an admin who entered a rate (direct insert as test) cannot decide it
+// Kenneth 16dce05 (owner decision 2026-11-14): contractual rates are Admin-only; the Admin who entered a rate may approve it.
 $rs = (int)$act('operations_head', 'request', $req(['origin' => 'Sto Tomas', 'destination' => 'Calamba']))['route_id'];
 $selfRate = insert($p, 'client_route_rates', ['route_id' => $rs, 'version_no' => 1, 'rate_type' => 'Flat', 'rate_amount' => '3000', 'status' => 'Pending Approval', 'entered_by' => $users['admin']['id']]);
 run($p, "UPDATE client_routes SET status='Pending Approval' WHERE id=?", [$rs]);
-fails(fn() => $act('admin', 'decide', ['rate_id' => $selfRate, 'decision' => 'approve']), 'the person who entered a rate cannot approve it (separation of duties)', 403, 'separation');
-// POLICY PENDING (owner decision): kenneth 16dce05 removed this maker/checker rule when rate entry became Admin-only. The check above
-// stays and fails until the owner decides; the rest of the suite still runs (the second-Admin step needs a pending rate).
-if (one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$selfRate])['status'] === 'Pending Approval')
-    ok(isset(Routes::action($users['admin2'], 'decide', ['rate_id' => $selfRate, 'decision' => 'approve'])['message']), 'another Admin can approve it');
+foreach (['operations_head', 'finance', 'audit'] as $who)
+    fails(fn() => $act($who, 'decide', ['rate_id' => $selfRate, 'decision' => 'approve']), "$who cannot decide a contractual rate", 403);
+ok(isset($act('admin', 'decide', ['rate_id' => $selfRate, 'decision' => 'approve'])['message'])
+    && one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$selfRate])['status'] === 'Approved', 'Admin-only rule: the Admin who entered the rate approves it');
 
 fails(fn() => $act('admin', 'decide', ['rate_id' => $rate1, 'decision' => 'reject']), 'reject without a reason refused');
 $m = $act('admin', 'decide', ['rate_id' => $rate1, 'decision' => 'approve', 'notes' => 'Per contract 2026']);
