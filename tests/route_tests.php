@@ -310,7 +310,10 @@ $rs = (int)$act('operations_head', 'request', $req(['origin' => 'Sto Tomas', 'de
 $selfRate = insert($p, 'client_route_rates', ['route_id' => $rs, 'version_no' => 1, 'rate_type' => 'Flat', 'rate_amount' => '3000', 'status' => 'Pending Approval', 'entered_by' => $users['admin']['id']]);
 run($p, "UPDATE client_routes SET status='Pending Approval' WHERE id=?", [$rs]);
 fails(fn() => $act('admin', 'decide', ['rate_id' => $selfRate, 'decision' => 'approve']), 'the person who entered a rate cannot approve it (separation of duties)', 403, 'separation');
-ok(isset(Routes::action($users['admin2'], 'decide', ['rate_id' => $selfRate, 'decision' => 'approve'])['message']), 'another Admin can approve it');
+// POLICY PENDING (owner decision): kenneth 16dce05 removed this maker/checker rule when rate entry became Admin-only. The check above
+// stays and fails until the owner decides; the rest of the suite still runs (the second-Admin step needs a pending rate).
+if (one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$selfRate])['status'] === 'Pending Approval')
+    ok(isset(Routes::action($users['admin2'], 'decide', ['rate_id' => $selfRate, 'decision' => 'approve'])['message']), 'another Admin can approve it');
 
 fails(fn() => $act('admin', 'decide', ['rate_id' => $rate1, 'decision' => 'reject']), 'reject without a reason refused');
 $m = $act('admin', 'decide', ['rate_id' => $rate1, 'decision' => 'approve', 'notes' => 'Per contract 2026']);
@@ -339,7 +342,7 @@ section('F. Rate revision: reject, approve, rollback, concurrency');
 fails(fn() => $act('admin', 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '12500']), 'revision equal to the current rate refused', 409, 'same');
 $rev1 = (int)$act('admin', 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13000'])['rate_id'];
 ok(one($p, 'SELECT status FROM client_routes WHERE id=?', [$route1])['status'] === 'Approved', 'during a revision the route stays Approved');
-fails(fn() => Routes::action($users['billing2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13100']), 'second pending revision refused (application rule)', 409, 'already has a rate waiting');
+fails(fn() => Routes::action($users['admin2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13100']), 'second pending revision refused (application rule)', 409, 'already has a rate waiting');
 $sel = Routes::approvedFor($p, $cActive, 'Container');
 $x = array_values(array_filter($sel, fn($s) => (int)$s['id'] === $route1))[0] ?? null;
 ok($x && $x['rate_amount'] === '12500.00' && (int)$x['rate_id'] === $rate1, 'during a revision the OLD approved rate is the one in use');
@@ -350,7 +353,7 @@ ok($o['status'] === 'Approved' && $o['rate_amount'] === '12500.00' && $o['effect
 ok(one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$rev1])['status'] === 'Rejected', 'rejected revision: only the revision is Rejected');
 
 // Approve a revision
-$rev2 = (int)Routes::action($users['billing2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13500', 'notes' => '2027 contract'])['rate_id'];
+$rev2 = (int)Routes::action($users['admin2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13500', 'notes' => '2027 contract'])['rate_id'];
 $act('admin', 'decide', ['rate_id' => $rev2, 'decision' => 'approve']);
 $o = one($p, 'SELECT * FROM client_route_rates WHERE id=?', [$rate1]); $n = one($p, 'SELECT * FROM client_route_rates WHERE id=?', [$rev2]);
 ok($o['status'] === 'Superseded' && $o['effective_to'] !== null && $o['rate_amount'] === '12500.00', 'approved revision: old rate Superseded, amount kept, effective_to set');
@@ -452,7 +455,8 @@ $types = array_column($det['events'], 'event_type');
 foreach (['route requested', 'rate entered', 'route approved', 'rate revision entered', 'rate revision rejected', 'rate revision approved'] as $ev) ok(in_array($ev, $types, true), "history has '$ev'");
 ok((int)one($p, "SELECT COUNT(*) AS n FROM audit_events WHERE area='Routes'")['n'] >= count($det['events']), 'every route event is also in the activity log');
 $page = Routes::read($users['billing'], 'routes', []);
-ok(empty($page['_errors']) && count($page['routes']) >= 10 && $page['can']['rate'] && !$page['can']['approve'], 'page data loads for Billing with the right buttons');
+// kenneth 16dce05: contractual rates are entered and approved by the Admin; Billing reads routes and rates only.
+ok(empty($page['_errors']) && count($page['routes']) >= 10 && !$page['can']['rate'] && !$page['can']['approve'], 'page data loads for Billing with the right buttons (read-only rates)');
 $pf = Routes::read($users['operations_head'], 'routes', ['client_id' => (string)$cPending]);
 ok(count(array_unique(array_column($pf['routes'], 'client_id'))) === 1, 'page filter by client works');
 
@@ -574,17 +578,18 @@ insert($p, 'client_rates', ['client_id' => $client2, 'truck_type' => 'Wing Van',
 $drv = insert($p, 'personnel', ['full_name' => 'DELA CRUZ, JUAN', 'person_type' => 'Driver', 'license_number' => 'N01-00-000001', 'license_expiry' => date('Y-m-d', strtotime('+2 years'))]);
 $hlp = insert($p, 'personnel', ['full_name' => 'SANTOS, PEDRO', 'person_type' => 'Helper']);
 $veh = insert($p, 'vehicles', ['plate_number' => 'TST 1234', 'truck_type' => 'Wing Van', 'assigned_driver_id' => $drv, 'assigned_helper_id' => $hlp]);
-// An approved FLAT route for the same client and truck type: it must NOT change the per-km billing.
+// An approved FLAT route for the same client and truck type. kenneth migration 13: the billing draft is the route's frozen pricing.
 $rr = (int)$act('operations_head', 'request', ['client_id' => $client2, 'truck_type' => 'Wing Van', 'origin' => 'Tanauan', 'destination' => 'Malvar', 'distance_km' => '20'])['route_id'];
 $act('admin', 'decide', ['rate_id' => (int)$act('admin', 'rate_enter', ['route_id' => $rr, 'rate_type' => 'Flat', 'rate_amount' => '99999'])['rate_id'], 'decision' => 'approve']);
 $before = $checksums();
 try {
-    $t = Trips::action($users['operations_head'], 'create', ['client_id' => $client2, 'truck_type' => 'Wing Van', 'pickup_point' => 'Tanauan', 'delivery_point' => 'Malvar',
-        'distance_km' => '20',
-        // +1 hour: inside the Finance release window (Checklist #40, default 2 hours before dispatch).
-        'scheduled_at' => date('Y-m-d\TH:i', strtotime('+1 hour'))]);
+    // Current workflow (kenneth): Ops Head plans on the approved route; the Dispatcher times in the fixed crew and assigns the truck.
+    run($p, "UPDATE users SET shift='Day' WHERE id=?", [$users['container_wingvan_dispatcher']['id']]);
+    $t = test_create_planned_trip($users['operations_head'], ['client_id' => $client2, 'truck_type' => 'Wing Van', 'pickup_point' => 'Tanauan', 'delivery_point' => 'Malvar',
+        'client_route_id' => $rr, 'distance_km' => '20', 'scheduled_at' => date('Y-m-d\TH:i', strtotime('+1 hour'))]);
     $trip = one($p, 'SELECT * FROM trips WHERE id=?', [$t['trip_id']]);
-    ok($trip['status'] === 'Pre-Assigned' && (int)$trip['vehicle_id'] === $veh && (int)$trip['driver_id'] === $drv && (int)$trip['helper_id'] === $hlp, 'trip created and auto-assigned (Pre-Assigned) as before');
+    ok($trip['status'] === 'Pre-Assigned' && (int)$trip['vehicle_id'] === $veh && (int)$trip['driver_id'] === $drv && (int)$trip['helper_id'] === $hlp && (int)$trip['client_route_id'] === $rr,
+       'trip planned on the approved route and assigned to the fixed pair (Pre-Assigned)');
     $D = $users['container_wingvan_dispatcher'];
     $f = Funds::action($D, 'submit', ['trip_id' => $trip['id'], 'categories' => ['Driver Meal Allowance', 'Helper Meal Allowance']]);
     Funds::action($users['operations_head'], 'decide', ['fund_id' => $f['fund_id'], 'decision' => 'approve']);
@@ -600,14 +605,18 @@ try {
     run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $trip['id']]);
     Trips::action($D, 'dispatch', ['trip_id' => $trip['id']]);
     $b = one($p, 'SELECT * FROM billings WHERE trip_id=?', [$trip['id']]);
-    ok($b && $b['status'] === 'Ongoing' && $b['rate_per_km'] === '55.50' && $b['base_amount'] === '1110.00', 'billing draft still uses client_rates per km: 20 km x 55.50 = 1,110.00 (route rate ignored)', json_encode($b ? [$b['rate_per_km'], $b['base_amount']] : null));
+    $snap = $b ? json_decode((string)one($p, 'SELECT snapshot_json FROM billing_pricing WHERE billing_id=?', [$b['id']])['snapshot_json'], true) : null;
+    ok($b && $b['status'] === 'Ongoing' && $snap && (string)$snap['fixed'] === '99999.00' && (float)$b['base_amount'] === (float)($snap['total'] ?? $snap['fixed']),
+       'billing draft = the approved route rate frozen at dispatch (fixed-route pricing)', json_encode($b ? [$b['base_amount'], $snap['fixed'] ?? null, $snap['total'] ?? null] : null));
 } catch (Throwable $e) { ok(false, 'regression flow', get_class($e) . ': ' . $e->getMessage()); }
 Actions::load('Clients');
 $cd = Clients::action($users['operations_head'], 'details', ['id' => $client2]);
 ok(count($cd['rates']) === 1 && $cd['rates'][0]['rate_per_km'] === '55.50', 'client details still show the per-km billing rates');
 $rowsBefore = (int)one($p, 'SELECT COUNT(*) AS n FROM billings')['n'];
-$act('admin', 'rate_enter', ['route_id' => $rr, 'rate_type' => 'Flat', 'rate_amount' => '88888']);
-ok((int)one($p, 'SELECT COUNT(*) AS n FROM billings')['n'] === $rowsBefore && one($p, 'SELECT base_amount FROM billings WHERE trip_id=?', [$trip['id'] ?? 0])['base_amount'] === '1110.00', 'route rate revision does not change existing billings');
+$frozen = one($p, 'SELECT base_amount, total_amount FROM billings WHERE trip_id=?', [$trip['id'] ?? 0]);
+$rev = (int)$act('admin', 'rate_enter', ['route_id' => $rr, 'rate_type' => 'Flat', 'rate_amount' => '88888'])['rate_id'];
+Routes::action($users['admin2'], 'decide', ['rate_id' => $rev, 'decision' => 'approve']);
+ok((int)one($p, 'SELECT COUNT(*) AS n FROM billings')['n'] === $rowsBefore && $frozen && one($p, 'SELECT base_amount, total_amount FROM billings WHERE trip_id=?', [$trip['id'] ?? 0]) == $frozen, 'route rate revision (entered and approved) does not change existing billings');
 
 // ---------------------------------------------------------------------
 echo "\n" . str_repeat('=', 60) . "\nRESULT: $PASS passed, $FAIL failed\n";

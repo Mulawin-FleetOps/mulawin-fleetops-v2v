@@ -46,7 +46,7 @@ foreach (['admin' => null, 'operations_head' => null, 'container_wingvan_dispatc
 ['admin' => $adm, 'operations_head' => $ops, 'container_wingvan_dispatcher' => $wvd, 'finance' => $fin] = $users;
 foreach (['Trips', 'Funds', 'Admin', 'Attendance'] as $m) Actions::load($m);
 $cid = insert($p, 'clients', ['company_name' => 'ATTENDANCE CLIENT', 'status' => 'Active', 'created_by' => $ops['id']]);
-for ($i = 1; $i <= 3; $i++) {
+for ($i = 1; $i <= 5; $i++) {
     insert($p, 'vehicles', ['plate_number' => "ATT-00$i", 'truck_type' => 'Wing Van']);
     insert($p, 'personnel', ['full_name' => "ATT Driver $i", 'person_type' => 'Driver', 'license_number' => "ATT-LIC-$i", 'license_expiry' => '2099-12-31']);
     insert($p, 'personnel', ['full_name' => "ATT Helper $i", 'person_type' => 'Helper']);
@@ -120,6 +120,66 @@ $mark((int)$free['id'], null);
 $mark((int)$free['id'], 'Absent', date('Y-m-d', strtotime('-1 day')));
 Attendance::action($wvd, 'time_in', ['personnel_id' => (int)$free['id'], 'request_key' => key36()]);
 ok((bool)one($p, 'SELECT 1 AS x FROM dispatcher_attendance_sessions WHERE personnel_id=? AND time_out IS NULL', [$free['id']]), "yesterday's Absent mark does not block today's Time In");
+
+// ---------------------------------------------------------------------
+// Ported from the retired crew_dispatch suite (sections A, I, J, L), rewritten for Time In sessions.
+section('D. Warn / Enforce setting (ported A)');
+Admin::action($adm, 'setting_save', ['key' => 'crew_attendance_dispatch_check', 'value' => '1']); Settings::clearCache();
+foreach (['3', '0', '1.5', 'Enforce', ''] as $v) fails(fn() => Admin::action($adm, 'setting_save', ['key' => 'crew_attendance_dispatch_check', 'value' => $v]), "mode value '$v' refused", 400);
+fails(fn() => Admin::action($ops, 'setting_save', ['key' => 'crew_attendance_dispatch_check', 'value' => '2']), 'Operations Head cannot change the mode', 403);
+Admin::action($adm, 'setting_save', ['key' => 'crew_attendance_dispatch_check', 'value' => '2']); Settings::clearCache();
+$a = one($p, "SELECT c.changes_json FROM audit_events a JOIN audit_event_changes c ON c.audit_event_id=a.id WHERE a.action='setting changed' ORDER BY a.id DESC LIMIT 1");
+ok(CrewAttendance::mode() === CrewAttendance::MODE_ENFORCE && str_contains((string)$a['changes_json'], '"Warn"') && str_contains((string)$a['changes_json'], '"Enforce"'), 'Warn -> Enforce saved and in the Activity Log');
+
+section('E. Attendance changed at the same moment as Confirm Dispatch (ported I, two processes)');
+$T3 = $ready(3); $t3 = $trip($T3);
+$mark((int)$t3['helper_id'], 'Present');   // allowed, not required
+$child = __DIR__ . '/_dispatch_child.php';
+file_put_contents($child, '<?php
+declare(strict_types=1);
+require dirname(__DIR__) . "/backend/Actions.php";
+Actions::load("Trips");
+$u = json_decode($argv[1], true);
+try { $r = Trips::action($u, "dispatch", ["trip_id" => (int)$argv[2]]); echo json_encode(["ok" => true, "message" => $r["message"]]); }
+catch (BusinessRuleException $e) { echo json_encode(["ok" => false, "code" => $e->httpStatus, "message" => $e->getMessage()]); }
+catch (Throwable $e) { echo json_encode(["ok" => false, "code" => 0, "message" => get_class($e) . ": " . $e->getMessage()]); }
+');
+$adminConn = test_conn($DB);
+$adminConn->beginTransaction();
+$adminConn->prepare("UPDATE attendance_daily SET status='Absent', marked_at=NOW() WHERE personnel_id=? AND duty_date=?")->execute([$t3['helper_id'], date('Y-m-d')]);   // not committed yet
+$pipes = [];
+$proc = proc_open([PHP_BINARY, $child, json_encode($wvd), (string)$T3], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+usleep(1500000);
+$waiting = (int)$p->query("SELECT COUNT(*) FROM information_schema.processlist WHERE db='$DB' AND command IN ('Query','Execute') AND info LIKE '%attendance_daily%' AND id<>CONNECTION_ID()")->fetchColumn();
+$adminConn->commit();
+$out = json_decode((string)stream_get_contents($pipes[1]), true) ?: ['ok' => false, 'message' => stream_get_contents($pipes[2])];
+proc_close($proc); @unlink($child);
+ok($waiting >= 1, 'Confirm Dispatch waited for the unsaved attendance change', "waiting=$waiting");
+ok(!$out['ok'] && ($out['code'] ?? 0) === 409 && str_contains($out['message'], 'Absent'), 'it then saw the new Absent mark and refused (no stale decision)', json_encode($out));
+ok($trip($T3)['status'] === 'Ready for Dispatch' && !one($p, 'SELECT 1 AS x FROM billings WHERE trip_id=?', [$T3]), 'trip not dispatched, no billing');
+
+section('F. Readiness report (ported J)');
+$rd = Attendance::action($adm, 'readiness', []);
+ok($rd['mode'] === 'Enforce' && in_array($t3['trip_ref'], array_column($rd['trips'], 'trip_ref'), true), 'readiness lists the upcoming trip with Absent crew');
+fails(fn() => Attendance::action($ops, 'readiness', []), 'readiness is Admin-only', 403);
+$mark((int)$t3['helper_id'], null);
+run($p, 'DELETE FROM inspections WHERE trip_id=?', [$T3]);
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $T3]), 'timed-in crew but no checklist for the attempt: still refused', 409, 'No pre-dispatch checklist');
+
+section('G. Required crew at Confirm Dispatch (ported L, both modes, direct API)');
+$T4 = $ready(4); $t4 = $trip($T4);
+foreach (['Warn' => '1', 'Enforce' => '2'] as $m => $v) {
+    Admin::action($adm, 'setting_save', ['key' => 'crew_attendance_dispatch_check', 'value' => $v]); Settings::clearCache();
+    run($p, 'UPDATE trips SET helper_id=NULL WHERE id=?', [$T4]);
+    fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $T4]), "$m: Wing Van without a helper refused", 409, 'No Helper assigned');
+    run($p, 'UPDATE trips SET helper_id=? WHERE id=?', [$t4['helper_id'], $T4]);
+    run($p, 'UPDATE personnel SET active=0 WHERE id=?', [$t4['helper_id']]);
+    fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $T4]), "$m: inactive helper refused (even though timed in)", 409);
+    run($p, 'UPDATE personnel SET active=1 WHERE id=?', [$t4['helper_id']]);
+    ok($trip($T4)['status'] === 'Ready for Dispatch' && !one($p, 'SELECT 1 AS x FROM billings WHERE trip_id=?', [$T4]), "$m: refused dispatches changed nothing");
+}
+Trips::action($wvd, 'dispatch', ['trip_id' => $T4]);
+ok($trip($T4)['status'] === 'Dispatched', 'complete, timed-in crew: dispatched');
 
 echo "\nPASSED: $PASS   FAILED: $FAIL\n";
 exit($FAIL ? 1 : 0);

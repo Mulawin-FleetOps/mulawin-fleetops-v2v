@@ -241,9 +241,10 @@ function test_create_planned_trip(array $ops, array $payload, bool $assign = tru
         'full_name' => 'Fixture ' . $role, 'role' => $role, 'shift' => 'Day']); $disp = one($p, 'SELECT id, role, shift, full_name FROM users WHERE role=? ORDER BY id DESC LIMIT 1', [$role]); }
     if ($disp['shift'] !== 'Day') { run($p, "UPDATE users SET shift='Day' WHERE id=?", [$disp['id']]); $disp['shift'] = 'Day'; }
     $disp['id'] = (int)$disp['id'];
-    if (!one($p, 'SELECT 1 FROM client_rates WHERE client_id=? AND truck_type=?', [$cid, $type]))
+    if (empty($payload['client_route_id']) && !one($p, 'SELECT 1 FROM client_rates WHERE client_id=? AND truck_type=?', [$cid, $type]))
         insert($p, 'client_rates', ['client_id' => $cid, 'truck_type' => $type, 'rate_per_km' => '55', 'minimum_charge' => '0', 'updated_by' => $ops['id']]);
-    $route = one($p, "SELECT id FROM client_routes WHERE client_id=? AND truck_type=? AND status='Approved' AND distance_km=? ORDER BY id LIMIT 1", [$cid, $type, $km]);
+    $route = !empty($payload['client_route_id']) ? ['id' => (int)$payload['client_route_id']]   // the caller chose the route: create nothing
+        : one($p, "SELECT id FROM client_routes WHERE client_id=? AND truck_type=? AND status='Approved' AND distance_km=? ORDER BY id LIMIT 1", [$cid, $type, $km]);
     if ($route) $routeId = (int)$route['id'];
     else {
         $tag = $cid . '-' . str_replace(' ', '', $type) . '-' . str_replace('.', '_', $km);

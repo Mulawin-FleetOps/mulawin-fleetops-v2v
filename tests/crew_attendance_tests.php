@@ -171,7 +171,7 @@ $t = one($p, 'SELECT * FROM trips WHERE id=?', [$r['trip_id']]);
 ok($t['status'] === 'Pre-Assigned' && (int)$t['driver_id'] === $dLegacy && (int)$t['helper_id'] === $newAdm, 'auto-assignment picks a driver and a helper that have no shift (a legacy "Night" value is irrelevant)');
 $det = Trips::action($ops, 'details', ['trip_id' => $t['id']]);
 ok(!preg_grep('/attendance|Present|shift/i', $det['trip']['dispatch_blockers']), 'Warn mode (default): attendance never blocks Confirm Dispatch');
-ok(CrewAttendance::mode() === CrewAttendance::MODE_WARN, 'default attendance check is Warn (enforcement suite: run_crew_dispatch_tests.php)');
+ok(CrewAttendance::mode() === CrewAttendance::MODE_WARN, 'default attendance check is Warn (enforcement suite: run_dispatch_attendance_tests.php)');
 $ca = $det['trip']['crew_attendance'];
 ok(isset($ca['crew']) && $ca['crew'] && !array_filter(array_column($ca['crew'], 'duty_shift')) && !array_filter(array_column($ca['crew'], 'outside_scheduled_shift')), 'trip details carry no permanent personnel shift (Day/Night only labels the dispatch time)');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/attendance.js');
