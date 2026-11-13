@@ -68,7 +68,7 @@ $duplicate=Trips::action($ops,'create_batch',['rows'=>$retry]);planning_ok(count
 planning_ok(array_column(many($p,'SELECT dispatcher_shift FROM trips ORDER BY id'),'dispatcher_shift')===array_column($saved,'dispatcher_shift'),'Retries preserve original selected shift');
 // Persisted pre-shift records remain group-wide; Dispatchers cannot create new requests.
 $legacy=insert($p,'trips',['trip_ref'=>'LEGACY-PLANNING','client_id'=>$clients[0],'truck_type'=>'Wing Van','dispatcher_role'=>$cwDay['role'],'dispatcher_shift'=>null,'intake_source'=>'Operations Head','status'=>'Awaiting Resources','pickup_point'=>'LEGACY PICKUP','delivery_point'=>'LEGACY DELIVERY','scheduled_at'=>date('Y-m-d H:i:s'),'created_by'=>$ops['id']]);
-planning_ok(in_array($legacy,$active($cwDay),true)&&in_array($legacy,$active($cwNight),true),'Existing NULL-shift trips retain group-wide compatibility without inventing a shift');
+planning_ok(!in_array($legacy,$active($cwDay),true)&&!in_array($legacy,$active($cwNight),true),'Unowned legacy NULL-shift trips are not exposed to unrelated Dispatcher accounts');
 planning_denied(fn()=>Trips::action($cwDay,'create',$base('Wing Van','Day',$clients[0])),403,'Dispatcher creation remains retired');
 // Exercise supporting fund/document/signature authorization without changing finance business rules.
 run($p,"UPDATE trips SET status='Pre-Assigned' WHERE id=?",[$ids[0]]);insert($p,'fund_categories',['name'=>'Fixture planning preset','amount'=>'100','active'=>1,'sort_order'=>99]);
