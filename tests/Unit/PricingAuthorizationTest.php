@@ -41,6 +41,22 @@ final class PricingAuthorizationTest extends TestCase {
         self::assertStringContainsString('Financial amounts are calculated by the backend', $js);
     }
 
+    public function testVerifiedGarageCanBeConfiguredByHeadManagementWithoutSampleCoordinates():void {
+        $root=dirname(__DIR__,2);
+        $ui=file_get_contents($root.'/public/assets/js/modules/administration/admin.js');
+        $settings=file_get_contents($root.'/backend/Core/Settings.php');
+        self::assertIsString($ui);
+        self::assertIsString($settings);
+        self::assertStringContainsString("garageEdit(ctx)", $ui);
+        self::assertStringContainsString("Verify Garage Entrance", $ui);
+        self::assertStringContainsString("setting_key:'garage'", $ui);
+        self::assertStringContainsString("'Admin.pricing_save'", $ui);
+        self::assertStringContainsString("value:'garage',label:'Company Garage'", $ui);
+        self::assertStringContainsString("['diesel','garage',...TRUCK_TYPES]", $settings);
+        self::assertStringContainsString("must((\$d['verified']??null)==='1'", $settings);
+        self::assertStringNotContainsString('[14.126449, 121.070384]', $ui);
+    }
+
     public function testFuelAndRecalculationMutationsDenyOtherRolesBeforeDatabaseAccess():void {
         core('Settings');Actions::load('Billing');
         foreach(array_keys(ROLE_LABELS) as $role){if($role==='admin')continue;$u=['id'=>1,'role'=>$role];
