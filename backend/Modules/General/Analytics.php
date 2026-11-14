@@ -213,6 +213,7 @@ final class Analytics {
                 COALESCE(SUM(status='Active'),0) AS active FROM clients"),
             'routes' => fn() => one($p, "SELECT COUNT(*) AS approved FROM client_routes WHERE status='Approved'"),
             'incidents' => fn() => one($p, "SELECT COUNT(*) AS open FROM incidents WHERE status<>'Resolved'"),
+            'fuel' => fn() => one($p, "SELECT value_json,effective_date FROM pricing_settings_history WHERE setting_key='diesel' AND effective_date<=CURRENT_DATE() ORDER BY effective_date DESC,id DESC LIMIT 1"),
         ]) : [];
         return ['alerts' => $alerts, 'cards' => $cards, 'charts' => $charts, 'tables' => $tables]
             + ($r === 'admin' ? ['executive' => $executive] : []);
