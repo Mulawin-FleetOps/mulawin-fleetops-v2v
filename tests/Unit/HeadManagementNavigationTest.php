@@ -305,6 +305,24 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringNotContainsString('What each role can do', $js);
     }
 
+    public function testHeadSystemConfigurationUsesDedicatedSharedWorkspace(): void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/administration/admin.js');
+        $css=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertStringContainsString('renderHeadSettings = (host)', $js);
+        self::assertStringContainsString('if(ctx.query?.headSettings && isAdmin)renderHeadSettings(box)', $js);
+        self::assertStringContainsString('else UI.tabs(box,tabs', $js);
+        self::assertStringContainsString('RecordComponents.panel(table,RecordComponents.categories(', $js);
+        self::assertStringContainsString('RecordComponents.mountPanel(records', $js);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(records', $js);
+        self::assertStringContainsString('limit:25,showAllColumns:true', $js);
+        self::assertStringContainsString('settingModal(row):catForm(row)', $js);
+        self::assertStringContainsString("App.api('Attendance.readiness'", $js);
+        self::assertStringContainsString("'Admin.setting_save'", $js);
+        self::assertStringContainsString("'Admin.fund_category_save'", $js);
+        self::assertStringContainsString('.head-settings-workspace .record-workspace-panel', $css);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
