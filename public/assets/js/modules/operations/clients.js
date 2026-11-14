@@ -81,9 +81,15 @@ const ClientUI = {
     const box = el.querySelector('[data-client-routes]'); if (!box) return;
     let r; try { r = await App.api('Routes.for_client', { client_id: clientId }); } catch (e) { box.innerHTML = '<div class="text-muted small">Approved routes are not available right now.</div>'; return; }
     const rate = (x) => x.rate_type === 'Flat' ? UI.money(x.rate_amount) : UI.money(x.rate_amount) + '/km' + (+x.minimum_charge > 0 ? ' (minimum ' + UI.money(x.minimum_charge) + ')' : '');
-    box.innerHTML = UI.table([['Origin → destination', 'origin_label', (v, x) => UI.esc(x.origin_label + ' → ' + x.destination_label)], ['Truck type', 'truck_type'], ['Km', 'distance_km', 'num'],
-      ['Rate', 'rate_amount', (v, x) => rate(x)], ['Since', 'effective_from', 'date']], r.routes, { plain: true, empty: 'No approved route yet.' })
-      + (r.can_open_routes ? `<a class="small" href="#routes?client_id=${encodeURIComponent(clientId)}">View all routes for this client</a>` : '');
+    const routes = r.routes || [];
+    box.innerHTML = (routes.length
+      ? '<div class="client-profile-routes">' + routes.map(x =>
+          '<div class="client-profile-route"><div class="client-profile-route-main"><strong>'+UI.esc(x.origin_label)+' <i class="bi bi-arrow-right" aria-hidden="true"></i> '+UI.esc(x.destination_label)+'</strong>'
+          +'<span><i class="bi bi-truck" aria-hidden="true"></i> '+UI.e(x.truck_type)+' <span aria-hidden="true">·</span> '+UI.num(x.distance_km,2)+' km</span></div>'
+          +'<div class="client-profile-route-rate"><strong>'+rate(x)+'</strong><small>Since '+UI.date(x.effective_from)+'</small></div></div>'
+        ).join('')+'</div>'
+      : '<div class="client-profile-empty">No approved routes yet.</div>')
+      + (r.can_open_routes ? '<a class="client-profile-route-link" href="#routes?client_id='+encodeURIComponent(clientId)+'">View all routes for this client <i class="bi bi-arrow-right" aria-hidden="true"></i></a>' : '');
     UI.activate(box);
   },
   async open(id, d) {
@@ -96,19 +102,52 @@ const ClientUI = {
       '<button class="btn btn-sm btn-outline-secondary" data-a="docs"><i class="bi bi-paperclip"></i> Upload requirements</button>');
     acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="print"><i class="bi bi-printer"></i> Print information sheet</button>');
     if (d.can.edit) acts.push(`<button class="btn btn-sm btn-outline-${c.status !== 'Active' ? 'success' : 'danger'}" data-a="active">${c.status !== 'Active' ? 'Activate' : 'Deactivate'}</button>`);
-    const html = `<div class="mb-2">${UI.badge(c.status)} <span class="small text-muted">${UI.esc(c.client_code || '')}</span></div>
-      ${c.status === 'Incomplete' ? `<div class="alert alert-warning py-2 small">Missing requirements: ${r.missing.map(UI.esc).join(', ') || 'complete the information sheet'}. The client cannot be used for trips yet.</div>` : ''}
-      ${c.status === 'Pending Rate' ? '<div class="alert alert-info py-2 small">Legacy pending client: verify accreditation and reactivate using the existing client action.</div>' : ''}
-      <div class="drawer-actions">${acts.join('')}</div>
-      ${UI.h('Client information')}${UI.kv([['Registered name', `<b>${UI.esc(c.company_name)}</b>`], ['Trade name', UI.e(c.trade_name)], ['TIN', UI.e(c.tin)], ['Nature of business', UI.e(c.nature_of_business)],
-        ['Address', UI.e(c.business_address)], ['Contact', UI.esc([c.contact_person, c.contact_position].filter(Boolean).join(', ') || '—')], ['Contact number / email', UI.esc([c.contact_number, c.email].filter(Boolean).join(' · ') || '—')],
-        ['Payment terms', c.payment_terms_days !== null ? c.payment_terms_days + ' days' : 'default'], ['Created by', UI.e(c.created_by_name)], ['Rate set by', c.rate_set_by_name ? UI.esc(c.rate_set_by_name) + ' · ' + UI.datetime(c.rate_set_at) : '—']])}
-      ${UI.h('Approved routes')}<div data-client-routes><div class="text-muted small">Loading approved routes…</div></div>
-      ${UI.h('Accreditation requirements')}<div class="mb-2"><span class="badge-s ${r.missing.length ? 'amber' : 'green'}">${need - r.missing.length} / ${need} complete</span>${r.missing.length ? `<div class="small text-muted mt-2">Missing: ${r.missing.map(UI.esc).join(', ')}</div>` : ''}</div>
-      ${UI.h('Accreditation documents')}${UI.docs(r.documents)}
-      ${UI.h('Billing summary')}${UI.kv([['Invoices', UI.num(r.billing.invoices)], ['Billed', UI.money(r.billing.billed)], ['Paid', UI.money(r.billing.paid)], ['Balance', UI.money(r.billing.billed - r.billing.paid)]])}
-      ${UI.h('Recent trips')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Type', 'truck_type'], ['Scheduled date and time', 'scheduled_at', 'datetime'], ['Destination', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
+    const docs = (r.documents || []).map(doc => {
+      const fileId = Number(doc.id);
+      if (!Number.isSafeInteger(fileId) || fileId <= 0) return '';
+      const mime = String(doc.mime_type || '');
+      const fileName = UI.esc(doc.original_filename || 'Document');
+      const kind = mime === 'application/pdf' ? 'bi-file-earmark-pdf' : mime.startsWith('image/') ? 'bi-file-earmark-image' : 'bi-file-earmark';
+      return '<div class="client-profile-document">'
+        +'<div class="client-profile-file-icon"><i class="bi '+kind+'" aria-hidden="true"></i></div>'
+        +'<div class="client-profile-file-info"><strong>'+UI.e(doc.category)+'</strong><span title="'+fileName+'">'+fileName+'</span>'
+        +'<small>'+UI.datetime(doc.created_at)+(doc.uploader?' · '+UI.e(doc.uploader):'')+'</small></div>'
+        +'<div class="client-profile-file-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-doc-preview="'+fileId+'" data-doc-mime="'+UI.esc(mime)+'" data-doc-name="'+fileName+'"><i class="bi bi-eye" aria-hidden="true"></i> View</button>'
+        +'<a class="btn btn-sm btn-outline-secondary" href="'+UI.docUrl(fileId,false)+'" download><i class="bi bi-download" aria-hidden="true"></i> Download</a></div></div>';
+    }).join('');
+    const hasBilling = Number(r.billing?.invoices || 0) > 0 || Number(r.billing?.billed || 0) !== 0 || Number(r.billing?.paid || 0) !== 0;
+    const hasTrips = Array.isArray(r.trips) && r.trips.length > 0;
+    const info = [
+      ['Registered name',UI.e(c.company_name)],['Trade name',UI.e(c.trade_name)],
+      ['TIN',UI.e(c.tin)],['Nature of business',UI.e(c.nature_of_business)],
+      ['Business address',UI.e(c.business_address)],
+      ['Contact person',UI.e([c.contact_person,c.contact_position].filter(Boolean).join(', '))],
+      ['Contact number',UI.e(c.contact_number)],['Email',UI.e(c.email)],
+      ['Payment terms',c.payment_terms_days !== null && c.payment_terms_days !== undefined ? UI.esc(String(c.payment_terms_days))+' days' : 'Default']
+    ];
+    const infoMarkup = info.map(([label,value]) => '<div class="client-profile-info-item"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></div>').join('');
+    const html = '<div class="client-profile-clean">'
+      +'<div class="client-profile-top"><div class="client-profile-identity"><span class="client-profile-code">'+UI.e(c.client_code)+'</span>'+UI.badge(c.status)+'</div>'
+      +'<h3>'+UI.e(c.company_name)+'</h3></div>'
+      +(c.status==='Incomplete'?'<div class="alert alert-warning py-2 small">Missing requirements: '+r.missing.map(UI.esc).join(', ')+'. This client is not eligible for trips yet.</div>':'')
+      +(c.status==='Pending Rate'?'<div class="alert alert-info py-2 small">Legacy client status: verify accreditation before activating.</div>':'')
+      +'<div class="client-profile-actions">'+acts.join('')+'</div>'
+      +'<section class="client-profile-section"><h4><i class="bi bi-building" aria-hidden="true"></i> Client information</h4><div class="client-profile-info-grid">'+infoMarkup+'</div></section>'
+      +'<section class="client-profile-section"><h4><i class="bi bi-signpost-2" aria-hidden="true"></i> Approved routes</h4><div data-client-routes><div class="text-muted small">Loading approved routes…</div></div></section>'
+      +'<section class="client-profile-section"><h4><i class="bi bi-shield-check" aria-hidden="true"></i> Accreditation</h4>'
+      +'<div class="client-profile-accreditation"><span class="badge-s '+(r.missing.length?'amber':'green')+'">'+(need-r.missing.length)+' / '+need+' requirements complete</span>'
+      +(r.missing.length?'<span class="client-profile-missing">Missing: '+r.missing.map(UI.esc).join(', ')+'</span>':'')+'</div>'
+      +'<div class="client-profile-files">'+(docs || '<div class="client-profile-empty">No accreditation files uploaded.</div>')+'</div></section>'
+      +(hasBilling?'<section class="client-profile-section"><h4><i class="bi bi-receipt" aria-hidden="true"></i> Billing summary</h4>'
+        +'<div class="client-profile-info-grid">'+[
+          ['Invoices',UI.num(r.billing.invoices)],['Billed',UI.money(r.billing.billed)],
+          ['Paid',UI.money(r.billing.paid)],['Balance',UI.money(r.billing.billed-r.billing.paid)]
+        ].map(([label,value])=>'<div class="client-profile-info-item"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'</div></section>':'')
+      +(hasTrips?'<section class="client-profile-section"><h4><i class="bi bi-truck" aria-hidden="true"></i> Recent trips</h4>'
+        +UI.table([['Trip','trip_ref'],['Status','status','badge'],['Type','truck_type'],['Scheduled date and time','scheduled_at','datetime'],['Destination','delivery_point']],r.trips,{plain:true})+'</section>':'')
+      +'</div>';
     const el = UI.drawer(UI.esc(c.company_name), html, { subtitle: 'Client profile' });
+    el.classList.add('client-profile-drawer');
     ClientUI.routes(el, c.id);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
