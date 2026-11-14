@@ -171,8 +171,8 @@ const HeadRecords = {
       +(hasRecords?'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
       +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="default" checked> Original order</label>'
       +sortFields.filter(item=>item.key).flatMap(item=>[
-        {value:item.key+':asc',label:item.label+' (A–Z / oldest first)'},
-        {value:item.key+':desc',label:item.label+' (Z–A / newest first)'}
+        {value:item.key+':asc',label:item.label+' (A–Z)'},
+        {value:item.key+':desc',label:item.label+' (Z–A)'}
       ]).map(item=>'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="'+UI.esc(item.value)+'"> '+UI.esc(item.label)+'</label>').join('')
       +'</div>':'')+'</div>'
       +(exportRows?'<button type="button" class="btn btn-sm btn-outline-success record-workspace-add" data-head-record-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>':'');
