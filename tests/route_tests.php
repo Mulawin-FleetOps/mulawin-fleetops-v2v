@@ -463,7 +463,7 @@ $types = array_column($det['events'], 'event_type');
 foreach (['route requested', 'rate entered', 'route approved', 'rate revision entered', 'rate revision rejected', 'rate revision approved'] as $ev) ok(in_array($ev, $types, true), "history has '$ev'");
 ok((int)one($p, "SELECT COUNT(*) AS n FROM audit_events WHERE area='Routes'")['n'] >= count($det['events']), 'every route event is also in the activity log');
 $page = Routes::read($users['billing'], 'routes', []);
-ok(empty($page['_errors']) && count($page['routes']) >= 10 && $page['can']['rate'] && !$page['can']['approve'], 'page data loads for Billing with the right buttons');
+ok(empty($page['_errors']) && count($page['routes']) >= 10 && !$page['can']['rate'] && !$page['can']['approve'], 'Billing can view routes without Admin-only rate or approval actions');
 $pf = Routes::read($users['operations_head'], 'routes', ['client_id' => (string)$cPending]);
 ok(count(array_unique(array_column($pf['routes'], 'client_id'))) === 1, 'page filter by client works');
 
@@ -578,47 +578,43 @@ if (!preg_match('/^\s*norm: (\(v\) => .*?),\s*$/m', $js, $mm)) {
 // ---------------------------------------------------------------------
 // I. HISTORICAL DATA + REGRESSION OF THE TRIP / BILLING FLOW
 // ---------------------------------------------------------------------
-section('I. Regression: trip -> fund -> checklist -> dispatch -> billing draft (rate per km)');
-$p->exec("INSERT INTO app_settings (setting_key, setting_value) VALUES ('inspection_min_minutes','0')");
+// I. Billing snapshot regression for approved fixed routes. Full manual
+// vehicle/crew dispatch is exercised by the isolated Dispatcher Turnover suite.
+// ---------------------------------------------------------------------
+section('I. Fixed-route billing snapshot survives later contract revisions');
 $client2 = $client('REGRESSION CLIENT CORP', 'Active');
-insert($p, 'client_rates', ['client_id' => $client2, 'truck_type' => 'Wing Van', 'rate_per_km' => '55.50', 'minimum_charge' => '1000', 'updated_by' => $users['admin']['id']]);
-$drv = insert($p, 'personnel', ['full_name' => 'DELA CRUZ, JUAN', 'person_type' => 'Driver', 'license_number' => 'N01-00-000001', 'license_expiry' => date('Y-m-d', strtotime('+2 years'))]);
-$hlp = insert($p, 'personnel', ['full_name' => 'SANTOS, PEDRO', 'person_type' => 'Helper']);
-$veh = insert($p, 'vehicles', ['plate_number' => 'TST 1234', 'truck_type' => 'Wing Van', 'assigned_driver_id' => $drv, 'assigned_helper_id' => $hlp]);
-// An approved FLAT route for the same client and truck type: it must NOT change the per-km billing.
-$rr = (int)$act('operations_head', 'request', ['client_id' => $client2, 'truck_type' => 'Wing Van', 'origin' => 'Tanauan', 'destination' => 'Malvar', 'distance_km' => '20'])['route_id'];
-$act('admin', 'decide', ['rate_id' => (int)$act('admin', 'rate_enter', ['route_id' => $rr, 'rate_type' => 'Flat', 'rate_amount' => '99999'])['rate_id'], 'decision' => 'approve']);
-$before = $checksums();
-try {
-    $t = Trips::action($users['operations_head'], 'create', ['client_id' => $client2, 'truck_type' => 'Wing Van', 'pickup_point' => 'Tanauan', 'delivery_point' => 'Malvar',
-        'distance_km' => '20',
-        // +1 hour: inside the Finance release window (Checklist #40, default 2 hours before dispatch).
-        'scheduled_at' => date('Y-m-d\TH:i', strtotime('+1 hour'))]);
-    $trip = one($p, 'SELECT * FROM trips WHERE id=?', [$t['trip_id']]);
-    ok($trip['status'] === 'Pre-Assigned' && (int)$trip['vehicle_id'] === $veh && (int)$trip['driver_id'] === $drv && (int)$trip['helper_id'] === $hlp, 'trip created and auto-assigned (Pre-Assigned) as before');
-    $D = $users['container_wingvan_dispatcher'];
-    $f = Funds::action($D, 'submit', ['trip_id' => $trip['id'], 'categories' => ['Driver Meal Allowance', 'Helper Meal Allowance']]);
-    Funds::action($users['operations_head'], 'decide', ['fund_id' => $f['fund_id'], 'decision' => 'approve']);
-    Funds::action($users['finance'], 'release', ['fund_id' => $f['fund_id'], 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]);
-    ok(one($p, 'SELECT status, amount FROM fund_requests WHERE id=?', [$f['fund_id']]) == ['status' => 'Released', 'amount' => '500.00'], 'fund request submitted, approved and released as before (PHP 500.00)');
-    require_once dirname(__DIR__) . '/backend/Modules/Operations/Inspections/Checklist.php';
-    $items = [];
-    foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) $items[$s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT)] = ['condition' => 'OK', 'remarks' => ''];
-    Trips::action($D, 'checklist_start', ['trip_id' => $trip['id'], 'kind' => 'Pre-Dispatch']);
-    Trips::action($D, 'checklist', ['trip_id' => $trip['id'], 'items' => $items, 'meta' => [], 'odometer_km' => '1000', 'fuel_level' => 'Full']);
-    ok(one($p, 'SELECT status FROM trips WHERE id=?', [$trip['id']])['status'] === 'Ready for Dispatch', 'pre-dispatch checklist -> Ready for Dispatch as before');
-    // Confirm Dispatch opens 15 minutes before the schedule (Checklist #38/#40): move the departure to 5 minutes from now.
-    run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [date('Y-m-d H:i:s', time() + 300), $trip['id']]);
-    Trips::action($D, 'dispatch', ['trip_id' => $trip['id']]);
-    $b = one($p, 'SELECT * FROM billings WHERE trip_id=?', [$trip['id']]);
-    ok($b && $b['status'] === 'Ongoing' && $b['rate_per_km'] === '55.50' && $b['base_amount'] === '1110.00', 'billing draft still uses client_rates per km: 20 km x 55.50 = 1,110.00 (route rate ignored)', json_encode($b ? [$b['rate_per_km'], $b['base_amount']] : null));
-} catch (Throwable $e) { ok(false, 'regression flow', get_class($e) . ': ' . $e->getMessage()); }
+insert($p, 'client_rates', ['client_id'=>$client2,'truck_type'=>'Wing Van','rate_per_km'=>'55.50','minimum_charge'=>'1000','updated_by'=>$users['admin']['id']]);
+$rr = (int)$act('operations_head','request',['client_id'=>$client2,'truck_type'=>'Wing Van','origin'=>'Tanauan','destination'=>'Malvar','distance_km'=>'20'])['route_id'];
+$rateId = (int)$act('admin','rate_enter',['route_id'=>$rr,'rate_type'=>'Flat','rate_amount'=>'99999'])['rate_id'];
+$act('admin','decide',['rate_id'=>$rateId,'decision'=>'approve']);
+$dispatcherId = insert($p,'users',['username'=>'billing_regression_dispatcher','email'=>'billing-regression@example.test',
+    'full_name'=>'Billing Regression Dispatcher','password_hash'=>'fixture','role'=>'container_wingvan_dispatcher','shift'=>'Day']);
+$created = Trips::action($users['operations_head'],'create',[
+    'client_id'=>$client2,'truck_type'=>'Wing Van','client_route_id'=>$rr,
+    'dispatcher_assignment'=>'container_wingvan_dispatcher:Day','responsible_dispatcher_id'=>$dispatcherId,
+    'pickup_point'=>'Tanauan','delivery_point'=>'Malvar','distance_km'=>'20',
+    'scheduled_at'=>date('Y-m-d\TH:i',strtotime('+1 hour'))]);
+$trip = one($p,'SELECT * FROM trips WHERE id=?',[$created['trip_id']]);
+ok($trip['status']==='Awaiting Resources' && $trip['vehicle_id']===null
+    && (int)$trip['client_route_id']===$rr,'Operations Head plans approved fixed route without auto-selecting a Truck');
+core('BillingDraft');
+$billId = BillingDraft::createFor($p,$trip);
+$beforeBill = one($p,'SELECT * FROM billings WHERE id=?',[$billId]);
+$beforeSnapshot = one($p,'SELECT snapshot_json FROM billing_pricing WHERE billing_id=?',[$billId])['snapshot_json']??null;
+$stored = json_decode((string)$beforeSnapshot,true);
+ok($beforeBill && $beforeBill['status']==='Ongoing' && (float)$beforeBill['base_amount']===99999.0
+    && (int)($stored['rate_id']??0)===$rateId,'BillingDraft freezes approved fixed route rate rather than legacy per-km price');
 Actions::load('Clients');
-$cd = Clients::action($users['operations_head'], 'details', ['id' => $client2]);
-ok(count($cd['rates']) === 1 && $cd['rates'][0]['rate_per_km'] === '55.50', 'client details still show the per-km billing rates');
-$rowsBefore = (int)one($p, 'SELECT COUNT(*) AS n FROM billings')['n'];
-$act('admin', 'rate_enter', ['route_id' => $rr, 'rate_type' => 'Flat', 'rate_amount' => '88888']);
-ok((int)one($p, 'SELECT COUNT(*) AS n FROM billings')['n'] === $rowsBefore && one($p, 'SELECT base_amount FROM billings WHERE trip_id=?', [$trip['id'] ?? 0])['base_amount'] === '1110.00', 'route rate revision does not change existing billings');
+$cd = Clients::action($users['operations_head'],'details',['id'=>$client2]);
+ok(count($cd['rates'])===1 && $cd['rates'][0]['rate_per_km']==='55.50','historical client per-km rates remain visible');
+$revId = (int)$act('admin','rate_enter',['route_id'=>$rr,'rate_type'=>'Flat','rate_amount'=>'88888'])['rate_id'];
+$act('admin','decide',['rate_id'=>$revId,'decision'=>'approve']);
+BillingDraft::createFor($p,$trip);
+$afterBill = one($p,'SELECT * FROM billings WHERE id=?',[$billId]);
+$afterSnapshot = one($p,'SELECT snapshot_json FROM billing_pricing WHERE billing_id=?',[$billId])['snapshot_json']??null;
+ok($beforeBill===$afterBill && $beforeSnapshot===$afterSnapshot &&
+    (int)one($p,'SELECT COUNT(*) n FROM billings WHERE trip_id=?',[$trip['id']])['n']===1,
+    'later route-rate revision does not mutate or duplicate existing billing snapshot');
 
 // ---------------------------------------------------------------------
 echo "\n" . str_repeat('=', 60) . "\nRESULT: $PASS passed, $FAIL failed\n";
