@@ -175,6 +175,24 @@ final class Routes {
     private static function pricingEstimate(array $u,array $d): array {
         self::mustBeAllowed($u,'view');core('TripPricing');$p=db();$r=one($p,'SELECT * FROM client_routes WHERE id=?',[idField($d,'route_id')]);must((bool)$r,'Route not found.',404);
         $q=TripPricing::quote($p,['client_route_id'=>$r['id'],'truck_type'=>$r['truck_type'],'created_by'=>$u['id']],date('Y-m-d H:i:s'));
+        // This preview belongs to the on-demand read response only. Never store
+        // approximate garage geometry or rewrite existing route snapshots.
+        $garage=$q['garage_value']??null;
+        if($q['garage_km']!==null&&is_array($garage)&&isset($garage['lat'],$garage['lng'])
+           &&$r['origin_lat']!==null&&$r['origin_lng']!==null){
+            try {
+                $from=[(float)$garage['lat'],(float)$garage['lng']];
+                $to=[(float)$r['origin_lat'],(float)$r['origin_lng']];
+                $geometry='';
+                if($from!==$to){
+                    $road=Routing::route($p,(int)$u['id'],$from,$to,$r['route_option']?:Routing::DEFAULT_OPTION);
+                    $geometry=(string)($road['geometry']??'');
+                }
+                $q['garage_preview']=['garage'=>$from,'pickup'=>$to,'geometry'=>$geometry,'km'=>$q['garage_km']];
+            }catch(RoutingUnavailable|BusinessRuleException $e){
+                // Quote diagnostics remain authoritative; a map overlay is optional.
+            }
+        }
         if(isset($d['rate_amount'])&&$q['fuel']!==null){$amount=moneyField($d,'rate_amount');$q['estimate_total']=one($p,'SELECT CAST(? AS DECIMAL(14,2))+CAST(? AS DECIMAL(14,2)) amount',[$amount,$q['fuel']])['amount'];}
         return $q;
     }
