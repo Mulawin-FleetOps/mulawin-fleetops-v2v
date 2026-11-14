@@ -18,7 +18,7 @@
 declare(strict_types=1);
 
 final class Mechanics {
-    private const EDIT = ['admin', 'motorpool'];
+    private const EDIT = ['motorpool'];
 
     public static function read(array $u, string $page, array $q): array {
         $p = db();
