@@ -18,8 +18,20 @@
 .record-workspace-category-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .record-workspace-categories{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
 .record-workspace-categories .btn{font-size:12px;padding:5px 11px}
-.record-workspace-panel .data-table th{font-size:11.5px;padding:9px 11px}
-.record-workspace-panel .data-table td{font-size:12.5px;padding:10px 11px}
+/* Shared record-table foundation: readable header, comfortable rows, clear hover/focus. */
+.record-workspace-panel .table-wrap{overflow-x:auto}
+.record-workspace-panel .data-table{border-collapse:separate;border-spacing:0;width:100%}
+.record-workspace-panel .data-table th{font-size:11.5px;font-weight:700;letter-spacing:.015em;padding:13px 15px;background:#f3f8f4;color:#345c42;border-bottom:1px solid #dce9df;white-space:nowrap}
+.record-workspace-panel .data-table td{font-size:12.5px;line-height:1.55;padding:14px 15px;vertical-align:middle;border-bottom:1px solid #e8eee9;color:#304c3b}
+.record-workspace-panel .data-table tbody tr:last-child td{border-bottom:0}
+.record-workspace-panel .data-table tbody tr:hover td{background:#f8fcf9}
+.record-workspace-panel .data-table tbody tr:focus-within td{background:#f3faf5}
+.record-workspace-panel .data-table .cell-sub{font-size:11px;line-height:1.5;color:#718779;margin-top:4px}
+.record-workspace-panel .data-table .actions-col{white-space:nowrap;text-align:right}
+.record-workspace-panel .data-table .row-actions{display:flex;justify-content:flex-end;gap:6px;align-items:center}
+.record-workspace-panel .data-table .row-actions .btn{border-radius:8px;font-size:12px;font-weight:650;padding:7px 12px;white-space:nowrap}
+.record-workspace-panel .table-pager{padding:12px 15px;border-top:1px solid #e3ece6}
+@media(max-width:900px){.record-workspace-panel .data-table th,.record-workspace-panel .data-table td{padding-left:12px;padding-right:12px}}
 .record-workspace-panel .table-wrap:has(.table-empty)+.table-pager{display:none}
 .record-workspace-panel .table-empty{min-height:135px;justify-content:center;font-size:13px}
 .record-workspace-panel .table-tools,.record-workspace-panel .fleet-table-toolbar{display:none!important}
@@ -608,6 +620,36 @@
   .fleet-route-history-scroll table{min-width:680px}
 }
 
+
+/* Head Management route masterlist — small, targeted enhancements on shared tables. */
+.head-route-workspace .record-workspace-panel .data-table{min-width:980px}
+.head-route-workspace .record-workspace-panel .data-table th:first-child,
+.head-route-workspace .record-workspace-panel .data-table td:first-child{min-width:260px;width:29%}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(2),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(2){min-width:150px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(3),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(3){min-width:210px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(4),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(4){min-width:125px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(5),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(5){min-width:130px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(6),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(6){min-width:135px}
+.head-route-workspace .record-workspace-panel .data-table td:first-child{padding-left:20px}
+.head-route-workspace .record-workspace-panel .data-table td:last-child{padding-right:18px}
+.head-route-workspace .fleet-record-primary{display:flex;flex-direction:column;min-width:0;gap:2px}
+.head-route-workspace .fleet-record-primary strong{color:#1c5736;font-size:13px;font-weight:800;letter-spacing:.012em}
+.head-route-workspace .fleet-record-primary .cell-sub{display:block;max-width:340px;overflow-wrap:anywhere;text-transform:none}
+.head-route-workspace .fleet-record-client{font-weight:700;color:#365841;line-height:1.45}
+.head-route-workspace .fleet-record-destination{display:block;line-height:1.5;overflow-wrap:anywhere}
+.head-route-workspace .fleet-record-type{display:inline-flex;align-items:center;gap:8px;color:#42624e;white-space:nowrap}
+.head-route-workspace .fleet-record-type i{color:#368357;font-size:14px}
+.head-route-workspace .fleet-record-rate{font-weight:750;color:#1d6b3c;font-variant-numeric:tabular-nums;white-space:nowrap}
+.head-route-workspace .fleet-record-unset{font-size:11px;font-weight:650;color:#7e8c81;background:#f3f6f3;border:1px solid #e4eae5;padding:5px 9px;border-radius:6px;white-space:nowrap}
+.head-route-workspace .record-workspace-panel .data-table .badge{white-space:nowrap}
+.head-route-workspace .record-workspace-panel .fleet-manage-btn{background:#fff;border:1px solid #b8d6c2;color:#216c41}
+.head-route-workspace .record-workspace-panel .fleet-manage-btn:hover{background:#edf7f0;border-color:#78b58f;color:#145d35}
+.head-route-workspace .record-workspace-panel .fleet-manage-btn:focus-visible{outline:2px solid #1d7546;outline-offset:2px}
 
 /* Fleet route detail drawer — purpose-built presentation, no global overrides. */
 .fleet-route-drawer.app-drawer{width:min(760px,100vw);max-width:100vw}
