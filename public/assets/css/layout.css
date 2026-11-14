@@ -1135,3 +1135,43 @@ a:hover { color: var(--rpm-brand-strong); }
   .head-financial-records > .line-tabs { padding:8px 12px; }
   .head-financial-records > .tab-body .table-tools { padding:10px 12px; }
 }
+
+/* Head Management finance: prevent sticky page heading from covering KPI labels. */
+#pageContent:has(.head-financial-overview) > .page-head,
+#pageContent:has(.head-billing-overview) > .page-head {
+  position:relative;
+  top:auto;
+  z-index:auto;
+  margin-bottom:18px;
+}
+.head-financial-overview > .metric-strip.metric-strip-icons,
+.head-billing-overview > .metric-strip.metric-strip-icons {
+  margin-top:0;
+  margin-bottom:20px;
+  align-items:stretch;
+}
+.head-financial-overview > .metric-strip.metric-strip-icons .metric-icon-card,
+.head-billing-overview > .metric-strip.metric-strip-icons .metric-icon-card {
+  min-height:124px;
+  padding:18px;
+  gap:13px;
+  align-items:center;
+}
+.head-financial-overview .metric-icon-card .metric-content,
+.head-billing-overview .metric-icon-card .metric-content { min-width:0; }
+.head-financial-overview .metric-icon-card .metric-label,
+.head-billing-overview .metric-icon-card .metric-label {
+  line-height:1.4;
+  min-height:0;
+  white-space:normal;
+}
+.head-financial-overview .metric-icon-card .metric-value,
+.head-billing-overview .metric-icon-card .metric-value { margin-top:7px; }
+.head-financial-overview > .ui-action-summary { margin-bottom:18px; }
+.head-financial-overview > .head-financial-records { margin-top:0; }
+.head-financial-records .tab-body > .panel .panel-head { padding:14px 18px; }
+.head-financial-records .tab-body .table-empty { min-height:140px; }
+@media(max-width:620px) {
+  .head-financial-overview > .metric-strip.metric-strip-icons .metric-icon-card,
+  .head-billing-overview > .metric-strip.metric-strip-icons .metric-icon-card { min-height:100px; }
+}
