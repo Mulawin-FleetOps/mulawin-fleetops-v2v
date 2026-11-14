@@ -483,7 +483,7 @@ const HeadRouteWorkspace = {
   categories: [
     {value:'waiting',label:'Waiting',empty:'Nothing is waiting for a rate or approval.',accept:r=>RouteUI.waiting(r)},
     {value:'approved',label:'Approved',empty:'No approved routes yet.',accept:r=>r.status==='Approved'},
-    {value:'closed',label:'Rejected / Withdrawn / Inactive',empty:'No closed routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
+    {value:'closed',label:'Closed',empty:'No closed routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
   ],
   render(ctx,d) {
     const all=d.routes||[];
