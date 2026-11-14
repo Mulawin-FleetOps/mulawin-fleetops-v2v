@@ -361,8 +361,18 @@ const RouteUI = {
       ${UI.h('History')}${UI.table([['Action date and time', 'created_at', 'datetime'], ['Action', 'event_type'], ['Performed by', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}`;
     const el = UI.drawer(UI.esc(x.route_ref), html.replace(UI.h('Current approved rate'), (x.origin_lat && x.destination_lat ? '<div class="route-map mb-3" data-routedetailmap style="height:240px"></div>' : '') + UI.h('Current approved rate')), { subtitle: 'Client route' });
     const mbox = el.querySelector('[data-routedetailmap]');
-    if (mbox) setTimeout(() => UI.routeMap(mbox, null, { a: [+x.origin_lat, +x.origin_lng], b: [+x.destination_lat, +x.destination_lng],
-      aLabel: 'Origin: ' + x.origin_label, bLabel: 'Destination: ' + x.destination_label, geometry: x.route_geometry || '' }), 350);
+    if (mbox) setTimeout(async () => {
+      const opts={ a: [+x.origin_lat, +x.origin_lng], b: [+x.destination_lat, +x.destination_lng],
+        aLabel: 'Origin: ' + x.origin_label, bLabel: 'Destination: ' + x.destination_label,
+        geometry: x.route_geometry || '' };
+      // Existing routes have only the saved pickup-to-delivery geometry. Fetch
+      // the current verified garage leg separately; no historical row is changed.
+      try {
+        const estimate=await App.api('Routes.pricing_estimate',{route_id:x.id});
+        if(estimate.garage_preview?.garage)opts.garagePreview=estimate.garage_preview;
+      }catch{ /* The original saved road geometry remains visible. */ }
+      if(mbox.isConnected)UI.routeMap(mbox,null,opts);
+    },350);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'rate') RouteUI.rate(x, d);
