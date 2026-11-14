@@ -163,6 +163,19 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('.head-billing-overview', $css);
     }
 
+    public function testHeadFinanceDoesNotShowEmptyPaymentFollowupAndKeepsKpiVisible(): void {
+        $root=dirname(__DIR__,2);
+        $code=file_get_contents($root.'/public/assets/js/modules/accounting/finance.js');
+        $css=file_get_contents($root.'/public/assets/css/layout.css');
+        self::assertIsString($code);
+        self::assertIsString($css);
+        self::assertStringContainsString('paymentAlerts.some(item=>item.count>0)', $code);
+        self::assertStringContainsString("Financial Overview", $code);
+        self::assertStringContainsString('head-financial-records', $code);
+        self::assertStringContainsString('#pageContent:has(.head-financial-overview)', $css);
+        self::assertStringContainsString('min-height:124px', $css);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
