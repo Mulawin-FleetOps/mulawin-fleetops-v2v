@@ -17,9 +17,30 @@ final class PricingAuthorizationTest extends TestCase {
         self::assertStringContainsString('Verified garage location is not configured', $js);
         self::assertStringContainsString('Effective diesel price is not configured', $js);
         self::assertStringContainsString('efficiency and verified garage', $js);
-        self::assertStringContainsString('intro + pricingWarning + UI.kv(', $js);
+        self::assertStringContainsString("'<div class=\"fleet-rate-editor\"'", $js);
+        self::assertStringContainsString("submit: 'Save & activate rate'", $js);
         self::assertStringContainsString("'Routes.rate_enter'", $js);
         self::assertStringContainsString("'Routes.pricing_estimate'", $js);
+    }
+
+    public function testHeadManagementRateEntryActivatesImmediatelyWithoutSecondApproval():void {
+        $root=dirname(__DIR__,2);
+        $backend=file_get_contents($root.'/backend/Modules/Operations/Routes.php');
+        $ui=file_get_contents($root.'/public/assets/js/modules/operations/routes.js');
+        self::assertIsString($backend);
+        self::assertIsString($ui);
+        $start=strpos($backend,'private static function rateEnter(');
+        $end=strpos($backend,'// ---------- 3. approve / reject',$start);
+        self::assertNotFalse($start);
+        self::assertNotFalse($end);
+        $rateEnter=substr($backend,$start,$end-$start);
+        self::assertStringContainsString("must(self::clientEligible(\$c)",$rateEnter);
+        self::assertStringContainsString("status='Superseded', effective_to=NOW()",$rateEnter);
+        self::assertStringContainsString("status='Approved', decided_by=?",$rateEnter);
+        self::assertStringContainsString("UPDATE client_routes SET status='Approved'",$rateEnter);
+        self::assertStringNotContainsString('Notify::roles($p, self::POLICY[\'approve\']',$rateEnter);
+        self::assertStringContainsString("submit: 'Save & activate rate'",$ui);
+        self::assertStringNotContainsString("submit: 'Send for approval'",$ui);
     }
 
     public function testRouteRequestUsesOnlySharedVerifiedGarageConfiguration():void {
