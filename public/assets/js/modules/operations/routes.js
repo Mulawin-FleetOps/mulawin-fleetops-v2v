@@ -497,10 +497,11 @@ const HeadRouteWorkspace = {
     const types=[...new Set(all.map(r=>r.truck_type).filter(Boolean))].sort();
     const option=(value,label)=>'<option value="'+UI.esc(value)+'">'+UI.esc(label)+'</option>';
     const cols=[
-      ['Route / Pickup','route_ref',(v,r)=>'<b>'+UI.esc(v||'—')+'</b><div class="cell-sub">'+UI.esc(r.origin_label||'—')+'</div>'],
-      ['Client','client'],['Destination','destination_label'],
-      ['Truck Type','truck_type'],
-      ['Contract Rate','rate_amount',(v,r)=>RouteUI.rateText(r.rate_type,r.rate_amount,r.minimum_charge)],
+      ['Route / Pickup','route_ref',(v,r)=>'<div class="fleet-record-primary"><strong>'+UI.esc(v||'—')+'</strong><span class="cell-sub">'+UI.esc(r.origin_label||'—')+'</span></div>'],
+      ['Client','client',(v)=>'<span class="fleet-record-client">'+UI.e(v)+'</span>'],
+      ['Destination','destination_label',(v)=>'<span class="fleet-record-destination">'+UI.e(v)+'</span>'],
+      ['Truck Type','truck_type',(v)=>'<span class="fleet-record-type"><i class="bi bi-truck" aria-hidden="true"></i>'+UI.e(v)+'</span>'],
+      ['Contract Rate','rate_amount',(v,r)=>r.rate_id?'<strong class="fleet-record-rate">'+RouteUI.rateText(r.rate_type,r.rate_amount,r.minimum_charge)+'</strong>':'<span class="fleet-record-unset">Not set</span>'],
       ['Status','status','badge']
     ];
     const actions=r=>{
