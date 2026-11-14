@@ -909,7 +909,23 @@ const OpsHead = {
     const sections = [ ['Overview', [item('dashboard', 'Dashboard', 'bi-grid-1x2')]], ['Trip Operations', [item('trips', 'Trips', 'bi-signpost-split', { tab: 'active' }, 'management'), item('dispatcher-monitoring', 'Dispatch Monitoring', 'bi-person-workspace'), item('funds', 'Fund Approvals', 'bi-cash-coin')]], ['Masterlists', [item('trucks', 'Trucks', 'bi-truck'), item('crew', 'Drivers & Helpers', 'bi-person-badge'), item('clients', 'Clients', 'bi-building'), item('routes', 'Client Routes', 'bi-signpost-2')]], ['Monitoring & Records', [item('trips', 'Incidents & Repairs', 'bi-wrench-adjustable', { tab: 'incidents' }, 'incidents'), item('reports', 'Reports', 'bi-bar-chart-line'), item('documents', 'Documents', 'bi-folder2-open')]] ];
     // Former extras were Mechanics and Corrective Maintenance, both read-only for this role.
     // Operational coordination remains under Trips > Incidents. Backend access policy is unchanged.
-    document.querySelector('.sidebar-nav').innerHTML = sections.map(([label, links]) => `<div class="nav-section">${label}</div>${links.join('')}`).join('');
+    // This role-specific shell runs AFTER App.shell: render the same native
+    // collapsible groups instead of overwriting them with static headings.
+    // Retain the Operations Head deep links and data-ops-section selectors.
+    const groupIcons = {
+      'Overview': 'bi-grid-1x2',
+      'Trip Operations': 'bi-signpost-split',
+      'Masterlists': 'bi-truck',
+      'Monitoring & Records': 'bi-clipboard-data'
+    };
+    document.querySelector('.sidebar-nav').innerHTML = sections.map(([label, links]) => {
+      const entries = links.filter(Boolean);
+      if (!entries.length) return '';
+      return '<details class="head-nav-group ops-head-nav-group" data-sidebar-group="'+UI.esc(label)+'">'
+        +'<summary><i class="bi '+groupIcons[label]+'" aria-hidden="true"></i><span>'+UI.esc(label)+'</span>'
+        +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
+        +'<div class="head-nav-items">'+entries.join('')+'</div></details>';
+    }).join('');
     const toggle = document.createElement('button'); toggle.className = 'icon-btn oh-collapse-nav'; toggle.type = 'button'; toggle.setAttribute('aria-label', 'Collapse navigation'); toggle.setAttribute('aria-expanded', 'true'); toggle.innerHTML = '<i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>';
     toggle.onclick = () => { const collapsed = document.body.classList.toggle('oh-nav-collapsed'); toggle.setAttribute('aria-expanded', String(!collapsed)); toggle.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation'); };
     document.querySelector('.topbar').prepend(toggle);
