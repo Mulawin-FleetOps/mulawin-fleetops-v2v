@@ -296,8 +296,8 @@ App.page('head-fleet',{
   render(ctx) { HeadFleetWorkspace.render(ctx); }
 });
 App.page('head-approvals',{
-  title:'Approvals & Exceptions',
-  subtitle:'Company-wide decisions and unresolved issues.',
+  title:'Management Action Center',
+  subtitle:'Management decisions and unresolved issues requiring attention.',
   render(ctx) {
     const d=ctx.data||{};
     const sections=[
@@ -339,7 +339,7 @@ App.page('head-approvals',{
       const sortOptions=group.cols.filter(col=>col[1]&&col[1]!=='status')
         .slice(0,3).map(col=>({key:col[1],label:col[0]}));
       HeadRecords.render(root,{
-        title:'Approvals & Exception Records',
+        title:'Management Action Records',
         categories:['maintenance','incidents','funds','rates'].map(key=>sections.find(item=>item.key===key)).filter(Boolean).map(item=>({value:item.key,label:item.label+' ('+item.rows.length+')'})),
         selected:group.key,
         columns:group.cols,rows:group.rows,empty:group.empty,
