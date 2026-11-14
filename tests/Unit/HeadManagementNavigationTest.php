@@ -51,7 +51,8 @@ final class HeadManagementNavigationTest extends TestCase {
         $code = file_get_contents(dirname(__DIR__, 2).'/public/assets/js/modules/administration/head-management.js');
         self::assertIsString($code);
         self::assertStringContainsString("App.page('head-trips'", $code);
-        self::assertStringContainsString('UI.cards(', $code);
+        self::assertStringContainsString('head-trip-kpis', $code);
+        self::assertStringContainsString('head-kpi-icon', $code);
         self::assertStringContainsString('UI.tabs(', $code);
         self::assertStringContainsString('UI.table(', $code);
         self::assertStringContainsString('UI.drawer(', $code);
