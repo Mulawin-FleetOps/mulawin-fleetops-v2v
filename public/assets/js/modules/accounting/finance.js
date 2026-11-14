@@ -19,7 +19,15 @@ App.page('finance', {
       { label: 'Cash out in period', value: d.disbursements.reduce((a, e) => a + +e.amount, 0), format: 'money', icon: 'bi-box-arrow-up-right', color: 'red' },
       ...(!head ? [{ label: 'Budget available', value: b ? +b.available : 'No budget', format: b ? 'money' : '', icon: 'bi-piggy-bank', color: 'green', hint: b ? `Reserved ${UI.money(b.reserved_amount)} · spent ${UI.money(b.spent_amount)} of ${UI.money(b.amount)}` : 'Set a purchasing budget' }] : []),
     ]);
-    ctx.el.insertAdjacentHTML('beforeend', UI.actionSummary([{label:'POs with received value awaiting payment (loaded records)',count:d.poPayables.filter(o=>+o.received_value>+o.paid_amount).length,go:act?'finance?tab=po':null},{label:'Other unpaid payables (loaded records)',count:d.payables.filter(p=>p.status!=='Paid'&&+p.balance>0).length,go:act?'finance?tab=ap':null}],{title:'Payment follow-up'}));
+    const paymentAlerts = [
+      {label:'Purchase orders awaiting payment',count:d.poPayables.filter(o=>+o.received_value>+o.paid_amount).length,go:act?'finance?tab=po':null},
+      {label:'Other unpaid payables',count:d.payables.filter(p=>p.status!=='Paid'&&+p.balance>0).length,go:act?'finance?tab=ap':null}
+    ];
+    // Head Management sees the attention panel only when there is something to review.
+    if (!head || paymentAlerts.some(item=>item.count>0)) {
+      ctx.el.insertAdjacentHTML('beforeend', UI.actionSummary(
+        head ? paymentAlerts.filter(item=>item.count>0) : paymentAlerts,{title:'Payment follow-up'}));
+    }
     const period = UI.filterModal(ctx, [{ name: 'from', label: 'Start date', type: 'date', col: 6 }, { name: 'to', label: 'End date', type: 'date', col: 6 }], { hint: `Period: ${UI.date(d.period.from)} to ${UI.date(d.period.to)} (this month by default).` });
     const payPO = (o) => UI.formModalFiles('Pay ' + UI.esc(o.po_ref), [
       { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6, value: Math.max(0, +o.received_value - +o.paid_amount).toFixed(2) },
@@ -31,6 +39,8 @@ App.page('finance', {
     const box = document.createElement('div');
     if (head) {
       ctx.el.classList.add('head-financial-overview');
+      document.querySelector('#pageContent .page-title')?.replaceChildren(document.createTextNode('Financial Overview'));
+      document.querySelector('#pageContent .page-subtitle')?.replaceChildren(document.createTextNode('Company-wide payables, expenses, payments and cash-flow monitoring.'));
       box.className = 'head-financial-records';
       box.innerHTML = '<div class="head-financial-heading"><h2>Financial Records</h2><p>Review payables, expenses, disbursements and cash flow. Transactions stay with Finance.</p></div>';
     }
