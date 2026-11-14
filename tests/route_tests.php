@@ -228,7 +228,7 @@ foreach (array_keys(ROLE_LABELS) as $role) {
     fails(fn() => $act($role, 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '12500']), "rate entry refused for $role", 403);
 }
 $rate1 = (int)$act('admin', 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '12,500.00'])['rate_id'];
-ok($rate1 > 0, 'Billing can enter the rate');
+ok($rate1 > 0, 'Admin can enter the rate');
 foreach (array_keys(ROLE_LABELS) as $role) {
     if ($role === 'admin') continue;
     fails(fn() => $act($role, 'decide', ['rate_id' => $rate1, 'decision' => 'approve']), "approval refused for $role", 403);
@@ -305,12 +305,15 @@ ok($policyOk, 'database accepts a Per Km rate with a minimum charge (ready for t
 // ---------------------------------------------------------------------
 section('E. Approval and rejection');
 $before = $checksums();
-// separation of duties: an admin who entered a rate (direct insert as test) cannot decide it
+// Current provisional policy permits an Admin to enter and decide a rate.
+// Verify that the decision is recorded, then reject a second decision.
 $rs = (int)$act('operations_head', 'request', $req(['origin' => 'Sto Tomas', 'destination' => 'Calamba']))['route_id'];
 $selfRate = insert($p, 'client_route_rates', ['route_id' => $rs, 'version_no' => 1, 'rate_type' => 'Flat', 'rate_amount' => '3000', 'status' => 'Pending Approval', 'entered_by' => $users['admin']['id']]);
 run($p, "UPDATE client_routes SET status='Pending Approval' WHERE id=?", [$rs]);
-fails(fn() => $act('admin', 'decide', ['rate_id' => $selfRate, 'decision' => 'approve']), 'the person who entered a rate cannot approve it (separation of duties)', 403, 'separation');
-ok(isset(Routes::action($users['admin2'], 'decide', ['rate_id' => $selfRate, 'decision' => 'approve'])['message']), 'another Admin can approve it');
+ok(isset($act('admin', 'decide', ['rate_id' => $selfRate, 'decision' => 'approve'])['message']),
+   'Admin can decide an entered rate under the current provisional policy');
+fails(fn() => Routes::action($users['admin2'], 'decide', ['rate_id' => $selfRate, 'decision' => 'approve']),
+   'Another Admin cannot approve a rate twice', 409, 'already decided');
 
 fails(fn() => $act('admin', 'decide', ['rate_id' => $rate1, 'decision' => 'reject']), 'reject without a reason refused');
 $m = $act('admin', 'decide', ['rate_id' => $rate1, 'decision' => 'approve', 'notes' => 'Per contract 2026']);
