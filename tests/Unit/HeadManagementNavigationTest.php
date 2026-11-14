@@ -218,6 +218,10 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('const hasFilters=filters.length>0', $js);
         self::assertStringContainsString('const hasRecords=rows.length>0', $js);
         self::assertStringContainsString('sortOptions=group.cols.filter', $js);
+        self::assertStringContainsString('filters,sortOptions,alwaysShowTools:true', $js);
+        self::assertStringContainsString('const showTools=hasRecords||alwaysShowTools', $js);
+        self::assertStringContainsString('No records in this category yet.', $js);
+        self::assertStringContainsString('Choose a sort order for records when available.', $js);
         self::assertStringContainsString('filters,sortOptions,', $js);
         self::assertStringNotContainsString('Read-only monitoring. Decisions remain in their authorized departmental workflows.', $js);
         self::assertStringNotContainsString('data-head-approval-tabs', $js);
