@@ -212,7 +212,7 @@ App.page('billing', {
         d.receivables, { title: 'Outstanding balances and aging', actions: () => UI.btn('soa', 'Print SOA', 'outline-secondary'), onAction: (a, x) => BillUI.printSOA(x.id) })],
     ];
     const defaultTab=d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : 'ongoing';
-    if(head)RecordComponents.executiveTabs(box,billingTabs,defaultTab,'Billing & Collection Records');
+    if(head)RecordComponents.executiveTabs(box,['for','invoices','paid','approvals','collections','ar','ongoing'].map(key=>billingTabs.find(tab=>tab[0]===key)).filter(Boolean),defaultTab,'Billing & Collection Records');
     else UI.tabs(box,billingTabs,d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : null);
   },
 });
