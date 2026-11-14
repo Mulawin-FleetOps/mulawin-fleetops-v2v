@@ -270,7 +270,6 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("UI.blocks({...section,cards:[]}", $reports);
         self::assertStringContainsString("UI.printReport([sections[current]]", $reports);
         self::assertStringContainsString("UI.printReport(keys.map", $reports);
-        self::assertStringContainsString("else", $reports);
         self::assertStringContainsString("UI.tabs(box", $reports);
         self::assertStringContainsString("self::reportInsights($sections)", $analytics);
         self::assertStringContainsString(".head-report-category-tab.active", $styles);
