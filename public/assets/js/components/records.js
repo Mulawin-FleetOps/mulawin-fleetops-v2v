@@ -21,15 +21,29 @@ const RecordComponents = Object.freeze({
   },
 
   categories(items, active, attribute = 'data-record-category') {
+    // Keep large category groups compact. Preserve every original category
+    // button and data attribute so existing selection/permission handlers work.
+    const renderButton = item => {
+      const selected = String(item.value) === String(active);
+      return '<button type="button" class="btn btn-sm '
+        + (selected ? 'btn-primary' : 'btn-outline-secondary')
+        + '" ' + attribute + '="' + UI.esc(item.value) + '" aria-pressed="' + selected + '">'
+        + UI.esc(item.label) + '</button>';
+    };
+    const primary=items.length>3?items.slice(0,3):items;
+    const extra=items.length>3?items.slice(3):[];
+    const activeExtra=extra.find(item=>String(item.value)===String(active));
     return '<div class="record-workspace-categories" role="group" aria-label="Record categories">'
-      + items.map(item => {
-        const selected = String(item.value) === String(active);
-        return '<button type="button" class="btn btn-sm '
-          + (selected ? 'btn-primary' : 'btn-outline-secondary')
-          + '" ' + attribute + '="' + UI.esc(item.value) + '" aria-pressed="' + selected + '">'
-          + UI.esc(item.label) + '</button>';
-      }).join('')
-      + '</div>';
+      +primary.map(renderButton).join('')
+      +(extra.length
+        ? '<details class="record-category-more"><summary class="btn btn-sm '
+          +(activeExtra?'btn-primary':'btn-outline-secondary')
+          +'" aria-label="More record categories"><i class="bi bi-three-dots" aria-hidden="true"></i> '
+          +(activeExtra?UI.esc(activeExtra.label):'More')
+          +'<i class="bi bi-chevron-down" aria-hidden="true"></i></summary>'
+          +'<div class="record-category-more-options">'+extra.map(renderButton).join('')+'</div></details>'
+        :'')
+      +'</div>';
   },
 
   panel(tableHtml, categoryHtml = '') {
