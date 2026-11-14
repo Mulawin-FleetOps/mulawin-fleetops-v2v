@@ -132,7 +132,7 @@ const RecordComponents = Object.freeze({
  * Keeps the existing UI.table state, action buttons, paging and API handlers.
  * Client Management retains its own established RecordComponents.mountPanel().
  */
-RecordComponents.headWorkspace = (root) => {
+const mountHeadWorkspace = (root) => {
   if (!UI.role('admin') || !['finance','billing'].includes(App.current?.page)) return;
   const panels = [...(root.matches?.('.panel') ? [root] : []), ...root.querySelectorAll('.panel')];
   panels.forEach(panel => {
@@ -247,6 +247,6 @@ RecordComponents.headWorkspace = (root) => {
   const activate=UI.activate;
   UI.activate=(root)=>{
     activate(root);
-    RecordComponents.headWorkspace(root);
+    mountHeadWorkspace(root);
   };
 })();
