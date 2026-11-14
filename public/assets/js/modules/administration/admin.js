@@ -62,29 +62,99 @@ const HeadAdminPage = {
     const tabs = [];
     if (isAdmin) {
       tabs.push(['users', 'User accounts', (body) => {
-        const h = UI.table([['Name', 'full_name'], ['Username', 'username'], ['Email', 'email'], ['Role', 'role', (v) => UI.esc(d.roles[v] || v)], ['Shift', 'shift'], ['Active', 'active', (v) => +v ? UI.badge('Active') : UI.badge('Inactive')],
-          ['E-signature', 'has_signature', 'yes'], ['Last login', 'last_login_at', 'datetime']], d.users,
-          { title: 'Accounts (one per employee; access follows the role)', tools: '<button class="btn btn-sm btn-primary" data-adduser><i class="bi bi-person-plus"></i> New account</button>',
-            actions: (u) => UI.btn('edit', 'Edit') + UI.btn('pw', 'Reset password', 'outline-secondary') + (u.id == App.me.user.id ? '' : UI.btn('toggle', +u.active ? 'Deactivate' : 'Activate', +u.active ? 'outline-danger' : 'outline-success')),
-            onAction: (a, u) => {
-              if (a === 'edit') userForm(u);
-              if (a === 'pw') {
-                UI.confirmAction('Reset password for ' + UI.esc(u.username),
-                  'A new random temporary password will be generated and shown to you once. The current password cannot be viewed. Existing sessions are signed out and the user must change the new password at next login.',
-                  'Admin.user_password', { user_id: u.id }, { submit: 'Generate temporary password', after: (r) => { UI.closeDrawer(); App.route(); if (r.temporary_password) showTempPassword(r); } });
-              }
-              if (a === 'toggle') UI.confirmAction((+u.active ? 'Deactivate ' : 'Activate ') + UI.esc(u.full_name), +u.active ? 'The user can no longer log in. Records made by this user are kept.' : 'The user can log in again.', 'Admin.user_toggle', { user_id: u.id, active: +u.active ? 0 : 1 }, { danger: +u.active });
-            } });
-        setTimeout(() => body.querySelector('[data-adduser]')?.addEventListener('click', () => userForm()), 0);
-        return h + `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-shield-check"></i> What each role can do</h2></div><div class="card-body-custom small"><ul class="mb-0">
-          <li><b>Admin (Head Management)</b>: dashboards, reports, users, settings, backup; approves purchase orders above the limit.</li>
-          <li><b>Operations Head</b>: creates and reviews trips, approves fund requests, changes assignments, keeps the truck, driver and client masterlists.</li>
-          <li><b>Dispatchers</b> (Car Carrier; Container / Wing Van): trip requests, fund requests, checklist, dispatch, updates, incidents, completion of their truck types.</li>
-          <li><b>Motorpool Custodian</b>: assesses incidents, corrective maintenance, mechanics, truck availability, requests parts.</li>
-          <li><b>Purchasing Officer</b>: releases parts, inventory, suppliers, purchase orders and receiving.</li>
-          <li><b>Finance</b>: releases trip funds, approves purchase orders up to the limit, pays, expenses, budget.</li>
-          <li><b>Billing and Collection</b>: client rates, billing, invoices, payments, receivables.</li>
-          <li><b>Audit</b>: read-only access to records and the activity log.</li></ul></div></section>`;
+        const accounts=d.users||[];
+        const total=accounts.length,active=accounts.filter(u=>Number(u.active)===1).length;
+        const state={scope:'all',role:'',order:'default'};
+        const categories=[
+          {value:'all',label:'All Accounts'},
+          {value:'active',label:'Active'},
+          {value:'inactive',label:'Inactive'}
+        ];
+        const roleChoices=[...new Set(accounts.map(u=>u.role).filter(Boolean))].sort();
+        const roleOptions=roleChoices.map(role=>'<option value="'+UI.esc(role)+'">'+UI.esc(d.roles[role]||role)+'</option>').join('');
+        const filterId='head-user-record-filter',sortId='head-user-record-sort';
+        const toolbar='<button type="button" class="btn btn-sm btn-primary record-workspace-add" data-adduser><i class="bi bi-person-plus" aria-hidden="true"></i> New Account</button>'
+          +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
+          +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+          +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden>'
+          +'<strong>Filter accounts</strong><label>Role<select class="form-select form-select-sm" data-head-user-role>'
+          +'<option value="">All roles</option>'+roleOptions+'</select></label>'
+          +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+          +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+          +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden>'
+          +'<strong>Sort accounts</strong>'
+          +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="default" data-record-sort checked> Default order</label>'
+          +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="asc" data-record-sort> Name A–Z</label>'
+          +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="desc" data-record-sort> Name Z–A</label></div></div>';
+        const columns=[['Name','full_name'],['Username','username'],['Email','email'],
+          ['Role','role',v=>UI.esc(d.roles[v]||v)],['Shift','shift'],
+          ['Status','active',v=>Number(v)?UI.badge('Active'):UI.badge('Inactive')],
+          ['E-signature','has_signature','yes'],['Last login','last_login_at','datetime']];
+        const h=UI.table(columns,accounts,{
+          title:'User Accounts',tools:toolbar,showAllColumns:true,viewSwitch:false,
+          actions:u=>UI.btn('edit','Edit')+UI.btn('pw','Reset password','outline-secondary')
+            +(u.id==App.me.user.id?'':UI.btn('toggle',Number(u.active)?'Deactivate':'Activate',
+              Number(u.active)?'outline-danger':'outline-success')),
+          onAction:(a,u)=>{
+            if(a==='edit')userForm(u);
+            if(a==='pw')UI.confirmAction('Reset password for '+UI.esc(u.username),
+              'A new random temporary password will be generated and shown to you once. The current password cannot be viewed. Existing sessions are signed out and the user must change the new password at next login.',
+              'Admin.user_password',{user_id:u.id},{submit:'Generate temporary password',
+                after:r=>{UI.closeDrawer();App.route();if(r.temporary_password)showTempPassword(r);}});
+            if(a==='toggle')UI.confirmAction((Number(u.active)?'Deactivate ':'Activate ')+UI.esc(u.full_name),
+              Number(u.active)?'The user can no longer log in. Records made by this user are kept.':'The user can log in again.',
+              'Admin.user_toggle',{user_id:u.id,active:Number(u.active)?0:1},{danger:Boolean(Number(u.active))});
+          }
+        });
+        const summary=RecordComponents.kpis([
+          {label:'Total Accounts',value:total,icon:'bi-people',color:'blue'},
+          {label:'Active Accounts',value:active,icon:'bi-person-check',color:'green'},
+          {label:'Inactive Accounts',value:total-active,icon:'bi-person-dash',color:'red'},
+          {label:'Assigned Roles',value:new Set(accounts.map(u=>u.role).filter(Boolean)).size,icon:'bi-shield-check',color:'purple'}
+        ]);
+        const reference='<details class="head-user-role-reference"><summary><i class="bi bi-shield-check" aria-hidden="true"></i>'
+          +'<span>Role & Access Reference</span><small>View configured user roles</small><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>'
+          +'<div class="head-user-role-reference-body"><p>Permissions are enforced by the server. Account roles shown here are a reference, not an authorization policy.</p>'
+          +'<div class="head-user-role-tags">'+roles.map(([,label])=>'<span>'+UI.esc(label)+'</span>').join('')+'</div></div></details>';
+        const html='<div class="head-user-management">'+summary
+          +RecordComponents.panel(h,RecordComponents.categories(categories,'all','data-head-user-category'))
+          +reference+'</div>';
+        // Mount after UI.tabs inserts the returned HTML, preserving table handlers.
+        setTimeout(()=>{
+          const root=body.querySelector('.head-user-management');
+          if(!root)return;
+          RecordComponents.mountPanel(root,{title:'User Accounts'});
+          const tbody=root.querySelector('[data-tbody]'),id=tbody?.dataset.tbody;
+          const table=id?UI._tables[id]:null;
+          if(!table)return;
+          const original=table.rows.slice();
+          const roleSelect=root.querySelector('[data-head-user-role]');
+          const draw=()=>{
+            let rows=original.filter(u=>(state.scope==='all'||(Number(u.active)===1)===(state.scope==='active'))
+              &&(!state.role||u.role===state.role));
+            if(state.order!=='default')rows.sort((a,b)=>(state.order==='asc'?1:-1)
+              *String(a.full_name||'').localeCompare(String(b.full_name||''),undefined,{numeric:true}));
+            table.rows=rows;table.page=0;UI.drawTable(id);
+            root.querySelectorAll('[data-head-user-category]').forEach(button=>{
+              const selected=button.dataset.headUserCategory===state.scope;
+              button.classList.toggle('btn-primary',selected);
+              button.classList.toggle('btn-outline-secondary',!selected);
+              button.setAttribute('aria-pressed',String(selected));
+            });
+          };
+          root.querySelectorAll('[data-head-user-category]').forEach(button=>button.addEventListener('click',()=>{
+            state.scope=button.dataset.headUserCategory;draw();
+          }));
+          root.querySelector('[data-adduser]')?.addEventListener('click',()=>userForm());
+          RecordComponents.bindDropdowns(root,{
+            apply:menu=>{state.role=menu.querySelector('[data-head-user-role]').value;draw();
+              root.querySelector('.record-workspace-filter-trigger')?.click();},
+            reset:()=>{state.role='';roleSelect.value='';draw();
+              root.querySelector('.record-workspace-filter-trigger')?.click();},
+            sort:value=>{state.order=value;draw();}
+          },{filter:filterId,sort:sortId});
+        },0);
+        return html;
       }]);
       // CHECKLIST_42_ATTENDANCE_PHASE2_V1: time-of-day settings (format 'hour') are shown and chosen as 12-hour
       // times (6 -> 6:00 AM, 18 -> 6:00 PM); the value sent and stored is still the hour 0-23.
