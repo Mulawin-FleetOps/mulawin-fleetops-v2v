@@ -17,7 +17,7 @@ final class Clients {
         'business_permit' => 'Business Permit',
         'bir_2303' => 'BIR Form 2303',
     ];
-    private const EDIT = ['admin', 'operations_head'];
+    private const EDIT = ['admin'];
     private const RATE = [];
 
     public static function read(array $u, string $page, array $q): array {
