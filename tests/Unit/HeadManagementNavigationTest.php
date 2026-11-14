@@ -213,6 +213,13 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("label:'Route Rates'", $js);
         self::assertStringContainsString("label:'Fund Requests'", $js);
         self::assertStringContainsString('changeCategory:select', $js);
+        self::assertStringContainsString('const filterDefs=({', $js);
+        self::assertStringContainsString("rates:[['Client','company_name']", $js);
+        self::assertStringContainsString('const hasFilters=filters.length>0', $js);
+        self::assertStringContainsString('const hasRecords=rows.length>0', $js);
+        self::assertStringContainsString('sortOptions=group.cols.filter', $js);
+        self::assertStringContainsString('filters,sortOptions,', $js);
+        self::assertStringNotContainsString('Read-only monitoring. Decisions remain in their authorized departmental workflows.', $js);
         self::assertStringNotContainsString('data-head-approval-tabs', $js);
         self::assertStringNotContainsString('head-trip-records-heading><h2>Company Trip Records', $js);
     }
