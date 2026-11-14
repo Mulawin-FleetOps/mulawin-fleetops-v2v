@@ -1076,3 +1076,20 @@ a:hover { color: var(--rpm-brand-strong); }
 @media(max-width:1350px) { .head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:900px) { .head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:450px) { .head-maintenance-workspace .head-trip-kpis { grid-template-columns:1fr; } }
+
+/* Head Management Route & Contract Rates: same executive record workspace. */
+.head-route-workspace { display:grid; gap:17px; }
+.head-route-workspace .metric-strip.metric-strip-icons { margin-bottom:0; }
+.head-route-records { background:#fff; border-radius:13px; border:1px solid #dce8df; overflow:visible; }
+.head-route-records .head-fleet-records-heading { padding-bottom:7px; }
+.head-route-records .head-monitor-header { padding-top:15px; }
+.head-route-records .head-monitor-tools { padding-top:10px; }
+.head-route-records .head-monitor-table > .panel { margin:0; border:0; box-shadow:none; background:transparent; }
+.head-route-records .head-monitor-table > .panel > .panel-body { padding:0; }
+.head-route-records .head-monitor-table .table-tools { display:none!important; }
+.head-route-records .head-monitor-table .table-wrap { overflow-x:auto; min-height:155px; }
+.head-route-records .head-monitor-table .data-table { width:100%; }
+.head-route-records .head-monitor-table .data-table thead th { background:#f0f2f4; color:#253449; font-size:12px; font-weight:650; }
+.head-route-records .head-monitor-table .table-empty { display:flex; align-items:center; justify-content:center; text-align:center; min-height:150px; }
+.head-route-records .head-monitor-table .table-pager { border-top:1px solid #dfe7e1; padding:12px 18px; min-height:58px; }
+@media(max-width:700px) { .head-route-records .head-monitor-tools { flex-wrap:wrap; } .head-route-records .head-monitor-table .table-pager { flex-wrap:wrap; } }
