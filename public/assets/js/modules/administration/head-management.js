@@ -158,8 +158,11 @@ const HeadRecords = {
     const toolbar='<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
       +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
       +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
-      +filters.map((field,index)=>'<label>'+UI.esc(field.label)+'<select class="form-select form-select-sm" data-head-record-filter="'+index+'">'
-        +'<option value="">All</option>'+choices(field.options)+'</select></label>').join('')
+      +filters.map((field,index)=>'<label>'+UI.esc(field.label)
+        +(field.type==='date'
+          ? '<input type="date" class="form-control form-control-sm" data-head-record-filter="'+index+'">'
+          : '<select class="form-select form-select-sm" data-head-record-filter="'+index+'"><option value="">All</option>'+choices(field.options)+'</select>')
+        +'</label>').join('')
       +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
       +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
       +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="default" checked> Default order</label>'
@@ -188,7 +191,9 @@ const HeadRecords = {
     };
     const redraw=()=>{
       filtered=original.filter(row=>filters.every((filter,index)=>
-        !filterInputs[index]?.value||String(row[filter.key]??'')===filterInputs[index].value)).filter(matched);
+        !filterInputs[index]?.value || (filter.type==='date'
+          ? String(row[filter.key]??'').slice(0,10)===filterInputs[index].value
+          : String(row[filter.key]??'')===filterInputs[index].value))).filter(matched);
       if(sort!=='default'){
         const key=columns[0][1];
         filtered.sort((a,b)=>(sort==='asc'?1:-1)*String(a[key]??'').localeCompare(String(b[key]??''),undefined,{numeric:true}));
@@ -474,7 +479,8 @@ const HeadTripsUI = {
         {label:'Status',key:'status',options:[...new Set(tab.rows.map(r=>r.status).filter(Boolean))].sort()}
       ]:[
         {label:'Trip status',key:'status',options:[...new Set(tab.rows.map(r=>r.status).filter(Boolean))].sort()},
-        {label:'Truck type',key:'truck_type',options:[...new Set(tab.rows.map(r=>r.truck_type).filter(Boolean))].sort()}
+        {label:'Truck type',key:'truck_type',options:[...new Set(tab.rows.map(r=>r.truck_type).filter(Boolean))].sort()},
+        {label:'Scheduled date',key:'scheduled_at',type:'date'}
       ];
       HeadRecords.render(root,{
         title:'Company Trip Records',categories:tabItems,selected:tab.value,
