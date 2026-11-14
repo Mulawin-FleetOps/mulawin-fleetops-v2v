@@ -25,7 +25,7 @@ App.page('reports', {
       { name: 'vehicle_id', label: 'Truck / plate', type: 'select', options: UI.opts(fo.trucks, v => v.plate_number), col: 6 },
       { name: 'person_id', label: 'Driver / helper', type: 'select', options: UI.opts(fo.people, p => p.full_name + ' (' + p.person_type + ')'), col: 6 },
       { name: 'dispatcher_id', label: 'Dispatcher', type: 'select', options: UI.opts(fo.dispatchers, u => u.full_name), col: 6 }],
-      { note: 'Truck type, status, client, truck, driver and dispatcher filters apply to the trip report.', hint: 'No filters (all trucks, clients and drivers).' });
+      { note: 'Truck type, status, client, truck, driver and dispatcher filters apply to the trip report.', hint: '' });
 
     // Head Management uses the same report aggregates with a compact
     // executive layout. Other authorized roles keep their existing view.
