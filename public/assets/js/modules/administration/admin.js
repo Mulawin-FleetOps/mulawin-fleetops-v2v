@@ -3,7 +3,7 @@
    Audit can read the activity log only.
    Backend: backend/Modules/Administration/Admin.php */
 'use strict';
-App.page('admin', {
+const HeadAdminPage = {
   title: 'User Management',
   subtitle: 'User accounts, settings, activity log and backup.',
   render(ctx) {
@@ -148,12 +148,21 @@ App.page('admin', {
       + UI.table([['Date & time', 'created_at', 'datetime'], ['User', 'actor'], ['Activity', 'action']], d.events,
         { title: 'Activity log', actions: () => UI.btn('view', 'View'), onAction: (a, e) => { if (a === 'view') activityDetails(e); }, rowClick: activityDetails })]);
     const box = document.createElement('div'); ctx.el.append(box);
-    UI.tabs(box, tabs, ctx.query.from || ctx.query.area ? 'log' : null);
+    UI.tabs(box, tabs, ctx.query?.headSettings ? 'settings' : (ctx.query?.from || ctx.query?.area ? 'log' : null));
     box.addEventListener('click', async (e) => {
       if (e.target.closest('[data-addcat]')) catForm();
       if (e.target.closest('[data-backup]')) { if (!await UI.confirmProceed('Create backup', 'Create a new database backup now?', 'Create backup')) return; try { UI.result(await App.api('Admin.backup_create', {})); App.route(); } catch (x) { UI.toast(x.message, 'error'); } }
     });
   },
+};
+App.page('admin', HeadAdminPage);
+App.page('head-settings', {
+  ...HeadAdminPage,
+  title:'System Configuration',
+  subtitle:'Head Management settings and controls.',
+  render(ctx) {
+    HeadAdminPage.render({...ctx, query:{...(ctx.query||{}),headSettings:true}});
+  }
 });
 
 // Fuel controls reuse Settings, standard cards/tables and the existing modal system.
