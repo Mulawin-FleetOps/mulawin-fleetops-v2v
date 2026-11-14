@@ -778,23 +778,34 @@ const OpsHead = {
             ? 'Truck type: '+e.route.truck_type+' · '+UI.num(e.route.distance_km,2)+' km'
             : 'Select a route to determine the required truck type and compatible dispatcher.';
         };
-        const loadRoutes = async () => {
-          const seq = ++e.seq; e.routes = []; e.data.client_route_id = ''; e.route = null;
-          e.data.truck_type = ''; truckField.value = '';
-          e.data.dispatcher_assignment = ''; e.data.responsible_dispatcher_id = '';
-          fillDispatchers();
+        const loadRoutes = async (resetSelection = false) => {
+          const seq = ++e.seq;
+          const priorRouteId = resetSelection ? '' : String(e.data.client_route_id || '');
+          if (resetSelection) {
+            e.data.client_route_id = ''; e.route = null; e.data.truck_type = '';
+            e.data.dispatcher_assignment = ''; e.data.responsible_dispatcher_id = '';
+            truckField.value = ''; fillDispatchers();
+          }
+          e.routes = [];
           if (!e.data.client_id) { e.loading = false; e.routeMessage = 'Choose a client first.'; e.refresh(); return; }
           e.loading = true; e.routeMessage = 'Loading approved routes…'; e.refresh();
           try {
-            const r = await App.api('Routes.selectable', { client_id: e.data.client_id });
+            const response = await App.api('Routes.selectable', { client_id: e.data.client_id });
             if (seq !== e.seq) return;
-            e.routes = r.routes || []; e.routeMessage = e.routes.length ? '' : 'No approved routes are available for this client. Request a route through Client Routes before creating a trip.';
+            e.routes = response.routes || [];
+            e.route = e.routes.find(route => String(route.id) === priorRouteId) || null;
+            e.data.client_route_id = e.route ? String(e.route.id) : '';
+            e.data.truck_type = e.route?.truck_type || '';
+            truckField.value = e.data.truck_type;
+            if (!e.route) { e.data.dispatcher_assignment = ''; e.data.responsible_dispatcher_id = ''; }
+            fillDispatchers();
+            e.routeMessage = e.routes.length ? '' : 'No approved routes are available for this client. Request a route through Client Routes before creating a trip.';
           } catch (ex) { if (seq === e.seq) e.routeMessage = ex.message + ' Change the client to retry.'; }
-          finally { if (seq === e.seq) { e.loading = false; e.refresh(); } }
+          finally { if (seq === e.seq) { e.loading = false; e.refresh();update(); } }
         };
         card.querySelector('[name=client_id]').onchange = event => {
           e.data.client_id = event.target.value;
-          loadRoutes(); update();
+          loadRoutes(true); update();
         };
         pick.onchange = () => {
           e.data.client_route_id = pick.value;
