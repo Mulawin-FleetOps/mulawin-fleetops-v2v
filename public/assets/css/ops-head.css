@@ -592,3 +592,47 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
   .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{flex-wrap:wrap}
   .oh-trip-planner-modal .oh-simple-planner .oh-trip-plan-limit{flex-basis:100%}
 }
+
+
+/* Selected approved route: three responsive information cards. */
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+  display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.15fr);
+  align-items:stretch;gap:9px;margin:9px 0 0;padding:0;border:0;background:transparent;
+  color:inherit;font-size:inherit
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[hidden]{display:none!important}
+.oh-trip-planner-modal .oh-trip-route-card{
+  display:flex;flex-direction:column;min-width:0;min-height:112px;
+  padding:12px;border:1px solid #dce9e0;border-radius:10px;background:#f5faf6
+}
+.oh-trip-planner-modal .oh-trip-route-card-label{
+  display:flex;align-items:center;gap:6px;color:#668570;font-size:9.5px;
+  font-weight:800;letter-spacing:.055em;margin-bottom:9px;white-space:nowrap
+}
+.oh-trip-planner-modal .oh-trip-route-card-label i{font-size:13px;color:#22784b}
+.oh-trip-planner-modal .oh-trip-route-location{
+  display:flex;align-items:flex-start;gap:7px;color:#27523a;font-size:11px;
+  line-height:1.45;font-weight:650;min-width:0
+}
+.oh-trip-planner-modal .oh-trip-route-location span{min-width:0;overflow-wrap:anywhere}
+.oh-trip-planner-modal .oh-trip-route-location i{flex:none;margin-top:2px;font-size:10px;color:#2f8553}
+.oh-trip-planner-modal .oh-trip-route-arrow{padding:2px 0 2px 2px;color:#96b6a0;font-size:12px}
+.oh-trip-planner-modal .oh-trip-route-card-distance .oh-trip-route-card-value,
+.oh-trip-planner-modal .oh-trip-route-card-truck .oh-trip-route-card-value{
+  margin:auto 0;color:#1f6240;font-weight:800;line-height:1.25;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-trip-route-card-distance .oh-trip-route-card-value{
+  font-size:23px;font-variant-numeric:tabular-nums;white-space:nowrap
+}
+.oh-trip-planner-modal .oh-trip-route-card-value small{
+  display:block;margin-top:3px;color:#718d79;font-weight:500;font-size:11px
+}
+.oh-trip-planner-modal .oh-trip-route-card-truck .oh-trip-route-truck-name{font-size:14px}
+.oh-trip-planner-modal .oh-trip-route-auto{font-size:10px;color:#77917e;margin-top:5px}
+@media(max-width:590px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .oh-trip-planner-modal .oh-trip-route-card-journey{grid-column:1/-1;min-height:auto}
+  .oh-trip-planner-modal .oh-trip-route-card{padding:11px;min-height:90px}
+}
