@@ -193,9 +193,76 @@ const FuelAdjustmentUI={
   }});
  },
  render(ctx){
-  const current=ctx.data.current||{},diesel=current.diesel,types=['Car Carrier','Container','Wing Van'],history=(ctx.data.history||[]).filter(r=>r.setting_key==='diesel'||types.includes(r.setting_key));
-  ctx.el.innerHTML='<section class="card mb-3"><div class="card-body"><h2 class="h5">Weekly Diesel Price</h2>'+UI.kv([['Current price per liter',diesel?UI.money(JSON.parse(diesel.value_json).value):'Not configured'],['Current effective date',diesel?UI.date(diesel.effective_date):'Not configured']])+'<p class="small text-muted">Updates normally occur on Tuesdays. The previous effective price remains applicable until another takes effect.</p><button class="btn btn-primary btn-sm" data-edit-diesel>Edit Price</button></div></section><section class="card mb-3"><div class="card-body"><h2 class="h5">Fuel Efficiency per Truck Type</h2>'+UI.table([['Truck Type','type'],['Current km/L','value',v=>v===null?'Not configured':UI.num(v,4)]],types.map(type=>({type,value:current[type]?JSON.parse(current[type].value_json).value:null})),{showAllColumns:true,viewSwitch:false,actions:()=>UI.btn('edit','Edit'),onAction:(a,row)=>this.edit(ctx,row.type)})+'</div></section><details class="card"><summary class="card-header">Configuration History</summary><div class="card-body">'+UI.table([['Setting','setting_key'],['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],['Value','value_json',v=>UI.esc(JSON.parse(v).value)],['Reason / Reference','reference']],history,{showAllColumns:true,viewSwitch:false,empty:'No diesel or fuel efficiency updates.'})+'</div></details>';
-  ctx.el.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');UI.activate(ctx.el);
+  const current=ctx.data.current||{};
+  const diesel=current.diesel;
+  const types=ctx.data.truckTypes||['Car Carrier','Container','Wing Van'];
+  const history=(ctx.data.history||[]).filter(r=>r.setting_key==='diesel'||types.includes(r.setting_key));
+  const number=row=>{
+    if(!row)return null;
+    try {const value=JSON.parse(row.value_json).value;return Number.isFinite(Number(value))?Number(value):null;}
+    catch {return null;}
+  };
+  const configured=types.filter(type=>number(current[type])!==null).length;
+  const latest=history.reduce((best,row)=>{
+    const date=row.effective_at||row.effective_date||row.created_at;
+    const previous=best?.effective_at||best?.effective_date||best?.created_at;
+    return !best||String(date||'')>String(previous||'')?row:best;
+  },null);
+  const categories=[
+    {value:'diesel',label:'Diesel Price'},
+    {value:'efficiency',label:'Truck Efficiency'},
+    {value:'history',label:'Configuration History'}
+  ];
+  const dieselValue=number(diesel);
+  const kpis=[
+    {label:'Current Diesel Price',value:dieselValue===null?'Not set':dieselValue,format:dieselValue===null?'':'money',icon:'bi-fuel-pump',color:'green'},
+    {label:'Effective Date',value:diesel?UI.date(diesel.effective_date):'Not set',icon:'bi-calendar-check',color:'blue'},
+    {label:'Configured Truck Types',value:configured+' of '+types.length,icon:'bi-truck',color:'purple'},
+    {label:'Latest Configuration',value:latest?UI.date(latest.effective_at||latest.effective_date):'None',icon:'bi-clock-history',color:'amber'}
+  ];
+  ctx.el.innerHTML='<div class="head-fuel-workspace">'
+    +RecordComponents.kpis(kpis)
+    +'<div data-head-fuel-records></div></div>';
+  const root=ctx.el.querySelector('[data-head-fuel-records]');
+  const buttons=selected=>RecordComponents.categories(categories,selected,'data-head-fuel-tab');
+  const attachTabs=()=>{
+    root.querySelectorAll('[data-head-fuel-tab]').forEach(button=>
+      button.addEventListener('click',()=>show(button.dataset.headFuelTab)));
+  };
+  const show=category=>{
+    if(category==='diesel'){
+      root.innerHTML='<section class="record-workspace-panel">'
+        +'<div class="record-workspace-heading"><div><h2>Fuel Configuration</h2>'
+        +'<p class="record-workspace-count">Weekly diesel pricing and effective date</p></div>'
+        +'<button type="button" class="btn btn-sm btn-primary" data-edit-diesel>'
+        +'<i class="bi bi-pencil" aria-hidden="true"></i> Edit Price</button></div>'
+        +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
+        +'<div class="card-body">'+UI.kv([
+          ['Current price per liter',dieselValue===null?'Not configured':UI.money(dieselValue)],
+          ['Current effective date',diesel?UI.date(diesel.effective_date):'Not configured']])
+        +'<p class="small text-muted mb-0">Updates normally occur on Tuesdays. The previous effective price remains applicable until another takes effect. Historical invoices are not automatically recalculated.</p>'
+        +'</div></section>';
+      root.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');
+    }else{
+      const isEfficiency=category==='efficiency';
+      const columns=isEfficiency
+        ?[['Truck Type','type'],['Current km/L','value',v=>v===null?'Not configured':UI.num(v,4)]]
+        :[['Setting','setting_key'],['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],
+          ['Value','value_json',v=>{try{return UI.esc(JSON.parse(v).value)}catch{return '—'}}],
+          ['Reason / Reference','reference']];
+      const rows=isEfficiency?types.map(type=>({type,value:number(current[type])})):history;
+      const options={showAllColumns:true,viewSwitch:false,
+        empty:isEfficiency?'No truck types available.':'No diesel or fuel efficiency updates.',
+        ...(isEfficiency?{actions:()=>UI.btn('edit','Edit'),
+          onAction:(_,row)=>this.edit(ctx,row.type)}:{})};
+      root.innerHTML=RecordComponents.panel(UI.table(columns,rows,options),buttons(category));
+      UI.activate(root);
+      RecordComponents.mountPanel(root,{title:isEfficiency?'Fuel Efficiency per Truck Type':'Configuration History'});
+    }
+    attachTabs();
+  };
+  show('diesel');
+  UI.activate(ctx.el);
  }
 };
-App.page('fuel-adjustment',{title:'Fuel Adjustment',render(ctx){FuelAdjustmentUI.render(ctx);}});
+App.page('fuel-adjustment',{title:'Fuel & Operating Costs',render(ctx){FuelAdjustmentUI.render(ctx);}});
