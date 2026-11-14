@@ -84,6 +84,60 @@ const RecordComponents = Object.freeze({
     return true;
   },
 
+  // Reuse the Client Management layout for existing Finance/Billing tab
+  // callbacks. Move the actual table nodes so action handlers are preserved.
+  executiveTabs(root, tabs, active, title) {
+    if (!tabs.length) return;
+    let selected=active && tabs.some(tab=>tab[0]===active)?active:tabs[0][0];
+    const show=key=>{
+      selected=key;
+      const tab=tabs.find(item=>item[0]===key)||tabs[0];
+      root.innerHTML='';
+      const rendered=tab[2](root);
+      if(typeof rendered==='string')root.innerHTML=rendered;
+      const oldPanel=[...root.querySelectorAll('.panel')].find(el=>el.querySelector('.table-tools'));
+      if(!oldPanel){ // A chart-only tab retains its native chart and report renderers.
+        UI.activate(root);
+        return;
+      }
+      const extra=[...root.childNodes].filter(node=>node!==oldPanel);
+      const contents=oldPanel.querySelector(':scope > .panel-body');
+      const panel=document.createElement('section');
+      panel.className='panel';
+      const body=document.createElement('div');
+      body.className='panel-body flush';
+      if(contents)while(contents.firstChild)body.append(contents.firstChild);
+      panel.append(body);
+      const categories=this.categories(tabs.map(([value,label])=>({value,label})),selected,'data-executive-tab');
+      const shell=document.createElement('div');
+      shell.innerHTML=this.panel('',categories);
+      const workspace=shell.querySelector('.record-workspace-panel');
+      // Keep existing date-range filters, explanatory copy and charts.
+      extra.forEach(node=>workspace.append(node));
+      workspace.prepend(panel);
+      root.replaceChildren(workspace);
+      this.mountPanel(root,{title});
+      root.querySelectorAll('[data-executive-tab]').forEach(button=>
+        button.addEventListener('click',()=>show(button.dataset.executiveTab)));
+      UI.activate(root);
+      const tableBody=root.querySelector('[data-tbody]');
+      if(tableBody)this.keepExecutiveEmptyTable(root,tableBody.dataset.tbody);
+    };
+    show(selected);
+  },
+
+  keepExecutiveEmptyTable(root,id) {
+    const t=UI._tables[id],box=root.querySelector('[data-tbody="'+id+'"]');
+    if(!t||!box||UI.tableRows(id).length)return;
+    const cols=t.columns;
+    box.innerHTML='<table class="data-table"><thead><tr>'
+      +cols.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')
+      +(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(cols.length+(t.hasActions?1:0))+'">'
+      +'<div class="table-empty" role="status">'+UI.esc(t.opts.empty||'No records available.')+'</div></td></tr></tbody></table>';
+    const pager=root.querySelector('[data-tpager="'+id+'"]');
+    if(pager)pager.innerHTML=UI.recordPager({total:0,page:1,pages:1,pageSize:t.limit});
+  },
+
   // Accessible floating filter/sort panels. No Bootstrap modal or backdrop.
   bindDropdowns(root, handlers = {}, ids = {filter:'truck-filter-panel', sort:'truck-sort-panel'}) {
     const filter = root.querySelector('.record-workspace-filter-trigger');
@@ -127,145 +181,3 @@ const RecordComponents = Object.freeze({
 });
 
 
-/* Preserve headers and a disabled pager on empty executive finance/billing tables. */
-const ensureHeadEmptyTable = id => {
-  if (!UI.role('admin') || !['finance','billing'].includes(App.current?.page)) return;
-  const box=document.querySelector('[data-tbody="'+id+'"]');
-  const panel=box?.closest('.head-finance-table');
-  const table=UI._tables[id];
-  if (!panel || !table || UI.tableRows(id).length) return;
-  box.innerHTML='<table class="data-table"><thead><tr>'
-    +table.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')
-    +(table.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead>'
-    +'<tbody><tr><td colspan="'+(table.columns.length+(table.hasActions?1:0))+'">'
-    +'<div class="table-empty" role="status">'+UI.esc(table.filter?'No records match the search.':table.opts.empty||'No records available.')+'</div>'
-    +'</td></tr></tbody></table>';
-  const pager=panel.querySelector('[data-tpager="'+id+'"]');
-  if(pager)pager.innerHTML=UI.recordPager({total:0,page:1,pages:1,pageSize:table.limit});
-};
-/* HEAD EXECUTIVE TABLE WORKSPACE
- * A view-only layout adapter, limited to the admin's Finance/Billing pages.
- * Keeps the existing UI.table state, action buttons, paging and API handlers.
- * Client Management retains its own established RecordComponents.mountPanel().
- */
-const mountHeadWorkspace = (root) => {
-  if (!UI.role('admin') || !['finance','billing'].includes(App.current?.page)) return;
-  const panels = [...(root.matches?.('.panel') ? [root] : []), ...root.querySelectorAll('.panel')];
-  panels.forEach(panel => {
-    if (panel.dataset.headWorkspaceMounted || panel.closest('.app-drawer,.modal,.head-monitor-panel')) return;
-    const toolbar = panel.querySelector('.table-tools');
-    const box = panel.querySelector('[data-tbody]');
-    if (!toolbar || !box || !panel.contains(toolbar)) return;
-    const id = box.dataset.tbody, state = UI._tables[id];
-    if (!state || state.opts.plain) return;
-    panel.dataset.headWorkspaceMounted = '1';
-    panel.classList.add('record-workspace-panel','head-finance-table');
-    const titleNode = panel.querySelector('.panel-head .panel-title');
-    const title = titleNode?.textContent?.trim() || state.opts.title || 'Records';
-    const heading = document.createElement('div');
-    heading.className = 'record-workspace-heading';
-    const label = document.createElement('div');
-    const h = document.createElement('h2');
-    h.textContent = title;
-    label.append(h);
-    const count = toolbar.querySelector('[data-tcount]');
-    const subtitle = document.createElement('p');
-    subtitle.className = 'record-workspace-count';
-    if (count) subtitle.append(count);
-    label.append(subtitle);
-    heading.append(label);
-    // Preserve real buttons such as Add payable / Add expense / Set budget.
-    const toolbarRight = toolbar.querySelector('.table-tools-right');
-    if (toolbarRight) {
-      [...toolbarRight.children].filter(el => el !== count).forEach(el => heading.append(el));
-    }
-    const row = document.createElement('div');
-    row.className = 'record-workspace-search';
-    const search = toolbar.querySelector('.table-search');
-    if (search) row.append(search);
-    const fields = state.columns.filter(col => ['status','payment_status','category','source_type','truck_type'].includes(col[1]));
-    const field = fields[0]?.[1];
-    const original = state.rows.slice();
-    let selected = '', sort = 'default';
-    const menuId = 'headwork-' + id;
-    const sortId = menuId + '-sort';
-    const makeButton = (cls, icon, name, target) => {
-      const b = document.createElement('button'); b.type = 'button';
-      b.className = 'btn btn-sm btn-outline-secondary ' + cls;
-      b.setAttribute('aria-controls',target); b.setAttribute('aria-expanded','false');
-      b.innerHTML = '<i class="bi '+icon+'" aria-hidden="true"></i> '+name;
-      return b;
-    };
-    const filterBtn = field ? makeButton('record-workspace-filter-trigger','bi-funnel','Filter',menuId) : null;
-    const sortBtn = makeButton('record-workspace-sort-trigger','bi-arrow-down-up','Sort',sortId);
-    if (filterBtn) row.append(filterBtn);
-    row.append(sortBtn);
-    const menus = document.createElement('div');
-    menus.className='record-workspace-popovers';
-    const values = field ? [...new Set(original.map(r=>String(r[field] ?? '')).filter(Boolean))].sort() : [];
-    const options = values.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('');
-    menus.innerHTML = (field ? '<div class="record-workspace-popover" id="'+menuId+'" hidden><strong>Filter '+UI.esc(title)+'</strong>'
-      +'<label>'+UI.esc(field.replaceAll('_',' '))+'<select class="form-select form-select-sm" data-head-work-status>'
-      +'<option value="">All</option>'+options+'</select></label>'
-      +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
-      +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>' : '')
-      +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="default" data-record-sort checked> Default</label>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="asc" data-record-sort> A–Z</label>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="desc" data-record-sort> Z–A</label></div>';
-    row.append(menus);
-    const categories = document.createElement('div');
-    categories.className='record-workspace-category-row';
-    if (field && values.length > 0 && values.length <= 5) {
-      categories.append(...[['','All'],...values.map(v=>[v,v])].map(([value,name]) => {
-        const b=document.createElement('button');b.type='button';b.className='btn btn-sm '+(value?'btn-outline-secondary':'btn-primary');
-        b.textContent=name;b.dataset.headWorkCategory=value;b.setAttribute('aria-pressed',String(!value));
-        return b;
-      }));
-      categories.addEventListener('click',event=>{
-        const button=event.target.closest('[data-head-work-category]');
-        if(!button)return;
-        selected=button.dataset.headWorkCategory;
-        const select=menus.querySelector('[data-head-work-status]');
-        if(select)select.value=selected;
-        apply();
-      });
-    }
-    const apply=()=>{
-      let rows=original.filter(r=>!selected||String(r[field]??'')===selected);
-      if(sort!=='default'){
-        const key=state.columns[0][1];
-        rows.sort((a,b)=>(sort==='asc'?1:-1)*String(a[key]??'').localeCompare(String(b[key]??''),undefined,{numeric:true}));
-      }
-      state.rows=rows;state.page=0;UI.drawTable(id);
-      categories.querySelectorAll('[data-head-work-category]').forEach(b=>{
-        const on=b.dataset.headWorkCategory===selected;
-        b.classList.toggle('btn-primary',on);b.classList.toggle('btn-outline-secondary',!on);
-        b.setAttribute('aria-pressed',String(on));
-      });
-    };
-    const pageHeader=panel.querySelector(':scope > .panel-head');
-    // Move existing header actions rather than deleting them.
-    if(pageHeader){
-      [...pageHeader.querySelectorAll('.panel-tools > *')].forEach(node=>heading.append(node));
-      pageHeader.remove();
-    }
-    toolbar.replaceWith(heading,row,categories);
-    ensureHeadEmptyTable(id);
-    RecordComponents.bindDropdowns(panel,{
-      apply(filterPanel){ selected=filterPanel.querySelector('[data-head-work-status]').value;apply();filterBtn?.click(); },
-      reset(){ selected='';const select=menus.querySelector('[data-head-work-status]');if(select)select.value='';apply();filterBtn?.click(); },
-      sort(value){sort=value;apply();}
-    },{filter:menuId,sort:sortId});
-  });
-};
-// Integrate only explicitly scoped executive finance/billing tables as they mount.
-(() => {
-  const activate=UI.activate;
-  UI.activate=(root)=>{
-    activate(root);
-    mountHeadWorkspace(root);
-  };
-  const draw=UI.drawTable;
-  UI.drawTable=id=>{ draw(id); ensureHeadEmptyTable(id); };
-})();
