@@ -135,6 +135,14 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('grid-template-columns:repeat(4,minmax(0,1fr))', $css);
     }
 
+    public function testExportOnlyAppearsOnHeadTripRecordPanel(): void {
+        $js=file_get_contents(dirname(__DIR__,2).'/public/assets/js/modules/administration/head-management.js');
+        self::assertIsString($js);
+        self::assertStringContainsString("title === 'Company Trip Records'", $js);
+        self::assertStringContainsString("panel.querySelector('[data-head-export]')?", $js);
+        self::assertStringContainsString('exportRows:filtered=>HeadTripsUI.exportRows(filtered)', $js);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
