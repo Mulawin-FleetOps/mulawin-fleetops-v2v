@@ -77,6 +77,27 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('JOIN trip_routes r', $backend);
     }
 
+    public function testFleetWorkspaceUsesSingleTabbedReadOnlyTableAndRealAggregates(): void {
+        $root = dirname(__DIR__, 2);
+        $js = file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
+        $php = file_get_contents($root.'/backend/Modules/Administration/HeadManagement.php');
+        $css = file_get_contents($root.'/public/assets/css/layout.css');
+        self::assertIsString($js);
+        self::assertIsString($php);
+        self::assertIsString($css);
+        self::assertStringContainsString('const HeadFleetWorkspace =', $js);
+        self::assertStringContainsString('data-head-fleet-tab', $js);
+        self::assertStringContainsString('data-head-fleet-table', $js);
+        self::assertStringContainsString('HeadOversight.mount(container', $js);
+        self::assertStringContainsString('data-head-fleet-kpi', $js);
+        self::assertStringContainsString('fleet_summary', $php);
+        self::assertStringContainsString('COUNT(*) FROM vehicles', $php);
+        self::assertStringContainsString('COUNT(*) FROM personnel', $php);
+        self::assertStringContainsString('.head-fleet-tabs', $css);
+        self::assertStringContainsString('.head-fleet-kpi', $css);
+        self::assertStringNotContainsString("App.api('Fleet.", $js);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
