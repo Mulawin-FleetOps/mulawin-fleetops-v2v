@@ -443,3 +443,40 @@
   .head-user-role-reference > summary small { margin-left:0; }
   .head-user-role-reference-body { padding:14px; }
 }
+
+/* Dedicated Head Management System Configuration workspace. */
+.head-settings-workspace{display:grid;gap:17px}
+.head-settings-workspace .record-workspace-kpis .metric-strip,
+.head-settings-workspace .record-workspace-kpis .metric-strip-icons{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0
+}
+.head-settings-workspace .record-workspace-panel{
+  border:1px solid #dce8df;border-radius:13px;background:#fff;overflow:visible;
+  box-shadow:0 2px 10px rgba(28,79,47,.03)
+}
+.head-settings-workspace .record-workspace-panel>.panel{border:0;border-radius:13px;box-shadow:none;margin:0}
+.head-settings-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.head-settings-workspace .record-workspace-search .table-search{flex:1 1 300px;max-width:none}
+.head-settings-workspace .record-workspace-heading{padding:19px 20px 13px}
+.head-settings-workspace .record-workspace-heading h2{font-size:17px;font-weight:700}
+.head-settings-workspace .record-workspace-search{padding:7px 20px 15px}
+.head-settings-workspace .record-workspace-category-row{padding:11px 20px;background:#fbfdfb}
+.head-settings-workspace .record-workspace-panel .data-table th{background:#f1f5f2;color:#244b33}
+.head-settings-workspace .record-workspace-panel .data-table td{vertical-align:middle;padding:14px 12px}
+.head-settings-workspace .record-workspace-panel .data-table td:first-child{min-width:260px}
+.head-settings-workspace .head-settings-group-label{
+  display:inline-block;padding:5px 9px;border:1px solid #dbe9df;border-radius:20px;
+  background:#f1f8f3;color:#396348;font-size:11px;font-weight:650;white-space:nowrap
+}
+.head-settings-workspace .record-workspace-panel .record-workspace-add{white-space:nowrap}
+@media(max-width:1050px){
+  .head-settings-workspace .record-workspace-kpis .metric-strip,
+  .head-settings-workspace .record-workspace-kpis .metric-strip-icons{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+  .head-settings-workspace .record-workspace-kpis .metric-strip,
+  .head-settings-workspace .record-workspace-kpis .metric-strip-icons{grid-template-columns:1fr}
+  .head-settings-workspace .record-workspace-heading{padding:15px}
+  .head-settings-workspace .record-workspace-search{padding:8px 15px 12px;flex-wrap:wrap}
+  .head-settings-workspace .record-workspace-category-row{padding:10px 15px}
+}
