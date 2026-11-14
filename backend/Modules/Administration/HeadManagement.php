@@ -20,7 +20,7 @@ final class HeadManagement {
                 FROM personnel pe LEFT JOIN vehicles v ON (v.assigned_driver_id=pe.id OR v.assigned_helper_id=pe.id) AND v.active=1
                 ORDER BY pe.active DESC,pe.person_type,pe.full_name LIMIT 700"),
             'mechanics'=>fn()=>many($p,"SELECT m.id,m.full_name,m.active,
-                (SELECT COUNT(*) FROM maintenance_jobs j WHERE j.assigned_mechanic_id=m.id AND j.status NOT IN ('Completed','Cancelled')) AS open_jobs
+                (SELECT COUNT(*) FROM maintenance_jobs j WHERE j.active_mechanic=m.id AND j.status NOT IN ('Completed','Cancelled')) AS open_jobs
                 FROM mechanics m ORDER BY m.active DESC,m.full_name LIMIT 200"),
         ]);
         if($page==='head-approvals') return readSections([
