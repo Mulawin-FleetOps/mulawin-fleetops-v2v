@@ -1059,7 +1059,7 @@ a:hover { color: var(--rpm-brand-strong); }
 
 /* Head Management only: Maintenance Monitoring follows the Fleet oversight workspace. */
 .head-maintenance-workspace { display:grid; gap:18px; }
-.head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(5,minmax(0,1fr)); }
+.head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .head-maintenance-workspace .head-kpi { padding:14px 12px; gap:10px; }
 .head-maintenance-workspace .head-kpi-icon { width:42px; height:42px; flex-basis:42px; font-size:19px; }
 .head-maintenance-records { border:1px solid #dce8df; border-radius:13px; background:#fff; }
