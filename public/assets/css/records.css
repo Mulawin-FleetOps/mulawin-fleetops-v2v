@@ -820,3 +820,85 @@
   .client-edit-modal .modal-header,.client-edit-modal .modal-footer{padding:11px 13px}
   .client-edit-modal .modal-body{padding:13px;max-height:74vh}
 }
+
+
+/* Operations Head Trips table: match Route & Contract Records */
+.fleet-trips-workspace .record-workspace-panel>.panel{
+  border:1px solid #d9e9dc;border-radius:13px;overflow:visible;
+  background:#fff;box-shadow:0 2px 7px rgba(28,75,42,.025)
+}
+.fleet-trips-workspace .record-workspace-heading{padding:17px 20px 12px}
+.fleet-trips-workspace .record-workspace-heading h2{
+  font-size:15px;line-height:1.4;font-weight:750;color:#294b35
+}
+.fleet-trips-workspace .record-workspace-search{padding:5px 20px 14px;gap:12px}
+.fleet-trips-workspace .record-workspace-search .table-search .form-control{
+  min-height:42px;border-radius:8px
+}
+.fleet-trips-workspace .record-workspace-search .btn{min-height:37px;border-radius:8px}
+.fleet-trips-workspace .fleet-trips-view-row{
+  padding:12px 20px;min-height:57px;background:#fff;border-top:1px solid #e4eee7;
+  border-bottom:1px solid #dce8df
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tabs{
+  display:flex;gap:8px;align-items:center;margin:0;flex-wrap:wrap
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab{
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid #cbded0;border-radius:8px;padding:8px 13px;
+  background:#fff;color:#3a5945;font-size:12px;font-weight:650;line-height:1.4;
+  transition:background .15s,border-color .15s,color .15s
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab:hover{
+  background:#eef7f0;border-color:#93c5a1
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab.active{
+  background:#207547;border-color:#207547;color:#fff
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab:focus-visible{
+  outline:2px solid #2a8951;outline-offset:2px
+}
+.fleet-trips-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.fleet-trips-workspace .record-workspace-panel .data-table{
+  width:100%;min-width:850px;border-collapse:separate;border-spacing:0
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th{
+  background:#f1f7f2;color:#365e43;padding:15px 17px;
+  font-size:11.5px;font-weight:750
+}
+.fleet-trips-workspace .record-workspace-panel .data-table td{
+  padding:17px;vertical-align:middle;line-height:1.55;font-size:12.5px
+}
+.fleet-trips-workspace .record-workspace-panel .data-table td .cell-sub{
+  font-size:11px;color:#6a8371;line-height:1.5;margin-top:5px
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:first-child{
+  width:20%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(2){
+  width:42%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(3){
+  width:21%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(4){
+  width:12%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:last-child{
+  width:5%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table tbody tr:hover td{
+  background:#f7fbf8
+}
+.fleet-trips-workspace .record-workspace-panel .table-empty{
+  padding:48px 20px;color:#809283;text-align:center
+}
+.fleet-trips-workspace .record-workspace-panel .table-pager{
+  border-top:1px solid #e1ece4;padding:13px 19px
+}
+@media(max-width:650px){
+  .fleet-trips-workspace .record-workspace-heading{padding:14px}
+  .fleet-trips-workspace .record-workspace-search{padding:4px 14px 12px;gap:7px;flex-wrap:wrap}
+  .fleet-trips-workspace .fleet-trips-view-row{padding:11px 14px}
+  .fleet-trips-workspace .record-workspace-panel .data-table td{padding:13px}
+}
