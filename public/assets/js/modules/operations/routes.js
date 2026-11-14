@@ -282,13 +282,34 @@ const RouteUI = {
   async rate(route, d) {
     let pricing;try{pricing=await App.api('Routes.pricing_estimate',{route_id:route.id});}catch(e){UI.toast(e.message,'error');return;}
     const revision = route.status === 'Approved';
+    // Pricing records are deliberately not seeded. Explain the exact missing
+    // source instead of implying that the saved road route has been lost.
+    const missing=(Array.isArray(pricing.missing)?pricing.missing:[])
+      .filter(item=>item!=='Verified fixed route rate at dispatch');
+    const labels={
+      garage:'Verified garage location is not configured',
+      diesel:'Effective diesel price is not configured',
+      efficiency:'Fuel efficiency for '+route.truck_type+' is not configured',
+      'Verified garage-to-pickup road distance':'Garage-to-pickup road distance is not verified',
+      'Verified pickup-to-delivery road distance':'Pickup-to-delivery road distance is not verified',
+      'Garage road routing unavailable':'Garage-to-pickup road routing is unavailable',
+      'Delivery road routing unavailable':'Pickup-to-delivery road routing is unavailable',
+      'Pricing migration 13 is required':'Pricing migration 13 is not installed'
+    };
+    const pricingWarning=pricing.fuel===null
+      ?'<div class="alert alert-warning py-2 small" role="status"><strong><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Fuel estimate is not ready</strong>'
+        +'<p class="mb-1 mt-1">The saved route distance is kept. Complete or verify these inputs to calculate the fuel charge:</p>'
+        +(missing.length?'<ul class="mb-1 ps-3">'+[...new Set(missing)].map(item=>'<li>'+UI.esc(labels[item]||item)+'</li>').join('')+'</ul>'
+          :'<p class="mb-1">Pricing information is incomplete.</p>')
+        +'<span>Check <b>Financial Oversight → Fuel &amp; Operating Costs</b> for the diesel price, '+UI.esc(route.truck_type)+' efficiency and verified garage. If those records already exist, verify the effective dates and road-routing service.</span></div>'
+      :'';
     const fields = [
       { name: 'rate_amount', label: 'Fixed Client Route Rate (PHP)', type: 'money', required: true, col: 6 },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="300"' },
     ];
     const intro = `<p class="modal-intro"><b>${UI.esc(route.route_ref)}</b> · ${UI.esc(route.client)} · ${UI.esc(RouteUI.name(route))} · ${UI.esc(route.truck_type)} · ${UI.num(route.distance_km, 2)} km</p>`
       + (revision ? `<div class="alert alert-info py-2 small">Current approved rate: <b>${RouteUI.rateText(route.rate_type, route.rate_amount, route.minimum_charge)}</b>. It stays in use until the Admin approves this revision.</div>` : '');
-    UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), intro + UI.kv([['Pickup to delivery km',pricing.delivery_km===null?'Unavailable':UI.num(pricing.delivery_km,2)],['Garage to pickup km',pricing.garage_km===null?'Unavailable':UI.num(pricing.garage_km,2)],['Current diesel price',pricing.diesel_value?UI.money(pricing.diesel_value.value):'Unavailable'],['Truck km/L',pricing.efficiency_value?UI.num(pricing.efficiency_value.value,4):'Unavailable'],['Estimated liters',pricing.liters??'Unavailable'],['Current fuel charge',pricing.fuel===null?'Fuel Estimate Unavailable':UI.money(pricing.fuel)],['Estimated total billing','<span data-pricing-total>Enter fixed rate</span>']])+UI.fields(fields), async (f) => {
+    UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), intro + pricingWarning + UI.kv([['Pickup to delivery km',pricing.delivery_km===null?'Unavailable':UI.num(pricing.delivery_km,2)],['Garage to pickup km',pricing.garage_km===null?'Unavailable':UI.num(pricing.garage_km,2)],['Current diesel price',pricing.diesel_value?UI.money(pricing.diesel_value.value):'Unavailable'],['Truck km/L',pricing.efficiency_value?UI.num(pricing.efficiency_value.value,4):'Unavailable'],['Estimated liters',pricing.liters??'Unavailable'],['Current fuel charge',pricing.fuel===null?'Fuel Estimate Unavailable':UI.money(pricing.fuel)],['Estimated total billing','<span data-pricing-total>Enter fixed rate</span>']])+UI.fields(fields), async (f) => {
       const r = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' }); UI.result(r); UI.closeDrawer(); App.route();
     }, { submit: 'Send for approval', size: '', onShow:(wrap,form)=>{const input=form.querySelector('[name=rate_amount]');let sequence=0;input.addEventListener('change',async()=>{const current=++sequence;try{const estimate=await App.api('Routes.pricing_estimate',{route_id:route.id,rate_amount:input.value});if(current===sequence)form.querySelector('[data-pricing-total]').textContent=estimate.estimate_total===undefined?'Fuel Estimate Unavailable':UI.money(estimate.estimate_total)+' (current estimate only)';}catch(e){if(current===sequence)form.querySelector('[data-pricing-total]').textContent=e.message;}});} });
   },
