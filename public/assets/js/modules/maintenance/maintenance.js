@@ -178,8 +178,7 @@ const HeadMaintenanceUI = {
       ['Reported',open.filter(job=>job.status==='Reported').length,'bi-file-earmark-text','blue','open'],
       ['Under inspection',open.filter(job=>job.status==='Under Inspection').length,'bi-search','green','open'],
       ['Under repair',open.filter(job=>job.status==='Under Repair').length,'bi-tools','amber','open'],
-      ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open'],
-      ['Returned to service',completed.length,'bi-check-circle','green','completed']
+      ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open']
     ];
     ctx.el.innerHTML='<section class="head-maintenance-workspace">'
       +'<div class="head-trip-intro"><span><i class="bi bi-wrench-adjustable" aria-hidden="true"></i> Company-wide maintenance overview</span>'
