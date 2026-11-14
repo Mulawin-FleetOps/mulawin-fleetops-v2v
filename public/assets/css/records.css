@@ -525,6 +525,8 @@
 .rpm-executive-dashboard .rpm-dept-link:hover{text-decoration:underline}
 .rpm-executive-dashboard .rpm-dept-link i{margin-left:5px}
 .rpm-executive-dashboard .rpm-exec-performance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.rpm-executive-dashboard .rpm-exec-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:15px}
+.rpm-executive-dashboard .rpm-exec-charts .chart-panel{min-width:0;margin:0;border:1px solid #e1ece3;border-radius:11px;overflow:hidden}
 .rpm-executive-dashboard .rpm-exec-performance-card{padding:17px;border:1px solid #e0eae3;border-radius:10px}
 .rpm-executive-dashboard .rpm-exec-performance-card h3{font-size:14px;font-weight:700;color:#27503a;margin:0 0 12px}
 .rpm-executive-dashboard .rpm-exec-performance-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ebf0ec;font-size:12px}
@@ -545,6 +547,7 @@
   .rpm-executive-dashboard .rpm-exec-kpis,
   .rpm-executive-dashboard .rpm-exec-departments,
   .rpm-executive-dashboard .rpm-exec-performance,
+  .rpm-executive-dashboard .rpm-exec-charts,
   .rpm-executive-dashboard .rpm-exec-section .rpm-dashboard-tables{grid-template-columns:1fr}
   .rpm-executive-dashboard .rpm-exec-section-head{align-items:flex-start;flex-wrap:wrap}
 }
