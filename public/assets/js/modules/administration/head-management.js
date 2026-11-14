@@ -420,7 +420,7 @@ const HeadTripsUI = {
       ].map(([title,value,icon,tone])=>'<div class="head-kpi '+tone+'"><div class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></div><div><span>'+UI.esc(title)+'</span><strong>'+value+'</strong></div></div>').join('')
       +'</div><div class="head-trip-overview"><div class="head-trip-chart">'+chart
       +'<div class="head-chart-total">'+total+' total trip'+(total===1?'':'s')+'</div></div><div class="head-trip-map">'+mapPanel+'</div></div>'
-      +'<section class="head-trip-records"><div data-head-trip-tabs></div></section></div>';
+      +'<section class="head-trip-records record-workspace-panel"><div class="head-trip-records-heading"><h2>Company Trip Records</h2><p>Review scheduled trips, history and reported incidents.</p></div><div data-head-trip-tabs></div></section></div>';
     const root=ctx.el.querySelector('[data-head-trip-tabs]');
     const tabs=[
       ['active','Active & Scheduled ('+active.length+')',body=>HeadTripsUI.renderTripTable(body,active,'No active or scheduled trips.')],
