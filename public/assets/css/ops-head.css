@@ -498,3 +498,37 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
   .oh-client-routes-workspace .record-workspace-panel .data-table th,
   .oh-client-routes-workspace .record-workspace-panel .data-table td{padding:12px 11px}
 }
+
+
+/* Simplified single-column Operations Head trip planner */
+.oh-trip-planner-modal .oh-simple-planner{max-width:750px;margin:0 auto}
+.oh-trip-planner-modal .oh-simple-planner .oh-planning-columns{display:block;grid-template-columns:minmax(0,1fr);width:100%}
+.oh-trip-planner-modal .oh-simple-planner .oh-planning-editor{width:100%;max-width:none;min-width:0}
+.oh-trip-planner-modal .oh-simple-planner .oh-entry{width:100%;max-width:none}
+.oh-trip-planner-modal .oh-simple-planner .oh-entry-body{padding:3px 0 4px}
+.oh-trip-planner-modal .oh-simple-planner .oh-numbered-section{border:1px solid #e0eae2;border-radius:11px;background:#fff;padding:15px 17px}
+.oh-trip-planner-modal .oh-simple-planner .oh-numbered-section+.oh-numbered-section{margin-top:11px}
+.oh-trip-planner-modal .oh-simple-planner .oh-numbered-section h3{font-size:13px;font-weight:750;margin-bottom:12px;color:#215f3c}
+.oh-trip-planner-modal .oh-simple-planner .oh-form-grid .row{--bs-gutter-x:14px;--bs-gutter-y:10px}
+.oh-trip-planner-modal .oh-simple-planner [name=truck_type]{display:none}
+.oh-trip-planner-modal .oh-simple-planner [data-approved-rate]{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#f0f8f2;color:#276f44;font-size:12px;line-height:1.6}
+.oh-trip-planner-modal .oh-simple-planner [data-route-state]:empty{display:none}
+.oh-trip-planner-modal .oh-simple-planner [data-route-state]:not(:empty){margin-top:8px}
+.oh-trip-planner-modal .oh-simple-batch{margin-top:12px;border:1px solid #dbe8df;border-radius:11px;background:#fff;overflow:visible}
+.oh-trip-planner-modal .oh-simple-batch>summary{display:flex;align-items:center;gap:10px;cursor:pointer;padding:13px 16px;list-style:none;color:#275b3c;font-size:12.5px}
+.oh-trip-planner-modal .oh-simple-batch>summary::-webkit-details-marker{display:none}
+.oh-trip-planner-modal .oh-simple-batch>summary>i:first-child{color:#2f8151;font-size:16px}
+.oh-trip-planner-modal .oh-simple-batch>summary>strong{font-size:13px}
+.oh-trip-planner-modal .oh-simple-batch>summary [data-entry-count]{margin-left:auto;font-size:11px;color:#718b78}
+.oh-trip-planner-modal .oh-simple-batch>summary>i:last-child{font-size:11px;transition:transform .16s}
+.oh-trip-planner-modal .oh-simple-batch[open]>summary>i:last-child{transform:rotate(180deg)}
+.oh-trip-planner-modal .oh-simple-batch>summary:focus-visible{outline:2px solid #2c8650;outline-offset:-3px}
+.oh-trip-planner-modal .oh-simple-batch-body{padding:0 15px 15px;border-top:1px solid #e6eee8}
+.oh-trip-planner-modal .oh-simple-batch-body .oh-planning-total{margin:12px 0}
+.oh-trip-planner-modal .oh-simple-batch-body .oh-batch-entry{margin-bottom:9px}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{margin-top:12px}
+@media(max-width:575px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-numbered-section{padding:12px}
+  .oh-trip-planner-modal .oh-simple-batch>summary{padding:12px}
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{flex-wrap:wrap}
+}
