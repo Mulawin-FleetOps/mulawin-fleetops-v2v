@@ -6,8 +6,8 @@
 
 const RPMDashboard = {
   roles: {
-    admin: { title: 'Head Management Dashboard', detail: 'Fleet, operations, finance and approvals', icon: 'bi-buildings', links: ['reports', 'trips', 'trucks', 'maintenance', 'billing', 'admin'] },
-    operations_head: { title: 'Operations Head Dashboard', detail: 'Trip oversight, fleet availability and dispatch readiness', icon: 'bi-diagram-3', links: ['trips', 'trucks', 'crew', 'clients', 'routes', 'reports'] },
+    admin: { title: 'Head Management Dashboard', detail: 'Fleet, operations, finance and approvals', icon: 'bi-buildings', links: ['reports', 'trips', 'head-fleet', 'head-approvals', 'clients', 'billing'] },
+    operations_head: { title: 'Operations Head Dashboard', detail: 'Trip oversight, fleet availability and dispatch readiness', icon: 'bi-diagram-3', links: ['trips', 'trucks', 'crew', 'routes', 'reports'] },
     car_carrier_dispatcher: { title: 'Car Carrier Dispatcher Dashboard', detail: 'Car Carrier trips, dispatch preparation and follow-ups', icon: 'bi-truck', links: ['trips', 'funds', 'trucks', 'crew'] },
     container_wingvan_dispatcher: { title: 'Container / Wing Van Dispatcher Dashboard', detail: 'Container and Wing Van trips, dispatch and checklists', icon: 'bi-truck-flatbed', links: ['trips', 'funds', 'trucks', 'crew'] },
     motorpool: { title: 'Motorpool Custodian Dashboard', detail: 'Truck condition, active repairs and mechanics', icon: 'bi-tools', links: ['maintenance', 'trucks', 'mechanics', 'purchasing', 'reports'] },
@@ -18,12 +18,14 @@ const RPMDashboard = {
   },
   navLabels: {
     trips: 'View trips', trucks: 'Fleet records', crew: 'Personnel', clients: 'Client records',
+    'head-fleet': 'Fleet & personnel status', 'head-approvals': 'Approvals & exceptions',
     routes: 'Client routes', maintenance: 'Maintenance records', mechanics: 'Mechanics',
     purchasing: 'Parts & purchasing', funds: 'Trip funds', billing: 'Billing & collection',
     finance: 'Finance records', reports: 'Reports', admin: 'Activity / administration',
   },
   navIcons: {
     trips: 'bi-signpost-split', trucks: 'bi-truck', crew: 'bi-people', clients: 'bi-buildings',
+    'head-fleet': 'bi-people', 'head-approvals': 'bi-clipboard-check',
     routes: 'bi-geo-alt', maintenance: 'bi-wrench-adjustable', mechanics: 'bi-person-gear',
     purchasing: 'bi-box-seam', funds: 'bi-wallet2', billing: 'bi-receipt', finance: 'bi-cash-stack',
     reports: 'bi-bar-chart-line', admin: 'bi-person-gear',
