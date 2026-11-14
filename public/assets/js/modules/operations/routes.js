@@ -23,7 +23,7 @@ const RouteUI = {
     const fields = [
       { type: 'html', col: 12, html: `<section class="rpm-route-garage" aria-label="Fixed company initial point">
         <div class="rpm-route-garage-icon"><i class="bi bi-house-door" aria-hidden="true"></i></div>
-        <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><span class="rpm-garage-eyebrow">STARTING LOCATION</span><span class="rpm-garage-fixed"><i class="bi bi-lock" aria-hidden="true"></i> Fixed for all trips</span></div>
+        <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><span class="rpm-garage-eyebrow">COMPANY GARAGE</span><span class="rpm-garage-fixed"><i class="bi bi-lock" aria-hidden="true"></i> One garage for all trips</span></div>
         <strong class="rpm-garage-name">R.P. Mulawin Trucking Service</strong><small><i class="bi bi-geo-alt" aria-hidden="true"></i> Purok 2, 86-A, Luyos, Tanauan City, Batangas</small></div>
       </section>` },
       { name: 'client_id', label: 'Client', type: 'select', required: true, col: 8, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
@@ -34,7 +34,7 @@ const RouteUI = {
         <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Live road route · Garage → Pickup → Destination</span></div>
         <div class="rpm-route-steps" aria-label="Driving sequence"><span class="rpm-step-garage"><b>1</b> Garage</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-pickup"><b>2</b> Pickup</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-delivery"><b>3</b> Destination</span></div>
         <div data-routemapbox></div>
-        <div class="rpm-route-legend"><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span><span class="rpm-route-legend-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Garage location approximate</span></div>
+        <div class="rpm-route-legend"><span><i class="rpm-route-line-key garage-road"></i> Garage → Pickup</span><span><i class="rpm-route-line-key delivery-road"></i> Pickup → Delivery</span><span class="rpm-route-legend-note" data-garage-verification><i class="bi bi-info-circle" aria-hidden="true"></i> Garage verification required</span></div>
       </section>` },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
       ...UI.distanceFieldDefs().filter(f => f.name === 'route_option'),
@@ -45,10 +45,10 @@ const RouteUI = {
         <div><span>Empty-truck travel · Garage → Pickup</span><strong data-garage-km>Not available</strong></div>
         <div><span>Loaded delivery · Pickup → Destination (billable)</span><strong data-client-km>Enter distance</strong></div>
         <div><span>Estimated total journey</span><strong data-total-km>Not available</strong></div>
-      </div><p class="rpm-route-distance-note" data-garage-note>Garage distance is optional operational information. The client's billable route remains pickup to delivery.</p>` },
+      </div><p class="rpm-route-distance-note" data-garage-note>Garage distance requires a verified garage entrance. The billable route remains pickup to delivery.</p>` },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    UI.modal('Request a new route', '<p class="rpm-route-intro"><i class="bi bi-info-circle" aria-hidden="true"></i> Choose a client and truck, then enter and pin the pickup and delivery addresses. The garage is already set.</p>'
+    UI.modal('Request a new route', '<p class="rpm-route-intro"><i class="bi bi-info-circle" aria-hidden="true"></i> Choose a client and truck, then pin the pickup and delivery addresses. Garage-to-pickup estimates require the verified company garage.</p>'
       + UI.fields(fields), async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
       if (form._distance) form._distance.clean(f);
@@ -70,6 +70,14 @@ const RouteUI = {
     // The two road geometries are independent: the existing distance widget
     // continues to own the billable Pickup → Delivery segment (blue), while
     // this screen draws Garage → Pickup (teal) as an operational overlay.
+    // Use only the same verified effective garage record supplied by Routes.read.
+    // Never infer a financial route from a hard-coded approximate map marker.
+    let configuredGarage = null;
+    try { if (garageSetting?.value_json) configuredGarage=JSON.parse(garageSetting.value_json); } catch { /* No verified usable coordinates. */ }
+    const validGarage=configuredGarage&&Number.isFinite(Number(configuredGarage.lat))&&Number.isFinite(Number(configuredGarage.lng))
+      &&Number(configuredGarage.lat)>=4&&Number(configuredGarage.lat)<=21.5
+      &&Number(configuredGarage.lng)>=116&&Number(configuredGarage.lng)<=127.5;
+    const garage=validGarage?[Number(configuredGarage.lat),Number(configuredGarage.lng)]:null;
     let garageLine = null, garageRoad = null, clientRoad = null;
     let garageArrows = [], clientArrows = [], stopLabels = [];
     let updateGarageDistance = () => {};
@@ -109,7 +117,7 @@ const RouteUI = {
       clearMarkers(stopLabels);
       if (!w?.map) return;
       const points = w.map.picker?.points();
-      const locations = [[L.latLng([14.126449, 121.070384]), '1', 'Garage'],
+      const locations = [[garage?L.latLng(garage):null, '1', 'Garage'],
         [points?.pickup, '2', 'Pickup'], [points?.delivery, '3', 'Destination']];
       for (const [pos, n, title] of locations) {
         if (!pos) continue;
@@ -201,13 +209,13 @@ const RouteUI = {
         }
       });
     }
-    // A local, reference-only garage pin: coordinates are provisional until the
-    // actual yard entrance has been verified. Never submit these to the route API.
-    const configuredGarage=garageSetting?JSON.parse(garageSetting.value_json):null;
-    const garage = configuredGarage?[+configuredGarage.lat,+configuredGarage.lng]:[14.126449, 121.070384];
-    if (w.map && typeof L !== 'undefined') {
+    const verification=form.querySelector('[data-garage-verification]');
+    if (verification) verification.innerHTML=garage
+      ?'<i class="bi bi-check-circle" aria-hidden="true"></i> Verified garage configuration'
+      :'<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Garage entrance not verified';
+    if (garage && w.map && typeof L !== 'undefined') {
       L.circleMarker(garage, { radius: 8, color: '#34526a', fillColor: '#34526a', fillOpacity: 0.95, weight: 2, interactive: true })
-        .addTo(w.map).bindTooltip(configuredGarage?'Stop 1: verified company garage':'Stop 1: R.P. Mulawin garage (approximate; entrance not verified)');
+        .addTo(w.map).bindTooltip('Stop 1: verified company garage');
       updateStopLabels();
     }
     const billable = form.querySelector('[name="distance_km"]');
@@ -237,9 +245,10 @@ const RouteUI = {
       clearMarkers(garageArrows);
       garageRoad = null;
       operationalKm = null;
-      garageKm.textContent = pickup ? 'Checking…' : 'Pin pickup first';
-      garageNote.textContent = configuredGarage?'Using the verified company garage. Financial amounts are calculated by the backend.':'Garage location on the map is approximate. Verify the garage entrance before using operational distance estimates.';
+      garageKm.textContent = !garage?'Garage not verified':pickup?'Checking…':'Pin pickup first';
+      garageNote.textContent = garage?'Using the verified company garage. Financial amounts are calculated by the backend.':'Garage entrance is not verified. Head Management must save verified coordinates in Fuel & Operating Costs before garage-to-pickup distance or fuel charges can be calculated.';
       updateDistances();
+      if (!garage) return;
       if (!pickup || !UI.Map.serviceReady()) {
         garageKm.textContent = UI.Map.serviceReady() ? 'Pin pickup first' : 'Routing unavailable';
         return;
@@ -254,8 +263,8 @@ const RouteUI = {
           garageRoad = points;
           garageLine = L.polyline(garageRoad, {
             color: '#187d85', weight: 5, opacity: 0.95, lineJoin: 'round',
-          }).addTo(w.map).bindTooltip('Garage → Pickup · ' + operationalKm.toFixed(2) + ' km (approximate garage)');
-          garageKm.textContent = operationalKm.toFixed(2) + ' km (estimate)';
+          }).addTo(w.map).bindTooltip('Garage → Pickup · ' + operationalKm.toFixed(2) + ' km (verified garage)');
+          garageKm.textContent = operationalKm.toFixed(2) + ' km (verified garage)';
           drawArrows(garageRoad, '#187d85', garageArrows);
           fitFullRoute();
         } else garageKm.textContent = 'Route unavailable';
