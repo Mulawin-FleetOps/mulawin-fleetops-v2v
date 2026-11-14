@@ -426,7 +426,10 @@ const HeadRouteWorkspace = {
       const body=target.querySelector('[data-tbody]');
       tableId=body?.dataset.tbody||null;
       // Keep normal table columns and a disabled pager when a category is empty.
-      if(tableId&&typeof HeadOversight!=='undefined')HeadOversight.finishTable(target);
+      // Native table search redraws the table; keep its empty state consistent too.
+      const finish=()=>{if(tableId&&typeof HeadOversight!=='undefined')HeadOversight.finishTable(target);};
+      finish();
+      target.querySelector('[data-tsearch]')?.addEventListener('input',finish);
       const applySort=()=>{
         const t=tableId?UI._tables[tableId]:null;
         if(!t)return;
