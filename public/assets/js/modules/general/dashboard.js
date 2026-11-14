@@ -83,6 +83,13 @@ const RPMDashboard = {
       :'<span class="rpm-dept-fact">'+UI.esc(label)+' <strong>'
         +(fmt==='money'?UI.money(value):UI.esc(String(value)))+'</strong></span>';
     const value=label=>get(label)?.value??null;
+    let diesel=null;
+    if(exec.fuel&&!exec._errors?.fuel&&exec.fuel.value_json){
+      try {
+        const amount=JSON.parse(exec.fuel.value_json).value;
+        if(amount!==null&&amount!==''&&Number.isFinite(Number(amount)))diesel=Number(amount);
+      }catch{}
+    }
     const departments=[
       {title:'Operations',icon:'bi-signpost-split',page:'head-trips',facts:[
         fact('Ongoing',value('Ongoing trips')),fact('Completed this month',value('Completed trips this month'))]},
@@ -97,7 +104,7 @@ const RPMDashboard = {
       {title:'Billing & Collections',icon:'bi-receipt',page:'billing',facts:[
         fact('Billed this month',value('Billed this month'),'money'),
         fact('Receivables',value('Outstanding receivables'),'money')]},
-      {title:'Fuel & Operating Costs',icon:'bi-fuel-pump',page:'fuel-adjustment',facts:[]},
+      {title:'Fuel & Operating Costs',icon:'bi-fuel-pump',page:'fuel-adjustment',facts:[fact('Diesel per liter',diesel,'money')]},
       {title:'Management Control',icon:'bi-shield-check',page:'head-approvals',facts:[
         fact('Pending approvals',pending),fact('Open incidents',read('incidents','open'))]}
     ];
@@ -131,8 +138,7 @@ const RPMDashboard = {
       +performance('Operations & Maintenance',['Ongoing trips','Completed trips this month','Open repair requests'])
       +performance('Financial Summary',['Billed this month','Collected this month','Expenses this month'])
       +'</div></section>'
-      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Needs Attention</h2></div>'
-      +this.alerts(alerts)+'</section>'
+      +'<section class="rpm-exec-section rpm-exec-alerts">'+this.alerts(alerts)+'</section>'
       +(breakdown?'<section class="rpm-exec-section rpm-exec-fleet-breakdown">'+breakdown+'</section>':'')
       +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Recent Operational Records</h2>'
       +'<span>Latest records provided by authorized modules</span></div>'
