@@ -345,49 +345,45 @@ const FuelAdjustmentUI={
  garageEdit(ctx){
   let existing=null;
   try {if(ctx.data.current?.garage?.value_json) existing=JSON.parse(ctx.data.current.garage.value_json);}catch{}
+  const sourceLink='https://maps.app.goo.gl/dVawLiiVDSGLDXha7';
   const fields=[
-   {name:'lat',label:'Verified garage entrance latitude',type:'number',required:true,step:'any',min:4,max:21.5,value:existing?.lat??'',help:'Enter the actual yard entrance latitude, not an approximate map center.'},
-   {name:'lng',label:'Verified garage entrance longitude',type:'number',required:true,step:'any',min:116,max:127.5,value:existing?.lng??'',help:'Enter the actual yard entrance longitude.'},
-   {name:'effective_date',label:'Effective Date',type:'date',required:true,value:UI.today()},
-   {name:'historical_verified',label:'Historical source verified',type:'select',options:[['','Not confirmed'],['1','Verified against source']]},
-   {name:'reference',label:'Verification source / Reason',type:'textarea',required:true,attrs:'maxlength="300"'},
-   {name:'verified',label:'Garage entrance coordinates personally verified',type:'select',required:true,options:[['','Not confirmed'],['1','Confirmed']]}
+   {name:'lat',label:'Garage entrance latitude',type:'number',required:true,step:'any',min:4,max:21.5,value:existing?.lat??'',help:'From the exact entrance pin in Google Maps (not a nearby landmark).'},
+   {name:'lng',label:'Garage entrance longitude',type:'number',required:true,step:'any',min:116,max:127.5,value:existing?.lng??'',help:'From the same entrance pin in Google Maps.'}
   ];
   let reviewed=null;
-  UI.modal('Verify Company Garage','<p class="small text-muted">One garage is used throughout FleetOps. Save only the real, verified entrance coordinates. These values are shared with the route-request map and the fuel estimator.</p>'
-    +'<div data-garage-fields>'+UI.fields(fields.map(field=>({...field,col:12})))+'</div><div data-garage-review hidden></div>',async(data,form)=>{
-    const payload={setting_key:'garage',lat:data.lat,lng:data.lng,effective_date:data.effective_date,
-      historical_verified:data.historical_verified,reference:data.reference,verified:data.verified};
-    if(!reviewed||JSON.stringify(payload)!==JSON.stringify(reviewed))throw Error('Review the verified garage update before confirming.');
-    const result=await App.api('Admin.pricing_save',reviewed);UI.result(result);await ctx.reload();
-  },{submit:'Save Verified Garage',confirmBeforeSubmit:false,
+  const intro='<p class="small text-muted mb-2">Configure the one fixed R.P. Mulawin garage once. All new route estimates use this shared location. You do not need to verify it for each route.</p>'
+    +'<p class="small mb-3"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>'
+    +'<a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer">Open the company garage in Google Maps</a>'
+    +'<span class="d-block text-muted mt-1">Copy the exact entrance coordinates from the Google Maps pin. A shortened Maps link alone does not contain coordinates this application can safely use for routing.</span></p>';
+  UI.modal('Set Fixed Company Garage',intro
+    +'<div data-garage-fields>'+UI.fields(fields.map(field=>({...field,col:12})))+'</div>'
+    +'<div data-garage-review hidden></div>',async(data,form)=>{
+    if(!reviewed)throw Error('Review the garage entrance coordinates before saving.');
+    const result=await App.api('Admin.pricing_save',reviewed);
+    UI.result(result);await ctx.reload();
+  },{submit:'Save Company Garage',confirmBeforeSubmit:false,
     extraFooter:'<button type="button" class="btn btn-outline-secondary btn-sm" data-garage-back hidden>Back</button>'
-      +'<button type="button" class="btn btn-primary btn-sm" data-garage-review-button>Review Coordinates</button>',
+      +'<button type="button" class="btn btn-primary btn-sm" data-garage-review-button>Review Location</button>',
     onShow:(wrap,form)=>{
       const confirm=form.querySelector('[type=submit]'),reviewButton=form.querySelector('[data-garage-review-button]'),
         back=form.querySelector('[data-garage-back]'),panel=form.querySelector('[data-garage-fields]'),
         preview=form.querySelector('[data-garage-review]');
       confirm.hidden=true;
-      const historical=()=>{
-        const past=form.elements.effective_date.value<UI.today(),input=form.elements.historical_verified;
-        input.parentElement.hidden=!past;input.disabled=!past;input.required=past;
-        if(!past)input.value='';
-      };
-      form.elements.effective_date.addEventListener('change',historical);historical();
       reviewButton.onclick=()=>{
-        historical();
         const invalid=[...form.querySelectorAll('input,select,textarea')].find(input=>!input.disabled&&!input.checkValidity());
         if(invalid){invalid.reportValidity();return;}
         const data=UI.formData(form);
-        reviewed={setting_key:'garage',lat:data.lat,lng:data.lng,effective_date:data.effective_date,
-          historical_verified:data.historical_verified,reference:data.reference,verified:data.verified};
-        preview.innerHTML=UI.kv([['Verified latitude',UI.esc(data.lat)],['Verified longitude',UI.esc(data.lng)],
-          ['Effective date',UI.esc(data.effective_date)],['Source / Reason',UI.esc(data.reference)]]);
+        reviewed={setting_key:'garage',lat:data.lat,lng:data.lng,effective_date:UI.today(),
+          reference:sourceLink,verified:'1'};
+        preview.innerHTML='<p class="small">Confirm these coordinates match the actual garage entrance, not a nearby point.</p>'
+          +UI.kv([['Latitude',UI.esc(data.lat)],['Longitude',UI.esc(data.lng)],
+            ['Map reference','<a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer">Google Maps garage location</a>']]);
         panel.hidden=true;preview.hidden=false;reviewButton.hidden=true;confirm.hidden=false;back.hidden=false;confirm.focus();
       };
       back.onclick=()=>{reviewed=null;panel.hidden=false;preview.hidden=true;reviewButton.hidden=false;confirm.hidden=true;back.hidden=true;};
     }});
  },
+
  edit(ctx,key){
   const diesel=key==='diesel',current=ctx.data.current?.[key],value=current?JSON.parse(current.value_json).value:'',fields=[
    ...(!diesel?[{name:'truck_type',label:'Truck Type',value:key,attrs:'readonly'}]:[]),
@@ -458,10 +454,10 @@ const FuelAdjustmentUI={
       try {if(garage?.value_json)coordinates=JSON.parse(garage.value_json);}catch{}
       const valid=coordinates&&Number.isFinite(Number(coordinates.lat))&&Number.isFinite(Number(coordinates.lng));
       root.innerHTML='<section class="record-workspace-panel">'
-        +'<div class="record-workspace-heading"><div><h2>Verified Company Garage</h2>'
+        +'<div class="record-workspace-heading"><div><h2>Company Garage</h2>'
         +'<p class="record-workspace-count">One shared garage entrance for all truck routes and fuel calculations</p></div>'
         +'<button type="button" class="btn btn-sm btn-primary" data-verify-garage>'
-        +'<i class="bi bi-geo-alt" aria-hidden="true"></i> '+(valid?'Update Verified Location':'Verify Garage Entrance')+'</button></div>'
+        +'<i class="bi bi-geo-alt" aria-hidden="true"></i> '+(valid?'Update Garage Location':'Set Garage Location')+'</button></div>'
         +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
         +'<div class="head-fuel-diesel-content">'
         +'<div class="head-fuel-section-heading"><div class="head-fuel-section-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></div>'
@@ -469,7 +465,7 @@ const FuelAdjustmentUI={
         +'<span class="head-fuel-config-state '+(valid?'is-ready':'is-missing')+'">'+(valid?'Verified record':'Not configured')+'</span></div>'
         +(valid?UI.kv([['Latitude',UI.esc(coordinates.lat)],['Longitude',UI.esc(coordinates.lng)],
           ['Effective Date',UI.date(garage.effective_date)],['Reference',UI.esc(garage.reference||'—')]])
-          :'<p class="small text-muted mb-3">No verified garage entrance is configured. The route-request map will not assume an approximate location or calculate garage-to-pickup mileage until you verify this location.</p>')
+          :'<p class="small text-muted mb-3">No fixed garage entrance has been saved. Set the correct coordinates once to enable garage-to-pickup routing across all routes.</p>')
         +'<div class="head-fuel-policy"><i class="bi bi-info-circle" aria-hidden="true"></i>'
         +'<p>Use the actual garage entrance, not an approximate landmark. Existing route requests and historical snapshots are preserved; future routes use the currently effective verified garage record.</p></div>'
         +'</div></section>';
