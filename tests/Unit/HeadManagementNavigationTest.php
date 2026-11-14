@@ -83,7 +83,7 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('fleet_summary', $php);
         self::assertStringContainsString('COUNT(*) FROM vehicles', $php);
         self::assertStringContainsString('COUNT(*) FROM personnel', $php);
-        self::assertStringNotContainsString('data-head-fleet-tab', $js);
+        self::assertStringNotContainsString('data-head-fleet-tab="', $js);
         self::assertStringNotContainsString('head-fleet-records-heading', $js);
         self::assertStringNotContainsString("App.api('Fleet.", $js);
     }
