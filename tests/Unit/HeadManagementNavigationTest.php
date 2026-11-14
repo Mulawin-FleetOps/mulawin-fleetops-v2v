@@ -56,6 +56,14 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('UI.table(', $code);
         self::assertStringContainsString('UI.drawer(', $code);
         self::assertStringContainsString('HeadManagement.trip_details', $code);
+        self::assertStringContainsString('UI.chartHtml(', $code);
+        self::assertStringContainsString('UI.routeMap(', $code);
+        self::assertStringContainsString('data-head-export', $code);
+        self::assertStringContainsString('data-head-date', $code);
+        self::assertStringContainsString('Saved road geometry only', $code);
+        $backend = file_get_contents(dirname(__DIR__, 2).'/backend/Modules/Administration/HeadManagement.php');
+        self::assertStringContainsString('route_preview', $backend);
+        self::assertStringContainsString('JOIN trip_routes r', $backend);
     }
 
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
