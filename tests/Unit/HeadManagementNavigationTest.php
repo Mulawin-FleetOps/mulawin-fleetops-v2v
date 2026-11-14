@@ -251,6 +251,31 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('.head-fuel-history-empty', $css);
     }
 
+    public function testHeadExecutiveReportsUsesFourPrimaryIndicatorsAndOriginalAggregates(): void {
+        $root=dirname(__DIR__,2);
+        $reports=file_get_contents($root.'/public/assets/js/modules/general/reports.js');
+        $analytics=file_get_contents($root.'/backend/Modules/General/Analytics.php');
+        $styles=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertIsString($reports);
+        self::assertIsString($analytics);
+        self::assertIsString($styles);
+        self::assertStringContainsString("App.me?.user?.role === 'admin'", $reports);
+        self::assertStringContainsString("head-report-config", $reports);
+        self::assertStringContainsString("head-report-performance", $reports);
+        self::assertStringContainsString("head-report-details", $reports);
+        self::assertStringContainsString("preferences={", $reports);
+        self::assertStringContainsString("UI.statusStrip(top)", $reports);
+        self::assertStringContainsString("cards:[]", $reports);
+        self::assertStringContainsString("remaining=cards.filter", $reports);
+        self::assertStringContainsString("UI.blocks({...section,cards:[]}", $reports);
+        self::assertStringContainsString("UI.printReport([sections[current]]", $reports);
+        self::assertStringContainsString("UI.printReport(keys.map", $reports);
+        self::assertStringContainsString("else", $reports);
+        self::assertStringContainsString("UI.tabs(box", $reports);
+        self::assertStringContainsString("self::reportInsights($sections)", $analytics);
+        self::assertStringContainsString(".head-report-category-tab.active", $styles);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
