@@ -33,6 +33,7 @@ final class Actions {
         'Funds' => 'Accounting', 'Billing' => 'Accounting', 'Finance' => 'Accounting',
         'Attendance' => 'Administration',
         'Analytics' => 'General', 'Documents' => 'General', 'Maps' => 'General',
+        'HeadManagement' => 'Administration',
         'Admin' => 'Administration',
     ];
 
