@@ -323,7 +323,7 @@ const RouteUI = {
       + '<strong>'+UI.esc(route.client)+'</strong>'
       + '<div class="fleet-rate-route-path"><span>'+UI.esc(RouteUI.name(route))+'</span><i class="bi bi-arrow-right"></i><span>'+UI.esc(route.destination_label || route.destination || 'Destination')+'</span></div>'
       + '<div class="fleet-rate-route-meta"><span><i class="bi bi-truck"></i> '+UI.esc(route.truck_type)+'</span><span><i class="bi bi-geo-alt"></i> '+available(pricing.delivery_km)+' km delivery</span></div></div>'
-      + (revision ? '<div class="alert alert-info py-2 small">Current approved rate: <b>'+RouteUI.rateText(route.rate_type,route.rate_amount,route.minimum_charge)+'</b>. It remains active until this revision is approved.</div>' : '')
+      + (revision ? '<div class="alert alert-info py-2 small">Current approved rate: <b>'+RouteUI.rateText(route.rate_type,route.rate_amount,route.minimum_charge)+'</b>. Saving a revised rate immediately activates it and preserves the previous version in history.</div>' : '')
       + pricingWarning
       + '<div class="fleet-rate-section-title"><i class="bi bi-fuel-pump"></i> Operational fuel estimate</div>'
       + '<div class="fleet-rate-facts">'
@@ -341,7 +341,7 @@ const RouteUI = {
     UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), summary, async (f) => {
       const result = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' });
       UI.result(result); UI.closeDrawer(); App.route();
-    }, { submit: 'Send for approval', size: 'modal-lg', onShow:(wrap,form)=>{
+    }, { submit: 'Save & activate rate', size: 'modal-lg', onShow:(wrap,form)=>{
       wrap.classList.add('fleet-rate-modal');
       const input=form.querySelector('[name=rate_amount]');
       let sequence=0;
@@ -362,8 +362,8 @@ const RouteUI = {
       <br><span class="small text-muted">${decision === 'approve'
         ? (route.status === 'Approved' ? 'The current rate will be replaced. Its record is kept in the history.' : 'The route can then be used for planning.')
         : (route.status === 'Approved' ? 'Only this revision is rejected. The route stays Approved with its current rate.' : 'The route request is closed. A new request is needed to use this route.')}</span>`;
-    UI.confirmAction(decision === 'approve' ? 'Approve rate' : 'Reject rate', text, 'Routes.decide', { rate_id: route.pending_rate_id, decision }, {
-      submit: decision === 'approve' ? 'Approve' : 'Reject', danger: decision === 'reject',
+    UI.confirmAction(decision === 'approve' ? 'Activate saved rate' : 'Reject saved rate', text, 'Routes.decide', { rate_id: route.pending_rate_id, decision }, {
+      submit: decision === 'approve' ? 'Activate rate' : 'Reject', danger: decision === 'reject',
       fields: [decision === 'approve' ? { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="300"' } : { name: 'reason', label: 'Reason for rejection', required: true, col: 12, attrs: 'maxlength="300"' }],
     });
   },
@@ -375,7 +375,7 @@ const RouteUI = {
     if (can.rate && (x.status === 'Pending Rate' || (x.status === 'Approved' && !x.pending_rate_id)))
       acts.push(`<button class="btn btn-sm btn-primary" data-a="rate"><i class="bi bi-cash"></i> ${x.status === 'Approved' ? 'Revise rate' : 'Enter rate'}</button>`);
     if (can.approve && x.pending_rate_id) {
-      acts.push('<button class="btn btn-sm btn-success" data-a="approve"><i class="bi bi-check-lg"></i> Approve rate</button>', '<button class="btn btn-sm btn-outline-danger" data-a="reject"><i class="bi bi-x-lg"></i> Reject rate</button>');
+      acts.push('<button class="btn btn-sm btn-success" data-a="approve"><i class="bi bi-check-lg"></i> Activate saved rate</button>', '<button class="btn btn-sm btn-outline-danger" data-a="reject"><i class="bi bi-x-lg"></i> Reject legacy rate</button>');
     }
     if (can.withdraw && ['Pending Rate', 'Pending Approval'].includes(x.status) && +x.requested_by === +me) acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="withdraw">Withdraw request</button>');
     if (can.deactivate && x.status === 'Approved') acts.push('<button class="btn btn-sm btn-outline-danger" data-a="deactivate">Deactivate route</button>');
@@ -424,7 +424,7 @@ const RouteUI = {
       +(x.rate_id?'<div class="fleet-current-rate"><span>Current approved rate</span><strong>'+RouteUI.rateText(x.rate_type,x.rate_amount,x.minimum_charge)+'</strong></div>'
         +'<div class="fleet-detail-grid">'+detail('Version',UI.e(x.rate_version))+detail('Effective since',UI.datetime(x.effective_from))+'</div>'
         :'<div class="fleet-detail-empty compact"><i class="bi bi-currency-exchange"></i><strong>No approved rate yet</strong><span>A fixed route rate must be submitted and approved.</span></div>')
-      +(x.pending_rate_id?'<div class="fleet-route-pending"><strong>Awaiting rate approval</strong><div class="fleet-current-rate"><span>Proposed rate · Version '+UI.e(x.pending_version)+'</span><strong>'+RouteUI.rateText(x.pending_rate_type,x.pending_rate_amount,x.pending_minimum_charge)+'</strong></div><small>Entered by '+UI.e(x.pending_entered_by_name)+' · '+UI.datetime(x.pending_entered_at)+'</small></div>':'')
+      +(x.pending_rate_id?'<div class="fleet-route-pending"><strong>Previously submitted rate — action required</strong><div class="fleet-current-rate"><span>Proposed rate · Version '+UI.e(x.pending_version)+'</span><strong>'+RouteUI.rateText(x.pending_rate_type,x.pending_rate_amount,x.pending_minimum_charge)+'</strong></div><small>Entered by '+UI.e(x.pending_entered_by_name)+' · '+UI.datetime(x.pending_entered_at)+'</small></div>':'')
       +'</section>'
       +'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-journal-text"></i><h4>Rate history</h4></div>'+rateHistory+'</section>'
       +'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-clock-history"></i><h4>Activity history</h4></div><div class="fleet-events">'+eventHistory+'</div></section>'
@@ -507,7 +507,7 @@ const HeadRouteWorkspace = {
     const actions=r=>{
       let buttons=UI.btn('view','View','outline-primary');
       if(d.can.rate&&r.status==='Pending Rate')buttons+=UI.btn('rate','Enter rate','primary');
-      if(d.can.approve&&r.pending_rate_id)buttons+=UI.btn('decide','Review rate','primary');
+      if(d.can.approve&&r.pending_rate_id)buttons+=UI.btn('decide','Resolve saved rate','primary');
       return buttons;
     };
     const action=(name,row)=>name==='rate'?RouteUI.rate(row,d):RouteUI.open(row.id,d);
@@ -533,7 +533,7 @@ const HeadRouteWorkspace = {
       +RecordComponents.kpis([
         {label:'Approved routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
         {label:'Waiting for rate',value:count(r=>r.status==='Pending Rate'),color:'blue',icon:'bi-calendar-check'},
-        {label:'Waiting for approval',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',note:'new routes and rate revisions'},
+        {label:'Legacy rates to resolve',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',note:'submitted before direct activation'},
         {label:'Closed / Inactive routes',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
       ])
       +'<div data-head-route-workspace></div></div>';
