@@ -18,6 +18,18 @@
 .record-workspace-category-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .record-workspace-categories{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
 .record-workspace-categories .btn{font-size:12px;padding:5px 11px}
+/* Reusable compact category overflow for Finance, Billing and Management. */
+.record-category-more{position:relative;display:inline-flex;align-items:center}
+.record-category-more>summary{display:inline-flex;align-items:center;gap:7px;cursor:pointer;list-style:none;white-space:nowrap}
+.record-category-more>summary::-webkit-details-marker{display:none}
+.record-category-more>summary:focus-visible{outline:2px solid #16733e;outline-offset:2px}
+.record-category-more>summary .bi-chevron-down{font-size:10px;transition:transform .15s}
+.record-category-more[open]>summary .bi-chevron-down{transform:rotate(180deg)}
+.record-category-more-options{position:absolute;z-index:50;top:calc(100% + 7px);left:0;display:flex;flex-direction:column;gap:5px;min-width:235px;max-width:min(340px,calc(100vw - 35px));padding:9px;border:1px solid #d6e4d9;border-radius:10px;background:#fff;box-shadow:0 12px 30px rgba(12,52,30,.14)}
+.record-category-more-options .btn{display:block;width:100%;text-align:left;white-space:normal;line-height:1.4;padding:8px 11px}
+.record-workspace-category-row:has(.record-category-more[open]){position:relative;z-index:15}
+@media(max-width:640px){.record-category-more-options{left:auto;right:0}}
+
 /* Shared record-table foundation: readable header, comfortable rows, clear hover/focus. */
 .record-workspace-panel .table-wrap{overflow-x:auto}
 .record-workspace-panel .data-table{border-collapse:separate;border-spacing:0;width:100%}
