@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 use PHPUnit\Framework\TestCase;
 
+// Access is lazily loaded by the application; load it explicitly for unit tests.
+core('Access');
+
 /** Client Masterlist ownership: Admin/Head Management, not Operations Head. */
 final class ClientManagementAccessTest extends TestCase {
     public function testHeadManagementOwnsClientMasterlistNavigation(): void {
