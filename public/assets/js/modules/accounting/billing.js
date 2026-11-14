@@ -191,10 +191,9 @@ App.page('billing', {
     if (head) {
       ctx.el.classList.add('head-billing-overview');
       box.className = 'head-financial-records';
-      box.innerHTML = '<div class="head-financial-heading"><h2>Billing & Collection Records</h2><p>Monitor billing drafts, approvals, outstanding invoices and collections.</p></div>';
     }
     ctx.el.append(box);
-    UI.tabs(box, [
+    const billingTabs = [
       ['ongoing', `Ongoing trips (${by(['Ongoing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Route', 'delivery_point'], ['Dispatched', 'dispatched_at', 'datetime'],
         ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
       ['for', `For billing (${by(['For Billing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Completed', 'completed_at', 'datetime'], ['Waybill', 'waybill_number'],
@@ -211,6 +210,9 @@ App.page('billing', {
       ['collections', 'Collections', () => UI.table([['Payment date', 'payment_date', 'date'], ['Invoice', 'invoice_number'], ['Client', 'client'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number']], d.collections, { title: 'Payments received' })],
       ['ar', 'Receivables by client', () => UI.table([['Client', 'client'], ['Invoices', 'invoices', 'num'], ['Balance', 'balance', 'money'], ['Not yet due', 'not_due', 'money'], ['1-30 days', 'd1_30', 'money'], ['31-60 days', 'd31_60', 'money'], ['Over 60 days', 'd60', 'money']],
         d.receivables, { title: 'Outstanding balances and aging', actions: () => UI.btn('soa', 'Print SOA', 'outline-secondary'), onAction: (a, x) => BillUI.printSOA(x.id) })],
-    ], d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : null);
+    ];
+    const defaultTab=d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : 'ongoing';
+    if(head)RecordComponents.executiveTabs(box,billingTabs,defaultTab,'Billing & Collection Records');
+    else UI.tabs(box,billingTabs,d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : null);
   },
 });
