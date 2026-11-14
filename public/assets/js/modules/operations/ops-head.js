@@ -377,16 +377,20 @@ const OpsHead = {
       </div>`
       +(d.can?.request?'<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Request New Route</button>':'');
     const columns=[
-      ['Client','client'],
-      ['Route','origin_label',(value,r)=>UI.esc(r.origin_label)+' → '+UI.esc(r.destination_label)],
-      ['Truck Type','truck_type'],
+      ['Client','client',value=>'<strong class="oh-route-client">'+UI.e(value)+'</strong>'],
+      ['Route','origin_label',(value,r)=>'<div class="oh-route-journey">'
+        +'<div class="oh-route-place"><span class="oh-route-point origin" aria-hidden="true"></span><span>'+UI.e(r.origin_label)+'</span></div>'
+        +'<div class="oh-route-connector" aria-hidden="true"></div>'
+        +'<div class="oh-route-place"><span class="oh-route-point destination" aria-hidden="true"></span><span>'+UI.e(r.destination_label)+'</span></div>'
+        +'</div>'],
+      ['Truck Type','truck_type',value=>'<span class="oh-route-truck">'+UI.e(value)+'</span>'],
       ...(tab==='approved'?[
-        ['Distance (km)','distance_km','num'],
-        ['Approved Rate','rate_amount',(value,r)=>RouteUI.rateText(r.rate_type,value,r.minimum_charge)],
+        ['Distance (km)','distance_km',value=>'<span class="oh-route-distance">'+UI.num(value,2)+'</span>'],
+        ['Approved Rate','rate_amount',(value,r)=>'<strong class="oh-route-rate">'+RouteUI.rateText(r.rate_type,value,r.minimum_charge)+'</strong>'],
       ]:[
         ['Request Date','requested_at',value=>OpsHead.datetime(value)],
       ]),
-      ['Status','status',(value,r)=>OpsHead.badge(value)+(r.pending_rate_id&&value==='Approved'?'<div class="small">Rate revision pending</div>':'')],
+      ['Status','status',(value,r)=>'<span class="oh-route-status">'+OpsHead.badge(value)+'</span>'+(r.pending_rate_id&&value==='Approved'?'<div class="small">Rate revision pending</div>':'')],
     ];
     const table=UI.table(columns,rows,{
       tools:toolbar,showAllColumns:true,
@@ -395,7 +399,7 @@ const OpsHead = {
       rowClick:r=>RouteUI.open(r.id,d),
       empty:tab==='approved'?'No approved routes match your search or filters.':'No route requests match your search or filters.',
     });
-    ctx.el.innerHTML='<div class="fleet-routes-workspace">'
+    ctx.el.innerHTML='<div class="fleet-routes-workspace oh-client-routes-workspace">'
       +RecordComponents.kpis([
         {label:'Approved Routes',value:approved.length,color:'green'},
         {label:'Route Requests',value:requests.length},
