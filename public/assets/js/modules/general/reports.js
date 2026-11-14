@@ -26,6 +26,99 @@ App.page('reports', {
       { name: 'person_id', label: 'Driver / helper', type: 'select', options: UI.opts(fo.people, p => p.full_name + ' (' + p.person_type + ')'), col: 6 },
       { name: 'dispatcher_id', label: 'Dispatcher', type: 'select', options: UI.opts(fo.dispatchers, u => u.full_name), col: 6 }],
       { note: 'Truck type, status, client, truck, driver and dispatcher filters apply to the trip report.', hint: 'No filters (all trucks, clients and drivers).' });
+
+    // Head Management uses the same report aggregates with a compact
+    // executive layout. Other authorized roles keep their existing view.
+    if (App.me?.user?.role === 'admin') {
+      const sections=d.sections||{};
+      const keys=Object.keys(sections);
+      ctx.el.classList.add('head-report-dashboard');
+      const heading=document.querySelector('#pageContent .page-title');
+      const subtitle=document.querySelector('#pageContent .page-subtitle');
+      if(heading)heading.textContent='Management Reports';
+      if(subtitle)subtitle.textContent='Company-wide performance, trends and operational insights.';
+      if(!keys.length){ctx.el.innerHTML='<div class="table-empty">No reports are available for your role.</div>';return;}
+      const labels={trips:'Trips',fleet:'Fleet & Maintenance',money:'Money',stock:'Inventory'};
+      const preferences={
+        trips:['Total trips','Completed trips','Cancelled trips','Trips for reschedule'],
+        fleet:['Maintenance records','Completed','Downtime (truck-days)','Maintenance expenses'],
+        money:['Billed (invoices)','Collected','Expenses','Outstanding receivables'],
+        stock:['Stock-in (units)','Stock-out (units)','Adjustments (net units)','Total inventory value now']
+      };
+      const primary=key=>{
+        const cards=sections[key].cards||[];
+        const picks=preferences[key]||[];
+        return picks.map(name=>cards.find(card=>card.label===name)).filter(Boolean).slice(0,4);
+      };
+      const formatCard=card=>{
+        if(card.format==='money')return UI.money(Number(card.value||0));
+        return UI.esc(String(card.value??'—'));
+      };
+      const printDetails='<details class="head-report-print no-print"><summary class="btn btn-sm btn-outline-secondary">'
+        +'<i class="bi bi-printer" aria-hidden="true"></i> Print report <i class="bi bi-chevron-down" aria-hidden="true"></i>'
+        +'</summary><div class="head-report-print-menu">'
+        +'<button type="button" data-print-current>Print this category</button>'
+        +'<button type="button" data-print-all>Print all categories</button></div></details>';
+      ctx.el.innerHTML='<div class="head-report-config"><div class="head-report-config-head">'
+        +'<div><h2>Report Configuration</h2><p>Choose a reporting period and refine the underlying records.</p></div>'
+        +printDetails+'</div>'
+        +'<div class="head-report-config-presets">'+presetBar+'</div>'
+        +'<div class="head-report-config-filters">'+filters+'</div></div>'
+        +'<section class="head-report-performance"><div class="head-report-section-title"><div>'
+        +'<h2>Performance Overview</h2><p>Four primary indicators for the selected report category.</p></div>'
+        +'<span data-head-report-period>'+UI.date(per.from)+' – '+UI.date(per.to)+'</span></div>'
+        +'<div data-head-report-kpis></div></section>'
+        +'<section class="head-report-details"><div class="head-report-details-heading"><div>'
+        +'<h2>Report Details</h2><p>Category-specific charts, additional metrics, records and evidence-based observations.</p>'
+        +'</div></div><div class="head-report-category-tabs" role="tablist" aria-label="Report categories">'
+        +keys.map((key,index)=>'<button type="button" role="tab" class="head-report-category-tab'+(index===0?' active':'')
+          +'" data-head-report-tab="'+UI.esc(key)+'" aria-selected="'+(index===0)+'">'+UI.esc(labels[key]||sections[key].title||key)+'</button>').join('')
+        +'</div><div data-head-report-detail-content></div></section>';
+      ctx.el.querySelectorAll('[data-preset]').forEach(button=>button.onclick=()=>{
+        const [from,to]=button.dataset.preset.split('|');
+        App.go('reports',{...q,from,to});
+      });
+      let current=keys[0];
+      const reportMeta=()=>({title:'Mulawin FleetOps report',
+        period:UI.date(per.from)+' – '+UI.date(per.to),
+        filters:Object.entries(q).filter(([key,value])=>value&&!['from','to'].includes(key)).map(([key,value])=>key+': '+value).join(', ')});
+      ctx.el.querySelector('[data-print-current]').onclick=()=>UI.printReport([sections[current]],reportMeta());
+      ctx.el.querySelector('[data-print-all]').onclick=()=>UI.printReport(keys.map(key=>sections[key]),reportMeta());
+      const draw=key=>{
+        current=key;
+        const section=sections[key],cards=section.cards||[],top=primary(key);
+        const used=new Set(top);
+        const remaining=cards.filter(card=>!used.has(card));
+        ctx.el.querySelector('[data-head-report-kpis]').innerHTML=UI.statusStrip(top);
+        ctx.el.querySelectorAll('[data-head-report-tab]').forEach(button=>{
+          const active=button.dataset.headReportTab===key;
+          button.classList.toggle('active',active);
+          button.setAttribute('aria-selected',String(active));
+          button.tabIndex=active?0:-1;
+        });
+        const findings=(d.insights&&d.insights[key])||[];
+        const insightHtml='<section class="head-report-insights"><div class="head-report-subheading">'
+          +'<i class="bi bi-lightbulb" aria-hidden="true"></i><h3>Insights & Observations</h3></div>'
+          +(findings.length?'<div class="head-report-insight-grid">'+findings.map(item=>
+            '<div class="head-report-insight"><small>'+UI.esc(item.type==='diagnostic'?'Diagnostic signal':item.type==='descriptive'?'Descriptive finding':'Method / limitation')+'</small>'
+            +'<strong>'+UI.esc(item.title)+'</strong><p>'+UI.esc(item.text)+'</p></div>').join('')+'</div>'
+            :'<p class="head-report-insight-empty">No reliable observations are available for this period. Try a wider date range.</p>')
+          +'<p class="head-report-method">Diagnostic signals identify records to examine. They do not prove causes or predict future outcomes.</p></section>';
+        const remainingHtml=remaining.length?'<section class="head-report-secondary"><h3>Additional Indicators</h3>'
+          +'<div class="head-report-secondary-grid">'+remaining.map(card=>
+            '<div class="head-report-secondary-item"><span>'+UI.esc(card.label)+'</span><strong>'+formatCard(card)+'</strong>'
+            +(card.hint?'<small>'+UI.esc(card.hint)+'</small>':'')+'</div>').join('')+'</div></section>':'';
+        const detail=ctx.el.querySelector('[data-head-report-detail-content]');
+        detail.innerHTML=remainingHtml+insightHtml
+          +(section.note?'<p class="head-report-note"><i class="bi bi-info-circle" aria-hidden="true"></i> '+UI.esc(section.note)+'</p>':'')
+          +'<div class="head-report-blocks">'+UI.blocks({...section,cards:[]},{maxCharts:3,key:'rep-'+key})+'</div>';
+        UI.activate(detail);
+      };
+      ctx.el.querySelectorAll('[data-head-report-tab]').forEach(button=>button.onclick=()=>draw(button.dataset.headReportTab));
+      draw(current);
+      return;
+    }
+
     ctx.el.innerHTML = presetBar + filters;
     ctx.el.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { const [f, t] = b.dataset.preset.split('|'); App.go('reports', { ...q, from: f, to: t }); });
     const keys = Object.keys(d.sections);
