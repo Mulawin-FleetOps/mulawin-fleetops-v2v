@@ -372,10 +372,21 @@ const RouteUI = {
         if(estimate.garage_preview?.garage)opts.garagePreview=estimate.garage_preview;
         else if(mbox.isConnected){
           const absent=(estimate.missing||[]).includes('garage');
-          mbox.insertAdjacentHTML('afterend','<div class="small text-muted mb-3" role="status">'
-            +(absent?'Garage-to-pickup map unavailable: verify the company garage in Head Management → Fuel &amp; Operating Costs → Company Garage.'
-              :'Garage-to-pickup road geometry is not available. The saved pickup-to-delivery map is unchanged.')
+          const reason=absent
+            ?'No verified company garage record is effective for today. The earlier approximate garage marker was not saved as an authoritative location.'
+            :(estimate.missing||[]).includes('Garage road routing unavailable')
+              ?'The garage is configured, but the routing service could not verify the road to this pickup. Check the road-routing service and the garage entrance pin.'
+              :'Garage-to-pickup road geometry is not available. The saved pickup-to-delivery map is unchanged.';
+          mbox.insertAdjacentHTML('afterend','<div class="alert alert-warning small mt-2 mb-3" role="status">'
+            +'<div><strong>Garage-to-pickup map not ready</strong></div>'
+            +'<p class="mb-2">'+UI.esc(reason)+'</p>'
+            +(absent&&UI.canGo('fuel-adjustment')
+              ?'<button type="button" class="btn btn-sm btn-outline-primary" data-verify-garage-route>Open Company Garage settings</button>':'')
             +'</div>');
+          mbox.parentElement.querySelector('[data-verify-garage-route]')?.addEventListener('click',()=>{
+            UI.closeDrawer();
+            UI.goTo('fuel-adjustment');
+          });
         }
       }catch{ /* The original saved road geometry remains visible. */ }
       if(mbox.isConnected)UI.routeMap(mbox,null,opts);
