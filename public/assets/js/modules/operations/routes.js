@@ -379,19 +379,58 @@ const RouteUI = {
     }
     if (can.withdraw && ['Pending Rate', 'Pending Approval'].includes(x.status) && +x.requested_by === +me) acts.push('<button class="btn btn-sm btn-outline-secondary" data-a="withdraw">Withdraw request</button>');
     if (can.deactivate && x.status === 'Approved') acts.push('<button class="btn btn-sm btn-outline-danger" data-a="deactivate">Deactivate route</button>');
-    const html = `<div class="mb-2">${UI.badge(x.status)} ${x.pending_rate_id && x.status === 'Approved' ? UI.badge('Pending Approval') + ' <span class="small text-muted">rate revision</span>' : ''}</div>
-      ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
-      ${UI.h('Route')}${UI.kv([['Client', `<b>${UI.esc(x.client)}</b>`], ['Origin', UI.e(x.origin_label)], ['Destination', UI.e(x.destination_label)], ['Truck type', UI.e(x.truck_type)],
-        ['Distance', UI.num(x.distance_km, 2) + ' km · ' + UI.esc(x.distance_source)],
-        x.distance_computed_km ? ['Computed road distance', UI.num(x.distance_computed_km, 2) + ' km · ' + UI.esc((d.routeOptions || {})[x.route_option] || x.route_option || '') + ' · ' + UI.esc(x.distance_provider || '') + ' · ' + UI.datetime(x.distance_computed_at)] : null,
-        x.distance_override_reason ? ['Reason the km was changed', UI.esc(x.distance_override_reason)] : null, ['Notes', UI.e(x.notes)], ['Requested by', UI.esc(x.requested_by_name) + ' · ' + UI.datetime(x.requested_at)],
-        x.closed_reason ? ['Closed', UI.esc(x.closed_reason) + (x.closed_by_name ? ' · ' + UI.esc(x.closed_by_name) : '') + (x.closed_at ? ' · ' + UI.datetime(x.closed_at) : '')] : null])}
-      ${UI.h('Current approved rate')}${x.rate_id ? UI.kv([['Rate', `<b>${RouteUI.rateText(x.rate_type, x.rate_amount, x.minimum_charge)}</b>`], ['Version', UI.e(x.rate_version)], ['Effective since', UI.datetime(x.effective_from)]]) : '<div class="text-muted small">No approved rate yet.</div>'}
-      ${x.pending_rate_id ? UI.h('Waiting for approval') + UI.kv([['Proposed rate', `<b>${RouteUI.rateText(x.pending_rate_type, x.pending_rate_amount, x.pending_minimum_charge)}</b>`], ['Version', UI.e(x.pending_version)], ['Entered by', UI.esc(x.pending_entered_by_name) + ' · ' + UI.datetime(x.pending_entered_at)]]) : ''}
-      ${UI.h('Rate history')}<div class="fleet-route-history-scroll">${UI.table([['Version', 'version_no'], ['Rate', 'rate_amount', (v, t) => RouteUI.rateText(t.rate_type, t.rate_amount, t.minimum_charge)], ['Status', 'status', 'badge'],
-        ['Entered by', 'entered_by_name'], ['Decided by', 'decided_by_name'], ['Effective start date and time', 'effective_from', 'datetime'], ['Effective end date and time', 'effective_to', 'datetime'], ['Remarks', 'decision_notes']], r.rates, { plain: true, empty: 'No rate entered yet.' })}</div>
-      ${UI.h('History')}<div class="fleet-route-history-scroll">${UI.table([['Action date and time', 'created_at', 'datetime'], ['Action', 'event_type'], ['Performed by', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}</div>`;
-    const el = UI.drawer(UI.esc(x.route_ref), html.replace(UI.h('Current approved rate'), (x.origin_lat && x.destination_lat ? '<div class="route-map mb-3" data-routedetailmap style="height:240px"></div>' : '') + UI.h('Current approved rate')), { subtitle: 'Client route' });
+    const detail = (label, value) => '<div class="fleet-detail-item"><span>'+label+'</span><strong>'+value+'</strong></div>';
+    const rateHistory = (r.rates || []).length
+      ? r.rates.map(entry => '<article class="fleet-rate-record"><div class="fleet-rate-record-top"><strong>Version '+UI.e(entry.version_no)+'</strong>'+UI.badge(entry.status)+'</div>'
+          + '<div class="fleet-rate-record-amount">'+RouteUI.rateText(entry.rate_type,entry.rate_amount,entry.minimum_charge)+'</div>'
+          + '<div class="fleet-rate-record-grid">'
+          +detail('Entered by',UI.e(entry.entered_by_name))
+          +detail('Decided by',UI.e(entry.decided_by_name))
+          +detail('Effective from',UI.datetime(entry.effective_from))
+          +detail('Effective until',UI.datetime(entry.effective_to))
+          +'</div>'+(entry.decision_notes?'<p class="fleet-rate-record-note">'+UI.e(entry.decision_notes)+'</p>':'')+'</article>').join('')
+      : '<div class="fleet-detail-empty"><i class="bi bi-receipt"></i><strong>No rate history yet</strong><span>Submitted and approved rates will appear here.</span></div>';
+    const eventHistory = (r.events || []).length
+      ? r.events.map(event => '<article class="fleet-event"><div class="fleet-event-dot"><i class="bi bi-clock-history"></i></div><div class="fleet-event-content">'
+          +'<div class="fleet-event-head"><strong>'+UI.e(event.event_type).replace(/_/g,' ')+'</strong>'+UI.badge(event.to_status)+'</div>'
+          +'<div class="fleet-event-meta">'+UI.datetime(event.created_at)+' · '+UI.e(event.actor)+'</div>'
+          +(event.notes?'<p>'+UI.e(event.notes)+'</p>':'')+'</div></article>').join('')
+      : '<div class="fleet-detail-empty"><i class="bi bi-clock-history"></i><strong>No activity yet</strong><span>Route activity will be recorded here.</span></div>';
+    const routeOption = UI.esc((d.routeOptions || {})[x.route_option] || x.route_option || '');
+    const html = '<div class="fleet-route-detail">'
+      + '<div class="fleet-route-overview"><div class="fleet-route-status">'+UI.badge(x.status)
+      +(x.pending_rate_id && x.status === 'Approved' ? UI.badge('Pending Approval') : '')+'</div>'
+      +'<span class="fleet-route-overline">CLIENT ROUTE</span><h3>'+UI.esc(x.client)+'</h3>'
+      +'<div class="fleet-route-journey"><div><span class="fleet-route-point pickup"></span><div><small>PICKUP</small><strong>'+UI.e(x.origin_label)+'</strong></div></div>'
+      +'<div class="fleet-route-journey-line"></div><div><span class="fleet-route-point delivery"></span><div><small>DESTINATION</small><strong>'+UI.e(x.destination_label)+'</strong></div></div></div>'
+      +'<div class="fleet-route-quickfacts"><div><i class="bi bi-truck"></i><span>'+UI.e(x.truck_type)+'</span></div>'
+      +'<div><i class="bi bi-signpost"></i><span>'+UI.num(x.distance_km,2)+' km</span></div>'
+      +'<div><i class="bi bi-map"></i><span>'+UI.e(x.distance_source)+'</span></div></div></div>'
+      +(acts.length ? '<div class="fleet-route-actions">'+acts.join('')+'</div>' : '')
+      +'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-info-circle"></i><h4>Route information</h4></div>'
+      +'<div class="fleet-detail-grid">'
+      +detail('Client',UI.e(x.client))
+      +detail('Truck type',UI.e(x.truck_type))
+      +detail('Saved distance',UI.num(x.distance_km,2)+' km · '+UI.e(x.distance_source))
+      +detail('Requested by',UI.e(x.requested_by_name)+' · '+UI.datetime(x.requested_at))
+      +'</div>'
+      +(x.distance_computed_km?'<div class="fleet-route-road-info"><i class="bi bi-check-circle"></i><div><strong>Verified road distance: '+UI.num(x.distance_computed_km,2)+' km</strong><span>'+routeOption+' · '+UI.e(x.distance_provider)+' · '+UI.datetime(x.distance_computed_at)+'</span></div></div>':'')
+      +(x.distance_override_reason?'<div class="fleet-route-note"><strong>Distance adjustment reason</strong><p>'+UI.e(x.distance_override_reason)+'</p></div>':'')
+      +(x.notes?'<div class="fleet-route-note"><strong>Notes</strong><p>'+UI.e(x.notes)+'</p></div>':'')
+      +(x.closed_reason?'<div class="fleet-route-note"><strong>Closure information</strong><p>'+UI.e(x.closed_reason)+' · '+UI.e(x.closed_by_name)+' · '+UI.datetime(x.closed_at)+'</p></div>':'')
+      +'</section>'
+      +(x.origin_lat && x.destination_lat?'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-geo-alt"></i><h4>Road route preview</h4></div><div class="route-map fleet-route-map" data-routedetailmap></div><p class="fleet-route-map-caption">Saved pickup-to-delivery route. Garage-to-pickup is shown when current verified routing is available.</p></section>':'')
+      +'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-cash-stack"></i><h4>Contract rate</h4></div>'
+      +(x.rate_id?'<div class="fleet-current-rate"><span>Current approved rate</span><strong>'+RouteUI.rateText(x.rate_type,x.rate_amount,x.minimum_charge)+'</strong></div>'
+        +'<div class="fleet-detail-grid">'+detail('Version',UI.e(x.rate_version))+detail('Effective since',UI.datetime(x.effective_from))+'</div>'
+        :'<div class="fleet-detail-empty compact"><i class="bi bi-currency-exchange"></i><strong>No approved rate yet</strong><span>A fixed route rate must be submitted and approved.</span></div>')
+      +(x.pending_rate_id?'<div class="fleet-route-pending"><strong>Awaiting rate approval</strong><div class="fleet-current-rate"><span>Proposed rate · Version '+UI.e(x.pending_version)+'</span><strong>'+RouteUI.rateText(x.pending_rate_type,x.pending_rate_amount,x.pending_minimum_charge)+'</strong></div><small>Entered by '+UI.e(x.pending_entered_by_name)+' · '+UI.datetime(x.pending_entered_at)+'</small></div>':'')
+      +'</section>'
+      +'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-journal-text"></i><h4>Rate history</h4></div>'+rateHistory+'</section>'
+      +'<section class="fleet-route-panel"><div class="fleet-route-heading"><i class="bi bi-clock-history"></i><h4>Activity history</h4></div><div class="fleet-events">'+eventHistory+'</div></section>'
+      +'</div>';
+    const el = UI.drawer(UI.esc(x.route_ref), html, { subtitle: 'Client route' });
+    el.classList.add('fleet-route-drawer');
     const mbox = el.querySelector('[data-routedetailmap]');
     if (mbox) setTimeout(async () => {
       const opts={ a: [+x.origin_lat, +x.origin_lng], b: [+x.destination_lat, +x.destination_lng],
