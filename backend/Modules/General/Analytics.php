@@ -202,7 +202,20 @@ final class Analytics {
             $tables[] = ['title' => 'Latest activity', 'page' => 'admin', 'columns' => [['When', 'created_at', 'datetime'], ['Who', 'actor'], ['Area', 'area'], ['Action', 'action'], ['Details', 'details']],
                          'rows' => many($p, "SELECT a.created_at, COALESCE(u.full_name,'System') AS actor, a.area, a.action, a.details FROM audit_events a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.id DESC LIMIT 20")];
         }
-        return ['alerts' => $alerts, 'cards' => $cards, 'charts' => $charts, 'tables' => $tables];
+        // Head Management command-center read projections. Each query is isolated
+        // so missing optional data never becomes a fabricated zero.
+        $executive = $r === 'admin' ? readSections([
+            'approvals' => fn() => one($p, "SELECT
+                (SELECT COUNT(*) FROM client_route_rates WHERE status='Pending Approval') AS rates,
+                (SELECT COUNT(*) FROM fund_requests WHERE status='Pending Approval') AS funds,
+                (SELECT COUNT(*) FROM purchase_orders WHERE status='Pending Approval' AND approver_role='admin') AS purchase_orders"),
+            'clients' => fn() => one($p, "SELECT COUNT(*) AS total,
+                COALESCE(SUM(status='Active'),0) AS active FROM clients"),
+            'routes' => fn() => one($p, "SELECT COUNT(*) AS approved FROM client_routes WHERE status='Approved'"),
+            'incidents' => fn() => one($p, "SELECT COUNT(*) AS open FROM incidents WHERE status<>'Resolved'"),
+        ]) : [];
+        return ['alerts' => $alerts, 'cards' => $cards, 'charts' => $charts, 'tables' => $tables]
+            + ($r === 'admin' ? ['executive' => $executive] : []);
     }
 
     // =================================================================
