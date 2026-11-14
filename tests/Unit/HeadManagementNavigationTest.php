@@ -355,6 +355,9 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("UI.canGo(d.page)", $dashboard);
         self::assertStringContainsString("this.alerts(alerts)", $dashboard);
         self::assertStringContainsString("this.breakdown(cards,'admin')", $dashboard);
+        self::assertStringContainsString('verifiedChart=', $dashboard);
+        self::assertStringContainsString('UI.chartHtml(', $dashboard);
+        self::assertStringContainsString('.rpm-executive-dashboard .rpm-exec-charts', $css);
         self::assertStringContainsString("readSections([", $analytics);
         self::assertStringContainsString("\'executive\' => \$executive", $analytics);
         self::assertStringContainsString("pricing_settings_history", $analytics);
