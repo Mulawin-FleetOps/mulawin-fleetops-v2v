@@ -1093,3 +1093,14 @@ a:hover { color: var(--rpm-brand-strong); }
 .head-route-records .head-monitor-table .table-empty { display:flex; align-items:center; justify-content:center; text-align:center; min-height:150px; }
 .head-route-records .head-monitor-table .table-pager { border-top:1px solid #dfe7e1; padding:12px 18px; min-height:58px; }
 @media(max-width:700px) { .head-route-records .head-monitor-tools { flex-wrap:wrap; } .head-route-records .head-monitor-table .table-pager { flex-wrap:wrap; } }
+
+/* Four Route & Contract Rates KPIs on wide screens, responsive on smaller ones. */
+@media(min-width:1151px) {
+  .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+@media(min-width:651px) and (max-width:1150px) {
+  .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:650px) {
+  .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:1fr; }
+}
