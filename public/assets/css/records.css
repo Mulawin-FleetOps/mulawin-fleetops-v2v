@@ -267,3 +267,45 @@
   .head-fuel-section-heading { flex-wrap:wrap; }
   .head-fuel-config-state { margin-left:0; }
 }
+
+/* Fuel Efficiency + History: extend the existing fuel card, not global table styles. */
+.head-fuel-config .head-fuel-table-intro {
+  display:flex; align-items:center; gap:13px; padding:17px 22px;
+  background:#f7faf8; border-bottom:1px solid #e2eae4;
+}
+.head-fuel-table-intro-icon { display:grid; place-items:center; flex:0 0 43px; width:43px; height:43px;
+  border-radius:12px; background:#e6f3e9; color:#1b7546; font-size:19px; }
+.head-fuel-table-intro strong { display:block; color:#244832; font-size:14px; margin-bottom:3px; }
+.head-fuel-table-intro p { margin:0; color:#667b6b; font-size:12px; line-height:1.5; }
+.head-fuel-table-progress { margin-left:auto; flex:0 0 auto; padding:7px 11px; border-radius:20px;
+  font-size:11px; font-weight:700; color:#356449; background:#e7f2ea; white-space:nowrap; }
+.head-fuel-truck-label { display:flex; align-items:center; gap:11px; }
+.head-fuel-truck-icon { width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
+  border-radius:10px; background:#eef5f0; color:#237345; font-size:17px; }
+.head-fuel-truck-label b { display:block; font-size:13px; color:#264332; }
+.head-fuel-truck-label small { display:block; margin-top:3px; color:#819083; font-size:11px; }
+.head-fuel-muted-value { color:#748477; font-size:12px; }
+.head-fuel-efficiency-value { color:#214a31; font-size:16px; white-space:nowrap; }
+.head-fuel-efficiency-value small { color:#62786b; font-size:11px; font-weight:500; }
+.head-fuel-status { display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border-radius:20px;
+  font-size:11px; font-weight:700; white-space:nowrap; }
+.head-fuel-status.is-missing { background:#fff2df; color:#9a631c; }
+.head-fuel-status.is-ready { background:#e4f4e9; color:#207041; }
+.head-fuel-history-setting { display:inline-flex; align-items:center; gap:9px; font-weight:650; color:#2a513a; }
+.head-fuel-history-setting i { color:#268152; }
+.head-fuel-config .record-workspace-panel .data-table th { background:#f0f5f1; }
+.head-fuel-config .record-workspace-panel .data-table td { padding-top:13px; padding-bottom:13px; vertical-align:middle; }
+.head-fuel-config .record-workspace-panel .table-wrap { min-height:0; }
+.head-fuel-history-empty { min-height:265px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center; padding:35px 22px 38px; }
+.head-fuel-history-empty-icon { display:grid; place-items:center; width:62px; height:62px; border-radius:18px;
+  background:#edf5f0; color:#2c7950; font-size:28px; margin-bottom:16px; }
+.head-fuel-history-empty h3 { margin:0 0 8px; font-size:17px; font-weight:700; color:#244b33; }
+.head-fuel-history-empty p { max-width:470px; margin:0; font-size:13px; line-height:1.7; color:#6d7f71; }
+.head-fuel-history-note { display:inline-flex; align-items:center; gap:7px; margin-top:17px;
+  padding:9px 13px; border-radius:8px; background:#f4f8f5; font-size:11px; color:#537261; }
+@media(max-width:720px) {
+  .head-fuel-config .head-fuel-table-intro { flex-wrap:wrap; padding:14px 16px; }
+  .head-fuel-table-progress { margin-left:0; }
+  .head-fuel-history-empty { min-height:235px; padding:27px 15px; }
+}
