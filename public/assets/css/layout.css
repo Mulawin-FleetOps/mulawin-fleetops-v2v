@@ -1028,3 +1028,31 @@ a:hover { color: var(--rpm-brand-strong); }
   .head-monitor-panel .record-workspace-popover { left:0; right:0; max-width:none; width:100%; }
   .head-monitor-panel .head-monitor-table .table-pager { flex-wrap:wrap; gap:8px; }
 }
+
+/* HEAD FLEET TABBED WORKSPACE — limited to Head Management oversight. */
+.head-fleet-workspace { display:grid; gap:18px; }
+.head-fleet-kpi { font:inherit; text-align:left; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+.head-fleet-kpi:hover,.head-fleet-kpi:focus-visible { border-color:#95c5a4; box-shadow:0 3px 12px rgba(25,95,50,.11); }
+.head-fleet-kpi:focus-visible { outline:2px solid #247a43; outline-offset:2px; }
+.head-fleet-kpi > .head-kpi-icon { display:grid; place-items:center; }
+.head-fleet-kpi-value { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.head-fleet-kpi-value > span { font-size:12px; line-height:1.4; color:#4b6253; font-weight:600; }
+.head-fleet-kpi-value > strong { font-size:29px; line-height:1.2; color:#173c27; font-weight:750; font-variant-numeric:tabular-nums; }
+.head-fleet-records { border:1px solid #dce8df; border-radius:13px; background:#fff; overflow:visible; }
+.head-fleet-records-heading { padding:20px 20px 8px; }
+.head-fleet-records-heading h2 { margin:0; font-size:17px; font-weight:700; color:#23432f; }
+.head-fleet-records-heading p { margin:5px 0 0; color:#647b6b; font-size:12px; }
+.head-fleet-tabs { display:flex; gap:6px; padding:8px 20px 12px; border-bottom:1px solid #dfe7e1; overflow-x:auto; }
+.head-fleet-tab { border:1px solid transparent; border-radius:8px; padding:10px 15px; background:transparent; color:#456a51; font-size:13px; font-weight:650; cursor:pointer; white-space:nowrap; }
+.head-fleet-tab:hover { background:#f0f8f2; }
+.head-fleet-tab.active { background:#e9f5eb; color:#185d34; border-color:#c4ddcb; }
+.head-fleet-tab:focus-visible { outline:2px solid #247a43; outline-offset:2px; }
+.head-fleet-records [data-head-fleet-table] > .head-monitor-panel { margin:0!important; border:0; border-radius:0 0 13px 13px; box-shadow:none; }
+.head-fleet-records .head-monitor-header { padding-top:16px; }
+@media(max-width:700px) {
+ .head-fleet-tabs { padding:8px 12px 12px; gap:4px; }
+ .head-fleet-tab { padding:10px 11px; }
+ .head-fleet-records-heading { padding:16px 14px 8px; }
+ .head-fleet-kpi-value > strong { font-size:23px; }
+}
+/* HEAD FLEET TABBED WORKSPACE END */
