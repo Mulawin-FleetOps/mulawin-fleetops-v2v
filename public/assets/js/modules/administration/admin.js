@@ -344,19 +344,27 @@ App.page('head-settings', {
 const FuelAdjustmentUI={
  garageEdit(ctx){
   let existing=null;
-  try {if(ctx.data.current?.garage?.value_json) existing=JSON.parse(ctx.data.current.garage.value_json);}catch{}
+  try {if(ctx.data.current?.garage?.value_json)existing=JSON.parse(ctx.data.current.garage.value_json);}catch{}
   const sourceLink='https://maps.app.goo.gl/dVawLiiVDSGLDXha7';
+  // The Google Maps URL supplied by the company identifies the place; these
+  // coordinates only center the picker and MUST NOT be saved until selected.
+  const viewport=[14.1254085,121.0676027];
+  const saved=existing&&Number.isFinite(Number(existing.lat))&&Number.isFinite(Number(existing.lng))
+    ?[Number(existing.lat),Number(existing.lng)]:null;
   const fields=[
-   {name:'lat',label:'Garage entrance latitude',type:'number',required:true,step:'any',min:4,max:21.5,value:existing?.lat??'',help:'From the exact entrance pin in Google Maps (not a nearby landmark).'},
-   {name:'lng',label:'Garage entrance longitude',type:'number',required:true,step:'any',min:116,max:127.5,value:existing?.lng??'',help:'From the same entrance pin in Google Maps.'}
+   {name:'lat',label:'Garage entrance latitude',type:'number',required:true,step:'any',min:4,max:21.5,value:saved?.[0]??'',help:'Automatically fills when you place or drag the pin.'},
+   {name:'lng',label:'Garage entrance longitude',type:'number',required:true,step:'any',min:116,max:127.5,value:saved?.[1]??'',help:'You can also enter exact coordinates manually if the map is unavailable.'}
   ];
   let reviewed=null;
-  const intro='<p class="small text-muted mb-2">Configure the one fixed R.P. Mulawin garage once. All new route estimates use this shared location. You do not need to verify it for each route.</p>'
-    +'<p class="small mb-3"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>'
-    +'<a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer">Open the company garage in Google Maps</a>'
-    +'<span class="d-block text-muted mt-1">Copy the exact entrance coordinates from the Google Maps pin. A shortened Maps link alone does not contain coordinates this application can safely use for routing.</span></p>';
+  const intro='<p class="small text-muted mb-2">Choose the actual garage entrance on the map once. That fixed starting point will be shared by all new routes and current fuel estimates.</p>'
+    +'<p class="small mb-2"><a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>View R.P. Mulawin Trucking Service on Google Maps</a></p>'
+    +'<div class="head-garage-map-instructions"><i class="bi bi-geo-alt" aria-hidden="true"></i>'
+    +'Click the entrance on the map or drag the pin. The map initially shows the neighborhood; its center is <strong>not</strong> the saved garage location.</div>';
   UI.modal('Set Fixed Company Garage',intro
-    +'<div data-garage-fields>'+UI.fields(fields.map(field=>({...field,col:12})))+'</div>'
+    +'<div data-garage-fields><div class="head-garage-picker-map" data-garage-picker role="application" aria-label="Select company garage entrance on map"></div>'
+    +'<p class="head-garage-picker-status" data-garage-picker-status role="status" aria-live="polite">'
+    +(saved?'Saved garage position loaded. Drag the pin to adjust it.':'No garage point selected. Click the entrance on the map to place a pin.')+'</p>'
+    +UI.fields(fields.map(field=>({...field,col:6})))+'</div>'
     +'<div data-garage-review hidden></div>',async(data,form)=>{
     if(!reviewed)throw Error('Review the garage entrance coordinates before saving.');
     const result=await App.api('Admin.pricing_save',reviewed);
@@ -367,20 +375,74 @@ const FuelAdjustmentUI={
     onShow:(wrap,form)=>{
       const confirm=form.querySelector('[type=submit]'),reviewButton=form.querySelector('[data-garage-review-button]'),
         back=form.querySelector('[data-garage-back]'),panel=form.querySelector('[data-garage-fields]'),
-        preview=form.querySelector('[data-garage-review]');
+        preview=form.querySelector('[data-garage-review]'),status=form.querySelector('[data-garage-picker-status]');
+      const latInput=form.elements.lat,lngInput=form.elements.lng;
+      let map=null,marker=null,selected=Boolean(saved);
+      const update=(position)=>{
+        const lat=Number(position.lat),lng=Number(position.lng);
+        if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
+        latInput.value=lat.toFixed(7);lngInput.value=lng.toFixed(7);
+        selected=true;reviewed=null;
+        status.textContent='Garage pin selected: '+latInput.value+', '+lngInput.value+'. Review the exact entrance before saving.';
+      };
+      const positionFromFields=()=>{
+        const lat=Number(latInput.value),lng=Number(lngInput.value);
+        return latInput.value!==''&&lngInput.value!==''&&Number.isFinite(lat)&&Number.isFinite(lng)
+          &&lat>=4&&lat<=21.5&&lng>=116&&lng<=127.5?[lat,lng]:null;
+      };
+      const place=(position,focus=false)=>{
+        if(!map)return;
+        if(marker)marker.setLatLng(position);
+        else{
+          marker=L.marker(position,{draggable:true,autoPan:true,icon:UI.Map.icon('garage')}).addTo(map);
+          marker.bindTooltip('Company garage entrance — drag to adjust');
+          marker.on('dragend',()=>update(marker.getLatLng()));
+        }
+        if(focus)map.panTo(position);
+        update({lat:position[0],lng:position[1]});
+      };
+      const initMap=()=>{
+        if(typeof L==='undefined'||!window.UI?.Map){
+          status.textContent='Map unavailable. Enter the exact entrance latitude and longitude manually.';
+          return;
+        }
+        const target=form.querySelector('[data-garage-picker]');
+        if(!target||map)return;
+        try{
+          map=L.map(target,{scrollWheelZoom:true}).setView(saved||viewport,saved?17:16);
+          UI.Map.tiles(map,message=>{status.textContent=message;});
+          map.on('click',event=>place([event.latlng.lat,event.latlng.lng]));
+          if(saved)place(saved);
+          map.invalidateSize();
+          wrap.addEventListener('hidden.bs.modal',()=>{map?.remove();map=null;marker=null;},{once:true});
+        }catch(error){status.textContent='Unable to load the map. You may enter the exact coordinates manually.';}
+      };
       confirm.hidden=true;
+      wrap.addEventListener('shown.bs.modal',initMap,{once:true});
+      // Map init runs only once the Bootstrap modal is visibly laid out.
+      const manual=()=>{
+        reviewed=null;selected=Boolean(positionFromFields());
+        const coords=positionFromFields();
+        if(coords&&map)place(coords);
+        else if(!coords){status.textContent='Enter valid Philippine entrance coordinates or choose a point on the map.';}
+      };
+      latInput.addEventListener('change',manual);lngInput.addEventListener('change',manual);
       reviewButton.onclick=()=>{
-        const invalid=[...form.querySelectorAll('input,select,textarea')].find(input=>!input.disabled&&!input.checkValidity());
+        const invalid=[...panel.querySelectorAll('input,select,textarea')].find(input=>!input.disabled&&!input.checkValidity());
         if(invalid){invalid.reportValidity();return;}
-        const data=UI.formData(form);
-        reviewed={setting_key:'garage',lat:data.lat,lng:data.lng,effective_date:UI.today(),
+        const coords=positionFromFields();
+        if(!selected||!coords){status.textContent='Choose the entrance on the map before reviewing.';return;}
+        reviewed={setting_key:'garage',lat:latInput.value,lng:lngInput.value,effective_date:UI.today(),
           reference:sourceLink,verified:'1'};
-        preview.innerHTML='<p class="small">Confirm these coordinates match the actual garage entrance, not a nearby point.</p>'
-          +UI.kv([['Latitude',UI.esc(data.lat)],['Longitude',UI.esc(data.lng)],
-            ['Map reference','<a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer">Google Maps garage location</a>']]);
+        preview.innerHTML='<p class="small">Confirm that this pin is at the real garage entrance. This point will become the <strong>initial stop</strong> for route requests.</p>'
+          +UI.kv([['Latitude',UI.esc(latInput.value)],['Longitude',UI.esc(lngInput.value)],
+            ['Map reference','<a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer">Company Google Maps location</a>']]);
         panel.hidden=true;preview.hidden=false;reviewButton.hidden=true;confirm.hidden=false;back.hidden=false;confirm.focus();
       };
-      back.onclick=()=>{reviewed=null;panel.hidden=false;preview.hidden=true;reviewButton.hidden=false;confirm.hidden=true;back.hidden=true;};
+      back.onclick=()=>{
+        reviewed=null;panel.hidden=false;preview.hidden=true;reviewButton.hidden=false;confirm.hidden=true;back.hidden=true;
+        if(map)requestAnimationFrame(()=>map.invalidateSize());
+      };
     }});
  },
 
