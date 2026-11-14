@@ -844,3 +844,7 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
     flex:1 1 auto
   }
 }
+
+/* Route-derived dispatcher team note */
+.oh-trip-planner-modal .oh-simple-planner .oh-dispatcher-team-note{font-size:10.5px;line-height:1.35;color:#5f856d;margin-top:6px;min-height:14px}
+.oh-trip-planner-modal .oh-simple-planner .oh-dispatcher-team-note:empty{display:none}
