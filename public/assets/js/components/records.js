@@ -96,11 +96,12 @@ const RecordComponents = Object.freeze({
       const rendered=tab[2](root);
       if(typeof rendered==='string')root.innerHTML=rendered;
       const oldPanel=[...root.querySelectorAll('.panel')].find(el=>el.querySelector('.table-tools'));
-      if(!oldPanel){ // A chart-only tab retains its native chart and report renderers.
+      if(!oldPanel){
+        // Chart/report-only tabs preserve their existing charts and actions.
         UI.activate(root);
         return;
       }
-      const extra=[...root.childNodes].filter(node=>node!==oldPanel);
+      const extras=[...root.childNodes].filter(node=>node!==oldPanel);
       const contents=oldPanel.querySelector(':scope > .panel-body');
       const panel=document.createElement('section');
       panel.className='panel';
@@ -108,20 +109,76 @@ const RecordComponents = Object.freeze({
       body.className='panel-body flush';
       if(contents)while(contents.firstChild)body.append(contents.firstChild);
       panel.append(body);
+      const actions=[...panel.querySelectorAll('.table-tools-right > button, .table-tools-right > .btn')];
       const categories=this.categories(tabs.map(([value,label])=>({value,label})),selected,'data-executive-tab');
       const shell=document.createElement('div');
       shell.innerHTML=this.panel('',categories);
       const workspace=shell.querySelector('.record-workspace-panel');
-      // Keep existing date-range filters, explanatory copy and charts.
-      extra.forEach(node=>workspace.append(node));
+      extras.forEach(node=>workspace.append(node));
       workspace.prepend(panel);
       root.replaceChildren(workspace);
       this.mountPanel(root,{title});
+      const heading=root.querySelector('.record-workspace-heading');
+      actions.forEach(button=>heading?.append(button));
       root.querySelectorAll('[data-executive-tab]').forEach(button=>
         button.addEventListener('click',()=>show(button.dataset.executiveTab)));
       UI.activate(root);
       const tableBody=root.querySelector('[data-tbody]');
-      if(tableBody)this.keepExecutiveEmptyTable(root,tableBody.dataset.tbody);
+      if(!tableBody)return;
+      const id=tableBody.dataset.tbody,t=UI._tables[id];
+      if(!t)return;
+      const original=t.rows.slice();
+      const keys=['status','payment_status','category','source_type'];
+      const status=keys.find(key=>t.allColumns.some(col=>col[1]===key));
+      const values=status?[...new Set(original.map(row=>String(row[status]??'')).filter(Boolean))].sort():[];
+      const serial='executive-'+id,filterId=serial+'-filter',sortId=serial+'-sort';
+      const searchRow=root.querySelector('.record-workspace-search');
+      let chosen='',direction='default';
+      const filterButton=document.createElement('button');
+      filterButton.type='button';filterButton.className='btn btn-sm btn-outline-secondary record-workspace-filter-trigger';
+      filterButton.setAttribute('aria-controls',filterId);
+      filterButton.setAttribute('aria-expanded','false');
+      filterButton.innerHTML='<i class="bi bi-funnel" aria-hidden="true"></i> Filter';
+      const sortButton=document.createElement('button');
+      sortButton.type='button';sortButton.className='btn btn-sm btn-outline-secondary record-workspace-sort-trigger';
+      sortButton.setAttribute('aria-controls',sortId);sortButton.setAttribute('aria-expanded','false');
+      sortButton.innerHTML='<i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort';
+      const popovers=document.createElement('div');
+      popovers.className='record-workspace-popovers';
+      popovers.innerHTML='<div id="'+filterId+'" class="record-workspace-popover" hidden>'
+        +'<strong>Filter records</strong>'
+        +(status?'<label>'+UI.esc(status.replace(/_/g,' '))
+          +'<select class="form-select form-select-sm" data-executive-filter>'
+          +'<option value="">All statuses</option>'
+          +values.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('')+'</select></label>'
+          :'<p class="small text-muted">No additional status filters for this table.</p>')
+        +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+        +'<div id="'+sortId+'" class="record-workspace-popover record-workspace-sort-panel" hidden>'
+        +'<strong>Sort records</strong>'
+        +'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="'+sortId+'" value="default" checked> Default</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="'+sortId+'" value="asc"> First column A–Z</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="'+sortId+'" value="desc"> First column Z–A</label></div>';
+      if(status)searchRow.append(filterButton);
+      searchRow.append(sortButton,popovers);
+      const apply=()=>{
+        const next=original.filter(row=>!chosen||String(row[status]??'')===chosen);
+        if(direction!=='default'){
+          const col=t.allColumns[0]?.[1];
+          next.sort((a,b)=>(direction==='asc'?1:-1)
+            *String(a[col]??'').localeCompare(String(b[col]??''),undefined,{numeric:true}));
+        }
+        t.rows=next;t.page=0;UI.drawTable(id);
+        this.keepExecutiveEmptyTable(root,id);
+      };
+      this.bindDropdowns(root,{
+        apply:menu=>{chosen=menu.querySelector('[data-executive-filter]')?.value||'';apply();filterButton.click();},
+        reset:()=>{chosen='';const select=root.querySelector('[data-executive-filter]');if(select)select.value='';apply();filterButton.click();},
+        sort:value=>{direction=value;apply();}
+      },{filter:filterId,sort:sortId});
+      root.querySelector('[data-tsearch]')?.addEventListener('input',()=>{
+        this.keepExecutiveEmptyTable(root,id);
+      });
+      this.keepExecutiveEmptyTable(root,id);
     };
     show(selected);
   },
