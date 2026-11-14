@@ -223,29 +223,36 @@ App.page('head-approvals',{
   subtitle:'Company-wide decisions and unresolved issues.',
   render(ctx) {
     const d=ctx.data||{};
-    ctx.el.innerHTML='<p class="small text-muted mb-3">These are monitoring queues, not universal approval permissions. Open the relevant departmental page for authorized actions.</p>'
-      +HeadOversight.panel('Route rates awaiting approval',
+    const sections=[
+      ['rates','Route rates',d.route_rates||[],
         [['Route','route_ref'],['Client','company_name'],['Origin','origin_label'],['Destination','destination_label'],['Proposed Rate','rate_amount','money']],
-        d.route_rates,'No route rates pending approval.')
-      +HeadOversight.panel('Open maintenance work',
+        'No route rates pending approval.'],
+      ['maintenance','Maintenance',d.maintenance||[],
         [['Job','job_ref'],['Truck','plate_number'],['Status','status','badge'],['Problem','problem']],
-        d.maintenance,'No open maintenance jobs.')
-      +HeadOversight.panel('Unresolved incidents',
+        'No open maintenance jobs.'],
+      ['incidents','Incidents',d.incidents||[],
         [['Incident','incident_ref'],['Trip','trip_ref'],['Status','status','badge']],
-        d.incidents,'No unresolved incidents.')
-      +HeadOversight.panel('Trip fund requests awaiting department review',
+        'No unresolved incidents.'],
+      ['funds','Fund requests',d.funds||[],
         [['Fund','fund_ref'],['Trip','trip_ref'],['Status','status','badge']],
-        d.funds,'No fund requests awaiting approval.');
-    HeadOversight.mount(ctx.el,[
-      [[['Route','route_ref'],['Client','company_name'],['Origin','origin_label'],['Destination','destination_label'],['Proposed Rate','rate_amount','money']],d.route_rates,'No route rates pending approval.'],
-      [[['Job','job_ref'],['Truck','plate_number'],['Status','status','badge'],['Problem','problem']],d.maintenance,'No open maintenance jobs.'],
-      [[['Incident','incident_ref'],['Trip','trip_ref'],['Status','status','badge']],d.incidents,'No unresolved incidents.'],
-      [[['Fund','fund_ref'],['Trip','trip_ref'],['Status','status','badge']],d.funds,'No fund requests awaiting approval.']
+        'No fund requests awaiting approval.']
+    ];
+    ctx.el.innerHTML='<div class="head-approvals-workspace">'
+      +'<p class="small text-muted mb-3">Monitoring only. Approve or change records in the authorized departmental workflow.</p>'
+      +'<section class="head-trip-records record-workspace-panel">'
+      +'<div class="head-trip-records-heading"><h2>Approvals & Exception Records</h2>'
+      +'<p>Review pending decisions and operational exceptions by category.</p></div>'
+      +'<div data-head-approval-tabs></div></section></div>';
+    const tabs=sections.map(([key,label,rows,cols,empty])=>[
+      key,label+' ('+rows.length+')',body=>{
+        body.innerHTML=HeadOversight.panel(label,cols,rows,empty);
+        HeadOversight.mount(body,[[cols,rows,empty]]);
+      }
     ]);
+    UI.tabs(ctx.el.querySelector('[data-head-approval-tabs]'),tabs,'rates',{key:'head-approvals',forceActive:true});
     UI.activate(ctx.el);
   }
 });
-
 
 /* The executive trip page is separate from Operations Head's creation and
  * Dispatcher workflows. Only read-only HeadManagement APIs are used. */
