@@ -53,6 +53,15 @@ final class HeadManagement {
                 COALESCE(SUM(status IN ('On Hold - Incident Reported','For Reschedule') OR (status IN ('Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch') AND scheduled_at<NOW())),0) AS delayed_problem
                 FROM trips"),
             'active' => fn() => self::tripRows($p, false),
+            // A saved, verifiable route geometry, not a simulated GPS location.
+            'route_preview' => fn() => one($p, "SELECT t.id,t.trip_ref,t.pickup_point,t.delivery_point,
+                t.pickup_lat,t.pickup_lng,t.delivery_lat,t.delivery_lng,r.geometry AS route_geometry
+                FROM trips t JOIN trip_routes r ON r.trip_id=t.id
+                WHERE r.geometry IS NOT NULL AND LENGTH(r.geometry)>10
+                  AND t.pickup_lat IS NOT NULL AND t.pickup_lng IS NOT NULL
+                  AND t.delivery_lat IS NOT NULL AND t.delivery_lng IS NOT NULL
+                ORDER BY t.scheduled_at DESC,t.id DESC LIMIT 1"),
+
             'history' => fn() => self::tripRows($p, true),
             'incidents' => fn() => many($p, "SELECT i.id,i.trip_id,i.incident_ref,i.status,i.severity,i.incident_at,
                 t.trip_ref,c.company_name AS client,v.plate_number
