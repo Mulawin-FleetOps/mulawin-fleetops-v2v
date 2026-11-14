@@ -115,7 +115,7 @@ App.page('reports', {
             :'<p class="head-report-insight-empty">No reliable observations are available for this period. Try a wider date range.</p>')
           +'<p class="head-report-method">Diagnostic signals identify records to examine. They do not prove causes or predict future outcomes.</p></section>';
         const chartHasValues=chart=>(chart.datasets||[]).some(dataset=>
-          (dataset.data||[]).some(value=>Number(value)>0));
+          (dataset.data||[]).some(value=>Number.isFinite(Number(value))&&Number(value)!==0));
         const usefulCharts=(section.charts||[]).filter(chart=>Array.isArray(chart.labels)
           && chart.labels.length>0 && chartHasValues(chart));
         const usefulTables=(section.tables||[]).filter(table=>(table.rows||[]).length>0);
