@@ -286,6 +286,25 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString(".head-report-category-tab.active", $styles);
     }
 
+    public function testHeadUserManagementUsesSharedAccountWorkspaceWithoutChangingPermissions(): void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/administration/admin.js');
+        $css=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertIsString($js);
+        self::assertIsString($css);
+        self::assertStringContainsString("RecordComponents.kpis([", $js);
+        self::assertStringContainsString("RecordComponents.panel(h,RecordComponents.categories(", $js);
+        self::assertStringContainsString("RecordComponents.mountPanel(root,{title:'User Accounts'})", $js);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(root', $js);
+        self::assertStringContainsString('data-head-user-category', $js);
+        self::assertStringContainsString('head-user-role-reference', $js);
+        self::assertStringContainsString("Admin.user_password", $js);
+        self::assertStringContainsString("Admin.user_toggle", $js);
+        self::assertStringContainsString("Admin.user_save", $js);
+        self::assertStringContainsString('.head-user-management .record-workspace-panel', $css);
+        self::assertStringNotContainsString('What each role can do', $js);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
