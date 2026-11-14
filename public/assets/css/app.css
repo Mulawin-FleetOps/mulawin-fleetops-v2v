@@ -2254,3 +2254,33 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] button:focus-visible{outline:3px solid #b68c0a;outline-offset:2px}
 body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .table-empty{padding:26px 12px;text-align:center;color:#62718a}
 @media(max-width:600px){body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .fleet-table-toolbar{padding:10px;gap:8px}body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] :is(.table-pager,.oh-pagination,.ds-pagination,.oh-report-pagination){padding:10px;gap:8px}body:is(.operations-head,.dispatcher-role) .fleet-table-toolbar .table-search{flex-basis:100%;max-width:none}body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table] .rpm-record-size-label{font-size:11px}}
+
+/* KPI ICON CARDS V1 — shared KPI presentation, preserving existing metric data. */
+.metric-strip.metric-strip-icons { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr)); gap:12px; background:transparent; border:0; }
+.metric-strip-icons .metric-icon-card {
+  min-width:0; display:flex; align-items:center; gap:14px; padding:17px 18px;
+  border:1px solid #dfe8e1; border-radius:14px; background:#fff;
+  box-shadow:0 2px 8px rgba(19,69,42,.045);
+}
+.metric-strip-icons .metric-icon { width:54px; height:54px; flex:0 0 54px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; font-size:23px;
+  color:#187343; background:#e7f4eb; }
+.metric-strip-icons .metric-icon-blue { color:#1466ae; background:#e7f2fc; }
+.metric-strip-icons .metric-icon-purple { color:#744caf; background:#f2eafb; }
+.metric-strip-icons .metric-icon-red { color:#c53730; background:#fcecea; }
+.metric-strip-icons .metric-icon-amber { color:#a46b0c; background:#fff2d8; }
+.metric-strip-icons .metric-icon-green { color:#187343; background:#e7f4eb; }
+.metric-strip-icons .metric-content { min-width:0; flex:1; }
+.metric-strip-icons .metric-label { color:#415b4b; font-size:12px; line-height:1.35; font-weight:600; }
+.metric-strip-icons .metric-value { color:#173c27; font-size:clamp(21px,2vw,29px); font-weight:750;
+  line-height:1.2; margin-top:4px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.metric-strip-icons .metric-note { color:#64796b; font-size:11px; line-height:1.4; margin-top:4px; }
+.metric-strip-icons .metric.clickable:hover { background:#f7fcf8; border-color:#a3ceb0; }
+@media(max-width:620px) {
+  .metric-strip.metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .metric-strip-icons .metric-icon-card { padding:12px; gap:9px; }
+  .metric-strip-icons .metric-icon { width:40px; height:40px; flex-basis:40px; font-size:18px; }
+  .metric-strip-icons .metric-value { font-size:20px; }
+}
+@media(max-width:400px) { .metric-strip.metric-strip-icons { grid-template-columns:1fr; } }
+/* KPI ICON CARDS V1 END */
