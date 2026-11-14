@@ -65,7 +65,7 @@ final class Access {
             'crew'        => ['Driver & Helper Masterlist', 'bi-person-badge', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'audit'], $D)],
             'clients'     => ['Client Masterlist', 'bi-building', 'Masterlists', 'Clients', 'operations/clients',
-                              array_merge(['admin', 'operations_head', 'billing', 'finance', 'audit'], $D)],
+                              array_merge(['admin', 'billing', 'finance', 'audit'], $D)],
             // Approved routes per client (Checklist #20). Roles follow Routes::POLICY['view'].
             'fuel-adjustment' => ['Fuel Adjustment','bi-fuel-pump','Pricing','Admin','administration/admin',['admin']],
             'routes'      => ['Client Routes', 'bi-signpost-2', 'Masterlists', 'Routes', 'operations/routes',
