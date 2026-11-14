@@ -60,6 +60,29 @@ final class PricingAuthorizationTest extends TestCase {
         self::assertStringNotContainsString('[14.126449, 121.070384]', $ui);
     }
 
+    public function testGaragePinPickerPopulatesSharedStartingCoordinates():void {
+        $root=dirname(__DIR__,2);
+        $admin=file_get_contents($root.'/public/assets/js/modules/administration/admin.js');
+        $routes=file_get_contents($root.'/public/assets/js/modules/operations/routes.js');
+        $css=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertIsString($admin);
+        self::assertIsString($routes);
+        self::assertIsString($css);
+        self::assertStringContainsString('data-garage-picker', $admin);
+        self::assertStringContainsString("L.map(target,{scrollWheelZoom:true})", $admin);
+        self::assertStringContainsString("map.on('click',event=>place(", $admin);
+        self::assertStringContainsString('draggable:true,autoPan:true', $admin);
+        self::assertStringContainsString("marker.on('dragend',()=>update(marker.getLatLng()))", $admin);
+        self::assertStringContainsString("latInput.value=lat.toFixed(7)", $admin);
+        self::assertStringContainsString("lngInput.value=lng.toFixed(7)", $admin);
+        self::assertStringContainsString("if(typeof L==='undefined'||!UI.Map)", $admin);
+        self::assertStringContainsString('reference:sourceLink,verified:', $admin);
+        self::assertStringContainsString('const garage=validGarage?', $routes);
+        self::assertStringContainsString("footNote: UI.Map.serviceReady()", $routes);
+        self::assertStringContainsString('.head-garage-picker-map', $css);
+        self::assertStringNotContainsString('[14.126449, 121.070384]', $admin);
+    }
+
     public function testExistingClientRouteMapUsesOnlyCurrentVerifiedGarageGeometry():void {
         $root=dirname(__DIR__,2);
         $routes=file_get_contents($root.'/backend/Modules/Operations/Routes.php');
