@@ -151,25 +151,28 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
     const hasFilters=filters.length>0;
     const hasRecords=rows.length>0;
+    const showTools=hasRecords||alwaysShowTools;
     const sortFields=sortOptions?.length?sortOptions:[
       {key:columns[0]?.[1],label:columns[0]?.[0]||'Record'}];
     const choices=options=>options.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
-    const toolbar=(hasRecords&&hasFilters?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>':'')
-      +(hasRecords?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>':'')
-      +'<div class="record-workspace-popovers">'+(hasRecords&&hasFilters?'<div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
+    const toolbar=(showTools&&hasFilters?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>':'')
+      +(showTools?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>':'')
+      +'<div class="record-workspace-popovers">'+(showTools&&hasFilters?'<div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
+      +(alwaysShowTools&&!hasRecords?'<p class="record-workspace-empty-help">No records in this category yet. Filters will apply when records become available.</p>':'')
       +filters.map((field,index)=>'<label>'+UI.esc(field.label)
         +(field.type==='date'
           ? '<input type="date" class="form-control form-control-sm" data-head-record-filter="'+index+'">'
           : '<select class="form-select form-select-sm" data-head-record-filter="'+index+'"><option value="">All</option>'+choices(field.options)+'</select>')
         +'</label>').join('')
       +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>':'')
-      +(hasRecords?'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
+      +(showTools?'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
       +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="default" checked> Original order</label>'
+      +(alwaysShowTools&&!hasRecords?'<p class="record-workspace-empty-help">Choose a sort order for records when available.</p>':'')
       +sortFields.filter(item=>item.key).flatMap(item=>[
         {value:item.key+':asc',label:item.label+' (A–Z)'},
         {value:item.key+':desc',label:item.label+' (Z–A)'}
@@ -332,7 +335,7 @@ App.page('head-approvals',{
       })[group.key]||[];
       const filters=filterDefs.map(([label,key])=>({
         label,key,options:[...new Set(group.rows.map(row=>row[key]).filter(Boolean))].sort()
-      })).filter(field=>field.options.length>0);
+      }));
       const sortOptions=group.cols.filter(col=>col[1]&&col[1]!=='status')
         .slice(0,3).map(col=>({key:col[1],label:col[0]}));
       HeadRecords.render(root,{
@@ -340,7 +343,7 @@ App.page('head-approvals',{
         categories:sections.map(item=>({value:item.key,label:item.label+' ('+item.rows.length+')'})),
         selected:group.key,
         columns:group.cols,rows:group.rows,empty:group.empty,
-        filters,sortOptions,
+        filters,sortOptions,alwaysShowTools:true,
         changeCategory:select
       });
     };
