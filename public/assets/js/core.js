@@ -1147,12 +1147,14 @@ UI.confirm = (title, text, onYes, opts = {}) => UI.modal(UI.esc(title), `<p clas
  * Tabs: tabs = [[key, label(html), htmlFn]]. Remembers the last tab of each page.
  * opts.key = separate memory when a page has more than one tab group; opts.pills = small pills.
  */
+/** Hide display-only record counts in navigation labels; preserve counts in KPIs and tables. */
+UI.tabLabel = label => String(label ?? '').replace(/\s*\(\d[\d,]*\)\s*$/, '').trim();
 UI.tabs = (root, tabs, active, opts = {}) => {
   if (!tabs.length) return;
   const id = 'tabs' + Math.random().toString(36).slice(2, 6);
   const mem = 'tab:' + (App.current?.page || 'record') + (opts.key ? ':' + opts.key : '');
   active = active || tabs[0][0];
-  root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
+  root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${UI.tabLabel(l)}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
   const body = document.getElementById(id + 'body');
   const retained = new Map();
   const buttons = [...document.querySelectorAll(`#${id} > [data-tab]`)];
