@@ -147,6 +147,73 @@ const HeadOversight = {
     return '<p class="small text-muted mb-3">Company-wide monitoring only. Changes to Trucks, Drivers, Helpers and Mechanics are handled by their assigned departments.</p>';
   }
 };
+/* Shared Client Management record-table composition for Head oversight pages.
+ * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
+const HeadRecords = {
+  render(root, config) {
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[]} = config;
+    const prefix='head-record-'+(++HeadOversight.panelId);
+    const filterId=prefix+'-filter',sortId=prefix+'-sort';
+    const choices=options=>options.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
+    const toolbar='<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
+      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+      +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
+      +filters.map((field,index)=>'<label>'+UI.esc(field.label)+'<select class="form-select form-select-sm" data-head-record-filter="'+index+'">'
+        +'<option value="">All</option>'+choices(field.options)+'</select></label>').join('')
+      +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+      +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="default" checked> Default order</label>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="asc"> First column A–Z</label>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="desc"> First column Z–A</label></div></div>'
+      +(exportRows?'<button type="button" class="btn btn-sm btn-outline-success record-workspace-add" data-head-record-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>':'');
+    // Search remains in the shared UI.table, with extra text fields included
+    // in the native search via non-rendered searchable columns.
+    const table=UI.table(columns,rows,{
+      tools:toolbar,showAllColumns:true,viewSwitch:false,empty,
+      ...(onAction?{actions:()=>UI.btn('view','View','outline-primary'),onAction,rowClick}:{})
+    });
+    root.innerHTML=RecordComponents.panel(table,RecordComponents.categories(categories,selected,'data-head-record-category'));
+    UI.activate(root);
+    RecordComponents.mountPanel(root,{title,addSelector:'.record-workspace-add'});
+    const tableBody=root.querySelector('[data-tbody]'),id=tableBody?.dataset.tbody;
+    if (!id) return;
+    const tableState=UI._tables[id],original=rows.slice();
+    const search=root.querySelector('[data-tsearch]');
+    const filterInputs=[...root.querySelectorAll('[data-head-record-filter]')];
+    let sort='default',filtered=rows.slice();
+    // Shared search can include extra underlying row properties without exposing columns.
+    const matched=row=>{
+      const q=search?.value.trim().toLocaleLowerCase()||'';
+      return !q||[...columns.map(col=>col[1]),...searchFields].some(key=>String(row[key]??'').toLocaleLowerCase().includes(q));
+    };
+    const redraw=()=>{
+      filtered=original.filter(row=>filters.every((filter,index)=>
+        !filterInputs[index]?.value||String(row[filter.key]??'')===filterInputs[index].value)).filter(matched);
+      if(sort!=='default'){
+        const key=columns[0][1];
+        filtered.sort((a,b)=>(sort==='asc'?1:-1)*String(a[key]??'').localeCompare(String(b[key]??''),undefined,{numeric:true}));
+      }
+      tableState.rows=filtered;
+      tableState.filter='';
+      tableState.page=0;
+      UI.drawTable(id);
+      HeadOversight.finishTable(root);
+    };
+    // UI.activate bound its search listener already; register after it so the
+    // scoped filter redraw wins, and it does not mutate other tables.
+    search?.addEventListener('input',redraw);
+    RecordComponents.bindDropdowns(root,{
+      apply(){redraw();root.querySelector('.record-workspace-filter-trigger')?.click();},
+      reset(){filterInputs.forEach(input=>input.value='');redraw();root.querySelector('.record-workspace-filter-trigger')?.click();},
+      sort(value){sort=value;redraw();}
+    },{filter:filterId,sort:sortId});
+    root.querySelector('[data-head-record-export]')?.addEventListener('click',()=>exportRows(filtered));
+    root.querySelectorAll('[data-head-record-category]').forEach(button=>
+      button.addEventListener('click',()=>config.changeCategory?.(button.dataset.headRecordCategory)));
+    HeadOversight.finishTable(root);
+  }
+};
+
 /* One category workspace instead of three stacked Head Management tables. */
 const HeadFleetWorkspace = {
   categories: [
@@ -178,34 +245,26 @@ const HeadFleetWorkspace = {
   },
   render(ctx) {
     const data=ctx.data||{};
-    const tabs=this.categories.map(category=>({
-      ...category, records:Array.isArray(data[category.key])?data[category.key]:[]
-    }));
+    const tabs=this.categories.map(category=>({...category,records:Array.isArray(data[category.key])?data[category.key]:[]}));
     ctx.el.innerHTML='<div class="head-fleet-workspace">'
       +'<p class="small text-muted">Company-wide monitoring only. Operational changes belong to their assigned departments.</p>'
       +this.metrics(data.fleet_summary)
-      +'<section class="head-fleet-records"><div class="head-fleet-records-heading">'
-      +'<h2>Fleet & Personnel Records</h2><p>Select a category to review its records.</p></div>'
-      +'<nav class="head-fleet-tabs" role="tablist" aria-label="Fleet and personnel categories">'
-      +tabs.map(tab=>'<button type="button" role="tab" class="head-fleet-tab" data-head-fleet-tab="'+tab.id+'" aria-selected="false">'
-        +UI.esc(tab.label)+'</button>').join('')
-      +'</nav><div data-head-fleet-table role="tabpanel"></div></section></div>';
+      +'<div data-head-fleet-table></div></div>';
     const container=ctx.el.querySelector('[data-head-fleet-table]');
     const select=id=>{
-      const category=tabs.find(tab=>tab.id===id) || tabs[0];
-      ctx.el.querySelectorAll('[data-head-fleet-tab]').forEach(button=>{
-        const active=button.dataset.headFleetTab===category.id;
-        button.classList.toggle('active',active);
-        button.setAttribute('aria-selected',String(active));
-        button.tabIndex=active?0:-1;
+      const category=tabs.find(tab=>tab.id===id)||tabs[0];
+      const records=category.records;
+      const field=['status','availability','person_type'].find(key=>category.cols.some(col=>col[1]===key));
+      HeadRecords.render(container,{
+        title:'Fleet & Personnel Records',
+        categories:tabs.map(tab=>({value:tab.id,label:tab.label})),
+        selected:category.id,
+        columns:category.cols,rows:records,empty:category.empty,
+        filters:field?[{label:field.replace(/_/g,' '),key:field,
+          options:[...new Set(records.map(row=>row[field]).filter(Boolean))].sort()}]:[],
+        changeCategory:select
       });
-      container.setAttribute('aria-label',category.label);
-      container.innerHTML=HeadOversight.panel(category.label,category.cols,category.records,category.empty);
-      HeadOversight.mount(container,[[category.cols,category.records,category.empty]]);
-      UI.activate(container);
     };
-    ctx.el.querySelectorAll('[data-head-fleet-tab]').forEach(button=>
-      button.addEventListener('click',()=>select(button.dataset.headFleetTab)));
     ctx.el.querySelectorAll('[data-head-fleet-kpi]').forEach(button=>
       button.addEventListener('click',()=>select(button.dataset.headFleetKpi)));
     select('trucks');
