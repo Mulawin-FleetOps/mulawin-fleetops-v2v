@@ -9,20 +9,17 @@
  *  A -> B and B -> A are separate routes). The same origin and destination can
  *  have different rates for different truck types.
  *
- *  PROVISIONAL WORKFLOW (see POLICY below, pending company confirmation):
+ *  CONFIRMED WORKFLOW:
  *    1. Operations Head requests a route              -> "Pending Rate"
- *    2. Head Management enters the fixed rate           -> "Pending Approval"
- *    3. Admin approves                                  -> "Approved"
- *       (the client must STILL be eligible at approval time; rejecting is always allowed)
- *       or rejects (terminal for a new request)         -> "Rejected"
+ *    2. Head Management saves the fixed rate           -> "Approved"
+ *       (client eligibility is checked before activation in the same transaction).
+ *    Legacy Pending Approval records remain supported for one-time resolution.
  *    Ops Head may withdraw a request that is not approved yet -> "Withdrawn"
  *    Admin may deactivate an approved route             -> "Inactive"
  *
  *  RATE REVISION of an Approved route:
- *    Head Management enters a new rate (new version row, "Pending Approval"); the route
- *    stays Approved with its old rate. Admin approves -> the old rate becomes
- *    "Superseded" and the new one "Approved", in ONE transaction. Admin rejects
- *    -> only the revision is "Rejected"; the route and the old rate do not change.
+ *    Head Management saves a new approved version in ONE transaction; the previous
+ *    approved rate becomes "Superseded". Historical rate versions are retained.
  *
  *  HISTORY: an approved rate row is never edited or deleted. Every step is saved
  *  in client_route_events and in the activity log (audit_events).
@@ -42,14 +39,14 @@ core('RouteDistance');
 
 final class Routes {
     /**
-     * PROVISIONAL BUSINESS POLICY — the only place to change when the company confirms.
+     * Business policy: Head Management sets and activates contractual rates directly.
      * Changing these lists needs no database change.
      */
     public const POLICY = [
         'request'         => ['operations_head'],          // asks for a new route
         'withdraw'        => ['operations_head'],          // withdraws own request before approval
         'rate'            => ['admin'],                  // enters / revises the contractual rate
-        'approve'         => ['admin'],                    // approves or rejects the rate
+        'approve'         => ['admin'],                    // resolves existing legacy pending rates only
         'deactivate'      => ['admin'],                    // takes an approved route out of use
         'view'            => ['admin', 'operations_head', 'billing', 'finance', 'audit'],
         'client_statuses' => ['Active', 'Pending Rate'],   // clients that can get route requests
@@ -377,20 +374,29 @@ final class Routes {
             $r = self::lockRoute($p, $id);
             must(in_array($r['status'], ['Pending Rate', 'Approved'], true),
                 'A rate can be entered only for a route that is Pending Rate (new) or Approved (revision). This one is ' . $r['status'] . '.', 409);
-            must($c['status'] !== 'Inactive', $c['company_name'] . ' is Inactive.', 409);
+            // Head Management is the final authority: saving the fixed rate approves it
+            // immediately. Preserve client eligibility and the client -> route -> rates
+            // lock order so an ineligible client cannot receive an active rate.
+            must(self::clientEligible($c),
+                'Cannot activate a rate: ' . $c['company_name'] . ' is ' . $c['status'] .
+                '. Eligible client statuses: ' . implode(' or ', self::POLICY['client_statuses']) . '.', 409);
             $rates = self::lockRates($p, $id);
             $current = null;
             foreach ($rates as $rt) {
-                must($rt['status'] !== 'Pending Approval', 'This route already has a rate waiting for approval (version ' . $rt['version_no'] . ').', 409);
+                must($rt['status'] !== 'Pending Approval',
+                    'A legacy rate is still pending for this route (version ' . $rt['version_no'] . '). Activate or reject it before revising.', 409);
                 if ($rt['status'] === 'Approved') $current = $rt;
             }
             $revision = $r['status'] === 'Approved';
             if ($revision) {
-                must((bool)$current, 'This approved route has no current rate. Ask the Admin to check the route history.', 409);
+                must((bool)$current, 'This approved route has no current rate. Check the route history.', 409);
                 must(!($current['rate_type'] === $type && (float)$current['rate_amount'] === (float)$amount && (float)$current['minimum_charge'] === (float)$min),
                     'The new rate is the same as the current approved rate.', 409);
             }
             $version = $rates ? max(array_map(fn($x) => (int)$x['version_no'], $rates)) + 1 : 1;
+            // Retain the database's rate-status constraints and unique pending guard.
+            // The transient Pending Approval row is never committed: it is activated
+            // within this same transaction before the route is made selectable.
             try {
                 $rateId = insert($p, 'client_route_rates', ['route_id' => $id, 'version_no' => $version, 'rate_type' => $type, 'rate_amount' => $amount,
                     'minimum_charge' => $min, 'status' => 'Pending Approval', 'entered_by' => $u['id'], 'entry_notes' => $notes]);
@@ -399,22 +405,31 @@ final class Routes {
                     throw new BusinessRuleException('Another rate was just entered for this route. Reload the page.', 409);
                 throw $e;
             }
-            $txt = self::rateText($type, $amount, $min);
-            if ($revision) {
-                self::event($p, $u['id'], $id, $rateId, 'rate revision entered', 'Approved', 'Approved', "Version $version: $txt (current: " . self::rateText($current['rate_type'], $current['rate_amount'], $current['minimum_charge']) . ')' . ($notes ? ". $notes" : ''),
-                    ['Current approved rate (PHP)' => $current['rate_amount'], 'Current rate type' => $current['rate_type'], 'Proposed rate status' => 'Not submitted'],
-                    ['Current approved rate (PHP)' => $current['rate_amount'], 'Current rate type' => $current['rate_type'], 'Proposed rate status' => 'Pending Approval',
-                     'Proposed rate (PHP)' => $amount, 'Proposed rate type' => $type, 'Proposed version' => $version]);
-            } else {
-                run($p, "UPDATE client_routes SET status='Pending Approval' WHERE id=?", [$id]);
-                self::event($p, $u['id'], $id, $rateId, 'rate entered', 'Pending Rate', 'Pending Approval', "Version $version: $txt" . ($notes ? ". $notes" : ''),
-                    [], ['Proposed rate (PHP)' => $amount, 'Rate type' => $type, 'Rate version' => $version, 'Rate status' => 'Pending Approval']);
+            if ($current) {
+                run($p, "UPDATE client_route_rates SET status='Superseded', effective_to=NOW() WHERE id=? AND status='Approved'", [$current['id']]);
+            }
+            $activated = run($p, "UPDATE client_route_rates SET status='Approved', decided_by=?, decided_at=NOW(), effective_from=NOW(), decision_notes=? WHERE id=? AND status='Pending Approval'",
+                [$u['id'], $notes, $rateId]);
+            must($activated === 1, 'The rate could not be activated. Nothing was changed.', 409);
+            if (!$revision) {
+                run($p, "UPDATE client_routes SET status='Approved' WHERE id=? AND status='Pending Rate'", [$id]);
                 Notify::resolve($p, 'route-rate-' . $id);
             }
-            Notify::roles($p, self::POLICY['approve'], $revision ? 'Route rate revision' : 'Route approval',
-                self::routeName($r) . ' of ' . $c['company_name'] . ': ' . $txt . ' is waiting for approval.', 'routes', 'route-approve-' . $rateId);
-            return ['rate_id' => $rateId, 'message' => ($revision ? 'Rate revision' : 'Rate') . " saved as version $version and sent to the Admin for approval."
-                . ($revision ? ' The current approved rate stays in use until the revision is approved.' : '')];
+            $txt = self::rateText($type, $amount, $min);
+            self::event($p, $u['id'], $id, $rateId,
+                $revision ? 'rate revised and activated' : 'route rate set and activated',
+                $r['status'], 'Approved',
+                "Version $version: $txt" .
+                ($current ? ' (supersedes version ' . $current['version_no'] . ': ' . self::rateText($current['rate_type'], $current['rate_amount'], $current['minimum_charge']) . ')' : '') .
+                ($notes ? ". $notes" : ''),
+                ['Approved rate (PHP)' => $current['rate_amount'] ?? null, 'Approved rate version' => $current['version_no'] ?? null],
+                ['Approved rate (PHP)' => $amount, 'Approved rate version' => $version, 'Rate status' => 'Approved']);
+            Notify::user($p, (int)$r['requested_by'], 'Route ready',
+                self::routeName($r) . ' of ' . $c['company_name'] . ' now has an approved fixed rate of ' . $txt .
+                '. The route is available for planning when the client is Active.', 'routes');
+            return ['rate_id' => $rateId, 'message' => ($revision ? 'Rate revision saved and activated. ' : 'Rate saved and route approved. ') .
+                $r['route_ref'] . ' now uses ' . $txt . '.'];
+
         });
     }
 
