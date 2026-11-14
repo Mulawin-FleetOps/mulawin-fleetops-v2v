@@ -256,6 +256,19 @@ UI.routeMap = (box, t, opts = null) => {
   } else {
     L.polyline([o.a, o.b], { color: '#1f2328', weight: 2, dashArray: '6 6' }).addTo(map);
   }
+  // Optional verified company garage-to-pickup leg. Never draw a fake
+  // connection when road geometry is unavailable.
+  if(o.garagePreview?.garage && Array.isArray(o.garagePreview.garage)
+      && o.garagePreview.garage.every(Number.isFinite)){
+    const gp=o.garagePreview,pts=gp.geometry?UI.Map.decode(gp.geometry):[];
+    L.marker(gp.garage,{icon:UI.Map.icon('garage')}).addTo(map)
+      .bindTooltip('Verified company garage');
+    bounds=bounds.extend(L.latLng(gp.garage));
+    if(pts.length>1){
+      const leg=L.polyline(pts,{color:'#187d85',weight:5,opacity:.92}).addTo(map);
+      bounds=bounds.extend(leg.getBounds());
+    }
+  }
   map.fitBounds(bounds.pad(0.2)); setTimeout(() => map.invalidateSize(), 300);
 };
 
