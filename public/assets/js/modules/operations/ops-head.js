@@ -152,7 +152,15 @@ const OpsHead = {
       + RecordComponents.panel(table) + '</div>';
     UI.activate(ctx.el);
     RecordComponents.mountPanel(ctx.el,{title:history?'Trip History Records':'Active Trip Records',addSelector:'.record-workspace-add'});
-    ctx.el.querySelector('.record-workspace-category-row')?.remove();
+    // Keep the trip views inside the record card, matching Route & Contract
+    // Records. Reparent the existing tab buttons so their handlers and state
+    // remain unchanged, and reuse the shared category-row presentation.
+    const tripCategoryRow = ctx.el.querySelector('.record-workspace-category-row');
+    const tripViews = ctx.el.querySelector('.record-workspace-tabs');
+    if (tripCategoryRow && tripViews) {
+      tripCategoryRow.append(tripViews);
+      tripCategoryRow.classList.add('fleet-trips-view-row');
+    } else tripCategoryRow?.remove();
     ctx.el.querySelector('.record-workspace-add')?.addEventListener('click',()=>this.openTripPlanner(ctx));
     ctx.el.querySelectorAll('[data-trip-view]').forEach(button=>button.addEventListener('click',()=>{
       App.go('trips',{tab:button.dataset.tripView});
