@@ -253,11 +253,11 @@ $d = Funds::read($fin, 'funds', []);
 ok($d['methods'] === ['Cash'], 'Trip Funds page offers Cash only');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/accounting/funds.js');
 ok(str_contains($js, 'CHECKLIST_36_CASH_ONLY_TRIP_FUND_RELEASE_V1') && !str_contains($js, 'UI.payFields'), 'release form has no payment method / date fields');
-ok(str_contains($js, '`To Release (') && !preg_match('/`Ready for release \(/', $js), 'tab renamed: "To Release" (approved requests waiting for Finance)');
-ok(str_contains($js, '`For liquidation (') && str_contains($js, "UI.btn('liquidate', 'Liquidate'"), 'liquidation keeps its own tab and Liquidate action');
-ok(!preg_match('/All requests\s*\(/i', $js) && !preg_match('/To Liquidate/i', $js), 'no "All requests" tab and no "To Liquidate" label');
-preg_match_all("/\\['(pending|release|liquidate|revision|history)',/", $js, $m);
-ok($m[1] === ['pending', 'release', 'liquidate', 'revision', 'history'], 'tab order: Pending approval, To Release, For liquidation, Needs revision, History', json_encode($m[1]));
+ok(str_contains($js, "label:'To Release'") && !str_contains($js, "label:'Ready for release'"), 'To Release tab exists for approved requests');
+ok(str_contains($js, "label:'For Liquidation'") && str_contains($js, "UI.btn('liquidate', 'Liquidate'"), 'For Liquidation tab keeps its action');
+ok(!preg_match('/All requests\\s*\\(/i', $js) && !preg_match('/To Liquidate/i', $js), 'no retired fund tab labels');
+preg_match_all("/\\{value:'(pending|release|liquidate|revision|history)',label:/", $js, $m);
+ok($m[1] === ['pending', 'release', 'liquidate', 'revision', 'history'], 'fund tabs retain Pending Approval, To Release, For Liquidation, Needs Revision, History order', json_encode($m[1]));
 
 // ---------------------------------------------------------------------
 section('K. Regression: liquidation, dispatch after release');
