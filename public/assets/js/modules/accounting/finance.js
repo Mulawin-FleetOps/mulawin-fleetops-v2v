@@ -42,10 +42,9 @@ App.page('finance', {
       document.querySelector('#pageContent .page-title')?.replaceChildren(document.createTextNode('Financial Overview'));
       document.querySelector('#pageContent .page-subtitle')?.replaceChildren(document.createTextNode('Company-wide payables, expenses, payments and cash-flow monitoring.'));
       box.className = 'head-financial-records';
-      box.innerHTML = '<div class="head-financial-heading"><h2>Financial Records</h2><p>Review payables, expenses, disbursements and cash flow. Transactions stay with Finance.</p></div>';
     }
     ctx.el.append(box);
-    UI.tabs(box, [
+    const financialTabs = [
       ['po', `PO payables (${d.poPayables.length})`, () => UI.table([['PO', 'po_ref'], ['Supplier', 'supplier'], ['Approved by', 'approved_by_name'], ['Status', 'status', 'badge'], ['Total', 'total_amount', 'money'],
         ['Received value', 'received_value', 'money'], ['Paid', 'paid_amount', 'money'], ['Payment', 'payment_status', 'badge']], d.poPayables,
         { title: 'Approved purchase orders (Pending Payment)', actions: (o) => UI.btn('details', 'View Details') + UI.btn('po', 'Print PO', 'outline-secondary') + (act && +o.received_value > +o.paid_amount ? UI.btn('pay', 'Pay', 'primary') : ''),
@@ -89,6 +88,9 @@ App.page('finance', {
       ['cash', 'Cash flow', () => UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections) vs cash out (disbursements), last 12 months', labels: d.cashflow.map(x => x.m),
         datasets: [{ label: 'Cash in (collections)', data: d.cashflow.map(x => +x.cash_in) }, { label: 'Cash out (disbursements)', data: d.cashflow.map(x => +x.cash_out) }] }],
         tables: [{ title: 'Monthly cash flow', columns: [['Month', 'm'], ['Cash in', 'cash_in', 'money'], ['Cash out', 'cash_out', 'money'], ['Net', 'net', 'money']], rows: d.cashflow.map(x => ({ ...x, net: +x.cash_in - +x.cash_out })) }] })],
-    ], ctx.query.from ? 'expenses' : ctx.query.tab || null, {forceActive:!!ctx.query.tab||!!ctx.query.from});
+    ];
+    const chosen = ctx.query.from ? 'expenses' : ctx.query.tab || 'po';
+    if (head) RecordComponents.executiveTabs(box,financialTabs,chosen,'Financial Records');
+    else UI.tabs(box,financialTabs,ctx.query.from ? 'expenses' : ctx.query.tab || null,{forceActive:!!ctx.query.tab||!!ctx.query.from});
   },
 });
