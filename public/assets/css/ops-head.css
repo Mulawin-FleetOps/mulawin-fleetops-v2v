@@ -465,3 +465,36 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
     font-size: 12px;
   }
 }
+
+
+/* Operations Head client routes: spacious journey table. */
+.oh-client-routes-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.oh-client-routes-workspace .record-workspace-panel .data-table{width:100%;min-width:1130px;table-layout:fixed}
+.oh-client-routes-workspace .record-workspace-panel .data-table th,
+.oh-client-routes-workspace .record-workspace-panel .data-table td{padding:15px 14px;vertical-align:middle;line-height:1.5}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(1){width:13%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(2){width:37%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(3){width:11%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(4){width:9%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(5){width:11%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(6){width:11%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(7){width:8%}
+.oh-client-routes-workspace .record-workspace-panel .data-table tbody tr:hover td{background:#f7fbf8}
+.oh-client-routes-workspace .oh-route-client{display:block;font-weight:750;color:#26543a;font-size:12.5px;overflow-wrap:anywhere}
+.oh-client-routes-workspace .oh-route-journey{display:flex;flex-direction:column;gap:4px;max-width:100%;min-width:0}
+.oh-client-routes-workspace .oh-route-place{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.55;color:#375943;overflow-wrap:anywhere;min-width:0}
+.oh-client-routes-workspace .oh-route-place>span:last-child{min-width:0;overflow-wrap:anywhere}
+.oh-client-routes-workspace .oh-route-point{width:9px;height:9px;flex:0 0 9px;margin-top:5px;border:2px solid #2c8752;border-radius:50%;background:#fff}
+.oh-client-routes-workspace .oh-route-point.destination{background:#2c8752}
+.oh-client-routes-workspace .oh-route-connector{height:8px;border-left:1px dashed #a7d0b2;margin-left:4px}
+.oh-client-routes-workspace .oh-route-truck{display:inline-block;font-weight:600;color:#446450}
+.oh-client-routes-workspace .oh-route-distance{font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.oh-client-routes-workspace .oh-route-rate{font-weight:750;color:#17673e;font-variant-numeric:tabular-nums;white-space:nowrap}
+.oh-client-routes-workspace .oh-route-status{white-space:nowrap}
+.oh-client-routes-workspace .record-workspace-panel .row-actions{display:flex;justify-content:flex-end}
+.oh-client-routes-workspace .record-workspace-panel .row-actions .btn{white-space:nowrap}
+@media(max-width:850px){
+  .oh-client-routes-workspace .record-workspace-panel .data-table{min-width:1100px}
+  .oh-client-routes-workspace .record-workspace-panel .data-table th,
+  .oh-client-routes-workspace .record-workspace-panel .data-table td{padding:12px 11px}
+}
