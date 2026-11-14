@@ -21,8 +21,8 @@ core('DispatcherAttendance');
 core('FixedAssignments');
 
 final class Fleet {
-    private const EDIT = ['admin', 'operations_head'];
-    private const STATUS = ['admin', 'operations_head', 'motorpool'];
+    private const EDIT = ['operations_head'];
+    private const STATUS = ['operations_head', 'motorpool'];
 
     // =================================================================
     // READ
