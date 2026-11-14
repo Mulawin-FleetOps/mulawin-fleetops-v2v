@@ -341,7 +341,7 @@ const RouteUI = {
     UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), summary, async (f) => {
       const result = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' });
       UI.result(result); UI.closeDrawer(); App.route();
-    }, { submit: 'Send for approval', size: 'lg', onShow:(wrap,form)=>{
+    }, { submit: 'Send for approval', size: 'modal-lg', onShow:(wrap,form)=>{
       wrap.classList.add('fleet-rate-modal');
       const input=form.querySelector('[name=rate_amount]');
       let sequence=0;
