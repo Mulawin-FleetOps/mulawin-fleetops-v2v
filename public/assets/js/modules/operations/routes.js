@@ -370,6 +370,13 @@ const RouteUI = {
       try {
         const estimate=await App.api('Routes.pricing_estimate',{route_id:x.id});
         if(estimate.garage_preview?.garage)opts.garagePreview=estimate.garage_preview;
+        else if(mbox.isConnected){
+          const absent=(estimate.missing||[]).includes('garage');
+          mbox.insertAdjacentHTML('afterend','<div class="small text-muted mb-3" role="status">'
+            +(absent?'Garage-to-pickup map unavailable: verify the company garage in Head Management → Fuel &amp; Operating Costs → Company Garage.'
+              :'Garage-to-pickup road geometry is not available. The saved pickup-to-delivery map is unchanged.')
+            +'</div>');
+        }
       }catch{ /* The original saved road geometry remains visible. */ }
       if(mbox.isConnected)UI.routeMap(mbox,null,opts);
     },350);
