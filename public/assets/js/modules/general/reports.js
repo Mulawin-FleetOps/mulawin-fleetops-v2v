@@ -114,14 +114,28 @@ App.page('reports', {
             +'<strong>'+UI.esc(item.title)+'</strong><p>'+UI.esc(item.text)+'</p></div>').join('')+'</div>'
             :'<p class="head-report-insight-empty">No reliable observations are available for this period. Try a wider date range.</p>')
           +'<p class="head-report-method">Diagnostic signals identify records to examine. They do not prove causes or predict future outcomes.</p></section>';
-        const remainingHtml=remaining.length?'<section class="head-report-secondary"><h3>Additional Indicators</h3>'
+        const chartHasValues=chart=>(chart.datasets||[]).some(dataset=>
+          (dataset.data||[]).some(value=>Number(value)>0));
+        const usefulCharts=(section.charts||[]).filter(chart=>Array.isArray(chart.labels)
+          && chart.labels.length>0 && chartHasValues(chart));
+        const usefulTables=(section.tables||[]).filter(table=>(table.rows||[]).length>0);
+        const hasReportData=usefulCharts.length>0||usefulTables.length>0;
+        const remainingHtml=remaining.length?'<section class="head-report-secondary"><div class="head-report-subheading">'
+          +'<i class="bi bi-clipboard-data" aria-hidden="true"></i><h3>Additional Indicators</h3></div>'
           +'<div class="head-report-secondary-grid">'+remaining.map(card=>
             '<div class="head-report-secondary-item"><span>'+UI.esc(card.label)+'</span><strong>'+formatCard(card)+'</strong>'
             +(card.hint?'<small>'+UI.esc(card.hint)+'</small>':'')+'</div>').join('')+'</div></section>':'';
+        const noDataHtml='<div class="head-report-no-data" role="status">'
+          +'<span class="head-report-no-data-icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></span>'
+          +'<div><h3>No report records for this period</h3>'
+          +'<p>There are no recorded chart or table results for this report category and selected filters. Choose a wider period or adjust the filters to explore available records.</p></div></div>';
         const detail=ctx.el.querySelector('[data-head-report-detail-content]');
-        detail.innerHTML=remainingHtml+insightHtml
-          +(section.note?'<p class="head-report-note"><i class="bi bi-info-circle" aria-hidden="true"></i> '+UI.esc(section.note)+'</p>':'')
-          +'<div class="head-report-blocks">'+UI.blocks({...section,cards:[]},{maxCharts:3,key:'rep-'+key})+'</div>';
+        detail.innerHTML=remainingHtml
+          +(hasReportData?insightHtml:'')
+          +(hasReportData&&section.note?'<p class="head-report-note"><i class="bi bi-info-circle" aria-hidden="true"></i> '+UI.esc(section.note)+'</p>':'')
+          +(hasReportData?'<div class="head-report-blocks">'
+            +UI.blocks({...section,cards:[],charts:usefulCharts,tables:usefulTables},{maxCharts:3,key:'rep-'+key})+'</div>'
+            :noDataHtml);
         UI.activate(detail);
       };
       ctx.el.querySelectorAll('[data-head-report-tab]').forEach(button=>button.onclick=()=>draw(button.dataset.headReportTab));
