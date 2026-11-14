@@ -15,7 +15,7 @@ const RecordComponents = Object.freeze({
         const selected = String(item.value) === String(active);
         return '<button type="button" class="record-workspace-tab' + (selected ? ' active' : '')
           + '" ' + attribute + '="' + UI.esc(item.value) + '" aria-pressed="' + selected + '">'
-          + UI.esc(item.label) + '</button>';
+          + UI.esc(UI.tabLabel(item.label)) + '</button>';
       }).join('')
       + '</nav>';
   },
@@ -28,7 +28,7 @@ const RecordComponents = Object.freeze({
       return '<button type="button" class="btn btn-sm '
         + (selected ? 'btn-primary' : 'btn-outline-secondary')
         + '" ' + attribute + '="' + UI.esc(item.value) + '" aria-pressed="' + selected + '">'
-        + UI.esc(item.label) + '</button>';
+        + UI.esc(UI.tabLabel(item.label)) + '</button>';
     };
     const primary=items.length>3?items.slice(0,3):items;
     const extra=items.length>3?items.slice(3):[];
@@ -39,7 +39,7 @@ const RecordComponents = Object.freeze({
         ? '<details class="record-category-more"><summary class="btn btn-sm '
           +(activeExtra?'btn-primary':'btn-outline-secondary')
           +'" aria-label="More record categories"><i class="bi bi-three-dots" aria-hidden="true"></i> '
-          +(activeExtra?UI.esc(activeExtra.label):'More')
+          +(activeExtra?UI.esc(UI.tabLabel(activeExtra.label)):'More')
           +'<i class="bi bi-chevron-down" aria-hidden="true"></i></summary>'
           +'<div class="record-category-more-options">'+extra.map(renderButton).join('')+'</div></details>'
         :'')
