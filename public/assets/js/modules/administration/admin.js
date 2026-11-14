@@ -342,6 +342,52 @@ App.page('head-settings', {
 
 // Fuel controls reuse Settings, standard cards/tables and the existing modal system.
 const FuelAdjustmentUI={
+ garageEdit(ctx){
+  let existing=null;
+  try {if(ctx.data.current?.garage?.value_json) existing=JSON.parse(ctx.data.current.garage.value_json);}catch{}
+  const fields=[
+   {name:'lat',label:'Verified garage entrance latitude',type:'number',required:true,step:'any',min:4,max:21.5,value:existing?.lat??'',help:'Enter the actual yard entrance latitude, not an approximate map center.'},
+   {name:'lng',label:'Verified garage entrance longitude',type:'number',required:true,step:'any',min:116,max:127.5,value:existing?.lng??'',help:'Enter the actual yard entrance longitude.'},
+   {name:'effective_date',label:'Effective Date',type:'date',required:true,value:UI.today()},
+   {name:'historical_verified',label:'Historical source verified',type:'select',options:[['','Not confirmed'],['1','Verified against source']]},
+   {name:'reference',label:'Verification source / Reason',type:'textarea',required:true,attrs:'maxlength="300"'},
+   {name:'verified',label:'Garage entrance coordinates personally verified',type:'select',required:true,options:[['','Not confirmed'],['1','Confirmed']]}
+  ];
+  let reviewed=null;
+  UI.modal('Verify Company Garage','<p class="small text-muted">One garage is used throughout FleetOps. Save only the real, verified entrance coordinates. These values are shared with the route-request map and the fuel estimator.</p>'
+    +'<div data-garage-fields>'+UI.fields(fields.map(field=>({...field,col:12})))+'</div><div data-garage-review hidden></div>',async(data,form)=>{
+    const payload={setting_key:'garage',lat:data.lat,lng:data.lng,effective_date:data.effective_date,
+      historical_verified:data.historical_verified,reference:data.reference,verified:data.verified};
+    if(!reviewed||JSON.stringify(payload)!==JSON.stringify(reviewed))throw Error('Review the verified garage update before confirming.');
+    const result=await App.api('Admin.pricing_save',reviewed);UI.result(result);await ctx.reload();
+  },{submit:'Save Verified Garage',confirmBeforeSubmit:false,
+    extraFooter:'<button type="button" class="btn btn-outline-secondary btn-sm" data-garage-back hidden>Back</button>'
+      +'<button type="button" class="btn btn-primary btn-sm" data-garage-review-button>Review Coordinates</button>',
+    onShow:(wrap,form)=>{
+      const confirm=form.querySelector('[type=submit]'),reviewButton=form.querySelector('[data-garage-review-button]'),
+        back=form.querySelector('[data-garage-back]'),panel=form.querySelector('[data-garage-fields]'),
+        preview=form.querySelector('[data-garage-review]');
+      confirm.hidden=true;
+      const historical=()=>{
+        const past=form.elements.effective_date.value<UI.today(),input=form.elements.historical_verified;
+        input.parentElement.hidden=!past;input.disabled=!past;input.required=past;
+        if(!past)input.value='';
+      };
+      form.elements.effective_date.addEventListener('change',historical);historical();
+      reviewButton.onclick=()=>{
+        historical();
+        const invalid=[...form.querySelectorAll('input,select,textarea')].find(input=>!input.disabled&&!input.checkValidity());
+        if(invalid){invalid.reportValidity();return;}
+        const data=UI.formData(form);
+        reviewed={setting_key:'garage',lat:data.lat,lng:data.lng,effective_date:data.effective_date,
+          historical_verified:data.historical_verified,reference:data.reference,verified:data.verified};
+        preview.innerHTML=UI.kv([['Verified latitude',UI.esc(data.lat)],['Verified longitude',UI.esc(data.lng)],
+          ['Effective date',UI.esc(data.effective_date)],['Source / Reason',UI.esc(data.reference)]]);
+        panel.hidden=true;preview.hidden=false;reviewButton.hidden=true;confirm.hidden=false;back.hidden=false;confirm.focus();
+      };
+      back.onclick=()=>{reviewed=null;panel.hidden=false;preview.hidden=true;reviewButton.hidden=false;confirm.hidden=true;back.hidden=true;};
+    }});
+ },
  edit(ctx,key){
   const diesel=key==='diesel',current=ctx.data.current?.[key],value=current?JSON.parse(current.value_json).value:'',fields=[
    ...(!diesel?[{name:'truck_type',label:'Truck Type',value:key,attrs:'readonly'}]:[]),
@@ -370,8 +416,9 @@ const FuelAdjustmentUI={
  render(ctx){
   const current=ctx.data.current||{};
   const diesel=current.diesel;
+  const garage=current.garage;
   const types=ctx.data.truckTypes||['Car Carrier','Container','Wing Van'];
-  const history=(ctx.data.history||[]).filter(r=>r.setting_key==='diesel'||types.includes(r.setting_key));
+  const history=(ctx.data.history||[]).filter(r=>r.setting_key==='diesel'||r.setting_key==='garage'||types.includes(r.setting_key));
   const number=row=>{
     if(!row)return null;
     try {const value=JSON.parse(row.value_json).value;return Number.isFinite(Number(value))?Number(value):null;}
@@ -386,6 +433,7 @@ const FuelAdjustmentUI={
   const categories=[
     {value:'diesel',label:'Diesel Price'},
     {value:'efficiency',label:'Truck Efficiency'},
+    {value:'garage',label:'Company Garage'},
     {value:'history',label:'Configuration History'}
   ];
   const dieselValue=number(diesel);
@@ -405,7 +453,28 @@ const FuelAdjustmentUI={
       button.addEventListener('click',()=>show(button.dataset.headFuelTab)));
   };
   const show=category=>{
-    if(category==='diesel'){
+    if(category==='garage'){
+      let coordinates=null;
+      try {if(garage?.value_json)coordinates=JSON.parse(garage.value_json);}catch{}
+      const valid=coordinates&&Number.isFinite(Number(coordinates.lat))&&Number.isFinite(Number(coordinates.lng));
+      root.innerHTML='<section class="record-workspace-panel">'
+        +'<div class="record-workspace-heading"><div><h2>Verified Company Garage</h2>'
+        +'<p class="record-workspace-count">One shared garage entrance for all truck routes and fuel calculations</p></div>'
+        +'<button type="button" class="btn btn-sm btn-primary" data-verify-garage>'
+        +'<i class="bi bi-geo-alt" aria-hidden="true"></i> '+(valid?'Update Verified Location':'Verify Garage Entrance')+'</button></div>'
+        +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
+        +'<div class="head-fuel-diesel-content">'
+        +'<div class="head-fuel-section-heading"><div class="head-fuel-section-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></div>'
+        +'<div><h3>Garage Entrance Coordinates</h3><p>Used for verified Garage → Pickup routing</p></div>'
+        +'<span class="head-fuel-config-state '+(valid?'is-ready':'is-missing')+'">'+(valid?'Verified record':'Not configured')+'</span></div>'
+        +(valid?UI.kv([['Latitude',UI.esc(coordinates.lat)],['Longitude',UI.esc(coordinates.lng)],
+          ['Effective Date',UI.date(garage.effective_date)],['Reference',UI.esc(garage.reference||'—')]])
+          :'<p class="small text-muted mb-3">No verified garage entrance is configured. The route-request map will not assume an approximate location or calculate garage-to-pickup mileage until you verify this location.</p>')
+        +'<div class="head-fuel-policy"><i class="bi bi-info-circle" aria-hidden="true"></i>'
+        +'<p>Use the actual garage entrance, not an approximate landmark. Existing route requests and historical snapshots are preserved; future routes use the currently effective verified garage record.</p></div>'
+        +'</div></section>';
+      root.querySelector('[data-verify-garage]').onclick=()=>this.garageEdit(ctx);
+    }else if(category==='diesel'){
       root.innerHTML='<section class="record-workspace-panel">'
         +'<div class="record-workspace-heading"><div><h2>Fuel Configuration</h2>'
         +'<p class="record-workspace-count">Weekly diesel pricing, truck efficiency and audit history</p></div>'
@@ -436,7 +505,7 @@ const FuelAdjustmentUI={
           +'<div class="head-fuel-history-empty" role="status">'
           +'<div class="head-fuel-history-empty-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>'
           +'<h3>No configuration changes yet</h3>'
-          +'<p>Changes to diesel pricing and truck fuel efficiency will appear here after they are saved, including their effective date and reference.</p>'
+          +'<p>Changes to diesel pricing, garage location and truck fuel efficiency will appear here after they are saved, including their effective date and reference.</p>'
           +'<div class="head-fuel-history-note"><i class="bi bi-shield-check" aria-hidden="true"></i> Historical pricing records are retained for auditing.</div>'
           +'</div></section>';
       }else{
@@ -444,13 +513,13 @@ const FuelAdjustmentUI={
           ?[['Truck Type','type',(v,r)=>'<div class="head-fuel-truck-label"><span class="head-fuel-truck-icon"><i class="bi bi-truck" aria-hidden="true"></i></span><span><b>'+UI.esc(v)+'</b><small>Fuel efficiency setting</small></span></div>'],
             ['Current Efficiency','value',v=>v===null?'<span class="head-fuel-muted-value">Not configured</span>':'<strong class="head-fuel-efficiency-value">'+UI.num(v,4)+' <small>km/L</small></strong>'],
             ['Configuration','status',(_,r)=>r.value===null?'<span class="head-fuel-status is-missing"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Needs setup</span>':'<span class="head-fuel-status is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Configured</span>']]
-          :[['Setting','setting_key',v=>'<span class="head-fuel-history-setting"><i class="bi '+(v==='diesel'?'bi-fuel-pump':'bi-truck')+'" aria-hidden="true"></i> '+UI.esc(v==='diesel'?'Diesel Price':v)+'</span>'],
+          :[['Setting','setting_key',v=>'<span class="head-fuel-history-setting"><i class="bi '+(v==='diesel'?'bi-fuel-pump':v==='garage'?'bi-geo-alt':'bi-truck')+'" aria-hidden="true"></i> '+UI.esc(v==='diesel'?'Diesel Price':v==='garage'?'Company Garage':v)+'</span>'],
             ['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],
-            ['Value','value_json',(v,r)=>{try{return '<strong>'+UI.esc(JSON.parse(v).value)+'</strong> <small>'+ (r.setting_key==='diesel'?'PHP/L':'km/L')+'</small>'}catch{return '—'}}],
+            ['Value','value_json',(v,r)=>{try{const d=JSON.parse(v);return r.setting_key==='garage'?'<strong>'+UI.esc(d.lat)+', '+UI.esc(d.lng)+'</strong>':'<strong>'+UI.esc(d.value)+'</strong> <small>'+ (r.setting_key==='diesel'?'PHP/L':'km/L')+'</small>'}catch{return '—'}}],
             ['Reason / Reference','reference',v=>UI.esc(v||'—')]];
         const rows=isEfficiency?types.map(type=>({type,value:number(current[type])})):history;
         const options={showAllColumns:true,viewSwitch:false,
-          empty:isEfficiency?'No truck types available.':'No diesel or fuel efficiency updates.',
+          empty:isEfficiency?'No truck types available.':'No diesel, garage or fuel efficiency updates.',
           ...(isEfficiency?{actions:()=>UI.btn('edit','Edit','outline-primary'),
             onAction:(_,row)=>this.edit(ctx,row.type)}:{})};
         root.innerHTML=RecordComponents.panel(UI.table(columns,rows,options),buttons(category));
