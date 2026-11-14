@@ -695,6 +695,8 @@ const OpsHead = {
       ctx.el.querySelector('[data-total]').textContent = `Total Required Trucks: ${total()}`;
       ctx.el.querySelector('[data-entry-count]').textContent = `Trip Entries: ${batch().length}`;
       ctx.el.querySelector('[data-add]').disabled = (!editingId&&total()>=20)||busy||!current();
+      const reviewNow = ctx.el.querySelector('[data-add-review]');
+      if (reviewNow) reviewNow.disabled = (!editingId&&total()>=20)||busy||!current();
       ctx.el.querySelector('[data-review-batch]').disabled=!batch().length||busy||!!editingId;
       const queue=ctx.el.querySelector('[data-batch-list]');
       queue.innerHTML=batch().map(e=>`<article class="oh-batch-entry"><b>${UI.esc(clientName(e.data.client_id))}</b><div>${UI.esc(e.data.truck_type)} · ${+e.data.quantity} truck(s)</div><div>${UI.esc(e.route?.origin_label||'')} → ${UI.esc(e.route?.destination_label||'')}</div><div>${this.datetime(e.data.scheduled_at)}</div><div class="oh-batch-actions"><button type="button" class="btn btn-sm btn-outline-success" data-edit-batch="${e.id}">Edit</button><button type="button" class="btn btn-sm btn-outline-danger" data-remove-batch="${e.id}">Remove</button></div></article>`).join('')||'<p class="small text-muted">No trip entries yet. Complete the form and add an entry to your planning batch.</p>';
@@ -712,7 +714,7 @@ const OpsHead = {
     };
     const renderPlanning = () => {
       if(!current()&&total()<20)entries.push({id:UI.uuid(),queued:false,data:{quantity:1},routes:[],loading:false,seq:0});
-      ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench oh-simple-planner">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section></div><details class="oh-simple-batch" ${batch().length?'open':''}><summary><i class="bi bi-collection" aria-hidden="true"></i><strong>Planning Batch</strong><span data-entry-count></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-simple-batch-body"><div class="oh-planning-total"><strong data-total></strong></div><div data-batch-list></div><button type="button" class="btn btn-outline-primary w-100" data-review-batch>Review Batch</button></div></details><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trucks per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add>${editingId?'Save Entry':'Add to Planning Batch'}</button></div></div>`;
+      ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench oh-simple-planner">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section></div><details class="oh-simple-batch" ${batch().length?'open':''}><summary><i class="bi bi-collection" aria-hidden="true"></i><strong>Planning Batch</strong><span data-entry-count></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-simple-batch-body"><div class="oh-planning-total"><strong data-total></strong></div><div data-batch-list></div><button type="button" class="btn btn-outline-primary w-100" data-review-batch>Review Batch</button></div></details><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trucks per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-outline-primary" data-add>${editingId?'Save Entry':'Add Another Route'}</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add-review>${editingId?'Save & Review':'Review & Create'}</button></div></div>`;
       const list = ctx.el.querySelector('[data-entries]');
       entries.filter(e=>e===current()).forEach((e, i) => {
         const card = document.createElement('details'); card.className = 'oh-entry'; card.dataset.entry = e.id; card.open = e.expanded !== false;
@@ -834,6 +836,7 @@ const OpsHead = {
       };
       ctx.el.querySelector('form').onsubmit = event => {
         event.preventDefault(); error('');
+        const reviewImmediately = event.submitter?.hasAttribute('data-add-review') || false;
         if (entries.some(e => e.loading)) return error('Wait for approved routes to finish loading.');
         const entry=current();if(!entry)return;
         if (total()+(entry.queued===false?+entry.data.quantity:0)>20 || !Number.isInteger(+entry.data.quantity) || +entry.data.quantity < 1) return error('Use whole quantities of at least 1, with at most 20 trips combined.');
@@ -852,6 +855,9 @@ const OpsHead = {
           if (c?.rate_types != null && !c.rate_types.split('|').includes(e.data.truck_type)) return error(`${c.company_name} has no existing billing rate for ${e.data.truck_type}. Billing must set it before trip creation.`);
         }
         entry.queued=true;editingId=null;editingBackup=null;add();
+        // Single-request path reuses the batch review, conflict checks, and
+        // idempotent submission logic instead of introducing a second API flow.
+        if (reviewImmediately) ctx.el.querySelector('[data-review-batch]')?.click();
       };
       ctx.el.querySelector('[data-review-batch]').onclick=()=>{
         if(!batch().length||busy)return;
