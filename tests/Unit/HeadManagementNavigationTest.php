@@ -122,10 +122,15 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertIsString($css);
         self::assertStringContainsString('const HeadRouteWorkspace =', $code);
         self::assertStringContainsString("App.me?.user?.role === 'admin'", $code);
-        self::assertStringContainsString('data-head-route-tab', $code);
+        self::assertStringContainsString('data-head-route-category', $code);
         self::assertStringContainsString('data-head-route-client', $code);
-        self::assertStringContainsString('data-head-route-export', $code);
-        self::assertStringContainsString('RecordComponents.bindDropdowns(root', $code);
+        self::assertStringContainsString('record-workspace-export', $code);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(target', $code);
+        self::assertStringContainsString('RecordComponents.panel(table', $code);
+        self::assertStringContainsString('RecordComponents.mountPanel(target', $code);
+        self::assertStringContainsString('RecordComponents.categories(', $code);
+        self::assertStringContainsString('UI.table(cols,rows', $code);
+        self::assertStringNotContainsString('head-route-records head-monitor-panel', $code);
         self::assertStringContainsString("d.can.approve&&r.pending_rate_id", $code);
         self::assertStringContainsString("RouteUI.open(r.id,d)", $code);
         self::assertStringContainsString('Routes.decide', $code);
