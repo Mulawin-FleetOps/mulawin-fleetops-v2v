@@ -151,7 +151,34 @@ const ClientUI = {
     ClientUI.routes(el, c.id);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
-      if (a === 'edit') UI.formModal('Edit ' + UI.esc(c.company_name), ClientUI.infoFields(c), 'Clients.update', { extra: { id: c.id }, after: () => { ClientUI.open(c.id, d); App.route(); } });
+      if (a === 'edit') {
+        // Reuse the standard validated UI.formModal and its unsaved-change guard.
+        // Group only at presentation level: all original field names and values stay intact.
+        const source = ClientUI.infoFields(c);
+        const field = (name, col) => {
+          const original = source.find(item => item.name === name);
+          if (!original) throw new Error('Client edit field missing: ' + name);
+          return { ...original, col };
+        };
+        const section = (label, icon) => ({
+          type: 'html', col: 12,
+          html: '<div class="client-edit-section-label"><i class="bi '+icon+'" aria-hidden="true"></i><span>'+UI.esc(label)+'</span></div>'
+        });
+        const fields = [
+          section('Company information', 'bi-building'),
+          field('company_name', 8), field('tin', 4),
+          field('trade_name', 6), field('nature_of_business', 6),
+          field('business_address', 12),
+          section('Contact information', 'bi-person-lines-fill'),
+          field('contact_person', 4), field('contact_position', 4), field('contact_number', 4),
+          field('email', 6), field('notes', 6)
+        ];
+        UI.formModal('Edit ' + UI.esc(c.company_name), fields, 'Clients.update', {
+          size: 'modal-lg', submit: 'Save changes', extra: { id: c.id },
+          onShow: (modal) => modal.classList.add('client-edit-modal'),
+          after: () => { ClientUI.open(c.id, d); App.route(); }
+        });
+      }
       if (a === 'docs') UI.formModalFiles('Upload requirements of ' + UI.esc(c.company_name), [...ClientUI.fileFields(false), { name: 'other', label: 'Other client documents (contract, ...)', type: 'file', multiple: true, col: 12 }],
         'Clients.documents', { extra: { id: c.id }, intro: r.missing.length ? 'Still missing: ' + r.missing.map(UI.esc).join(', ') : 'Upload renewed files if needed.', submit: 'Upload', after: () => { ClientUI.open(c.id, d); App.route(); } });
       if (a === 'print') ClientUI.printSheet(c, sig ? sig.id : null);
