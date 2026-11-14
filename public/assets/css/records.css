@@ -412,3 +412,34 @@
   .head-report-no-data-icon { width:42px; height:42px; flex-basis:42px; font-size:19px; }
 
 }
+
+/* Head Management: User & Access Management uses the shared record workspace. */
+.head-user-management { display:grid; gap:17px; }
+.head-user-management .record-workspace-kpis .metric-strip,
+.head-user-management .record-workspace-kpis .metric-strip-icons { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0; }
+.head-user-management .record-workspace-panel { border:1px solid #dce8df; border-radius:13px; background:#fff; overflow:visible; }
+.head-user-management .record-workspace-panel .panel { border:0; border-radius:13px; margin:0; box-shadow:none; }
+.head-user-management .record-workspace-panel .table-wrap { overflow-x:auto; }
+.head-user-management .record-workspace-search .table-search { flex:1 1 300px; max-width:none; }
+.head-user-role-reference { background:#fff; border:1px solid #dce8df; border-radius:12px; overflow:hidden; }
+.head-user-role-reference > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; padding:16px 20px; color:#22472f; font-weight:700; }
+.head-user-role-reference > summary::-webkit-details-marker { display:none; }
+.head-user-role-reference > summary > .bi-shield-check { color:#267a49; font-size:18px; }
+.head-user-role-reference > summary small { font-size:11px; font-weight:400; color:#748578; margin-left:auto; }
+.head-user-role-reference > summary > .bi-chevron-down { color:#6b8873; transition:transform .2s; }
+.head-user-role-reference[open] > summary > .bi-chevron-down { transform:rotate(180deg); }
+.head-user-role-reference-body { border-top:1px solid #e4ece6; padding:16px 20px 18px; }
+.head-user-role-reference-body p { margin:0 0 12px; font-size:12px; line-height:1.6; color:#5b7563; }
+.head-user-role-tags { display:flex; gap:8px; flex-wrap:wrap; }
+.head-user-role-tags span { display:inline-flex; padding:7px 10px; border:1px solid #dce9df; border-radius:8px; background:#f7faf7; font-size:12px; color:#315d3c; }
+@media(max-width:1200px) {
+  .head-user-management .record-workspace-kpis .metric-strip,
+  .head-user-management .record-workspace-kpis .metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:650px) {
+  .head-user-management .record-workspace-kpis .metric-strip,
+  .head-user-management .record-workspace-kpis .metric-strip-icons { grid-template-columns:1fr; }
+  .head-user-role-reference > summary { padding:14px; flex-wrap:wrap; }
+  .head-user-role-reference > summary small { margin-left:0; }
+  .head-user-role-reference-body { padding:14px; }
+}
