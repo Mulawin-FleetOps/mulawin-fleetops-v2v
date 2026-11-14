@@ -562,3 +562,48 @@
 .head-garage-picker-map .leaflet-control-container{font-size:12px}
 .head-garage-picker-status{margin:9px 0 12px;font-size:12px;color:#356347;line-height:1.45}
 @media(max-width:650px){.head-garage-picker-map{height:255px}.head-garage-map-instructions{padding:10px}}
+
+
+/* Fleet route rate editor — scoped to the shared route pricing dialog. */
+.fleet-rate-modal .modal-dialog{max-width:710px}
+.fleet-rate-modal .modal-body{padding:18px 22px 22px}
+.fleet-rate-modal .modal-header{padding:16px 22px;border-bottom:1px solid #e2ebe5}
+.fleet-rate-modal .modal-footer{padding:13px 22px;border-top:1px solid #e2ebe5;background:#fbfdfb}
+.fleet-rate-editor{font-size:13px;color:#294a37}
+.fleet-rate-route{border:1px solid #dce9df;background:linear-gradient(130deg,#f5fbf6,#fff);border-radius:12px;padding:15px 17px;margin-bottom:17px}
+.fleet-rate-eyebrow{font-size:10px;font-weight:800;letter-spacing:.09em;color:#287448;margin-bottom:8px}
+.fleet-rate-route>strong{display:block;font-size:15px;color:#184b2b;margin-bottom:6px}
+.fleet-rate-route-path{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;line-height:1.5}
+.fleet-rate-route-path i{color:#268250}
+.fleet-rate-route-meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;color:#617d6b;font-size:11px}
+.fleet-rate-route-meta i{margin-right:4px}
+.fleet-rate-section-title{display:flex;align-items:center;gap:8px;margin:15px 0 10px;font-size:12px;font-weight:800;color:#1d6038;letter-spacing:.015em}
+.fleet-rate-section-title i{font-size:15px}
+.fleet-rate-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fleet-rate-fact{display:flex;flex-direction:column;gap:5px;min-width:0;padding:10px 12px;background:#f8fbf9;border:1px solid #e3ede6;border-radius:9px}
+.fleet-rate-fact span{font-size:11px;color:#6a8171}
+.fleet-rate-fact strong{font-size:13px;color:#244c32;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.fleet-rate-highlight{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding:13px 15px;background:#eaf5ec;border:1px solid #cfe5d3;border-radius:10px}
+.fleet-rate-highlight>div{display:flex;flex-direction:column;gap:3px}
+.fleet-rate-highlight span{font-size:12px;font-weight:700;color:#245c36}
+.fleet-rate-highlight small{color:#668470;font-size:10px}
+.fleet-rate-highlight>strong{font-size:20px;font-weight:800;color:#176b38;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fleet-rate-editor .form-label{font-size:12px;font-weight:700}
+.fleet-rate-editor input,.fleet-rate-editor textarea{border-radius:8px}
+.fleet-rate-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:12px 15px;border:1px dashed #bddac4;border-radius:9px;background:#fbfdfb}
+.fleet-rate-total>span{font-weight:700;color:#335a40}
+.fleet-rate-total small{display:block;font-weight:400;color:#738578;font-size:10px;margin-top:2px}
+.fleet-rate-total strong{color:#1e683c;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.fleet-route-history-scroll{overflow-x:auto;max-width:100%;border:1px solid #e2ebe5;border-radius:9px;margin:8px 0 14px}
+.fleet-route-history-scroll table{width:100%;min-width:740px;margin-bottom:0;table-layout:auto}
+.fleet-route-history-scroll th,.fleet-route-history-scroll td{white-space:normal;min-width:100px;vertical-align:middle;padding:10px 12px;overflow-wrap:break-word;font-size:12px;line-height:1.5}
+.fleet-route-history-scroll th{font-size:11px;font-weight:700;white-space:normal;background:#f5f9f6}
+.fleet-route-history-scroll th:first-child,.fleet-route-history-scroll td:first-child{min-width:135px}
+@media(max-width:600px){
+  .fleet-rate-modal .modal-body{padding:14px}
+  .fleet-rate-modal .modal-header,.fleet-rate-modal .modal-footer{padding:13px 14px}
+  .fleet-rate-facts{grid-template-columns:1fr 1fr}
+  .fleet-rate-highlight>strong{font-size:17px}
+  .fleet-rate-highlight,.fleet-rate-total{align-items:flex-start;flex-direction:column}
+  .fleet-route-history-scroll table{min-width:680px}
+}
