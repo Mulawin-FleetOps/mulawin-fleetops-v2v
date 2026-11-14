@@ -4,8 +4,8 @@ use PHPUnit\Framework\TestCase;
 final class PricingAuthorizationTest extends TestCase {
     public function testPricingNavigationKeepsExistingManagementPages():void {
         core('Access');$nav=Access::navFor(['id'=>1,'role'=>'admin']);$pages=array_column($nav,null,'id');
-        self::assertSame('Route Rates',$pages['routes']['label']);self::assertSame('Pricing',$pages['routes']['section']);
-        self::assertSame('Fuel Adjustment',$pages['fuel-adjustment']['label']);self::assertArrayHasKey('admin',$pages);self::assertArrayHasKey('billing',$pages);
+        self::assertSame('Route & Contract Rates',$pages['routes']['label']);self::assertSame('Client & Commercial',$pages['routes']['section']);
+        self::assertSame('Fuel & Operating Costs',$pages['fuel-adjustment']['label']);self::assertArrayHasKey('admin',$pages);self::assertArrayHasKey('billing',$pages);
         foreach(array_keys(ROLE_LABELS) as $role)self::assertSame($role==='admin',Access::canOpen(['id'=>1,'role'=>$role],'fuel-adjustment'));
     }
     public function testFuelAndRecalculationMutationsDenyOtherRolesBeforeDatabaseAccess():void {
