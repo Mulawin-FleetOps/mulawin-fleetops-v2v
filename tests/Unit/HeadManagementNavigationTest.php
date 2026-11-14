@@ -47,54 +47,44 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertTrue(Access::canOpen(['role'=>'admin'],'clients'));
     }
 
-    public function testDedicatedHeadTripPageUsesSharedComponents(): void {
-        $code = file_get_contents(dirname(__DIR__, 2).'/public/assets/js/modules/administration/head-management.js');
+    public function testDedicatedHeadTripPageUsesClientRecordComponents(): void {
+        $root=dirname(__DIR__,2);
+        $code=file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
         self::assertIsString($code);
         self::assertStringContainsString("App.page('head-trips'", $code);
-        self::assertStringContainsString('head-trip-kpis', $code);
-        self::assertStringContainsString('head-kpi-icon', $code);
-        self::assertStringContainsString('UI.tabs(', $code);
-        self::assertStringContainsString('UI.table(', $code);
-        self::assertStringContainsString('UI.drawer(', $code);
+        self::assertStringContainsString('const HeadRecords =', $code);
+        self::assertStringContainsString('RecordComponents.panel(table', $code);
+        self::assertStringContainsString('RecordComponents.mountPanel(root', $code);
+        self::assertStringContainsString('RecordComponents.categories(categories', $code);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(root', $code);
+        self::assertStringContainsString('data-head-trip-records', $code);
+        self::assertStringContainsString("title:'Company Trip Records'", $code);
+        self::assertStringContainsString("type:'date'", $code);
         self::assertStringContainsString('HeadManagement.trip_details', $code);
         self::assertStringContainsString('UI.chartHtml(', $code);
         self::assertStringContainsString('UI.routeMap(', $code);
-        self::assertStringContainsString('data-head-export', $code);
-        self::assertStringContainsString('data-head-date', $code);
-        self::assertStringContainsString('RecordComponents.bindDropdowns(', $code);
-        self::assertStringContainsString('data-head-search', $code);
-        self::assertStringContainsString('data-head-filter-count', $code);
-        self::assertStringContainsString('HeadOversight.mount(body', $code);
-        self::assertStringContainsString('data-head-panel-table', $code);
-        self::assertStringContainsString('head-monitor-header', $code);
-        self::assertStringContainsString('record-workspace-sort-trigger', $code);
-        self::assertStringContainsString('this.finishTable(slot)', $code);
-        self::assertStringContainsString('UI.recordPager(', $code);
-        self::assertStringContainsString('Reported Trip Incidents', $code);
         self::assertStringContainsString('Saved road geometry only', $code);
-        $backend = file_get_contents(dirname(__DIR__, 2).'/backend/Modules/Administration/HeadManagement.php');
+        self::assertStringNotContainsString('data-head-trip-tabs', $code);
+        $backend=file_get_contents($root.'/backend/Modules/Administration/HeadManagement.php');
         self::assertStringContainsString('route_preview', $backend);
         self::assertStringContainsString('JOIN trip_routes r', $backend);
     }
 
-    public function testFleetWorkspaceUsesSingleTabbedReadOnlyTableAndRealAggregates(): void {
-        $root = dirname(__DIR__, 2);
-        $js = file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
-        $php = file_get_contents($root.'/backend/Modules/Administration/HeadManagement.php');
-        $css = file_get_contents($root.'/public/assets/css/layout.css');
+    public function testFleetWorkspaceUsesSharedClientRecordComponentsAndRealAggregates(): void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
+        $php=file_get_contents($root.'/backend/Modules/Administration/HeadManagement.php');
         self::assertIsString($js);
         self::assertIsString($php);
-        self::assertIsString($css);
         self::assertStringContainsString('const HeadFleetWorkspace =', $js);
-        self::assertStringContainsString('data-head-fleet-tab', $js);
         self::assertStringContainsString('data-head-fleet-table', $js);
-        self::assertStringContainsString('HeadOversight.mount(container', $js);
+        self::assertStringContainsString('HeadRecords.render(container', $js);
         self::assertStringContainsString('data-head-fleet-kpi', $js);
         self::assertStringContainsString('fleet_summary', $php);
         self::assertStringContainsString('COUNT(*) FROM vehicles', $php);
         self::assertStringContainsString('COUNT(*) FROM personnel', $php);
-        self::assertStringContainsString('.head-fleet-tabs', $css);
-        self::assertStringContainsString('.head-fleet-kpi', $css);
+        self::assertStringNotContainsString('data-head-fleet-tab', $js);
+        self::assertStringNotContainsString('head-fleet-records-heading', $js);
         self::assertStringNotContainsString("App.api('Fleet.", $js);
     }
 
@@ -140,12 +130,12 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('grid-template-columns:repeat(4,minmax(0,1fr))', $css);
     }
 
-    public function testExportOnlyAppearsOnHeadTripRecordPanel(): void {
+    public function testExportOnlyAvailableForTripRows(): void {
         $js=file_get_contents(dirname(__DIR__,2).'/public/assets/js/modules/administration/head-management.js');
         self::assertIsString($js);
-        self::assertStringContainsString("title === 'Company Trip Records'", $js);
-        self::assertStringContainsString("panel.querySelector('[data-head-export]')?", $js);
-        self::assertStringContainsString('exportRows:filtered=>HeadTripsUI.exportRows(filtered)', $js);
+        self::assertStringContainsString('data-head-record-export', $js);
+        self::assertStringContainsString('exportRows:isIncident?null:rows=>HeadTripsUI.exportRows(rows)', $js);
+        self::assertStringContainsString('exportRows?\'', $js);
     }
 
     public function testHeadFinancialAndBillingLayoutsUseFourKPIsWithoutChangingDepartmentActions(): void {
@@ -200,19 +190,15 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('.head-finance-table .table-pager', $styles);
     }
 
-    public function testTripAndApprovalTabsAreInsideTheirRecordCards(): void {
-        $root = dirname(__DIR__, 2);
-        $js = file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
-        $css = file_get_contents($root.'/public/assets/css/layout.css');
+    public function testTripUsesOneSharedCardWhileApprovalsRetainTheirOwnTabs(): void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
         self::assertIsString($js);
-        self::assertIsString($css);
-        self::assertStringContainsString('head-trip-records record-workspace-panel', $js);
-        self::assertStringContainsString('head-trip-records-heading', $js);
-        self::assertStringContainsString('data-head-trip-tabs', $js);
+        self::assertStringContainsString('data-head-trip-records', $js);
+        self::assertStringContainsString('HeadRecords.render(root', $js);
         self::assertStringContainsString('data-head-approval-tabs', $js);
         self::assertStringContainsString('Approvals & Exception Records', $js);
-        self::assertStringContainsString('.head-trip-records .line-tabs', $css);
-        self::assertStringContainsString('.head-trip-records .head-monitor-panel', $css);
+        self::assertStringNotContainsString('head-trip-records-heading><h2>Company Trip Records', $js);
     }
 
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
