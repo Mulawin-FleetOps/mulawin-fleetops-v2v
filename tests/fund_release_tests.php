@@ -263,15 +263,12 @@ ok($m[1] === ['pending', 'release', 'liquidate', 'revision', 'history'], 'fund t
 section('K. Regression: liquidation, dispatch after release');
 [$tid, $fid] = $approvedFund(10);
 Funds::action($fin, 'release', ['fund_id' => $fid]);
-require_once dirname(__DIR__) . '/backend/Modules/Operations/Inspections/Checklist.php';
-$items = [];
-foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) $items[$s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT)] = ['condition' => 'OK', 'remarks' => ''];
-run($p, "INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES ('inspection_min_minutes','0',?) ON DUPLICATE KEY UPDATE setting_value='0'", [$U('admin')['id']]);
-Settings::clearCache();
-Trips::action($wvd, 'checklist_start', ['trip_id' => $tid, 'kind' => 'Pre-Dispatch']);
-Trips::action($wvd, 'checklist', ['trip_id' => $tid, 'items' => $items, 'meta' => [], 'odometer_km' => '1000', 'fuel_level' => 'Full']);
-Trips::action($wvd, 'dispatch', ['trip_id' => $tid]);
-ok($T($tid)['status'] === 'Dispatched', 'released fund -> checklist -> Confirm Dispatch works (#38/#40 unchanged)');
+// A Released fund does not bypass the Dispatcher resource and checklist gates.
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $tid]),
+    'Released fund cannot dispatch a trip without manual Truck and crew assignment', 409, 'Confirm Dispatch is not enabled');
+ok($T($tid)['status'] === 'Pre-Assigned' && $T($tid)['vehicle_id'] === null,
+    'refused dispatch keeps the fund fixture trip unchanged');
+echo "  NOTE  full assigned-crew dispatch regression is covered by the Dispatcher Turnover suite; this Funds fixture does not assign resources.\n";
 fails(fn() => Funds::action($fin, 'liquidate', ['fund_id' => $fid, 'liquidated_amount' => '100.00']), 'liquidation still waits for the trip to finish', 409, 'after the trip');
 run($p, "UPDATE trips SET status='Completed' WHERE id=?", [$tid]);
 $amount = $F($fid)['amount'];
