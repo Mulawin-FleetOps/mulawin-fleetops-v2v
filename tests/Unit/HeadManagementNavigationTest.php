@@ -356,7 +356,7 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("this.alerts(alerts)", $dashboard);
         self::assertStringContainsString("this.breakdown(cards,'admin')", $dashboard);
         self::assertStringContainsString("readSections([", $analytics);
-        self::assertStringContainsString("'executive' => $executive", $analytics);
+        self::assertStringContainsString("\'executive\' => \$executive", $analytics);
         self::assertStringContainsString("pricing_settings_history", $analytics);
         self::assertStringContainsString(".rpm-executive-dashboard .rpm-exec-departments", $css);
     }
