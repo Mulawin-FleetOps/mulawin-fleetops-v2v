@@ -98,6 +98,22 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringNotContainsString("App.api('Fleet.", $js);
     }
 
+    public function testHeadMaintenanceUsesReadOnlyTabbedWorkspace(): void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/maintenance/maintenance.js');
+        $css=file_get_contents($root.'/public/assets/css/layout.css');
+        self::assertIsString($js);
+        self::assertIsString($css);
+        self::assertStringContainsString('const HeadMaintenanceUI =', $js);
+        self::assertStringContainsString("App.me?.user?.role === 'admin'", $js);
+        self::assertStringContainsString('HeadMaintenanceUI.render(ctx,d,jobs)', $js);
+        self::assertStringContainsString('data-head-maintenance-tab', $js);
+        self::assertStringContainsString('data-head-maintenance-export', $js);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(panel', $js);
+        self::assertStringContainsString('.head-maintenance-workspace', $css);
+        self::assertStringContainsString("if (d.can.act) UI.tool(ctx, 'Report truck problem'", $js);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
