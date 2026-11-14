@@ -68,7 +68,7 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('data-head-panel-table', $code);
         self::assertStringContainsString('head-monitor-header', $code);
         self::assertStringContainsString('record-workspace-sort-trigger', $code);
-        self::assertStringContainsString('HeadOversight.finishTable(', $code);
+        self::assertStringContainsString('this.finishTable(slot)', $code);
         self::assertStringContainsString('UI.recordPager(', $code);
         self::assertStringContainsString('Reported Trip Incidents', $code);
         self::assertStringContainsString('Saved road geometry only', $code);
