@@ -261,8 +261,24 @@ const App = {
     const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : n.id === 'funds' && ['car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role) ? 'My Trip Funds' : shortNames[n.id] || n.label)}</span></a>`;
     const operationsRole = ['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role);
     const tripLink = (label, icon, query) => `<a href="#trips?${query}" class="nav-item-link" data-nav="trips" data-trip-section="${query}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`;
-    let nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
-    if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
+    let nav;
+    if (u.role === 'admin') {
+      // The server sends the authoritative executive menu in business-flow
+      // order. Preserve its labels and sections instead of re-sorting it into
+      // the old Admin shortcuts + More tools groups.
+      nav = '';
+      let section = Symbol('uninitialized');
+      for (const item of allowed) {
+        if (item.section !== section) {
+          section = item.section;
+          if (section) nav += `<div class="nav-section">${UI.esc(section)}</div>`;
+        }
+        nav += `<a href="#${item.id}" class="nav-item-link" data-nav="${item.id}"><i class="bi ${item.icon}" aria-hidden="true"></i><span>${UI.esc(item.label)}</span></a>`;
+      }
+    } else {
+      nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
+      if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
+    }
     document.getElementById('app').innerHTML = `
     <div class="app-shell" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
