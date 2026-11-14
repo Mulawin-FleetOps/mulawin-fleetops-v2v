@@ -64,7 +64,7 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('RecordComponents.bindDropdowns(', $code);
         self::assertStringContainsString('data-head-search', $code);
         self::assertStringContainsString('data-head-filter-count', $code);
-        self::assertStringContainsString('HeadOversight.mount(ctx.el', $code);
+        self::assertStringContainsString('HeadOversight.mount(body', $code);
         self::assertStringContainsString('data-head-panel-table', $code);
         self::assertStringContainsString('head-monitor-header', $code);
         self::assertStringContainsString('record-workspace-sort-trigger', $code);
