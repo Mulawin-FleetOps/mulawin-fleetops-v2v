@@ -82,7 +82,9 @@ $approvedFund = function (int $minutesAhead = 60) use ($ops, $wvd, $cid, $routeI
     $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
         'scheduled_at' => date('Y-m-d\TH:i', time() + 3 * 86400), 'distance_km' => '25.00', 'dispatcher_assignment'=>'container_wingvan_dispatcher:Day',
         'responsible_dispatcher_id'=>$wvd['id'], 'client_route_id'=>$routeId]);
-    // This isolated Funds fixture starts at the existing post-assignment state; actual\n    // Dispatcher resource assignment is covered by the dedicated turnover suite.\n    run($p, "UPDATE trips SET status='Pre-Assigned', scheduled_at=? WHERE id=?", [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
+    // This isolated Funds fixture starts at the post-assignment state.
+    // Dispatcher resource assignment is exercised by the turnover suite.
+    run($p, "UPDATE trips SET status='Pre-Assigned', scheduled_at=? WHERE id=?", [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
     $f = Funds::action($wvd, 'submit', ['trip_id' => $r['trip_id'], 'categories' => ['Driver Meal Allowance', 'Helper Meal Allowance']]);
     Funds::action($ops, 'decide', ['fund_id' => $f['fund_id'], 'decision' => 'approve']);
     return [(int)$r['trip_id'], (int)$f['fund_id']];
