@@ -88,7 +88,7 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringNotContainsString("App.api('Fleet.", $js);
     }
 
-    public function testHeadMaintenanceUsesReadOnlyTabbedWorkspace(): void {
+    public function testHeadMaintenanceUsesClientRecordComponentsAndKeepsMotorpoolFlow(): void {
         $root=dirname(__DIR__,2);
         $js=file_get_contents($root.'/public/assets/js/modules/maintenance/maintenance.js');
         $css=file_get_contents($root.'/public/assets/css/layout.css');
@@ -97,10 +97,16 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('const HeadMaintenanceUI =', $js);
         self::assertStringContainsString("App.me?.user?.role === 'admin'", $js);
         self::assertStringContainsString('HeadMaintenanceUI.render(ctx,d,jobs)', $js);
-        self::assertStringContainsString('data-head-maintenance-tab', $js);
+        self::assertStringContainsString('RecordComponents.panel(table', $js);
+        self::assertStringContainsString('RecordComponents.mountPanel(root', $js);
+        self::assertStringContainsString('RecordComponents.categories(', $js);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(root', $js);
+        self::assertStringContainsString('data-head-maintenance-category', $js);
         self::assertStringContainsString('data-head-maintenance-export', $js);
-        self::assertStringContainsString('RecordComponents.bindDropdowns(panel', $js);
-        self::assertStringContainsString('.head-maintenance-workspace', $css);
+        self::assertStringContainsString('head-trip-kpis', $js);
+        self::assertStringNotContainsString('head-maintenance-records', $js);
+        self::assertStringNotContainsString('data-head-maintenance-tab', $js);
+        self::assertStringNotContainsString('.head-maintenance-records', $css);
         self::assertStringContainsString("if (d.can.act) UI.tool(ctx, 'Report truck problem'", $js);
     }
 
