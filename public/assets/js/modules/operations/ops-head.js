@@ -639,7 +639,7 @@ const OpsHead = {
     wrap.innerHTML = '<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">'
       + '<div class="modal-content">'
       + '<div class="modal-header"><div><h5 class="modal-title" id="oh-trip-planner-title">Add Trip</h5>'
-      + '<p class="small text-muted mb-0">Plan trips, assign a Dispatcher, then review and create.</p></div>'
+      + '<p class="small text-muted mb-0">Select a client route, schedule, and dispatcher.</p></div>'
       + '<button type="button" class="btn-close" data-plan-close aria-label="Close trip planner"></button></div>'
       + '<div class="modal-body" tabindex="-1"></div></div></div>';
     document.body.append(wrap);
@@ -714,6 +714,7 @@ const OpsHead = {
     };
     const renderPlanning = () => {
       if(!current()&&total()<20)entries.push({id:UI.uuid(),queued:false,data:{quantity:1},routes:[],loading:false,seq:0});
+      document.querySelector('.oh-trip-planner-modal')?.classList.remove('oh-trip-review-mode');
       ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench oh-simple-planner">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section></div><details class="oh-simple-batch" ${batch().length?'open':''}><summary><i class="bi bi-collection" aria-hidden="true"></i><strong>Planning Batch</strong><span data-entry-count></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-simple-batch-body"><div class="oh-planning-total"><strong data-total></strong></div><div data-batch-list></div><button type="button" class="btn btn-outline-primary w-100" data-review-batch>Review Batch</button></div></details><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trucks per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-outline-primary" data-add>${editingId?'Save Entry':'Add Another Route'}</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add-review>${editingId?'Save & Review':'Review & Create'}</button></div></div>`;
       const list = ctx.el.querySelector('[data-entries]');
       entries.filter(e=>e===current()).forEach((e, i) => {
@@ -725,15 +726,27 @@ const OpsHead = {
           { name: 'client_route_id', label: 'Approved Route', type: 'select', required: true, col: 12, options: [], value: '' },
           { name: 'scheduled_at', label: 'Scheduled Date & Time', type: 'datetime', required: true, col: 12, value: e.data.scheduled_at, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"` },
           { type: 'html', col: 6, html: `<label class="form-label" for="qty-${e.id}">Number of Required Trucks</label><div class="oh-stepper"><button type="button" class="btn btn-outline-secondary" data-minus aria-label="Decrease number of required trucks">−</button><input id="qty-${e.id}" name="quantity" type="number" class="form-control" min="1" max="20" step="1" required value="${e.data.quantity}"><button type="button" class="btn btn-outline-secondary" data-plus aria-label="Increase number of required trucks">+</button></div>` },
-          { name: 'dispatcher_assignment', label: 'Assign Dispatcher', type: 'select', required: true, col: 6, placeholder: 'Choose dispatcher...', options: dispatcherOptions(e.data.truck_type), value: e.data.dispatcher_assignment, attrs: `aria-describedby="dispatcher-error-${e.id}"` },
-          { name: 'responsible_dispatcher_id', label: 'Responsible Dispatcher Account', type: 'select', required: true, col: 6, options: accountOptions(e.data).map(a => [a.id,a.full_name]), value: e.data.responsible_dispatcher_id },
-          { name: 'delivery_details', label: 'Delivery Instructions', type: 'textarea', rows: 3, col: 12, value: e.data.delivery_details, attrs: 'maxlength="500"' },
+          { name: 'dispatcher_assignment', label: 'Dispatcher Group / Shift', type: 'select', required: true, col: 6, placeholder: 'Choose dispatcher...', options: dispatcherOptions(e.data.truck_type), value: e.data.dispatcher_assignment, attrs: `aria-describedby="dispatcher-error-${e.id}"` },
+          { name: 'responsible_dispatcher_id', label: 'Responsible Dispatcher', type: 'select', required: true, col: 12, options: accountOptions(e.data).map(a => [a.id,a.full_name]), value: e.data.responsible_dispatcher_id },
+          { name: 'delivery_details', label: 'Delivery Instructions', type: 'textarea', rows: 2, col: 12, value: e.data.delivery_details, attrs: 'maxlength="500"' },
         ])}</div><p class="small text-muted mb-0" data-route-state role="status"></p></div>`;
         list.append(card);
         card.open=true;card.querySelector('[data-entry-label]').textContent=editingId?'Edit Trip Entry':'Create Trip Entry';
         const grid=card.querySelector('.oh-form-grid'),fields=[...grid.querySelector('.row').children];
         grid.replaceChildren();
-        [['1','Client & Route',fields.slice(0,3)],['2','Schedule & Requirements',fields.slice(3,5)],['3','Dispatcher Assignment',fields.slice(5)]].forEach(([number,title,columns])=>{const section=document.createElement('section');section.className='oh-numbered-section';section.innerHTML=`<h3><span aria-hidden="true">${number}</span>${title}</h3><div class="row g-2"></div>`;section.querySelector('.row').append(...columns);grid.append(section);});
+        // One compact form replaces the three tall numbered cards. Preserve
+        // original input elements and names so existing handlers/validation work.
+        const main = document.createElement('section');
+        main.className = 'oh-compact-trip-fields';
+        main.innerHTML = '<div class="row g-2"></div>';
+        main.querySelector('.row').append(...fields.slice(0,7));
+        grid.append(main);
+        const instructions = document.createElement('details');
+        instructions.className = 'oh-compact-instructions';
+        instructions.open = !!String(e.data.delivery_details || '').trim();
+        instructions.innerHTML = '<summary><i class="bi bi-file-text" aria-hidden="true"></i> Additional Instructions (optional)<i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="row g-2"></div>';
+        instructions.querySelector('.row').append(fields[7]);
+        grid.append(instructions);
         // UI.fields uses generic IDs. Each independent card receives unique accessible IDs.
         card.querySelectorAll('[name]').forEach(input => {
           const oldId = input.id; input.id = `${e.id}-${input.name}`;
@@ -774,11 +787,13 @@ const OpsHead = {
         dispatcher.onchange = dispatcher.oninput = () => { e.data.dispatcher_assignment = dispatcher.value;dispatcher.classList.remove('is-invalid');dispatcher.removeAttribute('aria-invalid');dispatcherError.hidden = true;dispatcherError.style.display='';fillAccounts();update(); };
         fillDispatchers();
         const fillRoutes = () => {
-          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.truck_type + ' · ' + r.route_ref + ' · ' + r.origin_label + ' → ' + r.destination_label)}</option>`).join('');
+          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.truck_type + ' · ' + r.route_ref)}</option>`).join('');
           pick.value = e.data.client_route_id || ''; pick.disabled = e.loading || !e.data.client_id;
-          card.querySelector('[data-approved-rate]').textContent = e.route
-            ? 'Truck type: '+e.route.truck_type+' · '+UI.num(e.route.distance_km,2)+' km'
-            : 'Select a route to determine the required truck type and compatible dispatcher.';
+          const routeInfo = card.querySelector('[data-approved-rate]');
+          routeInfo.textContent = e.route
+            ? e.route.origin_label+' → '+e.route.destination_label+' · '+UI.num(e.route.distance_km,2)+' km'
+            : 'Vehicle type is automatically selected from the approved route.';
+          routeInfo.classList.toggle('has-route',!!e.route);
         };
         const loadRoutes = async (resetSelection = false) => {
           const seq = ++e.seq;
@@ -823,7 +838,7 @@ const OpsHead = {
         card.querySelector('[data-remove]')?.addEventListener('click', () => { e.seq++; entries = entries.filter(x => x !== e); renderPlanning(); });
         e.refresh = () => { fillRoutes(); note.textContent = e.routeMessage || ''; };
         note.insertAdjacentHTML('afterend','<p class="small" data-approved-rate></p>');
-        card.querySelector('.oh-numbered-section').append(note,card.querySelector('[data-approved-rate]'));
+        pick.parentElement.append(note,card.querySelector('[data-approved-rate]'));
         e.refresh();
         // Restore an existing entry's selectable routes when returning from Review.
         if(e.data.client_id && !e.routes.length && !e.loading)loadRoutes();
@@ -875,6 +890,7 @@ const OpsHead = {
       update();
     };
     const renderReview = () => {
+      document.querySelector('.oh-trip-planner-modal')?.classList.add('oh-trip-review-mode');
       ctx.el.innerHTML = `<div class="oh-planner">${stages(2)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><form data-review-form><div class="oh-review-head"><h2>Review &amp; Create</h2><b>${drafts.length} Individual Trips</b></div><div class="table-responsive"><table class="data-table"><thead><tr><th>Client / Route</th><th>Truck Type</th><th>Required Trucks</th><th>Scheduled Dispatch</th><th>Assigned Dispatcher</th></tr></thead><tbody>${batch().map(e=>`<tr><td>${UI.esc(clientName(e.data.client_id))}<div>${UI.esc(e.route?.origin_label)} → ${UI.esc(e.route?.destination_label)}</div></td><td>${UI.esc(e.data.truck_type)}</td><td>${+e.data.quantity}</td><td>${this.datetime(e.data.scheduled_at)}</td><td>${UI.esc(dispatcherName(e.data))}</td></tr>`).join('')}</tbody></table></div><div data-review-entries></div><p data-submission-note role="status">Create the reviewed trips for the selected Dispatcher group/shift. The Dispatcher will manually select each Truck and its fixed Driver after creation. Individual shipment details remain editable below.</p><div class="oh-form-footer oh-trip-planner-actions"><button type="button" class="btn btn-outline-secondary" data-back ${attempted ? 'disabled' : ''}>Back to Planning</button>${attempted && !uncertain ? '<button type="button" class="btn btn-outline-secondary" data-start-another>Start Another Plan</button>' : ''}<button type="submit" class="btn btn-primary" data-confirm>Create Trips</button></div></form></div>`;
       const list = ctx.el.querySelector('[data-review-entries]');
       batch().forEach((e, i) => {
