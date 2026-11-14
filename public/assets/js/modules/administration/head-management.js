@@ -91,7 +91,9 @@ const HeadOversight = {
         const field = ['status','truck_type','person_type','availability','severity']
           .find(key => cols.some(column => column[1] === key));
         filtered = rows.filter(row => (!chosen || row[field] === chosen)
-          && (!term || cols.some(column => String(row[column[1]] ?? '').toLocaleLowerCase().includes(term))));
+          && (!tableOptions.filterRow || tableOptions.filterRow(row,panel))
+          && (!term || cols.some(column => String(row[column[1]] ?? '').toLocaleLowerCase().includes(term))
+            || (tableOptions.searchFields || []).some(key => String(row[key] ?? '').toLocaleLowerCase().includes(term))));
         if (sort !== 'default') {
           const key = cols[0][1];
           filtered = [...filtered].sort((a,b) => (sort === 'asc' ? 1 : -1)
@@ -99,14 +101,22 @@ const HeadOversight = {
         }
         slot.innerHTML = UI.table(cols,filtered,{...tableOptions,showAllColumns:true,viewSwitch:false,empty});
         count.textContent = filtered.length === rows.length ? rows.length + ' records' : filtered.length + ' of ' + rows.length + ' records';
-        if (indicator) indicator.textContent = chosen ? '(1)' : '';
+        if (indicator) {
+          const n = tableOptions.filterCount ? tableOptions.filterCount(panel) : Number(Boolean(chosen));
+          indicator.textContent = n ? '('+n+')' : '';
+        }
         UI.activate(slot);
         this.finishTable(slot);
       };
       search.addEventListener('input',draw);
       RecordComponents.bindDropdowns(panel,{
         apply: () => { draw(); panel.querySelector('.record-workspace-filter-trigger')?.click(); },
-        reset: () => { if(facet) facet.value=''; draw();panel.querySelector('.record-workspace-filter-trigger')?.click(); },
+        reset: () => {
+          if (facet) facet.value='';
+          panel.querySelectorAll('[data-head-extra-filter]').forEach(input => input.value='');
+          draw();
+          panel.querySelector('.record-workspace-filter-trigger')?.click();
+        },
         sort: value => {sort=value;draw();}
       },{filter:facet?.closest('.record-workspace-popover')?.id || 'head-no-filter',sort:panel.querySelector('.record-workspace-sort-panel').id});
       panel.querySelector('[data-head-export]').addEventListener('click', () => {
@@ -282,95 +292,33 @@ const HeadTripsUI = {
   renderTripTable(body, rows, empty) {
     const cols = HeadTripsUI.columns();
     body.innerHTML = HeadOversight.panel('Company Trip Records',cols,rows,empty);
+    const panel = body.querySelector('[data-head-panel]');
+    const filter = panel.querySelector('.record-workspace-popover:not(.record-workspace-sort-panel)');
+    const statuses = [...new Set(rows.map(row=>row.status).filter(Boolean))].sort();
+    const types = [...new Set(rows.map(row=>row.truck_type).filter(Boolean))].sort();
+    const options = values=>values.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
+    filter.querySelector('label').innerHTML = 'Trip status<select class="form-select form-select-sm" data-head-facet>'
+      + '<option value="">All statuses</option>'+options(statuses)+'</select>';
+    filter.querySelector('.record-workspace-popover-actions').insertAdjacentHTML('beforebegin',
+      '<label>Truck type<select class="form-select form-select-sm" data-head-extra-filter data-head-type>'
+      +'<option value="">All truck types</option>'+options(types)+'</select></label>'
+      +'<label>Scheduled date<input class="form-control form-control-sm" type="date" data-head-extra-filter data-head-date></label>');
     HeadOversight.mount(body,[[cols,rows,empty,{
       actions:()=>UI.btn('view','View Details','outline-primary'),
       onAction:(_,trip)=>HeadTripsUI.details(trip.id),
       rowClick:trip=>HeadTripsUI.details(trip.id),
-      exportRows:filtered=>HeadTripsUI.exportRows(filtered)
+      exportRows:filtered=>HeadTripsUI.exportRows(filtered),
+      searchFields:['client','delivery_point','plate_number','driver_name','helper_name','dispatcher_name'],
+      filterRow:(row,root)=>{
+        const type=root.querySelector('[data-head-type]').value;
+        const date=root.querySelector('[data-head-date]').value;
+        return (!type||row.truck_type===type)
+          &&(!date||String(row.scheduled_at||'').slice(0,10)===date);
+      },
+      filterCount:root=>[root.querySelector('[data-head-facet]').value,
+        root.querySelector('[data-head-type]').value,
+        root.querySelector('[data-head-date]').value].filter(Boolean).length
     }]]);
-    const panel=body.querySelector('[data-head-panel]');
-    const tools=panel.querySelector('.head-monitor-tools');
-    const filters=panel.querySelector('.record-workspace-popovers');
-    const filterBtn=panel.querySelector('.record-workspace-filter-trigger');
-    if(!filterBtn) return;
-    const popover=panel.querySelector('#'+filterBtn.getAttribute('aria-controls'));
-    const statuses=[...new Set(rows.map(row=>row.status).filter(Boolean))].sort();
-    const types=[...new Set(rows.map(row=>row.truck_type).filter(Boolean))].sort();
-    // Additional trip-specific fields are inside the existing filter panel.
-    const choices = values=>values.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
-    const select=popover.querySelector('[data-head-facet]');
-    if (select) {
-      select.replaceWith(document.createRange().createContextualFragment(
-        '<label>Trip status<select class="form-select form-select-sm" data-head-trip-status><option value="">All statuses</option>'+choices(statuses)+'</select></label>'
-        +'<label>Truck type<select class="form-select form-select-sm" data-head-trip-type><option value="">All truck types</option>'+choices(types)+'</select></label>'
-        +'<label>Scheduled date<input class="form-control form-control-sm" type="date" data-head-date></label>'
-      ));
-    }
-    // Keep the common table shell while applying all three trip filters
-    // to the same displayed and exported rows.
-    const status=popover.querySelector('[data-head-trip-status]');
-    const type=popover.querySelector('[data-head-trip-type]');
-    const date=popover.querySelector('[data-head-date]');
-    const originalRows=rows;
-    const search=panel.querySelector('[data-head-search]');
-    const slot=panel.querySelector('[data-head-panel-table]');
-    const count=panel.querySelector('[data-head-count]');
-    const indicator=panel.querySelector('[data-head-filter-count]');
-    let selectedSort='default',filtered=originalRows;
-    const render=()=>{
-      const query=search.value.trim().toLocaleLowerCase();
-      filtered=originalRows.filter(row=>(!status.value||row.status===status.value)
-        &&(!type.value||row.truck_type===type.value)
-        &&(!date.value||String(row.scheduled_at||'').slice(0,10)===date.value)
-        &&(!query||['trip_ref','client','pickup_point','delivery_point','plate_number','driver_name','helper_name','dispatcher_name','status']
-          .some(key=>String(row[key]??'').toLocaleLowerCase().includes(query))));
-      if(selectedSort!=='default')filtered=[...filtered].sort((a,b)=>(selectedSort==='asc'?1:-1)*String(a.trip_ref??'').localeCompare(String(b.trip_ref??''),undefined,{numeric:true}));
-      slot.innerHTML=UI.table(cols,filtered,{showAllColumns:true,viewSwitch:false,empty,
-        actions:()=>UI.btn('view','View Details','outline-primary'),
-        onAction:(_,trip)=>HeadTripsUI.details(trip.id),
-        rowClick:trip=>HeadTripsUI.details(trip.id)});
-      count.textContent=filtered.length===rows.length?rows.length+' records':filtered.length+' of '+rows.length+' records';
-      const n=[status.value,type.value,date.value].filter(Boolean).length;
-      indicator.textContent=n?'('+n+')':'';
-      UI.activate(slot);
-      HeadOversight.finishTable(slot);
-    };
-    // Replace the default workspace handlers to support the three trip fields.
-    const replacement=panel.cloneNode(true);
-    panel.replaceWith(replacement);
-    const newSearch=replacement.querySelector('[data-head-search]');
-    const newStatus=replacement.querySelector('[data-head-trip-status]');
-    const newType=replacement.querySelector('[data-head-trip-type]');
-    const newDate=replacement.querySelector('[data-head-date]');
-    const newSlot=replacement.querySelector('[data-head-panel-table]');
-    const newCount=replacement.querySelector('[data-head-count]');
-    const newIndicator=replacement.querySelector('[data-head-filter-count]');
-    const draw=()=>{
-      const term=newSearch.value.trim().toLocaleLowerCase();
-      filtered=rows.filter(row=>(!newStatus.value||row.status===newStatus.value)
-        &&(!newType.value||row.truck_type===newType.value)
-        &&(!newDate.value||String(row.scheduled_at||'').slice(0,10)===newDate.value)
-        &&(!term||['trip_ref','client','pickup_point','delivery_point','plate_number','driver_name','helper_name','dispatcher_name','status']
-          .some(key=>String(row[key]??'').toLocaleLowerCase().includes(term))));
-      if(selectedSort!=='default')filtered=[...filtered].sort((a,b)=>(selectedSort==='asc'?1:-1)*String(a.trip_ref??'').localeCompare(String(b.trip_ref??''),undefined,{numeric:true}));
-      newSlot.innerHTML=UI.table(cols,filtered,{showAllColumns:true,viewSwitch:false,empty,
-        actions:()=>UI.btn('view','View Details','outline-primary'),
-        onAction:(_,trip)=>HeadTripsUI.details(trip.id),
-        rowClick:trip=>HeadTripsUI.details(trip.id)});
-      newCount.textContent=filtered.length===rows.length?rows.length+' records':filtered.length+' of '+rows.length+' records';
-      const n=[newStatus.value,newType.value,newDate.value].filter(Boolean).length;
-      newIndicator.textContent=n?'('+n+')':'';
-      UI.activate(newSlot);
-      HeadOversight.finishTable(newSlot);
-    };
-    newSearch.oninput=draw;
-    RecordComponents.bindDropdowns(replacement,{
-      apply:()=>{draw();replacement.querySelector('.record-workspace-filter-trigger').click();},
-      reset:()=>{newStatus.value='';newType.value='';newDate.value='';draw();replacement.querySelector('.record-workspace-filter-trigger').click();},
-      sort:value=>{selectedSort=value;draw()}
-    },{filter:replacement.querySelector('.record-workspace-filter-trigger').getAttribute('aria-controls'),sort:replacement.querySelector('.record-workspace-sort-panel').id});
-    replacement.querySelector('[data-head-export]').onclick=()=>HeadTripsUI.exportRows(filtered);
-    draw();
   },
   render(ctx) {
     const d=ctx.data||{}, summary=d.summary||{};
