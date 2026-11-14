@@ -212,3 +212,58 @@
 .fund-approval-workspace .record-workspace-panel .data-table .cell-sub{font-size:11.5px;color:var(--text-3,#6b786f)}
 @media(max-width:700px){.fund-approval-workspace .record-workspace-tabs{flex-wrap:nowrap;overflow-x:auto}.fund-approval-workspace .record-workspace-search{flex-wrap:wrap}.fund-approval-workspace .record-workspace-search .table-search{flex-basis:100%}}
 
+
+/* Head Management Fuel Configuration — scoped layout and visual hierarchy. */
+.head-fuel-workspace { display:grid; gap:4px; }
+.head-fuel-config > .record-workspace-panel {
+  background:var(--surface,#fff);
+  border:1px solid var(--border,#dce8df);
+  border-radius:14px;
+  overflow:visible;
+  box-shadow:0 3px 14px rgba(28,79,47,.045);
+}
+.head-fuel-config .record-workspace-heading {
+  padding:20px 22px 17px;
+  border-bottom:1px solid var(--border,#e1e9e3);
+}
+.head-fuel-config .record-workspace-heading h2 { font-size:18px; font-weight:700; }
+.head-fuel-config .record-workspace-heading p { font-size:12px; margin-top:5px; }
+.head-fuel-config .record-workspace-heading > .btn { min-height:38px; padding:7px 14px; }
+.head-fuel-config .record-workspace-category-row {
+  padding:14px 22px;
+  border-top:0;
+  background:#fbfdfb;
+  gap:8px;
+}
+.head-fuel-config .record-workspace-categories { display:flex; flex-wrap:wrap; gap:8px; }
+.head-fuel-config .record-workspace-categories .btn { border-radius:8px; padding:8px 15px; font-weight:600; }
+.head-fuel-diesel-content { padding:24px 22px 26px; }
+.head-fuel-section-heading { display:flex; align-items:center; gap:13px; margin-bottom:20px; }
+.head-fuel-section-icon { width:47px; height:47px; border-radius:12px; flex:0 0 47px;
+  display:grid; place-items:center; background:#e7f4eb; color:#1b7546; font-size:22px; }
+.head-fuel-section-heading h3 { font-size:16px; margin:0 0 4px; color:#21432d; font-weight:700; }
+.head-fuel-section-heading p { font-size:12px; color:#728176; margin:0; }
+.head-fuel-config-state { margin-left:auto; white-space:nowrap; border-radius:20px;
+  padding:6px 11px; font-size:11px; font-weight:700; }
+.head-fuel-config-state.is-missing { background:#fff5e7; color:#a36713; }
+.head-fuel-config-state.is-ready { background:#e6f4eb; color:#17663b; }
+.head-fuel-setting-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.head-fuel-setting { padding:19px 20px; background:#f7faf8; border:1px solid #e1ebe4;
+  border-radius:11px; display:flex; flex-direction:column; gap:7px; min-width:0; }
+.head-fuel-setting-label { color:#607666; font-size:12px; font-weight:600; }
+.head-fuel-setting strong { color:#1f432e; font-size:20px; line-height:1.25; overflow-wrap:anywhere; }
+.head-fuel-setting small { color:#75877b; font-size:11px; }
+.head-fuel-policy { display:flex; align-items:flex-start; gap:11px; margin-top:17px;
+  padding:14px 16px; border-radius:9px; background:#edf5ef; color:#42624c; }
+.head-fuel-policy i { font-size:18px; margin-top:1px; }
+.head-fuel-policy p { font-size:12px; line-height:1.65; margin:0; }
+.head-fuel-config .record-workspace-panel > .panel { border:0; box-shadow:none; }
+.head-fuel-config .record-workspace-panel .table-wrap { overflow-x:auto; }
+@media(max-width:720px) {
+  .head-fuel-config .record-workspace-heading { padding:16px; gap:10px; }
+  .head-fuel-config .record-workspace-category-row { padding:11px 16px; }
+  .head-fuel-diesel-content { padding:17px 16px; }
+  .head-fuel-setting-grid { grid-template-columns:1fr; }
+  .head-fuel-section-heading { flex-wrap:wrap; }
+  .head-fuel-config-state { margin-left:0; }
+}
