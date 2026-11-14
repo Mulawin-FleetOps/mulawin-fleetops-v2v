@@ -636,3 +636,102 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
   .oh-trip-planner-modal .oh-trip-route-card-journey{grid-column:1/-1;min-height:auto}
   .oh-trip-planner-modal .oh-trip-route-card{padding:11px;min-height:90px}
 }
+
+
+/* Add Trip visual polish: route snapshot and concise controls. */
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-content{
+  border:1px solid #d3e5d8;border-radius:16px;
+  box-shadow:0 24px 70px rgba(17,55,31,.18)
+}
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-header{
+  background:#fff;border-bottom:1px solid #e2ece5;padding:15px 20px
+}
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-body{background:#fbfdfb}
+.oh-trip-planner-modal .oh-simple-planner .form-control,
+.oh-trip-planner-modal .oh-simple-planner .form-select{
+  background-color:#fff;border:1px solid #cfded3;box-shadow:none;
+  border-radius:9px;transition:border-color .15s,box-shadow .15s
+}
+.oh-trip-planner-modal .oh-simple-planner .form-control:focus,
+.oh-trip-planner-modal .oh-simple-planner .form-select:focus{
+  border-color:#37875a;box-shadow:0 0 0 3px rgba(39,121,72,.11)
+}
+.oh-trip-planner-modal .oh-simple-planner .form-control:disabled,
+.oh-trip-planner-modal .oh-simple-planner .form-select:disabled{
+  background:#f1f5f2;color:#819386;border-color:#dfe7e1
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+  grid-template-columns:minmax(0,2.1fr) minmax(0,1fr) minmax(0,1fr);
+  gap:8px;margin:10px 0 3px
+}
+.oh-trip-planner-modal .oh-trip-route-card{
+  min-height:128px;padding:14px;
+  border:1px solid #dce9df;border-radius:12px;
+  background:linear-gradient(145deg,#f2f9f4 0%,#fff 100%)
+}
+.oh-trip-planner-modal .oh-trip-route-card-journey{
+  border-color:#cfe4d6;background:linear-gradient(115deg,#ecf7ef 0%,#fcfffd 100%)
+}
+.oh-trip-planner-modal .oh-trip-route-card-label{
+  margin-bottom:10px;color:#4d7660;font-size:9.5px;letter-spacing:.08em
+}
+.oh-trip-planner-modal .oh-trip-route-path{display:flex;flex-direction:column}
+.oh-trip-planner-modal .oh-trip-route-stop{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.oh-trip-planner-modal .oh-trip-route-stop>div{display:flex;flex-direction:column;min-width:0;gap:3px}
+.oh-trip-planner-modal .oh-trip-route-stop small{
+  font-size:9px;font-weight:800;color:#7b9783;letter-spacing:.055em;line-height:1.2
+}
+.oh-trip-planner-modal .oh-trip-route-stop strong{
+  font-size:11px;font-weight:700;line-height:1.42;
+  color:#26563b;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-trip-route-stop-marker{
+  flex:0 0 11px;width:11px;height:11px;margin-top:3px;
+  border:2px solid #2b8753;border-radius:50%;background:#fff
+}
+.oh-trip-planner-modal .oh-trip-route-stop-marker.finish{
+  border-color:#1f7144;background:#1f7144;
+  box-shadow:inset 0 0 0 2px #e3f2e8
+}
+.oh-trip-planner-modal .oh-trip-route-rail{
+  width:0;height:12px;border-left:1.5px dashed #a3ccb0;margin:3px 0 3px 5px
+}
+.oh-trip-planner-modal .oh-trip-route-card-distance .oh-trip-route-card-value{
+  font-size:25px;letter-spacing:-.035em
+}
+.oh-trip-planner-modal .oh-trip-route-card-truck .oh-trip-route-truck-name{
+  font-size:15px;line-height:1.35;font-weight:750
+}
+.oh-trip-planner-modal .oh-trip-route-auto{
+  display:inline-flex;align-self:flex-start;color:#377b51;
+  background:#e7f4eb;border-radius:5px;padding:3px 6px;
+  font-weight:650;font-size:9px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-stepper{
+  max-width:170px;border-radius:9px;overflow:hidden
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-stepper .btn{
+  border-color:#ceded3;background:#fff;color:#2e6d48
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch{
+  background:#fff;border-color:#dae8de;border-radius:10px;
+  box-shadow:0 1px 3px rgba(27,78,46,.025)
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary:hover,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary:hover{
+  background:#f5faf6;border-radius:10px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary{
+  color:#2e6444
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{
+  background:#fbfdfb;border-top:1px solid #dfeae2
+}
+@media(max-width:590px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .oh-trip-planner-modal .oh-trip-route-card-journey{grid-column:1/-1}
+  .oh-trip-planner-modal .oh-trip-route-card{min-height:90px;padding:12px}
+}
