@@ -122,6 +122,16 @@ const RPMDashboard = {
           +'</span><strong>'+this.number(c)+'</strong></div>').join('')
           :'<p class="rpm-dept-unavailable">No verified summary available.</p>')+'</article>';
     };
+    const verifiedChart=(title,labels,format)=>{
+      const facts=labels.map(get).filter(c=>c&&Number.isFinite(Number(c.value)));
+      if(!facts.length||!facts.some(c=>Number(c.value)!==0))return '';
+      return UI.chartHtml({title,type:'bar',format,labels:facts.map(c=>c.label),
+        datasets:[{label:title,data:facts.map(c=>Number(c.value))}]});
+    };
+    const chartHtml=[
+      verifiedChart('Trip and repair activity',['Ongoing trips','Completed trips this month','Open repair requests']),
+      verifiedChart('Billing, collections and expenses',['Billed this month','Collected this month','Expenses this month'],'money')
+    ].filter(Boolean).join('');
     const recent=tables.filter(t=>(t.rows||[]).length>0).slice(0,2);
     const recentHtml=recent.length?recent.map(t=>UI.blockTable({...t,limit:5})).join('')
       :'<div class="rpm-exec-empty"><i class="bi bi-inbox" aria-hidden="true"></i>'
@@ -137,7 +147,7 @@ const RPMDashboard = {
       +'<div class="rpm-exec-performance">'
       +performance('Operations & Maintenance',['Ongoing trips','Completed trips this month','Open repair requests'])
       +performance('Financial Summary',['Billed this month','Collected this month','Expenses this month'])
-      +'</div></section>'
+      +'</div>'+(chartHtml?'<div class="rpm-exec-charts">'+chartHtml+'</div>':'')+'</section>'
       +'<section class="rpm-exec-section rpm-exec-alerts">'+this.alerts(alerts)+'</section>'
       +(breakdown?'<section class="rpm-exec-section rpm-exec-fleet-breakdown">'+breakdown+'</section>':'')
       +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Recent Operational Records</h2>'
