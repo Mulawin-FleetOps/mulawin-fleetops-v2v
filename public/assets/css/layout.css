@@ -1083,25 +1083,12 @@ a:hover { color: var(--rpm-brand-strong); }
   .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:1fr; }
 }
 
-/* Head Management financial oversight — scoped layout, no shared department changes. */
-.head-financial-overview, .head-billing-overview { display:block; }
+/* Head Management Financial Oversight uses the Client Management record component. */
 .head-financial-overview > .metric-strip.metric-strip-icons,
-.head-billing-overview > .metric-strip.metric-strip-icons { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
-.head-financial-records { border:1px solid #dce8df; border-radius:13px; background:#fff; overflow:hidden; margin-top:16px; }
-.head-financial-heading { padding:20px 20px 7px; }
-.head-financial-heading h2 { margin:0; font-size:17px; font-weight:700; color:#23432f; }
-.head-financial-heading p { margin:5px 0 0; font-size:12px; color:#647b6b; }
-.head-financial-records > .line-tabs { display:flex; gap:3px; overflow-x:auto; flex-wrap:nowrap; margin:0; padding:9px 19px 13px; border-bottom:1px solid #dfe7e1; }
-.head-financial-records > .line-tabs .tab { flex:0 0 auto; white-space:nowrap; padding:9px 12px; }
-.head-financial-records > .tab-body { padding:0; }
-.head-financial-records > .tab-body > .panel,
-.head-financial-records > .tab-body > .card,
-.head-financial-records > .tab-body > .panel:not(:last-child) { margin:0; border:0; border-radius:0; box-shadow:none; }
-.head-financial-records > .tab-body .table-wrap { overflow-x:auto; }
-.head-financial-records > .tab-body .table-tools { padding:12px 18px; background:#fff; }
-.head-financial-records > .tab-body .data-table thead th { background:#f0f2f4; color:#253449; font-size:12px; font-weight:650; }
-.head-financial-records > .tab-body .table-pager { border-top:1px solid #dfe7e1; padding:12px 18px; }
-.head-financial-records > .tab-body .table-search { flex:1 1 300px; max-width:620px; }
+.head-billing-overview > .metric-strip.metric-strip-icons {
+  grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:20px;
+}
+.head-financial-records { margin-top:16px; }
 @media(max-width:1200px) {
   .head-financial-overview > .metric-strip.metric-strip-icons,
   .head-billing-overview > .metric-strip.metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -1109,9 +1096,6 @@ a:hover { color: var(--rpm-brand-strong); }
 @media(max-width:620px) {
   .head-financial-overview > .metric-strip.metric-strip-icons,
   .head-billing-overview > .metric-strip.metric-strip-icons { grid-template-columns:1fr; }
-  .head-financial-heading { padding:15px 14px 7px; }
-  .head-financial-records > .line-tabs { padding:8px 12px; }
-  .head-financial-records > .tab-body .table-tools { padding:10px 12px; }
 }
 
 /* Head Management finance: prevent sticky page heading from covering KPI labels. */
@@ -1147,8 +1131,6 @@ a:hover { color: var(--rpm-brand-strong); }
 .head-billing-overview .metric-icon-card .metric-value { margin-top:7px; }
 .head-financial-overview > .ui-action-summary { margin-bottom:18px; }
 .head-financial-overview > .head-financial-records { margin-top:0; }
-.head-financial-records .tab-body > .panel .panel-head { padding:14px 18px; }
-.head-financial-records .tab-body .table-empty { min-height:140px; }
 @media(max-width:620px) {
   .head-financial-overview > .metric-strip.metric-strip-icons .metric-icon-card,
   .head-billing-overview > .metric-strip.metric-strip-icons .metric-icon-card { min-height:100px; }
