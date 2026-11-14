@@ -288,33 +288,46 @@ App.page('head-approvals',{
   render(ctx) {
     const d=ctx.data||{};
     const sections=[
-      ['rates','Route rates',d.route_rates||[],
-        [['Route','route_ref'],['Client','company_name'],['Origin','origin_label'],['Destination','destination_label'],['Proposed Rate','rate_amount','money']],
-        'No route rates pending approval.'],
-      ['maintenance','Maintenance',d.maintenance||[],
-        [['Job','job_ref'],['Truck','plate_number'],['Status','status','badge'],['Problem','problem']],
-        'No open maintenance jobs.'],
-      ['incidents','Incidents',d.incidents||[],
-        [['Incident','incident_ref'],['Trip','trip_ref'],['Status','status','badge']],
-        'No unresolved incidents.'],
-      ['funds','Fund requests',d.funds||[],
-        [['Fund','fund_ref'],['Trip','trip_ref'],['Status','status','badge']],
-        'No fund requests awaiting approval.']
+      {key:'rates',label:'Route Rates',rows:d.route_rates||[],
+        cols:[['Route','route_ref'],['Client','company_name'],['Origin','origin_label'],
+          ['Destination','destination_label'],['Proposed Rate','rate_amount','money']],
+        empty:'No route rates pending approval.'},
+      {key:'maintenance',label:'Maintenance',rows:d.maintenance||[],
+        cols:[['Job','job_ref'],['Truck','plate_number'],['Status','status','badge'],['Problem','problem']],
+        empty:'No open maintenance jobs.'},
+      {key:'incidents',label:'Incidents',rows:d.incidents||[],
+        cols:[['Incident','incident_ref'],['Trip','trip_ref'],['Status','status','badge']],
+        empty:'No unresolved incidents.'},
+      {key:'funds',label:'Fund Requests',rows:d.funds||[],
+        cols:[['Fund','fund_ref'],['Trip','trip_ref'],['Status','status','badge']],
+        empty:'No fund requests awaiting approval.'}
+    ];
+    const metrics=[
+      {label:'Route Rates',value:sections[0].rows.length,icon:'bi-signpost-split',color:'blue'},
+      {label:'Maintenance Exceptions',value:sections[1].rows.length,icon:'bi-tools',color:'amber'},
+      {label:'Open Incidents',value:sections[2].rows.length,icon:'bi-exclamation-triangle',color:'red'},
+      {label:'Fund Requests',value:sections[3].rows.length,icon:'bi-wallet2',color:'green'}
     ];
     ctx.el.innerHTML='<div class="head-approvals-workspace">'
-      +'<p class="small text-muted mb-3">Monitoring only. Approve or change records in the authorized departmental workflow.</p>'
-      +'<section class="head-trip-records record-workspace-panel">'
-      +'<div class="head-trip-records-heading"><h2>Approvals & Exception Records</h2>'
-      +'<p>Review pending decisions and operational exceptions by category.</p></div>'
-      +'<div data-head-approval-tabs></div></section></div>';
-    const tabs=sections.map(([key,label,rows,cols,empty])=>[
-      key,label+' ('+rows.length+')',body=>{
-        body.innerHTML=HeadOversight.panel(label,cols,rows,empty);
-        HeadOversight.mount(body,[[cols,rows,empty]]);
-      }
-    ]);
-    UI.tabs(ctx.el.querySelector('[data-head-approval-tabs]'),tabs,'rates',{key:'head-approvals',forceActive:true});
-    UI.activate(ctx.el);
+      +RecordComponents.kpis(metrics)
+      +'<p class="small text-muted mb-3"><i class="bi bi-eye" aria-hidden="true"></i> Read-only monitoring. Decisions remain in their authorized departmental workflows.</p>'
+      +'<div data-head-approvals-records></div></div>';
+    const root=ctx.el.querySelector('[data-head-approvals-records]');
+    const select=key=>{
+      const group=sections.find(item=>item.key===key)||sections[0];
+      const statuses=[...new Set(group.rows.map(row=>row.status).filter(Boolean))].sort();
+      HeadRecords.render(root,{
+        title:'Approvals & Exception Records',
+        categories:sections.map(item=>({value:item.key,label:item.label+' ('+item.rows.length+')'})),
+        selected:group.key,
+        columns:group.cols,rows:group.rows,empty:group.empty,
+        filters:statuses.length?[{label:'Status',key:'status',options:statuses}]:[],
+        changeCategory:select
+      });
+    };
+    select('rates');
+    if(Object.keys(d._errors||{}).length)
+      UI.toast('Some approval monitoring information could not be loaded. Check server logs.','error');
   }
 });
 
