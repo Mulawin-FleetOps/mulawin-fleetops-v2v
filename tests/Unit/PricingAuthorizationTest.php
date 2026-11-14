@@ -22,6 +22,25 @@ final class PricingAuthorizationTest extends TestCase {
         self::assertStringContainsString("'Routes.pricing_estimate'", $js);
     }
 
+    public function testRouteRequestUsesOnlySharedVerifiedGarageConfiguration():void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/operations/routes.js');
+        $routes=file_get_contents($root.'/backend/Modules/Operations/Routes.php');
+        $pricing=file_get_contents($root.'/backend/Core/TripPricing.php');
+        self::assertIsString($js);
+        self::assertIsString($routes);
+        self::assertIsString($pricing);
+        self::assertStringNotContainsString('[14.126449, 121.070384]', $js);
+        self::assertStringContainsString('if (!garage) return;', $js);
+        self::assertStringContainsString('Garage not verified', $js);
+        self::assertStringContainsString('Garage entrance is not verified', $js);
+        self::assertStringContainsString('garage?L.latLng(garage):null', $js);
+        self::assertStringContainsString('const garage=validGarage?', $js);
+        self::assertStringContainsString("Settings::pricingAt(\$p,'garage',date('Y-m-d'))", $routes);
+        self::assertStringContainsString("Settings::pricingAt(\$p,\$key,\$at)", $pricing);
+        self::assertStringContainsString('Financial amounts are calculated by the backend', $js);
+    }
+
     public function testFuelAndRecalculationMutationsDenyOtherRolesBeforeDatabaseAccess():void {
         core('Settings');Actions::load('Billing');
         foreach(array_keys(ROLE_LABELS) as $role){if($role==='admin')continue;$u=['id'=>1,'role'=>$role];
