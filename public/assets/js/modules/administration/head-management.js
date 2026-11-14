@@ -151,23 +151,30 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[]} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
+    const hasFilters=filters.length>0;
+    const hasRecords=rows.length>0;
+    const sortFields=sortOptions?.length?sortOptions:[
+      {key:columns[0]?.[1],label:columns[0]?.[0]||'Record'}];
     const choices=options=>options.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
-    const toolbar='<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
-      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
-      +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
+    const toolbar=(hasRecords&&hasFilters?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>':'')
+      +(hasRecords?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>':'')
+      +'<div class="record-workspace-popovers">'+(hasRecords&&hasFilters?'<div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
       +filters.map((field,index)=>'<label>'+UI.esc(field.label)
         +(field.type==='date'
           ? '<input type="date" class="form-control form-control-sm" data-head-record-filter="'+index+'">'
           : '<select class="form-select form-select-sm" data-head-record-filter="'+index+'"><option value="">All</option>'+choices(field.options)+'</select>')
         +'</label>').join('')
-      +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
-      +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="default" checked> Default order</label>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="asc"> First column A–Z</label>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="desc"> First column Z–A</label></div></div>'
+      +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>':'')
+      +(hasRecords?'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="default" checked> Original order</label>'
+      +sortFields.filter(item=>item.key).flatMap(item=>[
+        {value:item.key+':asc',label:item.label+' (A–Z / oldest first)'},
+        {value:item.key+':desc',label:item.label+' (Z–A / newest first)'}
+      ]).map(item=>'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" data-record-sort value="'+UI.esc(item.value)+'"> '+UI.esc(item.label)+'</label>').join('')
+      +'</div>':'')+'</div>'
       +(exportRows?'<button type="button" class="btn btn-sm btn-outline-success record-workspace-add" data-head-record-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>':'');
     // Search remains in the shared UI.table, with extra text fields included
     // in the native search via non-rendered searchable columns.
@@ -195,8 +202,11 @@ const HeadRecords = {
           ? String(row[filter.key]??'').slice(0,10)===filterInputs[index].value
           : String(row[filter.key]??'')===filterInputs[index].value))).filter(matched);
       if(sort!=='default'){
-        const key=columns[0][1];
-        filtered.sort((a,b)=>(sort==='asc'?1:-1)*String(a[key]??'').localeCompare(String(b[key]??''),undefined,{numeric:true}));
+        const [key,direction]=sort.split(':');
+        if(sortFields.some(field=>field.key===key)){
+          filtered.sort((a,b)=>(direction==='desc'?-1:1)
+            *String(a[key]??'').localeCompare(String(b[key]??''),undefined,{numeric:true}));
+        }
       }
       tableState.rows=filtered;
       tableState.filter='';
@@ -310,18 +320,27 @@ App.page('head-approvals',{
     ];
     ctx.el.innerHTML='<div class="head-approvals-workspace">'
       +RecordComponents.kpis(metrics)
-      +'<p class="small text-muted mb-3"><i class="bi bi-eye" aria-hidden="true"></i> Read-only monitoring. Decisions remain in their authorized departmental workflows.</p>'
       +'<div data-head-approvals-records></div></div>';
     const root=ctx.el.querySelector('[data-head-approvals-records]');
     const select=key=>{
       const group=sections.find(item=>item.key===key)||sections[0];
-      const statuses=[...new Set(group.rows.map(row=>row.status).filter(Boolean))].sort();
+      const filterDefs=({
+        rates:[['Client','company_name'],['Origin','origin_label'],['Destination','destination_label']],
+        maintenance:[['Status','status'],['Truck','plate_number']],
+        incidents:[['Status','status'],['Trip','trip_ref']],
+        funds:[['Status','status'],['Trip','trip_ref']]
+      })[group.key]||[];
+      const filters=filterDefs.map(([label,key])=>({
+        label,key,options:[...new Set(group.rows.map(row=>row[key]).filter(Boolean))].sort()
+      })).filter(field=>field.options.length>0);
+      const sortOptions=group.cols.filter(col=>col[1]&&col[1]!=='status')
+        .slice(0,3).map(col=>({key:col[1],label:col[0]}));
       HeadRecords.render(root,{
         title:'Approvals & Exception Records',
         categories:sections.map(item=>({value:item.key,label:item.label+' ('+item.rows.length+')'})),
         selected:group.key,
         columns:group.cols,rows:group.rows,empty:group.empty,
-        filters:statuses.length?[{label:'Status',key:'status',options:statuses}]:[],
+        filters,sortOptions,
         changeCategory:select
       });
     };
