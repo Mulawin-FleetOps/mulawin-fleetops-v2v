@@ -18,7 +18,7 @@ const HeadOversight = {
       + '<input type="search" class="form-control head-monitor-search" data-head-search placeholder="Search this list" aria-label="Search '+UI.esc(title)+'"></div>'
       + (facet ? '<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+id+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter <span data-head-filter-count></span></button>' : '')
       + '<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
-      + '<button type="button" class="btn btn-sm btn-outline-success" data-head-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>'
+      + (title === 'Company Trip Records' ? '<button type="button" class="btn btn-sm btn-outline-success" data-head-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>' : '')
       + '<div class="record-workspace-popovers">'
       + (facet ? '<div class="record-workspace-popover" id="'+id+'" hidden><strong>Filter '+UI.esc(title)+'</strong>'
         + '<label>'+UI.esc(facet.replace(/_/g,' '))+'<select class="form-select form-select-sm" data-head-facet>'
@@ -119,7 +119,7 @@ const HeadOversight = {
         },
         sort: value => {sort=value;draw();}
       },{filter:facet?.closest('.record-workspace-popover')?.id || 'head-no-filter',sort:panel.querySelector('.record-workspace-sort-panel').id});
-      panel.querySelector('[data-head-export]').addEventListener('click', () => {
+      panel.querySelector('[data-head-export]')?.addEventListener('click', () => {
         if (tableOptions.exportRows) tableOptions.exportRows(filtered);
         else this.csv(filtered,cols,panel.querySelector('h2').textContent);
       });
