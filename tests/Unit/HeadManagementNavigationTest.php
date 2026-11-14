@@ -201,14 +201,19 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringNotContainsString('.head-finance-table', $styles);
     }
 
-    public function testTripUsesOneSharedCardWhileApprovalsRetainTheirOwnTabs(): void {
+    public function testTripAndApprovalsUseSharedClientRecordComponents(): void {
         $root=dirname(__DIR__,2);
         $js=file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
         self::assertIsString($js);
         self::assertStringContainsString('data-head-trip-records', $js);
+        self::assertStringContainsString('data-head-approvals-records', $js);
         self::assertStringContainsString('HeadRecords.render(root', $js);
-        self::assertStringContainsString('data-head-approval-tabs', $js);
         self::assertStringContainsString('Approvals & Exception Records', $js);
+        self::assertStringContainsString('RecordComponents.kpis(metrics)', $js);
+        self::assertStringContainsString("label:'Route Rates'", $js);
+        self::assertStringContainsString("label:'Fund Requests'", $js);
+        self::assertStringContainsString('changeCategory:select', $js);
+        self::assertStringNotContainsString('data-head-approval-tabs', $js);
         self::assertStringNotContainsString('head-trip-records-heading><h2>Company Trip Records', $js);
     }
 
