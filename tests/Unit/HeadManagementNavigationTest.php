@@ -22,6 +22,17 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertSame('Management Control',$nav[9]['section']);
     }
 
+    public function testBrowserShellUsesRoleSpecificExecutiveNavigationAndLoadsOverviewScreens(): void {
+        $core = file_get_contents(dirname(__DIR__, 2).'/public/assets/js/core.js');
+        $index = file_get_contents(dirname(__DIR__, 2).'/public/index.php');
+        self::assertIsString($core);
+        self::assertIsString($index);
+        self::assertStringContainsString("if (u.role === 'admin')", $core);
+        self::assertStringContainsString("item.section !== section", $core);
+        self::assertStringContainsString("UI.esc(item.label)", $core);
+        self::assertStringContainsString("'administration/head-management'", $index);
+    }
+
     public function testOversightPagesAreAdminOnly(): void {
         foreach(['head-fleet','head-approvals','head-settings'] as $page) {
             self::assertTrue(Access::canOpen(['role'=>'admin'],$page));
