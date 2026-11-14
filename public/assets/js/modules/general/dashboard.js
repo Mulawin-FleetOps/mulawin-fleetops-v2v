@@ -58,6 +58,86 @@ const RPMDashboard = {
         <div class="rpm-kpi-grid">${rest.map(c => this.tile(c)).join('')}</div></details>` : ''}
     </section>`;
   },
+  executive(d) {
+    const cards=d.cards||[],alerts=d.alerts||[],tables=d.tables||[],exec=d.executive||{};
+    const lookup=new Map(cards.map(c=>[c.label,c]));
+    const get=label=>lookup.get(label)||null;
+    const read=(section,key)=>exec[section]&&!exec._errors?.[section]
+      && exec[section][key]!==null && exec[section][key]!==undefined
+      ?Number(exec[section][key]):null;
+    const approvals=['rates','funds','purchase_orders'].map(key=>read('approvals',key));
+    const pending=approvals.every(Number.isFinite)?approvals.reduce((n,v)=>n+v,0):null;
+    const activeTrip=get('Ongoing trips');
+    const available=get('Available trucks');
+    const receivable=get('Outstanding receivables');
+    const headline=[
+      activeTrip&&{...activeTrip,label:'Active Trips',page:'head-trips'},
+      available&&{...available,page:'head-fleet'},
+      pending===null?null:{label:'Pending Approvals',value:pending,icon:'bi-clipboard-check',color:'amber',page:'head-approvals'},
+      receivable
+    ];
+    const names=['Active Trips','Available Trucks','Pending Approvals','Outstanding Receivables'];
+    const icons=['bi-signpost-split','bi-truck','bi-clipboard-check','bi-cash-stack'];
+    const kpi=headline.map((item,i)=>this.tile(item||{label:names[i],value:'Unavailable',icon:icons[i]})).join('');
+    const fact=(label,value,fmt)=>value===null||value===undefined?''
+      :'<span class="rpm-dept-fact">'+UI.esc(label)+' <strong>'
+        +(fmt==='money'?UI.money(value):UI.esc(String(value)))+'</strong></span>';
+    const value=label=>get(label)?.value??null;
+    const departments=[
+      {title:'Operations',icon:'bi-signpost-split',page:'head-trips',facts:[
+        fact('Ongoing',value('Ongoing trips')),fact('Completed this month',value('Completed trips this month'))]},
+      {title:'Fleet & Personnel',icon:'bi-truck',page:'head-fleet',facts:[
+        fact('Total trucks',value('Total trucks')),fact('Available drivers',value('Available drivers'))]},
+      {title:'Maintenance',icon:'bi-tools',page:'maintenance',facts:[
+        fact('Open repairs',value('Open repair requests')),fact('Under maintenance',value('Trucks under corrective maintenance'))]},
+      {title:'Client & Commercial',icon:'bi-buildings',page:'clients',facts:[
+        fact('Active clients',read('clients','active')),fact('Approved routes',read('routes','approved'))]},
+      {title:'Finance',icon:'bi-wallet2',page:'finance',facts:[
+        fact('Expenses this month',value('Expenses this month'),'money')]},
+      {title:'Billing & Collections',icon:'bi-receipt',page:'billing',facts:[
+        fact('Billed this month',value('Billed this month'),'money'),
+        fact('Receivables',value('Outstanding receivables'),'money')]},
+      {title:'Fuel & Operating Costs',icon:'bi-fuel-pump',page:'fuel-adjustment',facts:[]},
+      {title:'Management Control',icon:'bi-shield-check',page:'head-approvals',facts:[
+        fact('Pending approvals',pending),fact('Open incidents',read('incidents','open'))]}
+    ];
+    const departmentsHtml=departments.map(d=>
+      '<article class="rpm-dept-card"><div class="rpm-dept-heading">'
+      +'<span class="rpm-dept-icon"><i class="bi '+d.icon+'" aria-hidden="true"></i></span>'
+      +'<h3>'+UI.esc(d.title)+'</h3></div><div class="rpm-dept-facts">'
+      +(d.facts.filter(Boolean).join('')||'<span class="rpm-dept-unavailable">Open module to review current records</span>')
+      +'</div>'+(UI.canGo(d.page)?'<button type="button" class="rpm-dept-link" data-go="'+d.page+'">'
+      +'View details <i class="bi bi-arrow-up-right" aria-hidden="true"></i></button>':'')+'</article>').join('');
+    const performance=(title,labels)=>{
+      const items=labels.map(get).filter(Boolean);
+      return '<article class="rpm-exec-performance-card"><h3>'+UI.esc(title)+'</h3>'
+        +(items.length?items.map(c=>'<div class="rpm-exec-performance-row"><span>'+UI.esc(c.label)
+          +'</span><strong>'+this.number(c)+'</strong></div>').join('')
+          :'<p class="rpm-dept-unavailable">No verified summary available.</p>')+'</article>';
+    };
+    const recent=tables.filter(t=>(t.rows||[]).length>0).slice(0,2);
+    const recentHtml=recent.length?recent.map(t=>UI.blockTable({...t,limit:5})).join('')
+      :'<div class="rpm-exec-empty"><i class="bi bi-inbox" aria-hidden="true"></i>'
+       +'<p>No recent operational records in the available summaries.</p></div>';
+    const breakdown=this.breakdown(cards,'admin');
+    return '<div class="rpm-executive-command">'
+      +'<section class="rpm-exec-headline"><h2>Company Overview</h2><p>Company-wide indicators from recorded operations.</p>'
+      +'<div class="rpm-exec-kpis">'+kpi+'</div></section>'
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Department Overview</h2>'
+      +'<span>Open each department for detailed records</span></div>'
+      +'<div class="rpm-exec-departments">'+departmentsHtml+'</div></section>'
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Company Performance</h2></div>'
+      +'<div class="rpm-exec-performance">'
+      +performance('Operations & Maintenance',['Ongoing trips','Completed trips this month','Open repair requests'])
+      +performance('Financial Summary',['Billed this month','Collected this month','Expenses this month'])
+      +'</div></section>'
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Needs Attention</h2></div>'
+      +this.alerts(alerts)+'</section>'
+      +(breakdown?'<section class="rpm-exec-section rpm-exec-fleet-breakdown">'+breakdown+'</section>':'')
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Recent Operational Records</h2>'
+      +'<span>Latest records provided by authorized modules</span></div>'
+      +'<div class="rpm-dashboard-tables">'+recentHtml+'</div></section></div>';
+  },
   // A breakdown is shown only when there are genuinely comparable counts.
   breakdown(cards, role) {
     const lookup = new Map((cards || []).map(c => [c.label, c]));
@@ -131,6 +211,12 @@ App.page('dashboard', {
     }
 
     const cards = d.cards || [], alerts = d.alerts || [], charts = d.charts || [], tables = d.tables || [];
+    if (role === 'admin') {
+      ctx.el.classList.add('rpm-dashboard','rpm-executive-dashboard');
+      ctx.el.innerHTML=RPMDashboard.executive(d);
+      UI.activate(ctx.el);
+      return;
+    }
     const breakdown = RPMDashboard.breakdown(cards, role);
     const summary = RPMDashboard.alerts(alerts);
     // One primary table, capped to five rows, avoids a wall of records on arrival.
