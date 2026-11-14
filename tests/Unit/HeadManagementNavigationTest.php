@@ -195,6 +195,21 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('.head-finance-table .table-pager', $styles);
     }
 
+    public function testTripAndApprovalTabsAreInsideTheirRecordCards(): void {
+        $root = dirname(__DIR__, 2);
+        $js = file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
+        $css = file_get_contents($root.'/public/assets/css/layout.css');
+        self::assertIsString($js);
+        self::assertIsString($css);
+        self::assertStringContainsString('head-trip-records record-workspace-panel', $js);
+        self::assertStringContainsString('head-trip-records-heading', $js);
+        self::assertStringContainsString('data-head-trip-tabs', $js);
+        self::assertStringContainsString('data-head-approval-tabs', $js);
+        self::assertStringContainsString('Approvals & Exception Records', $js);
+        self::assertStringContainsString('.head-trip-records .line-tabs', $css);
+        self::assertStringContainsString('.head-trip-records .head-monitor-panel', $css);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
