@@ -143,6 +143,26 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('exportRows:filtered=>HeadTripsUI.exportRows(filtered)', $js);
     }
 
+    public function testHeadFinancialAndBillingLayoutsUseFourKPIsWithoutChangingDepartmentActions(): void {
+        $root=dirname(__DIR__,2);
+        $finance=file_get_contents($root.'/public/assets/js/modules/accounting/finance.js');
+        $billing=file_get_contents($root.'/public/assets/js/modules/accounting/billing.js');
+        $css=file_get_contents($root.'/public/assets/css/layout.css');
+        self::assertIsString($finance);
+        self::assertIsString($billing);
+        self::assertIsString($css);
+        self::assertStringContainsString("const head = UI.role('admin')", $finance);
+        self::assertStringContainsString("const head = UI.role('admin')", $billing);
+        self::assertStringContainsString('head-financial-records', $finance);
+        self::assertStringContainsString('head-financial-records', $billing);
+        self::assertStringContainsString('...(!head ? [{ label:', $finance);
+        self::assertStringContainsString('...(!head ? [{ label:', $billing);
+        self::assertStringContainsString('Finance.po_pay', $finance);
+        self::assertStringContainsString('Billing.charge_decide', $billing);
+        self::assertStringContainsString('.head-financial-overview', $css);
+        self::assertStringContainsString('.head-billing-overview', $css);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
