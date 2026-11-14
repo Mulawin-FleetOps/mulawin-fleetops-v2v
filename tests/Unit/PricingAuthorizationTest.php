@@ -48,7 +48,10 @@ final class PricingAuthorizationTest extends TestCase {
         self::assertIsString($ui);
         self::assertIsString($settings);
         self::assertStringContainsString("garageEdit(ctx)", $ui);
-        self::assertStringContainsString("Verify Garage Entrance", $ui);
+        self::assertStringContainsString("Set Garage Location", $ui);
+        self::assertStringContainsString("https://maps.app.goo.gl/dVawLiiVDSGLDXha7", $ui);
+        self::assertStringContainsString("Set Fixed Company Garage", $ui);
+        self::assertStringContainsString("reference:sourceLink,verified:'1'", $ui);
         self::assertStringContainsString("setting_key:'garage'", $ui);
         self::assertStringContainsString("'Admin.pricing_save'", $ui);
         self::assertStringContainsString("value:'garage',label:'Company Garage'", $ui);
