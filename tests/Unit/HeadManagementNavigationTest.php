@@ -261,6 +261,13 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertIsString($styles);
         self::assertStringContainsString("App.me?.user?.role === 'admin'", $reports);
         self::assertStringContainsString("head-report-config", $reports);
+        self::assertStringContainsString('head-report-period-toolbar', $reports);
+        self::assertStringContainsString('head-report-preset-buttons', $reports);
+        self::assertStringContainsString('head-report-date-summary', $reports);
+        self::assertStringContainsString('head-report-config-bottom', $reports);
+        self::assertStringContainsString('.head-report-period-toolbar', $styles);
+        self::assertStringContainsString('.head-report-date-summary', $styles);
+        self::assertStringNotContainsString('.head-report-config-presets', $styles);
         self::assertStringContainsString("head-report-performance", $reports);
         self::assertStringContainsString("head-report-details", $reports);
         self::assertStringContainsString("preferences={", $reports);
