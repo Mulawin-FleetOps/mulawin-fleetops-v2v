@@ -29,7 +29,12 @@ const HeadOversight = {
       + '<strong>Sort records</strong><label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="default" data-record-sort checked> Default order</label>'
       + '<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="asc" data-record-sort> First column A–Z</label>'
       + '<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="desc" data-record-sort> First column Z–A</label></div></div>'
-      + '</div><div class="head-monitor-table" data-head-panel-table></div></section>';
+      + '</div>'
+      + (facet && options.length && options.length <= 5 ? '<div class="record-workspace-category-row head-monitor-categories" data-head-quick-categories>'
+        + '<button type="button" class="btn btn-sm btn-primary" data-head-quick-status="">All</button>'
+        + options.map(value=>'<button type="button" class="btn btn-sm btn-outline-secondary" data-head-quick-status="'+UI.esc(value)+'">'+UI.esc(value)+'</button>').join('')
+        + '</div>' : '')
+      + '<div class="head-monitor-table" data-head-panel-table></div></section>';
   },
   panelId: 0,
   csv(rows, cols, name) {
@@ -105,10 +110,22 @@ const HeadOversight = {
           const n = tableOptions.filterCount ? tableOptions.filterCount(panel) : Number(Boolean(chosen));
           indicator.textContent = n ? '('+n+')' : '';
         }
+        panel.querySelectorAll('[data-head-quick-status]').forEach(button=>{
+          const active=button.dataset.headQuickStatus===chosen;
+          button.classList.toggle('btn-primary',active);
+          button.classList.toggle('btn-outline-secondary',!active);
+          button.setAttribute('aria-pressed',String(active));
+        });
         UI.activate(slot);
         this.finishTable(slot);
       };
       search.addEventListener('input',draw);
+      panel.querySelector('[data-head-quick-categories]')?.addEventListener('click',event=>{
+        const button=event.target.closest('[data-head-quick-status]');
+        if(!button||!facet)return;
+        facet.value=button.dataset.headQuickStatus;
+        draw();
+      });
       RecordComponents.bindDropdowns(panel,{
         apply: () => { draw(); panel.querySelector('.record-workspace-filter-trigger')?.click(); },
         reset: () => {
