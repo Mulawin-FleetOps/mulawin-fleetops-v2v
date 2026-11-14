@@ -130,28 +130,76 @@ const HeadOversight = {
     return '<p class="small text-muted mb-3">Company-wide monitoring only. Changes to Trucks, Drivers, Helpers and Mechanics are handled by their assigned departments.</p>';
   }
 };
+/* One category workspace instead of three stacked Head Management tables. */
+const HeadFleetWorkspace = {
+  categories: [
+    {id:'trucks', label:'Trucks', key:'vehicles', empty:'No truck records available.',
+      cols:[['Truck / Plate','plate_number'],['Type','truck_type'],['Status','status','badge'],
+        ['Driver','driver_name'],['Helper','helper_name'],['Current Trip','active_trip']]},
+    {id:'crew', label:'Drivers & Helpers', key:'personnel', empty:'No personnel records available.',
+      cols:[['Personnel','full_name'],['Role','person_type'],['Availability','availability','badge'],
+        ['Regular Truck','regular_truck'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
+    {id:'mechanics', label:'Mechanics', key:'mechanics', empty:'No mechanics recorded.',
+      cols:[['Mechanic','full_name'],['Active Jobs','open_jobs'],
+        ['Active','active',value=>Number(value)===1?'Yes':'No']]}
+  ],
+  metrics(summary) {
+    const value=key=>summary && summary[key] !== null && summary[key] !== undefined
+      ? UI.esc(String(summary[key])) : '—';
+    const items=[
+      ['Total Trucks',value('total_trucks'),'bi-truck','green','trucks'],
+      ['Available Trucks',value('available_trucks'),'bi-check-circle','blue','trucks'],
+      ['Active Drivers & Helpers',value('active_crew'),'bi-people','purple','crew'],
+      ['Under Maintenance',value('under_maintenance'),'bi-wrench-adjustable','red','trucks']
+    ];
+    return '<div class="head-trip-kpis head-fleet-kpis">'
+      +items.map(([label,amount,icon,tone,category])=>
+        '<button type="button" class="head-kpi head-fleet-kpi '+tone+'" data-head-fleet-kpi="'+category+'" aria-label="View '+UI.esc(label)+' records">'
+        +'<span class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></span>'
+        +'<span class="head-fleet-kpi-value"><span>'+UI.esc(label)+'</span><strong>'+amount+'</strong></span></button>'
+      ).join('')+'</div>';
+  },
+  render(ctx) {
+    const data=ctx.data||{};
+    const tabs=this.categories.map(category=>({
+      ...category, records:Array.isArray(data[category.key])?data[category.key]:[]
+    }));
+    ctx.el.innerHTML='<div class="head-fleet-workspace">'
+      +'<p class="small text-muted">Company-wide monitoring only. Operational changes belong to their assigned departments.</p>'
+      +this.metrics(data.fleet_summary)
+      +'<section class="head-fleet-records"><div class="head-fleet-records-heading">'
+      +'<h2>Fleet & Personnel Records</h2><p>Select a category to review its records.</p></div>'
+      +'<nav class="head-fleet-tabs" role="tablist" aria-label="Fleet and personnel categories">'
+      +tabs.map(tab=>'<button type="button" role="tab" class="head-fleet-tab" data-head-fleet-tab="'+tab.id+'" aria-selected="false">'
+        +UI.esc(tab.label)+'</button>').join('')
+      +'</nav><div data-head-fleet-table role="tabpanel"></div></section></div>';
+    const container=ctx.el.querySelector('[data-head-fleet-table]');
+    const select=id=>{
+      const category=tabs.find(tab=>tab.id===id) || tabs[0];
+      ctx.el.querySelectorAll('[data-head-fleet-tab]').forEach(button=>{
+        const active=button.dataset.headFleetTab===category.id;
+        button.classList.toggle('active',active);
+        button.setAttribute('aria-selected',String(active));
+        button.tabIndex=active?0:-1;
+      });
+      container.setAttribute('aria-label',category.label);
+      container.innerHTML=HeadOversight.panel(category.label,category.cols,category.records,category.empty);
+      HeadOversight.mount(container,[[category.cols,category.records,category.empty]]);
+      UI.activate(container);
+    };
+    ctx.el.querySelectorAll('[data-head-fleet-tab]').forEach(button=>
+      button.addEventListener('click',()=>select(button.dataset.headFleetTab)));
+    ctx.el.querySelectorAll('[data-head-fleet-kpi]').forEach(button=>
+      button.addEventListener('click',()=>select(button.dataset.headFleetKpi)));
+    select('trucks');
+    if(Object.keys(data._errors||{}).length)
+      UI.toast('Some fleet monitoring information could not be loaded. Check the server log.','error');
+  }
+};
 App.page('head-fleet',{
   title:'Fleet & Personnel Status',
   subtitle:'Read-only truck, driver, helper and mechanic activity.',
-  render(ctx) {
-    const d=ctx.data||{};
-    ctx.el.innerHTML=HeadOversight.note()
-      +HeadOversight.panel('Trucks',
-        [['Truck','plate_number'],['Type','truck_type'],['Status','status','badge'],['Driver','driver_name'],['Helper','helper_name'],['Current Trip','active_trip']],
-        d.vehicles,'No truck records available.')
-      +HeadOversight.panel('Drivers & Helpers',
-        [['Name','full_name'],['Role','person_type'],['Availability','availability','badge'],['Regular Truck','regular_truck'],['Active','active',v=>Number(v)===1?'Yes':'No']],
-        d.personnel,'No personnel records available.')
-      +HeadOversight.panel('Mechanics',
-        [['Name','full_name'],['Active Jobs','open_jobs'],['Active','active',v=>Number(v)===1?'Yes':'No']],
-        d.mechanics,'No mechanics recorded.');
-    HeadOversight.mount(ctx.el,[
-      [[['Truck','plate_number'],['Type','truck_type'],['Status','status','badge'],['Driver','driver_name'],['Helper','helper_name'],['Current Trip','active_trip']],d.vehicles,'No truck records available.'],
-      [[['Name','full_name'],['Role','person_type'],['Availability','availability','badge'],['Regular Truck','regular_truck'],['Active','active',v=>Number(v)===1?'Yes':'No']],d.personnel,'No personnel records available.'],
-      [[['Name','full_name'],['Active Jobs','open_jobs'],['Active','active',v=>Number(v)===1?'Yes':'No']],d.mechanics,'No mechanics recorded.']
-    ]);
-    UI.activate(ctx.el);
-  }
+  render(ctx) { HeadFleetWorkspace.render(ctx); }
 });
 App.page('head-approvals',{
   title:'Approvals & Exceptions',
