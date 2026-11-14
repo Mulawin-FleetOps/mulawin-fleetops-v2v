@@ -130,6 +130,9 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("RouteUI.open(r.id,d)", $code);
         self::assertStringContainsString('Routes.decide', $code);
         self::assertStringContainsString('.head-route-workspace', $css);
+        self::assertStringContainsString("label:'Closed / Inactive routes'", $code);
+        self::assertStringContainsString("['Rejected','Withdrawn','Inactive'].includes(r.status)", $code);
+        self::assertStringContainsString('grid-template-columns:repeat(4,minmax(0,1fr))', $css);
     }
 
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
