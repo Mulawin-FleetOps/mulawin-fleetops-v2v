@@ -266,15 +266,25 @@ const App = {
       // The server sends the authoritative executive menu in business-flow
       // order. Preserve its labels and sections instead of re-sorting it into
       // the old Admin shortcuts + More tools groups.
+      const sectionIcons = {
+        'Operations Oversight': 'bi-activity',
+        'Client & Commercial': 'bi-buildings',
+        'Financial Oversight': 'bi-graph-up-arrow',
+        'Management Control': 'bi-shield-check',
+      };
       nav = '';
-      let section = Symbol('uninitialized');
+      let section = null;
       for (const item of allowed) {
         if (item.section !== section) {
+          if (section !== null) nav += '</div></details>';
           section = item.section;
-          if (section) nav += `<div class="nav-section">${UI.esc(section)}</div>`;
+          if (section) {
+            nav += `<details class="head-nav-group"><summary><i class="bi ${sectionIcons[section] || 'bi-folder2'}" aria-hidden="true"></i><span>${UI.esc(section)}</span><i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary><div class="head-nav-items">`;
+          }
         }
         nav += `<a href="#${item.id}" class="nav-item-link" data-nav="${item.id}"><i class="bi ${item.icon}" aria-hidden="true"></i><span>${UI.esc(item.label)}</span></a>`;
       }
+      if (section !== null) nav += '</div></details>';
     } else {
       nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
       if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
@@ -435,6 +445,11 @@ const App = {
     // Expand the supporting-tools group only when the current route is inside it.
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
     if (secondary) document.getElementById('sidebarMore').open = true;
+    // Native details keep manual expand/collapse behavior. On direct links or
+    // page changes, reveal the section containing the active Head page.
+    const headGroup = [...document.querySelectorAll('.head-nav-group')]
+      .find(group => [...group.querySelectorAll('[data-nav]')].some(link => link.dataset.nav === page));
+    if (headGroup) headGroup.open = true;
     document.getElementById('appSidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('show');
     if (this._rpmScrollNavigation) requestAnimationFrame(this._rpmScrollNavigation);
     document.getElementById('crumbs').innerHTML = `${nav.section ? `<span class="crumb-sec">${UI.esc(nav.section)}</span><i class="bi bi-chevron-right"></i>` : ''}<span class="crumb-page">${UI.esc(nav.label)}</span>`;
