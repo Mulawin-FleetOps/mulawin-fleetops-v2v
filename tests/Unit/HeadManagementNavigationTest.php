@@ -30,6 +30,10 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("if (u.role === 'admin')", $core);
         self::assertStringContainsString("item.section !== section", $core);
         self::assertStringContainsString("UI.esc(item.label)", $core);
+        self::assertStringContainsString('class="head-nav-group"', $core);
+        self::assertStringContainsString('head-nav-items', $core);
+        self::assertStringContainsString('if (headGroup) headGroup.open = true', $core);
+        self::assertStringContainsString('Head Management', file_get_contents(dirname(__DIR__,2).'/public/assets/css/layout.css') ?: '');
         self::assertStringContainsString("'administration/head-management'", $index);
     }
 
