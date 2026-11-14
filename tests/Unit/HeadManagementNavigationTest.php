@@ -10,7 +10,7 @@ final class HeadManagementNavigationTest extends TestCase {
     public function testAdminReceivesExecutiveSidebarInBusinessWorkflowOrder(): void {
         $nav=Access::navFor(['role'=>'admin']);
         self::assertSame([
-            'dashboard','trips','head-fleet','maintenance','clients','routes',
+            'dashboard','head-trips','head-fleet','maintenance','clients','routes',
             'finance','billing','fuel-adjustment','head-approvals','reports','admin','head-settings',
         ],array_column($nav,'id'));
         self::assertSame('Executive Dashboard',$nav[0]['label']);
@@ -38,13 +38,36 @@ final class HeadManagementNavigationTest extends TestCase {
     }
 
     public function testOversightPagesAreAdminOnly(): void {
-        foreach(['head-fleet','head-approvals','head-settings'] as $page) {
+        foreach(['head-trips','head-fleet','head-approvals','head-settings'] as $page) {
             self::assertTrue(Access::canOpen(['role'=>'admin'],$page));
             foreach(['operations_head','motorpool','finance','billing','audit'] as $role)
                 self::assertFalse(Access::canOpen(['role'=>$role],$page));
         }
         self::assertFalse(Access::canOpen(['role'=>'operations_head'],'clients'));
         self::assertTrue(Access::canOpen(['role'=>'admin'],'clients'));
+    }
+
+    public function testDedicatedHeadTripPageUsesSharedComponents(): void {
+        $code = file_get_contents(dirname(__DIR__, 2).'/public/assets/js/modules/administration/head-management.js');
+        self::assertIsString($code);
+        self::assertStringContainsString("App.page('head-trips'", $code);
+        self::assertStringContainsString('UI.cards(', $code);
+        self::assertStringContainsString('UI.tabs(', $code);
+        self::assertStringContainsString('UI.table(', $code);
+        self::assertStringContainsString('UI.drawer(', $code);
+        self::assertStringContainsString('HeadManagement.trip_details', $code);
+    }
+
+    public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
+        Actions::load('HeadManagement');
+        foreach (['operations_head','billing','finance','audit'] as $role) {
+            try {
+                HeadManagement::action(['id'=>1,'role'=>$role],'trip_details',['trip_id'=>1]);
+                self::fail('Unauthorized trip monitoring detail access.');
+            } catch (BusinessRuleException $e) {
+                self::assertSame(403, $e->httpStatus);
+            }
+        }
     }
 
     public function testHeadManagementOversightRejectsDirectMutations(): void {
