@@ -212,6 +212,26 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringNotContainsString('head-trip-records-heading><h2>Company Trip Records', $js);
     }
 
+    public function testFuelPageUsesFourActualKpisAndSharedConfigurationTabs(): void {
+        $root=dirname(__DIR__,2);
+        $js=file_get_contents($root.'/public/assets/js/modules/administration/admin.js');
+        $settings=file_get_contents($root.'/backend/Core/Settings.php');
+        self::assertIsString($js);
+        self::assertIsString($settings);
+        self::assertStringContainsString("App.page('fuel-adjustment',{title:'Fuel & Operating Costs'", $js);
+        self::assertStringContainsString("RecordComponents.kpis(kpis)", $js);
+        self::assertStringContainsString("Configured Truck Types", $js);
+        self::assertStringContainsString("Latest Configuration", $js);
+        self::assertStringContainsString("RecordComponents.categories(categories", $js);
+        self::assertStringContainsString("RecordComponents.panel(UI.table(columns,rows,options)", $js);
+        self::assertStringContainsString("RecordComponents.mountPanel(root", $js);
+        self::assertStringContainsString("this.edit(ctx,'diesel')", $js);
+        self::assertStringContainsString("this.edit(ctx,row.type)", $js);
+        self::assertStringContainsString("App.api('Admin.pricing_save',reviewed)", $js);
+        self::assertStringContainsString("requireRole($u,'admin')", $settings);
+        self::assertStringNotContainsString("Fuel Efficiency per Truck Type</h2>", $js);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
