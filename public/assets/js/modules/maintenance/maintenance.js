@@ -141,11 +141,165 @@ const MaintUI = {
   },
 };
 
+
+/* Head Management: read-only monitoring UI; Motorpool retains all repair actions. */
+const HeadMaintenanceUI = {
+  categories: [
+    {id:'open',label:'Open records',empty:'No open maintenance records.'},
+    {id:'completed',label:'Completed repairs',empty:'No completed repairs recorded.'},
+    {id:'all',label:'All records',empty:'No maintenance records available.'}
+  ],
+  columns: [
+    ['Record / Truck','job_ref',(value,row)=>'<b>'+UI.esc(value||'—')+'</b><div class="cell-sub">'+UI.esc(row.plate_number||'—')+'</div>'],
+    ['Problem','problem',value=>UI.esc(value||'—')],
+    ['Mechanic','mechanic',value=>UI.esc(value||'Not assigned')],
+    ['Status','display_status','badge'],
+    ['Reported','reported_on','date'],
+    ['Completed','completed_on','date']
+  ],
+  exportRows(rows) {
+    const cols=[['Record','job_ref'],['Truck','plate_number'],['Type','truck_type'],
+      ['Problem','problem'],['Mechanic','mechanic'],['Status','display_status'],
+      ['Reported','reported_on'],['Completed','completed_on']];
+    const quote=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[\s\uFEFF]*[=+\-@\t\r]/,match=>"'"+match)+'"';
+    const csv='\uFEFF'+[cols.map(([label])=>quote(label)).join(','),
+      ...rows.map(row=>cols.map(([,key])=>quote(row[key])).join(','))].join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;
+    link.download='mulawin_maintenance_monitoring_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  },
+  render(ctx,data,jobs) {
+    const open=jobs.filter(job=>job.status!=='Cancelled'&&!job.verified_at);
+    const completed=jobs.filter(job=>Boolean(job.verified_at));
+    const dataByTab={open,completed,all:jobs};
+    const metrics=[
+      ['Reported',open.filter(job=>job.status==='Reported').length,'bi-file-earmark-text','blue','open'],
+      ['Under inspection',open.filter(job=>job.status==='Under Inspection').length,'bi-search','green','open'],
+      ['Under repair',open.filter(job=>job.status==='Under Repair').length,'bi-tools','amber','open'],
+      ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open'],
+      ['Returned to service',completed.length,'bi-check-circle','green','completed']
+    ];
+    ctx.el.innerHTML='<section class="head-maintenance-workspace">'
+      +'<div class="head-trip-intro"><span><i class="bi bi-wrench-adjustable" aria-hidden="true"></i> Company-wide maintenance overview</span>'
+      +'<span class="small text-muted"><i class="bi bi-eye" aria-hidden="true"></i> Read-only monitoring</span></div>'
+      +'<div class="head-trip-kpis">'+metrics.map(([label,value,icon,tone,tab])=>
+        '<button type="button" class="head-kpi head-fleet-kpi '+tone+'" data-head-maintenance-kpi="'+tab+'">'
+        +'<span class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></span>'
+        +'<span class="head-fleet-kpi-value"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></span></button>').join('')+'</div>'
+      +'<section class="head-maintenance-records"><div class="head-fleet-records-heading">'
+      +'<h2>Maintenance Records</h2><p>Review repair activity and return-to-service records. Changes are handled by Motorpool.</p></div>'
+      +'<nav class="head-fleet-tabs" role="tablist" aria-label="Maintenance record categories">'
+      +this.categories.map(category=>'<button type="button" role="tab" class="head-fleet-tab" data-head-maintenance-tab="'+category.id+'" aria-selected="false">'
+        +UI.esc(category.label)+'</button>').join('')+'</nav>'
+      +'<div class="head-monitor-panel" data-head-maintenance-panel></div></section></section>';
+    let active='open';
+    const renderTab=id=>{
+      active=dataByTab[id]?id:'open';
+      ctx.el.querySelectorAll('[data-head-maintenance-tab]').forEach(button=>{
+        const selected=button.dataset.headMaintenanceTab===active;
+        button.classList.toggle('active',selected);button.setAttribute('aria-selected',String(selected));
+        button.tabIndex=selected?0:-1;
+      });
+      const panel=ctx.el.querySelector('[data-head-maintenance-panel]');
+      const category=this.categories.find(category=>category.id===active);
+      const rows=dataByTab[active];
+      const statuses=[...new Set(rows.map(row=>row.display_status).filter(Boolean))].sort();
+      const filterId='head-maintenance-filter';
+      const sortId='head-maintenance-sort';
+      panel.innerHTML='<div class="head-monitor-header"><h2 class="h6 mb-0">'+UI.esc(category.label)+'</h2>'
+        +'<span class="head-monitor-subcount" data-head-maintenance-count>'+rows.length+' records</span></div>'
+        +'<div class="head-monitor-tools record-workspace-search">'
+        +'<div class="head-search-box"><i class="bi bi-search" aria-hidden="true"></i>'
+        +'<input type="search" class="form-control head-monitor-search" data-head-maintenance-search placeholder="Search this list" aria-label="Search maintenance records"></div>'
+        +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel"></i> Filter <span data-head-maintenance-filter-count></span></button>'
+        +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up"></i> Sort</button>'
+        +'<button type="button" class="btn btn-sm btn-outline-success" data-head-maintenance-export><i class="bi bi-download"></i> Export</button>'
+        +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden>'
+        +'<strong>Filter records</strong><label>Status<select class="form-select form-select-sm" data-head-maintenance-status>'
+        +'<option value="">All statuses</option>'
+        +statuses.map(status=>'<option value="'+UI.esc(status)+'">'+UI.esc(status)+'</option>').join('')
+        +'</select></label><div class="record-workspace-popover-actions">'
+        +'<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+        +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+        +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden>'
+        +'<strong>Sort records</strong>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head-maintenance-order" value="default" data-record-sort checked> Default order</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head-maintenance-order" value="asc" data-record-sort> Record A–Z</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head-maintenance-order" value="desc" data-record-sort> Record Z–A</label>'
+        +'</div></div></div><div class="head-monitor-table" data-head-maintenance-table></div>';
+      const search=panel.querySelector('[data-head-maintenance-search]');
+      const status=panel.querySelector('[data-head-maintenance-status]');
+      const tableSlot=panel.querySelector('[data-head-maintenance-table]');
+      let sort='default', filtered=rows;
+      const draw=()=>{
+        const term=search.value.trim().toLocaleLowerCase();
+        filtered=rows.filter(row=>(!status.value||row.display_status===status.value)
+          &&(!term||['job_ref','plate_number','truck_type','problem','mechanic','display_status','reported_on']
+            .some(key=>String(row[key]??'').toLocaleLowerCase().includes(term))));
+        if(sort!=='default')filtered=[...filtered].sort((a,b)=>(sort==='asc'?1:-1)
+          *String(a.job_ref??'').localeCompare(String(b.job_ref??''),undefined,{numeric:true}));
+        tableSlot.innerHTML=UI.table(this.columns,filtered,{
+          showAllColumns:true,viewSwitch:false,empty:category.empty,
+          actions:()=>UI.btn('view','View details','outline-primary'),
+          onAction:(_,job)=>MaintUI.open(job.id),
+          rowClick:job=>MaintUI.open(job.id)
+        });
+        const count=panel.querySelector('[data-head-maintenance-count]');
+        count.textContent=filtered.length===rows.length?rows.length+' records':filtered.length+' of '+rows.length+' records';
+        panel.querySelector('[data-head-maintenance-filter-count]').textContent=status.value?'(1)':'';
+        UI.activate(tableSlot);
+        // Display proper table headers and page footer even when empty, scoped to Head.
+        const box=tableSlot.querySelector('[data-tbody]');
+        if(!box)return;
+        const id=box.dataset.tbody, t=UI._tables[id],pager=tableSlot.querySelector('[data-tpager]');
+        if(!filtered.length) {
+          box.innerHTML='<table class="data-table"><thead><tr>'
+            +this.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')
+            +'<th class="actions-col">Action</th></tr></thead><tbody><tr><td colspan="'+(this.columns.length+1)+'">'
+            +'<div class="table-empty" role="status">'+UI.esc(category.empty)+'</div></td></tr></tbody></table>';
+        }
+        if(pager){
+          const pages=Math.max(1,Math.ceil(filtered.length/t.limit));
+          const paintPager=()=>{
+            pager.innerHTML=UI.recordPager({total:filtered.length,page:t.page+1,pages,pageSize:t.limit});
+            const buttons=pager.querySelectorAll('button');
+            const move=delta=>{t.page=Math.max(0,Math.min(pages-1,t.page+delta));UI.drawTable(id);paintPager();};
+            if(buttons[0])buttons[0].onclick=()=>move(-1);
+            if(buttons[1])buttons[1].onclick=()=>move(1);
+          };
+          paintPager();
+        }
+      };
+      search.addEventListener('input',draw);
+      RecordComponents.bindDropdowns(panel,{
+        apply:()=>{draw();panel.querySelector('.record-workspace-filter-trigger').click();},
+        reset:()=>{status.value='';draw();panel.querySelector('.record-workspace-filter-trigger').click();},
+        sort:value=>{sort=value;draw();}
+      },{filter:filterId,sort:sortId});
+      panel.querySelector('[data-head-maintenance-export]').onclick=()=>this.exportRows(filtered);
+      draw();
+    };
+    ctx.el.querySelectorAll('[data-head-maintenance-tab]').forEach(button=>
+      button.addEventListener('click',()=>renderTab(button.dataset.headMaintenanceTab)));
+    ctx.el.querySelectorAll('[data-head-maintenance-kpi]').forEach(button=>
+      button.addEventListener('click',()=>renderTab(button.dataset.headMaintenanceKpi)));
+    renderTab('open');
+    if(Object.keys(data._errors||{}).length)UI.toast('Some maintenance records could not be loaded. Check server logs.','error');
+  }
+};
+
 App.page('maintenance', {
   title: 'Corrective Maintenance',
   subtitle: 'Unexpected truck problems from the garage or from trip incidents: inspection, repair, verification.',
   render(ctx) {
     const d = MaintUI.data = ctx.data;
+    if (App.me?.user?.role === 'admin') {
+      const jobs=(d.jobs||[]).map(j=>({...j,display_status:j.verified_at?'Returned to service':j.status==='Completed'?'Awaiting verification':j.status}));
+      HeadMaintenanceUI.render(ctx,d,jobs);
+      return;
+    }
     if (d.can.act) UI.tool(ctx, 'Report truck problem', () => MaintUI.report(), 'bi-plus-lg', 'primary');
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     const open = jobs.filter(j => !['Cancelled'].includes(j.status) && !j.verified_at);
