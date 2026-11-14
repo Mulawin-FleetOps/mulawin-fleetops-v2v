@@ -173,7 +173,7 @@ const HeadMaintenanceUI = {
   render(ctx,data,jobs) {
     const open=jobs.filter(job=>job.status!=='Cancelled'&&!job.verified_at);
     const completed=jobs.filter(job=>Boolean(job.verified_at));
-    const dataByTab={open,completed,all:jobs};
+    const dataByCategory={open,completed,all:jobs};
     const metrics=[
       ['Reported',open.filter(job=>job.status==='Reported').length,'bi-file-earmark-text','blue','open'],
       ['Under inspection',open.filter(job=>job.status==='Under Inspection').length,'bi-search','green','open'],
@@ -187,105 +187,98 @@ const HeadMaintenanceUI = {
         '<button type="button" class="head-kpi head-fleet-kpi '+tone+'" data-head-maintenance-kpi="'+tab+'">'
         +'<span class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></span>'
         +'<span class="head-fleet-kpi-value"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></span></button>').join('')+'</div>'
-      +'<section class="head-maintenance-records"><div class="head-fleet-records-heading">'
-      +'<h2>Maintenance Records</h2><p>Review repair activity and return-to-service records. Changes are handled by Motorpool.</p></div>'
-      +'<nav class="head-fleet-tabs" role="tablist" aria-label="Maintenance record categories">'
-      +this.categories.map(category=>'<button type="button" role="tab" class="head-fleet-tab" data-head-maintenance-tab="'+category.id+'" aria-selected="false">'
-        +UI.esc(category.label)+'</button>').join('')+'</nav>'
-      +'<div class="head-monitor-panel" data-head-maintenance-panel></div></section></section>';
-    let active='open';
-    const renderTab=id=>{
-      active=dataByTab[id]?id:'open';
-      ctx.el.querySelectorAll('[data-head-maintenance-tab]').forEach(button=>{
-        const selected=button.dataset.headMaintenanceTab===active;
-        button.classList.toggle('active',selected);button.setAttribute('aria-selected',String(selected));
-        button.tabIndex=selected?0:-1;
-      });
-      const panel=ctx.el.querySelector('[data-head-maintenance-panel]');
-      const category=this.categories.find(category=>category.id===active);
-      const rows=dataByTab[active];
-      const statuses=[...new Set(rows.map(row=>row.display_status).filter(Boolean))].sort();
-      const filterId='head-maintenance-filter';
-      const sortId='head-maintenance-sort';
-      panel.innerHTML='<div class="head-monitor-header"><h2 class="h6 mb-0">'+UI.esc(category.label)+'</h2>'
-        +'<span class="head-monitor-subcount" data-head-maintenance-count>'+rows.length+' records</span></div>'
-        +'<div class="head-monitor-tools record-workspace-search">'
-        +'<div class="head-search-box"><i class="bi bi-search" aria-hidden="true"></i>'
-        +'<input type="search" class="form-control head-monitor-search" data-head-maintenance-search placeholder="Search this list" aria-label="Search maintenance records"></div>'
-        +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel"></i> Filter <span data-head-maintenance-filter-count></span></button>'
-        +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up"></i> Sort</button>'
-        +'<button type="button" class="btn btn-sm btn-outline-success" data-head-maintenance-export><i class="bi bi-download"></i> Export</button>'
-        +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden>'
-        +'<strong>Filter records</strong><label>Status<select class="form-select form-select-sm" data-head-maintenance-status>'
-        +'<option value="">All statuses</option>'
-        +statuses.map(status=>'<option value="'+UI.esc(status)+'">'+UI.esc(status)+'</option>').join('')
+      +'<div data-head-maintenance-workspace></div></section>';
+    const root=ctx.el.querySelector('[data-head-maintenance-workspace]');
+    const state={category:'open',status:'',sort:'default'};
+    const renderCategory=()=>{
+      const category=this.categories.find(c=>c.id===state.category)||this.categories[0];
+      const rows=dataByCategory[category.id];
+      const statuses=[...new Set(rows.map(job=>job.display_status).filter(Boolean))].sort();
+      const filterId='head-maintenance-filter',sortId='head-maintenance-sort';
+      const toolbar='<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
+        +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+        +'<div class="record-workspace-popovers">'
+        +'<div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter maintenance records</strong>'
+        +'<label>Status<select class="form-select form-select-sm" data-head-maintenance-status>'
+        +'<option value="">All statuses</option>'+statuses.map(status=>'<option value="'+UI.esc(status)+'">'+UI.esc(status)+'</option>').join('')
         +'</select></label><div class="record-workspace-popover-actions">'
         +'<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
         +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
         +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden>'
-        +'<strong>Sort records</strong>'
-        +'<label class="record-workspace-sort-option"><input type="radio" name="head-maintenance-order" value="default" data-record-sort checked> Default order</label>'
-        +'<label class="record-workspace-sort-option"><input type="radio" name="head-maintenance-order" value="asc" data-record-sort> Record A–Z</label>'
-        +'<label class="record-workspace-sort-option"><input type="radio" name="head-maintenance-order" value="desc" data-record-sort> Record Z–A</label>'
-        +'</div></div></div><div class="head-monitor-table" data-head-maintenance-table></div>';
-      const search=panel.querySelector('[data-head-maintenance-search]');
-      const status=panel.querySelector('[data-head-maintenance-status]');
-      const tableSlot=panel.querySelector('[data-head-maintenance-table]');
-      let sort='default', filtered=rows;
+        +'<strong>Sort maintenance records</strong>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head_maintenance_sort" value="default" data-record-sort checked> Default order</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head_maintenance_sort" value="asc" data-record-sort> Record A–Z</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head_maintenance_sort" value="desc" data-record-sort> Record Z–A</label>'
+        +'</div></div>'
+        +'<button type="button" class="btn btn-sm btn-outline-success record-workspace-add" data-head-maintenance-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>';
+      const table=UI.table(this.columns,rows,{
+        tools:toolbar,showAllColumns:true,viewSwitch:false,empty:category.empty,
+        actions:()=>UI.btn('view','View details','outline-primary'),
+        onAction:(_,job)=>MaintUI.open(job.id),
+        rowClick:job=>MaintUI.open(job.id)
+      });
+      root.innerHTML=RecordComponents.panel(table,RecordComponents.categories(
+        this.categories.map(item=>({value:item.id,label:item.label})),category.id,'data-head-maintenance-category'));
+      UI.activate(root);
+      RecordComponents.mountPanel(root,{title:'Maintenance Records',addSelector:'.record-workspace-add'});
+      const tbody=root.querySelector('[data-tbody]'),id=tbody?.dataset.tbody;
+      const tableState=id?UI._tables[id]:null;
+      if(!tableState)return;
+      const statusSelect=root.querySelector('[data-head-maintenance-status]');
+      const search=root.querySelector('[data-tsearch]');
+      const original=rows.slice();
+      let visible=rows.slice();
+      statusSelect.value=state.status;
+      const selectedSort=root.querySelector('[data-record-sort][value="'+state.sort+'"]');
+      if(selectedSort)selectedSort.checked=true;
       const draw=()=>{
-        const term=search.value.trim().toLocaleLowerCase();
-        filtered=rows.filter(row=>(!status.value||row.display_status===status.value)
-          &&(!term||['job_ref','plate_number','truck_type','problem','mechanic','display_status','reported_on']
-            .some(key=>String(row[key]??'').toLocaleLowerCase().includes(term))));
-        if(sort!=='default')filtered=[...filtered].sort((a,b)=>(sort==='asc'?1:-1)
+        const term=(search?.value||'').trim().toLocaleLowerCase();
+        visible=original.filter(job=>(!state.status||job.display_status===state.status)
+          &&(!term||['job_ref','plate_number','truck_type','problem','mechanic','display_status','reported_on','completed_on']
+            .some(key=>String(job[key]??'').toLocaleLowerCase().includes(term))));
+        if(state.sort!=='default')visible.sort((a,b)=>(state.sort==='asc'?1:-1)
           *String(a.job_ref??'').localeCompare(String(b.job_ref??''),undefined,{numeric:true}));
-        tableSlot.innerHTML=UI.table(this.columns,filtered,{
-          showAllColumns:true,viewSwitch:false,empty:category.empty,
-          actions:()=>UI.btn('view','View details','outline-primary'),
-          onAction:(_,job)=>MaintUI.open(job.id),
-          rowClick:job=>MaintUI.open(job.id)
-        });
-        const count=panel.querySelector('[data-head-maintenance-count]');
-        count.textContent=filtered.length===rows.length?rows.length+' records':filtered.length+' of '+rows.length+' records';
-        panel.querySelector('[data-head-maintenance-filter-count]').textContent=status.value?'(1)':'';
-        UI.activate(tableSlot);
-        // Display proper table headers and page footer even when empty, scoped to Head.
-        const box=tableSlot.querySelector('[data-tbody]');
-        if(!box)return;
-        const id=box.dataset.tbody, t=UI._tables[id],pager=tableSlot.querySelector('[data-tpager]');
-        if(!filtered.length) {
-          box.innerHTML='<table class="data-table"><thead><tr>'
-            +this.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')
-            +'<th class="actions-col">Action</th></tr></thead><tbody><tr><td colspan="'+(this.columns.length+1)+'">'
-            +'<div class="table-empty" role="status">'+UI.esc(category.empty)+'</div></td></tr></tbody></table>';
-        }
-        if(pager){
-          const pages=Math.max(1,Math.ceil(filtered.length/t.limit));
-          const paintPager=()=>{
-            pager.innerHTML=UI.recordPager({total:filtered.length,page:t.page+1,pages,pageSize:t.limit});
-            const buttons=pager.querySelectorAll('button');
-            const move=delta=>{t.page=Math.max(0,Math.min(pages-1,t.page+delta));UI.drawTable(id);paintPager();};
-            if(buttons[0])buttons[0].onclick=()=>move(-1);
-            if(buttons[1])buttons[1].onclick=()=>move(1);
-          };
-          paintPager();
-        }
+        tableState.rows=visible;
+        tableState.filter='';
+        tableState.page=0;
+        UI.drawTable(id);
+        // Only the Head Management view needs headers and pager for an empty table.
+        if(typeof HeadOversight!=='undefined')HeadOversight.finishTable(root);
       };
-      search.addEventListener('input',draw);
-      RecordComponents.bindDropdowns(panel,{
-        apply:()=>{draw();panel.querySelector('.record-workspace-filter-trigger').click();},
-        reset:()=>{status.value='';draw();panel.querySelector('.record-workspace-filter-trigger').click();},
-        sort:value=>{sort=value;draw();}
+      search?.addEventListener('input',draw);
+      RecordComponents.bindDropdowns(root,{
+        apply:panel=>{
+          state.status=panel.querySelector('[data-head-maintenance-status]').value;
+          draw();
+          root.querySelector('.record-workspace-filter-trigger')?.click();
+        },
+        reset:()=>{
+          state.status='';
+          statusSelect.value='';
+          draw();
+          root.querySelector('.record-workspace-filter-trigger')?.click();
+        },
+        sort:value=>{state.sort=value;draw();}
       },{filter:filterId,sort:sortId});
-      panel.querySelector('[data-head-maintenance-export]').onclick=()=>this.exportRows(filtered);
+      root.querySelectorAll('[data-head-maintenance-category]').forEach(button=>button.addEventListener('click',()=>{
+        if(state.category===button.dataset.headMaintenanceCategory)return;
+        state.category=button.dataset.headMaintenanceCategory;
+        state.status='';
+        state.sort='default';
+        renderCategory();
+      }));
+      root.querySelector('[data-head-maintenance-export]')?.addEventListener('click',()=>this.exportRows(visible));
       draw();
     };
-    ctx.el.querySelectorAll('[data-head-maintenance-tab]').forEach(button=>
-      button.addEventListener('click',()=>renderTab(button.dataset.headMaintenanceTab)));
-    ctx.el.querySelectorAll('[data-head-maintenance-kpi]').forEach(button=>
-      button.addEventListener('click',()=>renderTab(button.dataset.headMaintenanceKpi)));
-    renderTab('open');
-    if(Object.keys(data._errors||{}).length)UI.toast('Some maintenance records could not be loaded. Check server logs.','error');
+    ctx.el.querySelectorAll('[data-head-maintenance-kpi]').forEach(button=>button.addEventListener('click',()=>{
+      state.category=button.dataset.headMaintenanceKpi;
+      state.status='';
+      state.sort='default';
+      renderCategory();
+    }));
+    renderCategory();
+    if(Object.keys(data._errors||{}).length)
+      UI.toast('Some maintenance records could not be loaded. Check server logs.','error');
   }
 };
 
