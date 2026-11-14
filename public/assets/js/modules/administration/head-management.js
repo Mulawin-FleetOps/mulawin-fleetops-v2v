@@ -420,37 +420,6 @@ const HeadTripsUI = {
     const link=document.createElement('a');link.href=url;link.download='mulawin_trip_monitoring_'+new Date().toISOString().slice(0,10)+'.csv';
     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   },
-  renderTripTable(body, rows, empty) {
-    const cols = HeadTripsUI.columns();
-    body.innerHTML = HeadOversight.panel('Company Trip Records',cols,rows,empty);
-    const panel = body.querySelector('[data-head-panel]');
-    const filter = panel.querySelector('.record-workspace-popover:not(.record-workspace-sort-panel)');
-    const statuses = [...new Set(rows.map(row=>row.status).filter(Boolean))].sort();
-    const types = [...new Set(rows.map(row=>row.truck_type).filter(Boolean))].sort();
-    const options = values=>values.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
-    filter.querySelector('label').innerHTML = 'Trip status<select class="form-select form-select-sm" data-head-facet>'
-      + '<option value="">All statuses</option>'+options(statuses)+'</select>';
-    filter.querySelector('.record-workspace-popover-actions').insertAdjacentHTML('beforebegin',
-      '<label>Truck type<select class="form-select form-select-sm" data-head-extra-filter data-head-type>'
-      +'<option value="">All truck types</option>'+options(types)+'</select></label>'
-      +'<label>Scheduled date<input class="form-control form-control-sm" type="date" data-head-extra-filter data-head-date></label>');
-    HeadOversight.mount(body,[[cols,rows,empty,{
-      actions:()=>UI.btn('view','View Details','outline-primary'),
-      onAction:(_,trip)=>HeadTripsUI.details(trip.id),
-      rowClick:trip=>HeadTripsUI.details(trip.id),
-      exportRows:filtered=>HeadTripsUI.exportRows(filtered),
-      searchFields:['client','delivery_point','plate_number','driver_name','helper_name','dispatcher_name'],
-      filterRow:(row,root)=>{
-        const type=root.querySelector('[data-head-type]').value;
-        const date=root.querySelector('[data-head-date]').value;
-        return (!type||row.truck_type===type)
-          &&(!date||String(row.scheduled_at||'').slice(0,10)===date);
-      },
-      filterCount:root=>[root.querySelector('[data-head-facet]').value,
-        root.querySelector('[data-head-type]').value,
-        root.querySelector('[data-head-date]').value].filter(Boolean).length
-    }]]);
-  },
   render(ctx) {
     const d=ctx.data||{}, summary=d.summary||{};
     const active=d.active||[],history=d.history||[],incidents=d.incidents||[];
@@ -486,26 +455,38 @@ const HeadTripsUI = {
       ].map(([title,value,icon,tone])=>'<div class="head-kpi '+tone+'"><div class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></div><div><span>'+UI.esc(title)+'</span><strong>'+value+'</strong></div></div>').join('')
       +'</div><div class="head-trip-overview"><div class="head-trip-chart">'+chart
       +'<div class="head-chart-total">'+total+' total trip'+(total===1?'':'s')+'</div></div><div class="head-trip-map">'+mapPanel+'</div></div>'
-      +'<section class="head-trip-records record-workspace-panel"><div class="head-trip-records-heading"><h2>Company Trip Records</h2><p>Review scheduled trips, history and reported incidents.</p></div><div data-head-trip-tabs></div></section></div>';
-    const root=ctx.el.querySelector('[data-head-trip-tabs]');
-    const tabs=[
-      ['active','Active & Scheduled ('+active.length+')',body=>HeadTripsUI.renderTripTable(body,active,'No active or scheduled trips.')],
-      ['history','Trip History',body=>HeadTripsUI.renderTripTable(body,history,'No completed or closed trips.')],
-      ['incidents','Incidents ('+incidents.filter(x=>x.status!=='Resolved').length+' open)',body=>{
-        const cols=[
-          ['Incident','incident_ref'],['Trip','trip_ref'],['Client','client'],
-          ['Truck','plate_number'],['Status','status','badge'],
-          ['Severity','severity'],['Reported','incident_at','datetime']
-        ];
-        body.innerHTML=HeadOversight.panel('Reported Trip Incidents',cols,incidents,'No incidents reported.');
-        HeadOversight.mount(body,[[cols,incidents,'No incidents reported.',{
-          actions:()=>UI.btn('view','View Trip','outline-primary'),
-          onAction:(_,incident)=>HeadTripsUI.details(incident.trip_id)
-        }]]);
-      }]
-
+      +'<div data-head-trip-records></div></div>';
+    const root=ctx.el.querySelector('[data-head-trip-records]');
+    const tabItems=[
+      {value:'active',label:'Active & Scheduled ('+active.length+')',rows:active,empty:'No active or scheduled trips.'},
+      {value:'history',label:'Trip History',rows:history,empty:'No completed or closed trips.'},
+      {value:'incidents',label:'Incidents ('+incidents.filter(x=>x.status!=='Resolved').length+' open)',rows:incidents,empty:'No incidents reported.'}
     ];
-    UI.tabs(root,tabs,ctx.query?.tab||'active');
+    const select=key=>{
+      const tab=tabItems.find(item=>item.value===key)||tabItems[0];
+      const isIncident=tab.value==='incidents';
+      const cols=isIncident?[
+        ['Incident','incident_ref'],['Trip','trip_ref'],['Client','client'],
+        ['Truck','plate_number'],['Status','status','badge'],
+        ['Severity','severity'],['Reported','incident_at','datetime']
+      ]:HeadTripsUI.columns();
+      const filters=isIncident?[
+        {label:'Status',key:'status',options:[...new Set(tab.rows.map(r=>r.status).filter(Boolean))].sort()}
+      ]:[
+        {label:'Trip status',key:'status',options:[...new Set(tab.rows.map(r=>r.status).filter(Boolean))].sort()},
+        {label:'Truck type',key:'truck_type',options:[...new Set(tab.rows.map(r=>r.truck_type).filter(Boolean))].sort()}
+      ];
+      HeadRecords.render(root,{
+        title:'Company Trip Records',categories:tabItems,selected:tab.value,
+        columns:cols,rows:tab.rows,empty:tab.empty,filters,
+        searchFields:isIncident?[]:['client','delivery_point','plate_number','driver_name','helper_name','dispatcher_name'],
+        onAction:(_,row)=>HeadTripsUI.details(isIncident?row.trip_id:row.id),
+        rowClick:row=>HeadTripsUI.details(isIncident?row.trip_id:row.id),
+        exportRows:isIncident?null:rows=>HeadTripsUI.exportRows(rows),
+        changeCategory:select
+      });
+    };
+    select(ctx.query?.tab||'active');
     UI.activate(ctx.el);
     if(route) HeadTripsUI.mountRoutePreview(ctx.el,route);
     if(Object.keys(d._errors||{}).length) UI.toast('Some monitoring data could not be loaded. Check the server log.','error');
