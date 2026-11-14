@@ -61,7 +61,7 @@ final class Access {
             'dispatcher-monitoring' => ['Dispatcher Monitoring','bi-person-workspace',null,'Trips','operations/ops-head',['operations_head']],
             'head-trips' => ['Trip Monitoring','bi-signpost-split','Operations Oversight','HeadManagement','administration/head-management',['admin']],
             'head-fleet' => ['Fleet & Personnel Status','bi-people', 'Operations Oversight', 'HeadManagement', 'administration/head-management', ['admin']],
-            'head-approvals' => ['Approvals & Exceptions','bi-clipboard-check', 'Management Control', 'HeadManagement', 'administration/head-management', ['admin']],
+            'head-approvals' => ['Management Action Center','bi-clipboard-check', 'Management Control', 'HeadManagement', 'administration/head-management', ['admin']],
             'head-settings' => ['System Configuration','bi-gear', 'Management Control', 'Admin', 'administration/admin', ['admin']],
 
 
@@ -114,7 +114,7 @@ final class Access {
                 'finance' => ['Financial Overview', 'Financial Oversight'],
                 'billing' => ['Billing & Collections', 'Financial Oversight'],
                 'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
-                'head-approvals' => ['Approvals & Exceptions', 'Management Control'],
+                'head-approvals' => ['Management Action Center', 'Management Control'],
                 'reports' => ['Management Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
