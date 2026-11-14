@@ -90,7 +90,7 @@ App.page('finance', {
         tables: [{ title: 'Monthly cash flow', columns: [['Month', 'm'], ['Cash in', 'cash_in', 'money'], ['Cash out', 'cash_out', 'money'], ['Net', 'net', 'money']], rows: d.cashflow.map(x => ({ ...x, net: +x.cash_in - +x.cash_out })) }] })],
     ];
     const chosen = ctx.query.from ? 'expenses' : ctx.query.tab || 'po';
-    if (head) RecordComponents.executiveTabs(box,financialTabs,chosen,'Financial Records');
+    if (head) RecordComponents.executiveTabs(box,['po','expenses','disb','ap','budget','cash'].map(key=>financialTabs.find(tab=>tab[0]===key)).filter(Boolean),chosen,'Financial Records');
     else UI.tabs(box,financialTabs,ctx.query.from ? 'expenses' : ctx.query.tab || null,{forceActive:!!ctx.query.tab||!!ctx.query.from});
   },
 });
