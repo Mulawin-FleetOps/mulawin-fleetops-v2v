@@ -366,7 +366,8 @@ const HeadRouteWorkspace = {
       +UI.cards([
         {label:'Approved routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
         {label:'Waiting for rate',value:count(r=>r.status==='Pending Rate'),color:'blue',icon:'bi-calendar-check'},
-        {label:'Waiting for approval',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',hint:'new routes and rate revisions'}
+        {label:'Waiting for approval',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',hint:'new routes and rate revisions'},
+        {label:'Closed / Inactive routes',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
       ])
       +'<section class="head-route-records head-monitor-panel">'
       +'<div class="head-fleet-records-heading"><h2>Route & Contract Records</h2><p>Review route requests, contractual rates and approvals.</p></div>'
