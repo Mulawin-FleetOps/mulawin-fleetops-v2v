@@ -217,8 +217,113 @@ const HeadAdminPage = {
         { hint: `Showing ${UI.date(d.range.from)} – ${UI.date(d.range.to)}.` })
       + UI.table([['Date & time', 'created_at', 'datetime'], ['User', 'actor'], ['Activity', 'action']], d.events,
         { title: 'Activity log', actions: () => UI.btn('view', 'View'), onAction: (a, e) => { if (a === 'view') activityDetails(e); }, rowClick: activityDetails })]);
+    // Dedicated System Configuration route. The Admin page keeps its original
+    // account, backup and audit tabs; this page displays only configuration.
+    const renderHeadSettings = (host) => {
+      const settings=Array.isArray(d.settings)?d.settings:[];
+      const categories=Array.isArray(d.fundCategories)?d.fundCategories:[];
+      const groupFor=key=>{
+        if(['purchase_approval_threshold','default_payment_terms_days','vat_rate','km_per_liter','fuel_price_per_liter'].includes(key))return 'Financial';
+        if(['crew_attendance_dispatch_check','attendance_day_start_hour','attendance_night_start_hour'].includes(key))return 'Attendance';
+        if(['document_alert_days','license_alert_days'].includes(key))return 'Notifications';
+        return 'Operations';
+      };
+      const groups=['Financial','Operations','Attendance','Notifications'];
+      const active=categories.filter(item=>Number(item.active)===1).length;
+      host.innerHTML='<div class="head-settings-workspace">'
+        +RecordComponents.kpis([
+          {label:'System Settings',value:settings.length,icon:'bi-sliders',color:'blue'},
+          {label:'Fund Categories',value:categories.length,icon:'bi-wallet2',color:'green'},
+          {label:'Configuration Groups',value:new Set(settings.map(item=>groupFor(item.key))).size,icon:'bi-layers',color:'purple'},
+          {label:'Active Fund Categories',value:active,icon:'bi-check-circle',color:'amber'}
+        ])
+        +'<div data-head-settings-records></div></div>';
+      const records=host.querySelector('[data-head-settings-records]');
+      const state={section:'settings',group:'',fundState:'',sort:'default'};
+      const sections=[{value:'settings',label:'System Settings'},{value:'funds',label:'Fund Request Categories'}];
+      const renderSection=()=>{
+        const isSettings=state.section==='settings';
+        const source=isSettings?settings:categories;
+        const filterId='head-settings-filter',sortId='head-settings-sort';
+        const options=isSettings?groups.map(value=>'<option value="'+value+'">'+value+'</option>').join('')
+          :'<option value="active">Active</option><option value="inactive">Inactive</option>';
+        const tools=(isSettings?'':'<button type="button" class="btn btn-sm btn-primary record-workspace-add" data-head-add-fund><i class="bi bi-plus-lg" aria-hidden="true"></i> Add Category</button>')
+          +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
+          +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+          +'<div class="record-workspace-popovers"><div class="record-workspace-popover" id="'+filterId+'" hidden>'
+          +'<strong>Filter '+(isSettings?'system settings':'fund categories')+'</strong>'
+          +'<label>'+(isSettings?'Configuration group':'Status')+'<select class="form-select form-select-sm" data-head-settings-filter>'
+          +'<option value="">All '+(isSettings?'groups':'statuses')+'</option>'+options+'</select></label>'
+          +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+          +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+          +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden><strong>Sort records</strong>'
+          +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="default" data-record-sort checked> Default order</label>'
+          +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="asc" data-record-sort> Name A–Z</label>'
+          +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="desc" data-record-sort> Name Z–A</label></div></div>';
+        const columns=isSettings
+          ?[['Setting','label',(value,item)=>'<strong>'+UI.esc(value)+'</strong>'+(item.help?'<div class="small text-muted">'+UI.esc(item.help)+'</div>':'')],
+            ['Group','key',value=>'<span class="head-settings-group-label">'+groupFor(value)+'</span>'],
+            ['Current Value','value',settingText],['Default','default',settingText]]
+          :[['Category','name'],['Preset Amount','amount','money'],['Display Order','sort_order','num'],
+            ['Status','active',value=>Number(value)?UI.badge('Active'):UI.badge('Inactive')]];
+        const table=UI.table(columns,source,{
+          tools,limit:25,showAllColumns:true,viewSwitch:false,
+          empty:isSettings?'No system settings available.':'No fund categories available.',
+          actions:()=>UI.btn('edit',isSettings?'Change':'Manage','outline-primary'),
+          onAction:(_,row)=>isSettings?settingModal(row):catForm(row)
+        });
+        records.innerHTML=RecordComponents.panel(table,RecordComponents.categories(sections,state.section,'data-head-settings-section'));
+        RecordComponents.mountPanel(records,{title:isSettings?'System Settings':'Fund Request Categories'});
+        UI.activate(records);
+        const id=records.querySelector('[data-tbody]')?.dataset.tbody;
+        const tableState=id?UI._tables[id]:null;
+        if(!tableState)return;
+        const chooser=records.querySelector('[data-head-settings-filter]');
+        const initialFilter=isSettings?state.group:state.fundState;
+        chooser.value=initialFilter;
+        records.querySelectorAll('[data-record-sort]').forEach(input=>input.checked=input.value===state.sort);
+        const apply=()=>{
+          let rows=source.filter(item=>{
+            if(isSettings)return !state.group||groupFor(item.key)===state.group;
+            if(!state.fundState)return true;
+            return (Number(item.active)===1)===(state.fundState==='active');
+          });
+          if(state.sort!=='default'){
+            const field=isSettings?'label':'name',direction=state.sort==='asc'?1:-1;
+            rows.sort((a,b)=>direction*String(a[field]||'').localeCompare(String(b[field]||''),undefined,{numeric:true}));
+          }
+          tableState.rows=rows;
+          tableState.page=0;
+          UI.drawTable(id);
+        };
+        records.querySelectorAll('[data-head-settings-section]').forEach(button=>button.addEventListener('click',()=>{
+          if(state.section===button.dataset.headSettingsSection)return;
+          state.section=button.dataset.headSettingsSection;
+          state.sort='default';
+          renderSection();
+        }));
+        records.querySelector('[data-head-add-fund]')?.addEventListener('click',()=>catForm());
+        RecordComponents.bindDropdowns(records,{
+          apply:panel=>{
+            const value=panel.querySelector('[data-head-settings-filter]').value;
+            if(isSettings)state.group=value;else state.fundState=value;
+            apply();
+            records.querySelector('.record-workspace-filter-trigger')?.click();
+          },
+          reset:()=>{
+            if(isSettings)state.group='';else state.fundState='';
+            chooser.value='';
+            apply();
+            records.querySelector('.record-workspace-filter-trigger')?.click();
+          },
+          sort:value=>{state.sort=value;apply();}
+        },{filter:filterId,sort:sortId});
+      };
+      renderSection();
+    };
     const box = document.createElement('div'); ctx.el.append(box);
-    UI.tabs(box, tabs, ctx.query?.headSettings ? 'settings' : (ctx.query?.from || ctx.query?.area ? 'log' : null));
+    if(ctx.query?.headSettings && isAdmin)renderHeadSettings(box);
+    else UI.tabs(box,tabs,ctx.query?.from || ctx.query?.area ? 'log' : null);
     box.addEventListener('click', async (e) => {
       if (e.target.closest('[data-addcat]')) catForm();
       if (e.target.closest('[data-backup]')) { if (!await UI.confirmProceed('Create backup', 'Create a new database backup now?', 'Create backup')) return; try { UI.result(await App.api('Admin.backup_create', {})); App.route(); } catch (x) { UI.toast(x.message, 'error'); } }
