@@ -933,3 +933,42 @@ a:hover { color: var(--rpm-brand-strong); }
   #pageContent .page-head > .rpm-back-to-top { display: none !important; }
 }
 /* RPM BACK TO TOP PLAIN SCROLL V4 END */
+
+
+/* HEAD TRIP MONITORING V2: existing UI components in an executive two-column layout. */
+.head-trip-dashboard { display: grid; gap: 18px; }
+.head-trip-intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; color: #315b42; font-size: 13px; }
+.head-trip-intro > span:first-child { font-weight: 650; }
+.head-trip-intro .bi { margin-right: 7px; }
+.head-trip-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.head-kpi { display:flex; align-items:center; gap:13px; padding:17px 16px; border:1px solid #e0e9e3; border-radius: 12px; background:#fff; min-width:0; box-shadow:0 2px 8px rgba(23,71,43,.04); }
+.head-kpi-icon { width:46px; height:46px; display:grid; place-items:center; flex:0 0 46px; border-radius:50%; background:#e9f3ec; color:#17743c; font-size:21px; }
+.head-kpi.blue .head-kpi-icon { color:#1466ae; background:#e7f2fc; }
+.head-kpi.purple .head-kpi-icon { color:#744caf; background:#f2eafb; }
+.head-kpi.red .head-kpi-icon { color:#c53730; background:#fcecea; }
+.head-kpi > div:last-child { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.head-kpi span { color:#4b6253; font-size:12px; font-weight:600; }
+.head-kpi strong { color:#173c27; font-size:29px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.head-trip-overview { display:grid; grid-template-columns: 1fr 1.08fr; gap:14px; }
+.head-trip-overview > div { min-width:0; }
+.head-trip-overview .panel { height:100%; border:1px solid #e0e9e3; border-radius:12px; overflow:hidden; background:#fff; }
+.head-trip-overview .chart-box { height:205px; }
+.head-trip-overview .panel-body { min-height:210px; }
+.head-trip-chart { position:relative; }
+.head-chart-total { position:absolute; bottom:10px; right:14px; font-size:12px; color:#607667; }
+.head-route-map { height:205px; width:100%; border-radius:7px; overflow:hidden; }
+.head-map-caption { padding:8px 12px 10px; font-size:12px; color:#315641; }
+.head-route-empty { min-height:240px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:10px; padding:24px; color:#66786c; }
+.head-route-empty > .bi { font-size:32px; color:#84ae92; }
+.head-route-empty strong { color:#355d43; font-size:13px; }
+.head-route-empty span { max-width:335px; font-size:12px; line-height:1.5; }
+.head-trip-records { background:transparent; }
+.head-trip-records .tab-body { margin-top:12px; }
+.head-trip-toolbar { display:flex; align-items:end; flex-wrap:wrap; gap:10px; margin:0 0 14px; }
+.head-trip-toolbar label { display:flex; flex-direction:column; gap:5px; color:#536d5b; font-size:12px; }
+.head-trip-toolbar .form-select,.head-trip-toolbar .form-control { min-width:135px; background-color:#fff; }
+.head-trip-toolbar [data-head-reset],.head-trip-toolbar [data-head-export] { min-height:34px; }
+@media(max-width:1300px) { .head-trip-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:990px) { .head-trip-overview { grid-template-columns:1fr; } }
+@media(max-width:600px) { .head-trip-kpis { grid-template-columns:1fr; } .head-trip-toolbar label { flex:1 1 140px; } .head-trip-toolbar [data-head-export] { margin-left:0!important; } }
+/* HEAD TRIP MONITORING V2 END */
