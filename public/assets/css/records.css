@@ -325,10 +325,20 @@
 .head-report-config-head p,.head-report-section-title p,.head-report-details-heading p {
   margin:0; color:#758579; font-size:12px; line-height:1.5;
 }
-.head-report-config-presets { margin-top:17px; padding-top:14px; border-top:1px solid #e4ece6; }
-.head-report-config-presets .d-flex { gap:8px; }
-.head-report-config-presets .btn { min-height:34px; }
-.head-report-config-filters { margin-top:12px; }
+.head-report-period-toolbar { display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  padding:17px 0; margin-top:16px; border-top:1px solid #e4ece6; }
+.head-report-field-label { display:block; flex:0 0 auto; color:#668071; font-size:11px; font-weight:650; letter-spacing:.01em; }
+.head-report-preset-buttons { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.head-report-preset-buttons .btn { min-height:35px; padding:7px 14px; border-radius:8px; }
+.head-report-config-bottom { display:flex; align-items:center; justify-content:space-between; gap:16px;
+  border-top:1px solid #e5ece7; padding-top:15px; }
+.head-report-date-summary { display:flex; align-items:center; gap:12px; min-width:0; }
+.head-report-date-icon { width:41px; height:41px; flex:0 0 41px; display:grid; place-items:center;
+  background:#eaf5ed; border-radius:10px; color:#226f42; font-size:17px; }
+.head-report-date-summary strong { display:block; margin-top:2px; font-size:14px; color:#224630; }
+.head-report-date-summary small { display:block; font-size:11px; margin-top:3px; color:#778a7d; }
+.head-report-config-filters { flex:0 1 auto; min-width:0; }
+.head-report-config-filters .btn { min-height:36px; }
 .head-report-print { position:relative; flex:0 0 auto; }
 .head-report-print summary { list-style:none; cursor:pointer; min-height:36px; display:flex; gap:8px; align-items:center; }
 .head-report-print summary::-webkit-details-marker { display:none; }
@@ -377,6 +387,12 @@
 @media(max-width:740px) {
   .head-report-config { padding:15px 13px; }
   .head-report-config-head { flex-wrap:wrap; }
+  .head-report-config-bottom { align-items:stretch; flex-direction:column; }
+  .head-report-period-toolbar { gap:9px; }
+  .head-report-preset-buttons { width:100%; }
+  .head-report-date-summary { align-items:flex-start; }
+  .head-report-config-filters { width:100%; }
+
   .head-report-performance { padding:15px 13px; }
   .head-report-section-title { flex-wrap:wrap; }
   .head-report-section-title > span { white-space:normal; }
