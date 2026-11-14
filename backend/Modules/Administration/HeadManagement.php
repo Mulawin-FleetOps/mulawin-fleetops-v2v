@@ -11,6 +11,11 @@ final class HeadManagement {
         $p=db();
         if ($page === 'head-trips') return self::tripsRead($p);
         if($page==='head-fleet') return readSections([
+            'fleet_summary'=>fn()=>one($p,"SELECT
+                (SELECT COUNT(*) FROM vehicles) AS total_trucks,
+                (SELECT COUNT(*) FROM vehicles WHERE active=1 AND status='Available') AS available_trucks,
+                (SELECT COUNT(*) FROM personnel WHERE active=1 AND person_type IN ('Driver','Helper')) AS active_crew,
+                (SELECT COUNT(*) FROM vehicles WHERE active=1 AND status='Under Maintenance') AS under_maintenance"),
             'vehicles'=>fn()=>many($p,"SELECT v.id,v.plate_number,v.truck_type,v.status,v.active,
                 d.full_name AS driver_name,h.full_name AS helper_name,
                 (SELECT t.trip_ref FROM trips t WHERE t.vehicle_id=v.id AND t.status IN ('Dispatched','In Transit') ORDER BY t.id DESC LIMIT 1) AS active_trip
