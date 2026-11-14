@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 final class Access {
     /** Small headings in the menu (only shown when the role has pages under them). */
-    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Accounting', 'Billing', 'Records'];
+    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Accounting', 'Billing', 'Records', 'Operations Oversight', 'Client & Commercial', 'Financial Oversight', 'Management Control'];
 
     /**
      * Shared workflow pages belong in the employee's work area, never in a
@@ -59,6 +59,10 @@ final class Access {
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
             'dispatcher-monitoring' => ['Dispatcher Monitoring','bi-person-workspace',null,'Trips','operations/ops-head',['operations_head']],
+            'head-fleet' => ['Fleet & Personnel Status','bi-people', 'Operations Oversight', 'HeadManagement', 'administration/head-management', ['admin']],
+            'head-approvals' => ['Approvals & Exceptions','bi-clipboard-check', 'Management Control', 'HeadManagement', 'administration/head-management', ['admin']],
+            'head-settings' => ['System Configuration','bi-gear', 'Management Control', 'Admin', 'administration/admin', ['admin']],
+
 
             'trucks'      => ['Truck Masterlist', 'bi-truck', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'motorpool', 'purchasing', 'audit'], $D)],
@@ -96,6 +100,32 @@ final class Access {
     /** Pages the user can open, for the menu. */
     public static function navFor(array $u): array {
         $out = [];
+        if (($u['role'] ?? null) === 'admin') {
+            // Head Management uses a purpose-built executive navigation. Original
+            // page URLs/permissions remain available for existing cross-page links.
+            $structure = [
+                'dashboard' => ['Executive Dashboard', null],
+                'trips' => ['Trip Monitoring', 'Operations Oversight'],
+                'head-fleet' => ['Fleet & Personnel Status', 'Operations Oversight'],
+                'maintenance' => ['Maintenance Monitoring', 'Operations Oversight'],
+                'clients' => ['Client Management', 'Client & Commercial'],
+                'routes' => ['Route & Contract Rates', 'Client & Commercial'],
+                'finance' => ['Financial Overview', 'Financial Oversight'],
+                'billing' => ['Billing & Collections', 'Financial Oversight'],
+                'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
+                'head-approvals' => ['Approvals & Exceptions', 'Management Control'],
+                'reports' => ['Management Reports', 'Management Control'],
+                'admin' => ['User & Access Management', 'Management Control'],
+                'head-settings' => ['System Configuration', 'Management Control'],
+            ];
+            $pages = self::pages();
+            foreach ($structure as $id => [$label, $section]) {
+                [$oldLabel, $icon, $oldSection, $module, $js, $roles] = $pages[$id];
+                if (in_array('admin', $roles, true))
+                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$icon,'section'=>$section,'js'=>$js];
+            }
+            return $out;
+        }
         foreach (self::pages() as $id => [$label, $icon, $section, $module, $js, $roles]) {
             if (in_array($u['role'], $roles, true)) {
                 // Navigation grouping is per ROLE, not per backend department.
