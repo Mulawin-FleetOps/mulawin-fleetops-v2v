@@ -253,19 +253,43 @@ const FuelAdjustmentUI={
       root.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');
     }else{
       const isEfficiency=category==='efficiency';
-      const columns=isEfficiency
-        ?[['Truck Type','type'],['Current km/L','value',v=>v===null?'Not configured':UI.num(v,4)]]
-        :[['Setting','setting_key'],['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],
-          ['Value','value_json',v=>{try{return UI.esc(JSON.parse(v).value)}catch{return '—'}}],
-          ['Reason / Reference','reference']];
-      const rows=isEfficiency?types.map(type=>({type,value:number(current[type])})):history;
-      const options={showAllColumns:true,viewSwitch:false,
-        empty:isEfficiency?'No truck types available.':'No diesel or fuel efficiency updates.',
-        ...(isEfficiency?{actions:()=>UI.btn('edit','Edit'),
-          onAction:(_,row)=>this.edit(ctx,row.type)}:{})};
-      root.innerHTML=RecordComponents.panel(UI.table(columns,rows,options),buttons(category));
-      UI.activate(root);
-      RecordComponents.mountPanel(root,{title:isEfficiency?'Fuel Efficiency per Truck Type':'Configuration History'});
+      if(!isEfficiency && history.length===0){
+        root.innerHTML='<section class="record-workspace-panel">'
+          +'<div class="record-workspace-heading"><div><h2>Configuration History</h2>'
+          +'<p class="record-workspace-count">0 recorded changes</p></div></div>'
+          +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
+          +'<div class="head-fuel-history-empty" role="status">'
+          +'<div class="head-fuel-history-empty-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>'
+          +'<h3>No configuration changes yet</h3>'
+          +'<p>Changes to diesel pricing and truck fuel efficiency will appear here after they are saved, including their effective date and reference.</p>'
+          +'<div class="head-fuel-history-note"><i class="bi bi-shield-check" aria-hidden="true"></i> Historical pricing records are retained for auditing.</div>'
+          +'</div></section>';
+      }else{
+        const columns=isEfficiency
+          ?[['Truck Type','type',(v,r)=>'<div class="head-fuel-truck-label"><span class="head-fuel-truck-icon"><i class="bi bi-truck" aria-hidden="true"></i></span><span><b>'+UI.esc(v)+'</b><small>Fuel efficiency setting</small></span></div>'],
+            ['Current Efficiency','value',v=>v===null?'<span class="head-fuel-muted-value">Not configured</span>':'<strong class="head-fuel-efficiency-value">'+UI.num(v,4)+' <small>km/L</small></strong>'],
+            ['Configuration','status',(_,r)=>r.value===null?'<span class="head-fuel-status is-missing"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Needs setup</span>':'<span class="head-fuel-status is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Configured</span>']]
+          :[['Setting','setting_key',v=>'<span class="head-fuel-history-setting"><i class="bi '+(v==='diesel'?'bi-fuel-pump':'bi-truck')+'" aria-hidden="true"></i> '+UI.esc(v==='diesel'?'Diesel Price':v)+'</span>'],
+            ['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],
+            ['Value','value_json',(v,r)=>{try{return '<strong>'+UI.esc(JSON.parse(v).value)+'</strong> <small>'+ (r.setting_key==='diesel'?'PHP/L':'km/L')+'</small>'}catch{return '—'}}],
+            ['Reason / Reference','reference',v=>UI.esc(v||'—')]];
+        const rows=isEfficiency?types.map(type=>({type,value:number(current[type])})):history;
+        const options={showAllColumns:true,viewSwitch:false,
+          empty:isEfficiency?'No truck types available.':'No diesel or fuel efficiency updates.',
+          ...(isEfficiency?{actions:()=>UI.btn('edit','Edit','outline-primary'),
+            onAction:(_,row)=>this.edit(ctx,row.type)}:{})};
+        root.innerHTML=RecordComponents.panel(UI.table(columns,rows,options),buttons(category));
+        UI.activate(root);
+        RecordComponents.mountPanel(root,{title:isEfficiency?'Truck Fuel Efficiency':'Configuration History'});
+        const categoryRow=root.querySelector('.record-workspace-category-row');
+        categoryRow?.insertAdjacentHTML('afterend',isEfficiency
+          ?'<div class="head-fuel-table-intro"><div class="head-fuel-table-intro-icon"><i class="bi bi-speedometer2" aria-hidden="true"></i></div>'
+           +'<div><strong>Fuel efficiency by truck type</strong><p>Configure kilometers per liter for each truck type. Values are used in fuel cost estimates; no default efficiency is assumed.</p></div>'
+           +'<span class="head-fuel-table-progress">'+configured+' of '+types.length+' configured</span></div>'
+          :'<div class="head-fuel-table-intro"><div class="head-fuel-table-intro-icon"><i class="bi bi-journal-check" aria-hidden="true"></i></div>'
+           +'<div><strong>Pricing change history</strong><p>Review saved values, effective dates and reasons for previous changes.</p></div>'
+           +'<span class="head-fuel-table-progress">'+history.length+' recorded changes</span></div>');
+      }
     }
     attachTabs();
   };
