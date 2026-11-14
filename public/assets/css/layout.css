@@ -962,21 +962,6 @@ a:hover { color: var(--rpm-brand-strong); }
 .head-route-empty > .bi { font-size:32px; color:#84ae92; }
 .head-route-empty strong { color:#355d43; font-size:13px; }
 .head-route-empty span { max-width:335px; font-size:12px; line-height:1.5; }
-/* Trip Monitoring uses one records card, as in Client Management. */
-.head-trip-records { background:#fff; border:1px solid #dce8df; border-radius:13px; overflow:visible; }
-.head-trip-records-heading { padding:19px 20px 6px; }
-.head-trip-records-heading h2 { margin:0; color:#23432f; font-size:16px; font-weight:700; }
-.head-trip-records-heading p { margin:5px 0 0; color:#647b6b; font-size:12px; }
-.head-trip-records .line-tabs { margin:0; padding:8px 18px; border-bottom:1px solid #e1e9e3; overflow-x:auto; }
-.head-trip-records .tab-body { margin-top:0; }
-.head-trip-records .head-monitor-panel { margin:0!important; border:0; border-radius:0 0 13px 13px; box-shadow:none; }
-.head-trip-records .head-monitor-header { padding-top:14px; }
-.head-trip-records .head-monitor-table .panel { border:0; box-shadow:none; margin:0; }
-.head-trip-records .head-monitor-table .panel-body { padding:0; }
-@media(max-width:600px) {
-  .head-trip-records-heading { padding:14px 13px 5px; }
-  .head-trip-records .line-tabs { padding:7px 10px; }
-}
 @media(max-width:1300px) { .head-trip-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:990px) { .head-trip-overview { grid-template-columns:1fr; } }
 @media(max-width:600px) { .head-trip-kpis { grid-template-columns:1fr; } }
