@@ -310,6 +310,8 @@ final class HeadManagementNavigationTest extends TestCase {
         $js=file_get_contents($root.'/public/assets/js/modules/administration/admin.js');
         $css=file_get_contents($root.'/public/assets/css/records.css');
         self::assertStringContainsString('renderHeadSettings = (host)', $js);
+        self::assertLessThan(strpos($js, 'if (isAdmin) {'), strpos($js, 'const settingText ='));
+        self::assertLessThan(strpos($js, 'if (isAdmin) {'), strpos($js, 'const settingModal ='));
         self::assertStringContainsString('if(ctx.query?.headSettings && isAdmin)renderHeadSettings(box)', $js);
         self::assertStringContainsString('else UI.tabs(box,tabs', $js);
         self::assertStringContainsString('RecordComponents.panel(table,RecordComponents.categories(', $js);
