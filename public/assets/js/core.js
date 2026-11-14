@@ -588,13 +588,38 @@ UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
  * Metric strip: one bordered panel divided into segments (label, value, note).
  * items: [{label, value, note, color: green|blue|amber|red, go: 'page?x=y', format: 'money'}]
  */
-UI.statusStrip = (items) => `<div class="metric-strip">${(items || []).map(c => { const go = c.go && UI.canGo(c.go);
-  return `<div class="metric ${c.color || ''} ${go ? 'clickable' : ''}" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
-    <div class="metric-label">${c.color ? '<span class="dot"></span>' : ''}${UI.esc(UI.operationsLabel(c.label))}</div>
+// Presentation-only icon mapping. Counts, data sources, and navigation are unchanged.
+UI.metricVisual = (card) => {
+  const label = String(card.label || '').toLowerCase();
+  const rules = [
+    [/incident|delay|overdue|problem|rejected|critical|failed|unavailable/, 'bi-exclamation-triangle', 'red'],
+    [/complete|finished|resolved|approved|collected|paid|success/, 'bi-check-circle', 'purple'],
+    [/schedule|pending|awaiting|prepar|review|due/, 'bi-calendar-check', 'blue'],
+    [/truck|vehicle|fleet|trip|dispatch|route|delivery/, 'bi-truck', 'green'],
+    [/fuel|diesel|liter|consumption/, 'bi-fuel-pump', 'blue'],
+    [/driver|helper|personnel|mechanic|employee|staff|user/, 'bi-people', 'purple'],
+    [/client|customer|contract/, 'bi-buildings', 'blue'],
+    [/maintenance|repair|job order/, 'bi-tools', 'amber'],
+    [/inventory|stock|parts|purchase|warehouse/, 'bi-box-seam', 'amber'],
+    [/billing|invoice|receipt|collection/, 'bi-receipt', 'purple'],
+    [/fund|expense|cost|budget|amount|payment|finance|revenue|rate/, 'bi-wallet2', 'green'],
+    [/document|report|record/, 'bi-file-earmark-text', 'blue']
+  ];
+  const matched = rules.find(([pattern]) => pattern.test(label));
+  const icon = /^bi-[a-z0-9-]+$/.test(String(card.icon || '')) ? card.icon : (matched?.[1] || 'bi-bar-chart-line');
+  const color = ['green','blue','amber','red','purple'].includes(card.color) ? card.color : (matched?.[2] || 'green');
+  return {icon,color};
+};
+UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
+  const go = c.go && UI.canGo(c.go);
+  const visual = UI.metricVisual(c);
+  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
+    <span class="metric-icon metric-icon-${visual.color}" aria-hidden="true"><i class="bi ${visual.icon}"></i></span>
+    <div class="metric-content"><div class="metric-label">${UI.esc(UI.operationsLabel(c.label))}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
-    ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div>`; }).join('')}</div>`;
+    ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div></div>`; }).join('')}</div>`;
 /** Dashboard / report cards use the same metric strip. */
-UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
+UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, icon: c.icon, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
 UI.goParts = (spec) => {
   const [main, mem] = String(spec || '').split('#'); const [page, qs] = main.split('?');
   return { page, query: Object.fromEntries(new URLSearchParams(qs || '')), tabs: [...new URLSearchParams(mem || '')] };
