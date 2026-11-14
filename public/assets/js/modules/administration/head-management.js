@@ -340,14 +340,14 @@ App.page('head-approvals',{
         .slice(0,3).map(col=>({key:col[1],label:col[0]}));
       HeadRecords.render(root,{
         title:'Approvals & Exception Records',
-        categories:sections.map(item=>({value:item.key,label:item.label+' ('+item.rows.length+')'})),
+        categories:['maintenance','incidents','funds','rates'].map(key=>sections.find(item=>item.key===key)).filter(Boolean).map(item=>({value:item.key,label:item.label+' ('+item.rows.length+')'})),
         selected:group.key,
         columns:group.cols,rows:group.rows,empty:group.empty,
         filters,sortOptions,alwaysShowTools:true,
         changeCategory:select
       });
     };
-    select('rates');
+    select(['maintenance','incidents','funds','rates'].find(key=>sections.find(item=>item.key===key)?.rows.length)||'maintenance');
     if(Object.keys(d._errors||{}).length)
       UI.toast('Some approval monitoring information could not be loaded. Check server logs.','error');
   }
