@@ -274,7 +274,11 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("UI.statusStrip(top)", $reports);
         self::assertStringContainsString("cards:[]", $reports);
         self::assertStringContainsString("remaining=cards.filter", $reports);
-        self::assertStringContainsString("UI.blocks({...section,cards:[]}", $reports);
+        self::assertStringContainsString("UI.blocks({...section,cards:[],charts:usefulCharts,tables:usefulTables}", $reports);
+        self::assertStringContainsString('head-report-no-data', $reports);
+        self::assertStringContainsString('chartHasValues=chart=>', $reports);
+        self::assertStringContainsString('usefulTables=(section.tables||[]).filter', $reports);
+        self::assertStringContainsString('.head-report-no-data', $styles);
         self::assertStringContainsString("UI.printReport([sections[current]]", $reports);
         self::assertStringContainsString("UI.printReport(keys.map", $reports);
         self::assertStringContainsString("UI.tabs(box", $reports);
