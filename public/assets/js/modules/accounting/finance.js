@@ -8,6 +8,7 @@ App.page('finance', {
   subtitle: 'Payables, payments, expenses, purchasing budget and cash flow.',
   render(ctx) {
     const d = ctx.data, act = d.can.act;
+    const head = UI.role('admin');
     const b = d.budgets.find(x => x.status === 'Active');
     const poDue = d.poPayables.reduce((a, o) => a + Math.max(0, +o.received_value - +o.paid_amount), 0);
     const apDue = d.payables.filter(p => p.status !== 'Paid').reduce((a, p) => a + +p.balance, 0);
@@ -16,7 +17,7 @@ App.page('finance', {
       { label: 'Other payables', value: apDue, format: 'money', icon: 'bi-receipt', color: 'amber' },
       { label: 'Expenses in period', value: d.expenses.reduce((a, e) => a + +e.amount, 0), format: 'money', icon: 'bi-wallet2', color: 'red' },
       { label: 'Cash out in period', value: d.disbursements.reduce((a, e) => a + +e.amount, 0), format: 'money', icon: 'bi-box-arrow-up-right', color: 'red' },
-      { label: 'Budget available', value: b ? +b.available : 'No budget', format: b ? 'money' : '', icon: 'bi-piggy-bank', color: 'green', hint: b ? `Reserved ${UI.money(b.reserved_amount)} · spent ${UI.money(b.spent_amount)} of ${UI.money(b.amount)}` : 'Set a purchasing budget' },
+      ...(!head ? [{ label: 'Budget available', value: b ? +b.available : 'No budget', format: b ? 'money' : '', icon: 'bi-piggy-bank', color: 'green', hint: b ? `Reserved ${UI.money(b.reserved_amount)} · spent ${UI.money(b.spent_amount)} of ${UI.money(b.amount)}` : 'Set a purchasing budget' }] : []),
     ]);
     ctx.el.insertAdjacentHTML('beforeend', UI.actionSummary([{label:'POs with received value awaiting payment (loaded records)',count:d.poPayables.filter(o=>+o.received_value>+o.paid_amount).length,go:act?'finance?tab=po':null},{label:'Other unpaid payables (loaded records)',count:d.payables.filter(p=>p.status!=='Paid'&&+p.balance>0).length,go:act?'finance?tab=ap':null}],{title:'Payment follow-up'}));
     const period = UI.filterModal(ctx, [{ name: 'from', label: 'Start date', type: 'date', col: 6 }, { name: 'to', label: 'End date', type: 'date', col: 6 }], { hint: `Period: ${UI.date(d.period.from)} to ${UI.date(d.period.to)} (this month by default).` });
@@ -27,7 +28,13 @@ App.page('finance', {
       { name: 'or_doc', label: 'Official receipt / payment confirmation (required)', type: 'file', required: true, col: 12, attrs: 'accept="application/pdf,image/*"' }],
       'Finance.po_pay', { extra: { po_id: o.id }, submit: 'Record payment',
         intro: `Check the supplier invoice against the approved PO and the received items. PO total ${UI.money(o.total_amount)}; received ${UI.money(o.received_value)}; already paid ${UI.money(o.paid_amount)}. You can pay only what was received.` });
-    const box = document.createElement('div'); ctx.el.append(box);
+    const box = document.createElement('div');
+    if (head) {
+      ctx.el.classList.add('head-financial-overview');
+      box.className = 'head-financial-records';
+      box.innerHTML = '<div class="head-financial-heading"><h2>Financial Records</h2><p>Review payables, expenses, disbursements and cash flow. Transactions stay with Finance.</p></div>';
+    }
+    ctx.el.append(box);
     UI.tabs(box, [
       ['po', `PO payables (${d.poPayables.length})`, () => UI.table([['PO', 'po_ref'], ['Supplier', 'supplier'], ['Approved by', 'approved_by_name'], ['Status', 'status', 'badge'], ['Total', 'total_amount', 'money'],
         ['Received value', 'received_value', 'money'], ['Paid', 'paid_amount', 'money'], ['Payment', 'payment_status', 'badge']], d.poPayables,
