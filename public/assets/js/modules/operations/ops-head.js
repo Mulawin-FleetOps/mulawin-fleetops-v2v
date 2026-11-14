@@ -787,13 +787,26 @@ const OpsHead = {
         dispatcher.onchange = dispatcher.oninput = () => { e.data.dispatcher_assignment = dispatcher.value;dispatcher.classList.remove('is-invalid');dispatcher.removeAttribute('aria-invalid');dispatcherError.hidden = true;dispatcherError.style.display='';fillAccounts();update(); };
         fillDispatchers();
         const fillRoutes = () => {
-          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.truck_type + ' · ' + r.route_ref)}</option>`).join('');
+          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.route_ref)}</option>`).join('');
           pick.value = e.data.client_route_id || ''; pick.disabled = e.loading || !e.data.client_id;
           const routeInfo = card.querySelector('[data-approved-rate]');
-          routeInfo.textContent = e.route
-            ? e.route.origin_label+' → '+e.route.destination_label+' · '+UI.num(e.route.distance_km,2)+' km'
-            : 'Vehicle type is automatically selected from the approved route.';
-          routeInfo.classList.toggle('has-route',!!e.route);
+          const selected = e.route;
+          routeInfo.hidden = !selected;
+          if (selected) {
+            routeInfo.innerHTML =
+              '<div class="oh-trip-route-card oh-trip-route-card-journey">'
+              +'<div class="oh-trip-route-card-label"><i class="bi bi-signpost-split" aria-hidden="true"></i> ROUTE</div>'
+              +'<div class="oh-trip-route-location"><i class="bi bi-circle" aria-hidden="true"></i><span>'+UI.esc(selected.origin_label || 'Pickup not specified')+'</span></div>'
+              +'<div class="oh-trip-route-arrow" aria-hidden="true"><i class="bi bi-arrow-down"></i></div>'
+              +'<div class="oh-trip-route-location"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i><span>'+UI.esc(selected.destination_label || 'Destination not specified')+'</span></div></div>'
+              +'<div class="oh-trip-route-card oh-trip-route-card-distance">'
+              +'<div class="oh-trip-route-card-label"><i class="bi bi-map" aria-hidden="true"></i> DISTANCE</div>'
+              +'<div class="oh-trip-route-card-value">'+UI.num(selected.distance_km,2)+'<small>km</small></div></div>'
+              +'<div class="oh-trip-route-card oh-trip-route-card-truck">'
+              +'<div class="oh-trip-route-card-label"><i class="bi bi-truck" aria-hidden="true"></i> TRUCK TYPE</div>'
+              +'<div class="oh-trip-route-card-value oh-trip-route-truck-name">'+UI.esc(selected.truck_type || '—')+'</div>'
+              +'<small class="oh-trip-route-auto">Auto-selected</small></div>';
+          } else routeInfo.replaceChildren();
         };
         const loadRoutes = async (resetSelection = false) => {
           const seq = ++e.seq;
@@ -837,7 +850,7 @@ const OpsHead = {
         card.querySelector('[data-plus]').onclick = () => { if (total() >= 20) return error('Maximum combined quantity is 20 trips.'); e.data.quantity = (+e.data.quantity || 1) + 1; card.querySelector('[name=quantity]').value = e.data.quantity; update(); };
         card.querySelector('[data-remove]')?.addEventListener('click', () => { e.seq++; entries = entries.filter(x => x !== e); renderPlanning(); });
         e.refresh = () => { fillRoutes(); note.textContent = e.routeMessage || ''; };
-        note.insertAdjacentHTML('afterend','<p class="small" data-approved-rate></p>');
+        note.insertAdjacentHTML('afterend','<div class="oh-trip-route-summary" data-approved-rate aria-live="polite" hidden></div>');
         pick.parentElement.append(note,card.querySelector('[data-approved-rate]'));
         e.refresh();
         // Restore an existing entry's selectable routes when returning from Review.
