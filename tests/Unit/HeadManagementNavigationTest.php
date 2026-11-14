@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 use PHPUnit\Framework\TestCase;
 
+// Access is lazily loaded by the application; load it explicitly for unit tests.
+core('Access');
+
 final class HeadManagementNavigationTest extends TestCase {
     public function testAdminReceivesExecutiveSidebarInBusinessWorkflowOrder(): void {
         $nav=Access::navFor(['role'=>'admin']);
