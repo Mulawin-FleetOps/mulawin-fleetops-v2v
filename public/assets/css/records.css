@@ -480,3 +480,71 @@
   .head-settings-workspace .record-workspace-search{padding:8px 15px 12px;flex-wrap:wrap}
   .head-settings-workspace .record-workspace-category-row{padding:10px 15px}
 }
+
+/* Head Management command center: isolated from all departmental dashboards. */
+.rpm-executive-dashboard .rpm-executive-command{display:grid;gap:18px}
+.rpm-executive-dashboard .rpm-exec-headline,
+.rpm-executive-dashboard .rpm-exec-section{
+  border:1px solid #dce8df;border-radius:13px;background:#fff;padding:20px;
+  box-shadow:0 2px 10px rgba(19,74,39,.035)
+}
+.rpm-executive-dashboard .rpm-exec-headline h2,
+.rpm-executive-dashboard .rpm-exec-section-head h2{font-size:17px;font-weight:700;color:#1c4c2e;margin:0}
+.rpm-executive-dashboard .rpm-exec-headline>p{margin:5px 0 17px;font-size:12px;color:#718476}
+.rpm-executive-dashboard .rpm-exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi{
+  display:flex;align-items:center;gap:12px;padding:17px 15px;min-height:103px;
+}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-icon{
+  width:45px;height:45px;flex:0 0 45px;border-radius:50%;font-size:19px
+}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-body{min-width:0}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-value{margin:5px 0 0;font-size:26px}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-value:has(+ *){margin-top:5px}
+.rpm-executive-dashboard .rpm-exec-section-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 15px
+}
+.rpm-executive-dashboard .rpm-exec-section-head>span{font-size:11px;color:#738779}
+.rpm-executive-dashboard .rpm-exec-departments{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rpm-executive-dashboard .rpm-dept-card{
+  min-width:0;padding:16px;border:1px solid #dfebe2;border-radius:11px;background:#fbfdfb;
+  display:flex;flex-direction:column;gap:13px
+}
+.rpm-executive-dashboard .rpm-dept-heading{display:flex;align-items:center;gap:10px}
+.rpm-executive-dashboard .rpm-dept-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;
+  border-radius:10px;background:#e5f3e9;color:#217044;font-size:16px}
+.rpm-executive-dashboard .rpm-dept-heading h3{margin:0;font-size:13px;color:#254934;font-weight:700}
+.rpm-executive-dashboard .rpm-dept-facts{display:flex;flex-direction:column;gap:7px;min-height:48px}
+.rpm-executive-dashboard .rpm-dept-fact{display:flex;justify-content:space-between;gap:7px;font-size:12px;color:#607465}
+.rpm-executive-dashboard .rpm-dept-fact strong{font-size:12px;color:#19452b;font-variant-numeric:tabular-nums;text-align:right}
+.rpm-executive-dashboard .rpm-dept-unavailable{font-size:12px;color:#718374;line-height:1.5}
+.rpm-executive-dashboard .rpm-dept-link{
+  border:0;background:none;color:#227445;font-size:12px;font-weight:700;text-align:left;
+  padding:5px 0;margin-top:auto;cursor:pointer
+}
+.rpm-executive-dashboard .rpm-dept-link:hover{text-decoration:underline}
+.rpm-executive-dashboard .rpm-dept-link i{margin-left:5px}
+.rpm-executive-dashboard .rpm-exec-performance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.rpm-executive-dashboard .rpm-exec-performance-card{padding:17px;border:1px solid #e0eae3;border-radius:10px}
+.rpm-executive-dashboard .rpm-exec-performance-card h3{font-size:14px;font-weight:700;color:#27503a;margin:0 0 12px}
+.rpm-executive-dashboard .rpm-exec-performance-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ebf0ec;font-size:12px}
+.rpm-executive-dashboard .rpm-exec-performance-row:last-child{border-bottom:0}
+.rpm-executive-dashboard .rpm-exec-performance-row span{color:#5c7565}
+.rpm-executive-dashboard .rpm-exec-performance-row strong{color:#21462e;font-variant-numeric:tabular-nums}
+.rpm-executive-dashboard .rpm-exec-section .rpm-summary-panel{box-shadow:none}
+.rpm-executive-dashboard .rpm-exec-section .rpm-dashboard-tables{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rpm-executive-dashboard .rpm-exec-empty{display:flex;align-items:center;gap:10px;padding:21px;border-radius:9px;background:#f8fbf8;color:#738578}
+.rpm-executive-dashboard .rpm-exec-empty p{margin:0;font-size:12px}
+.rpm-executive-dashboard .rpm-exec-empty i{font-size:21px}
+@media(max-width:1250px){
+  .rpm-executive-dashboard .rpm-exec-kpis,
+  .rpm-executive-dashboard .rpm-exec-departments{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .rpm-executive-dashboard .rpm-exec-headline,.rpm-executive-dashboard .rpm-exec-section{padding:15px}
+  .rpm-executive-dashboard .rpm-exec-kpis,
+  .rpm-executive-dashboard .rpm-exec-departments,
+  .rpm-executive-dashboard .rpm-exec-performance,
+  .rpm-executive-dashboard .rpm-exec-section .rpm-dashboard-tables{grid-template-columns:1fr}
+  .rpm-executive-dashboard .rpm-exec-section-head{align-items:flex-start;flex-wrap:wrap}
+}
