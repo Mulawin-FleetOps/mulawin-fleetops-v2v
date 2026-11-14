@@ -212,31 +212,3 @@
 .fund-approval-workspace .record-workspace-panel .data-table .cell-sub{font-size:11.5px;color:var(--text-3,#6b786f)}
 @media(max-width:700px){.fund-approval-workspace .record-workspace-tabs{flex-wrap:nowrap;overflow-x:auto}.fund-approval-workspace .record-workspace-search{flex-wrap:wrap}.fund-approval-workspace .record-workspace-search .table-search{flex-basis:100%}}
 
-/* Head Management record tables match Client Management. Scoped to admin-only adapters. */
-.head-finance-table.record-workspace-panel { overflow:visible; border:1px solid #dce8df; border-radius:12px; background:#fff; box-shadow:none; }
-.head-finance-table .panel-body.flush { padding:0; }
-.head-finance-table .record-workspace-heading { padding:16px 18px 9px; }
-.head-finance-table .record-workspace-heading h2 { font-size:15px; color:#21432d; }
-.head-finance-table .record-workspace-search { padding:8px 18px 13px; }
-.head-finance-table .record-workspace-search .table-search { flex:1 1 auto; max-width:none; }
-.head-finance-table .record-workspace-category-row { padding:8px 18px; gap:7px; flex-wrap:wrap; }
-.head-finance-table .record-workspace-category-row:empty { display:none; }
-.head-finance-table .record-workspace-category-row > button { padding:5px 11px; font-size:12px; }
-.head-finance-table .table-wrap { overflow-x:auto; }
-.head-finance-table .data-table { width:100%; }
-.head-finance-table .data-table thead th { background:#f1f5f2; color:#21432d; font-size:11.5px; font-weight:650; }
-.head-finance-table .table-pager { display:flex; justify-content:space-between; flex-wrap:wrap; padding:12px 18px; border-top:1px solid #dce8df; }
-.head-finance-table .table-wrap:has(.table-empty)+.table-pager { display:flex; }
-.head-finance-table .table-empty { display:flex; justify-content:center; align-items:center; min-height:140px; text-align:center; }
-.head-finance-table .record-workspace-heading > button,.head-finance-table .record-workspace-heading .btn { margin-left:auto; }
-.head-financial-records .head-finance-table { border-radius:0; border-left:0; border-right:0; border-bottom:0; margin:0; }
-.head-financial-records > .tab-body .head-finance-table .record-workspace-search { padding:8px 18px 13px; }
-.head-financial-records > .tab-body .head-finance-table .record-workspace-heading { padding:16px 18px 8px; }
-.head-monitor-panel .head-monitor-header { padding:16px 18px 8px; }
-.head-monitor-panel .head-monitor-tools { padding:8px 18px 13px; }
-.head-monitor-panel .head-monitor-table .data-table thead th { background:#f1f5f2; color:#21432d; }
-@media(max-width:650px) {
-  .head-finance-table .record-workspace-heading,.head-finance-table .record-workspace-search,.head-finance-table .record-workspace-category-row { padding-left:12px; padding-right:12px; }
-  .head-finance-table .record-workspace-search { flex-wrap:wrap; }
-  .head-finance-table .record-workspace-search .table-search { flex-basis:100%; }
-}
