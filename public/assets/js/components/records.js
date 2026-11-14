@@ -127,6 +127,22 @@ const RecordComponents = Object.freeze({
 });
 
 
+/* Preserve headers and a disabled pager on empty executive finance/billing tables. */
+const ensureHeadEmptyTable = id => {
+  if (!UI.role('admin') || !['finance','billing'].includes(App.current?.page)) return;
+  const box=document.querySelector('[data-tbody="'+id+'"]');
+  const panel=box?.closest('.head-finance-table');
+  const table=UI._tables[id];
+  if (!panel || !table || UI.tableRows(id).length) return;
+  box.innerHTML='<table class="data-table"><thead><tr>'
+    +table.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')
+    +(table.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead>'
+    +'<tbody><tr><td colspan="'+(table.columns.length+(table.hasActions?1:0))+'">'
+    +'<div class="table-empty" role="status">'+UI.esc(table.filter?'No records match the search.':table.opts.empty||'No records available.')+'</div>'
+    +'</td></tr></tbody></table>';
+  const pager=panel.querySelector('[data-tpager="'+id+'"]');
+  if(pager)pager.innerHTML=UI.recordPager({total:0,page:1,pages:1,pageSize:table.limit});
+};
 /* HEAD EXECUTIVE TABLE WORKSPACE
  * A view-only layout adapter, limited to the admin's Finance/Billing pages.
  * Keeps the existing UI.table state, action buttons, paging and API handlers.
@@ -235,6 +251,7 @@ const mountHeadWorkspace = (root) => {
       pageHeader.remove();
     }
     toolbar.replaceWith(heading,row,categories);
+    ensureHeadEmptyTable(id);
     RecordComponents.bindDropdowns(panel,{
       apply(filterPanel){ selected=filterPanel.querySelector('[data-head-work-status]').value;apply();filterBtn?.click(); },
       reset(){ selected='';const select=menus.querySelector('[data-head-work-status]');if(select)select.value='';apply();filterBtn?.click(); },
@@ -249,4 +266,6 @@ const mountHeadWorkspace = (root) => {
     activate(root);
     mountHeadWorkspace(root);
   };
+  const draw=UI.drawTable;
+  UI.drawTable=id=>{ draw(id); ensureHeadEmptyTable(id); };
 })();
