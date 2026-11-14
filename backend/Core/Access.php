@@ -59,6 +59,7 @@ final class Access {
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
             'dispatcher-monitoring' => ['Dispatcher Monitoring','bi-person-workspace',null,'Trips','operations/ops-head',['operations_head']],
+            'head-trips' => ['Trip Monitoring','bi-signpost-split','Operations Oversight','HeadManagement','administration/head-management',['admin']],
             'head-fleet' => ['Fleet & Personnel Status','bi-people', 'Operations Oversight', 'HeadManagement', 'administration/head-management', ['admin']],
             'head-approvals' => ['Approvals & Exceptions','bi-clipboard-check', 'Management Control', 'HeadManagement', 'administration/head-management', ['admin']],
             'head-settings' => ['System Configuration','bi-gear', 'Management Control', 'Admin', 'administration/admin', ['admin']],
@@ -105,7 +106,7 @@ final class Access {
             // page URLs/permissions remain available for existing cross-page links.
             $structure = [
                 'dashboard' => ['Executive Dashboard', null],
-                'trips' => ['Trip Monitoring', 'Operations Oversight'],
+                'head-trips' => ['Trip Monitoring', 'Operations Oversight'],
                 'head-fleet' => ['Fleet & Personnel Status', 'Operations Oversight'],
                 'maintenance' => ['Maintenance Monitoring', 'Operations Oversight'],
                 'clients' => ['Client Management', 'Client & Commercial'],
