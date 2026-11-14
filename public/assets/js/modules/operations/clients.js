@@ -207,9 +207,10 @@ App.page('clients', {
     ClientUI.defaultTerms=d.defaultTerms;
     const clients=d.clients||[];
     const count=status=>clients.filter(c=>c.status===status).length;
-    const quickStatuses=[['','All Current'],['Active','Active'],['Pending Rate','Pending Rate'],
-      ['Incomplete','Incomplete'],['Inactive','Inactive']];
-    const rows=clients.filter(c=>q.status ? c.status===q.status : c.status!=='Inactive');
+    // Keep the quick tabs minimal; remaining statuses stay available in Filter.
+    // All Clients includes inactive clients rather than silently excluding them.
+    const quickStatuses=[['','All Clients'],['Active','Active'],['Inactive','Inactive']];
+    const rows=clients.filter(c=>!q.status || c.status===q.status);
     const statusOptions=[['','All statuses'],['Active','Active'],['Pending Rate','Pending Rate'],
       ['Incomplete','Incomplete'],['Inactive','Inactive']];
     const toolbar=`<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger"
