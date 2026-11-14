@@ -114,6 +114,24 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("if (d.can.act) UI.tool(ctx, 'Report truck problem'", $js);
     }
 
+    public function testHeadRouteRatesHaveExecutiveWorkspaceAndKeepApprovalActions(): void {
+        $root=dirname(__DIR__,2);
+        $code=file_get_contents($root.'/public/assets/js/modules/operations/routes.js');
+        $css=file_get_contents($root.'/public/assets/css/layout.css');
+        self::assertIsString($code);
+        self::assertIsString($css);
+        self::assertStringContainsString('const HeadRouteWorkspace =', $code);
+        self::assertStringContainsString("App.me?.user?.role === 'admin'", $code);
+        self::assertStringContainsString('data-head-route-tab', $code);
+        self::assertStringContainsString('data-head-route-client', $code);
+        self::assertStringContainsString('data-head-route-export', $code);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(root', $code);
+        self::assertStringContainsString("d.can.approve&&r.pending_rate_id", $code);
+        self::assertStringContainsString("RouteUI.open(r.id,d)", $code);
+        self::assertStringContainsString('Routes.decide', $code);
+        self::assertStringContainsString('.head-route-workspace', $css);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
