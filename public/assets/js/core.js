@@ -285,6 +285,40 @@ const App = {
         nav += `<a href="#${item.id}" class="nav-item-link" data-nav="${item.id}"><i class="bi ${item.icon}" aria-hidden="true"></i><span>${UI.esc(item.label)}</span></a>`;
       }
       if (section !== null) nav += '</div></details>';
+    } else if (u.role === 'operations_head') {
+      // Collapsible, role-specific sidebar: render only entries authorized by
+      // the server-provided navigation, preserving every existing route target.
+      const groups = [
+        {name:'Overview',icon:'bi-grid-1x2',ids:['dashboard']},
+        {name:'Trip Operations',icon:'bi-signpost-split',ids:['trips','dispatcher-monitoring','funds']},
+        {name:'Masterlists',icon:'bi-truck',ids:['trucks','crew','routes','mechanics']},
+        {name:'Monitoring & Records',icon:'bi-clipboard-data',ids:['maintenance','reports','documents']}
+      ];
+      const used = new Set();
+      const labels = {
+        'dispatcher-monitoring':'Dispatch Monitoring',
+        'funds':'Fund Approvals',
+        'trucks':'Trucks',
+        'crew':'Drivers & Helpers',
+        'routes':'Client Routes',
+        'maintenance':'Incidents & Repairs'
+      };
+      const renderGroup = group => {
+        const entries=group.ids.map(id=>allowed.find(item=>item.id===id))
+          .filter(item=>item && !used.has(item.id));
+        if(!entries.length)return '';
+        entries.forEach(item=>used.add(item.id));
+        return '<details class="head-nav-group ops-head-nav-group" data-sidebar-group="'+UI.esc(group.name)+'">'
+          +'<summary><i class="bi '+group.icon+'" aria-hidden="true"></i><span>'+UI.esc(group.name)+'</span>'
+          +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
+          +'<div class="head-nav-items">'+entries.map(item=>
+            '<a href="#'+item.id+'" class="nav-item-link" data-nav="'+item.id+'">'
+            +'<i class="bi '+item.icon+'" aria-hidden="true"></i><span>'+UI.esc(labels[item.id]||item.label)+'</span></a>'
+          ).join('')+'</div></details>';
+      };
+      nav=groups.map(renderGroup).join('');
+      const remaining=allowed.filter(item=>!used.has(item.id));
+      if(remaining.length)nav+=renderGroup({name:'Other Tools',icon:'bi-grid-3x3-gap',ids:remaining.map(item=>item.id)});
     } else {
       nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
       if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
