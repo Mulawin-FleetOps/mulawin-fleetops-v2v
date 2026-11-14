@@ -712,14 +712,14 @@ const OpsHead = {
     };
     const renderPlanning = () => {
       if(!current()&&total()<20)entries.push({id:UI.uuid(),queued:false,data:{quantity:1},routes:[],loading:false,seq:0});
-      ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section>${this.panel('Planning Batch','<div class="oh-planning-total"><p data-entry-count></p><strong data-total></strong></div><div data-batch-list></div><button type="button" class="btn btn-primary w-100" data-review-batch>Review Batch</button>')}</div><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trips per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add>${editingId?'Save Entry':'Add to Planning Batch'}</button></div></div>`;
+      ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench oh-simple-planner">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section></div><details class="oh-simple-batch" ${batch().length?'open':''}><summary><i class="bi bi-collection" aria-hidden="true"></i><strong>Planning Batch</strong><span data-entry-count></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-simple-batch-body"><div class="oh-planning-total"><strong data-total></strong></div><div data-batch-list></div><button type="button" class="btn btn-outline-primary w-100" data-review-batch>Review Batch</button></div></details><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trucks per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add>${editingId?'Save Entry':'Add to Planning Batch'}</button></div></div>`;
       const list = ctx.el.querySelector('[data-entries]');
       entries.filter(e=>e===current()).forEach((e, i) => {
         const card = document.createElement('details'); card.className = 'oh-entry'; card.dataset.entry = e.id; card.open = e.expanded !== false;
         card.ontoggle = () => e.expanded = card.open;
-        card.innerHTML = `<summary><b data-entry-label>Trip Entry ${i + 1}</b><span data-entry-summary></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-entry-body">${i ? '<button type="button" class="btn btn-sm btn-outline-danger oh-remove" data-remove>Remove Entry</button>' : ''}<div class="oh-form-grid">${UI.fields([
-          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 6, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]) },
-          { name: 'truck_type', label: 'Truck Type', type: 'select', required: true, col: 6, value: e.data.truck_type, options: UI.list(TripUI.truckTypeOptions()) },
+        card.innerHTML = `<summary><b data-entry-label>Trip Details</b><span data-entry-summary></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-entry-body">${i ? '<button type="button" class="btn btn-sm btn-outline-danger oh-remove" data-remove>Remove Entry</button>' : ''}<div class="oh-form-grid">${UI.fields([
+          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 12, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]) },
+          { type: 'html', col: 12, html: '<input type="hidden" name="truck_type" value="'+UI.esc(e.data.truck_type||'')+'">' },
           { name: 'client_route_id', label: 'Approved Route', type: 'select', required: true, col: 12, options: [], value: '' },
           { name: 'scheduled_at', label: 'Scheduled Date & Time', type: 'datetime', required: true, col: 12, value: e.data.scheduled_at, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"` },
           { type: 'html', col: 6, html: `<label class="form-label" for="qty-${e.id}">Number of Required Trucks</label><div class="oh-stepper"><button type="button" class="btn btn-outline-secondary" data-minus aria-label="Decrease number of required trucks">−</button><input id="qty-${e.id}" name="quantity" type="number" class="form-control" min="1" max="20" step="1" required value="${e.data.quantity}"><button type="button" class="btn btn-outline-secondary" data-plus aria-label="Increase number of required trucks">+</button></div>` },
@@ -739,6 +739,7 @@ const OpsHead = {
           input.oninput = input.onchange = () => { e.data[input.name] = input.value; update(); };
         });
         const pick = card.querySelector('[name=client_route_id]'), note = card.querySelector('[data-route-state]');
+        const truckField = card.querySelector('[name=truck_type]');
         const dispatcher = card.querySelector('[name=dispatcher_assignment]');
         dispatcher.insertAdjacentHTML('afterend',`<div id="dispatcher-error-${e.id}" class="invalid-feedback" data-dispatcher-error hidden>Choose a compatible dispatcher group and shift.</div>`);
         const dispatcherError = card.querySelector('[data-dispatcher-error]');
@@ -771,23 +772,39 @@ const OpsHead = {
         dispatcher.onchange = dispatcher.oninput = () => { e.data.dispatcher_assignment = dispatcher.value;dispatcher.classList.remove('is-invalid');dispatcher.removeAttribute('aria-invalid');dispatcherError.hidden = true;dispatcherError.style.display='';fillAccounts();update(); };
         fillDispatchers();
         const fillRoutes = () => {
-          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.route_ref + ' · ' + r.origin_label + ' → ' + r.destination_label)}</option>`).join('');
-          pick.value = e.data.client_route_id || ''; pick.disabled = e.loading || !e.data.client_id || !e.data.truck_type;
-          card.querySelector('[data-approved-rate]').textContent=e.route?.rate_type?'Approved billing rate: '+RouteUI.rateText(e.route.rate_type,e.route.rate_amount,e.route.minimum_charge):'';
+          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.truck_type + ' · ' + r.route_ref + ' · ' + r.origin_label + ' → ' + r.destination_label)}</option>`).join('');
+          pick.value = e.data.client_route_id || ''; pick.disabled = e.loading || !e.data.client_id;
+          card.querySelector('[data-approved-rate]').textContent = e.route
+            ? 'Truck type: '+e.route.truck_type+' · '+UI.num(e.route.distance_km,2)+' km'
+            : 'Select a route to determine the required truck type and compatible dispatcher.';
         };
         const loadRoutes = async () => {
           const seq = ++e.seq; e.routes = []; e.data.client_route_id = ''; e.route = null;
-          if (!e.data.client_id || !e.data.truck_type) { e.loading = false; e.routeMessage = 'Choose a client and truck type.'; e.refresh(); return; }
+          e.data.truck_type = ''; truckField.value = '';
+          e.data.dispatcher_assignment = ''; e.data.responsible_dispatcher_id = '';
+          fillDispatchers();
+          if (!e.data.client_id) { e.loading = false; e.routeMessage = 'Choose a client first.'; e.refresh(); return; }
           e.loading = true; e.routeMessage = 'Loading approved routes…'; e.refresh();
           try {
-            const r = await App.api('Routes.selectable', { client_id: e.data.client_id, truck_type: e.data.truck_type });
+            const r = await App.api('Routes.selectable', { client_id: e.data.client_id });
             if (seq !== e.seq) return;
-            e.routes = r.routes || []; e.routeMessage = e.routes.length ? '' : 'No Approved Route Available. There is no approved route for the selected client and truck type. Please request a new route through the Client Routes menu before creating this trip.';
-          } catch (ex) { if (seq === e.seq) e.routeMessage = ex.message + ' Change the client or truck type to retry.'; }
+            e.routes = r.routes || []; e.routeMessage = e.routes.length ? '' : 'No approved routes are available for this client. Request a route through Client Routes before creating a trip.';
+          } catch (ex) { if (seq === e.seq) e.routeMessage = ex.message + ' Change the client to retry.'; }
           finally { if (seq === e.seq) { e.loading = false; e.refresh(); } }
         };
-        ['client_id', 'truck_type'].forEach(n => card.querySelector(`[name=${n}]`).onchange = event => { e.data[n] = event.target.value;if(n==='truck_type')fillDispatchers(); loadRoutes(); update(); });
-        pick.onchange = () => { e.data.client_route_id = pick.value; e.route = e.routes.find(r => String(r.id) === pick.value);e.refresh(); };
+        card.querySelector('[name=client_id]').onchange = event => {
+          e.data.client_id = event.target.value;
+          loadRoutes(); update();
+        };
+        pick.onchange = () => {
+          e.data.client_route_id = pick.value;
+          e.route = e.routes.find(r => String(r.id) === pick.value) || null;
+          e.data.truck_type = e.route?.truck_type || '';
+          truckField.value = e.data.truck_type;
+          e.data.dispatcher_assignment = '';
+          e.data.responsible_dispatcher_id = '';
+          fillDispatchers(); e.refresh(); update();
+        };
         card.querySelector('[data-minus]').onclick = () => { e.data.quantity = Math.max(1, (+e.data.quantity || 1) - 1); card.querySelector('[name=quantity]').value = e.data.quantity; update(); };
         card.querySelector('[data-plus]').onclick = () => { if (total() >= 20) return error('Maximum combined quantity is 20 trips.'); e.data.quantity = (+e.data.quantity || 1) + 1; card.querySelector('[name=quantity]').value = e.data.quantity; update(); };
         card.querySelector('[data-remove]')?.addEventListener('click', () => { e.seq++; entries = entries.filter(x => x !== e); renderPlanning(); });
@@ -795,6 +812,8 @@ const OpsHead = {
         note.insertAdjacentHTML('afterend','<p class="small" data-approved-rate></p>');
         card.querySelector('.oh-numbered-section').append(note,card.querySelector('[data-approved-rate]'));
         e.refresh();
+        // Restore an existing entry's selectable routes when returning from Review.
+        if(e.data.client_id && !e.routes.length && !e.loading)loadRoutes();
       });
       ctx.el.querySelector('[data-clear]').onclick = async () => {
         if (dirty(current())&&!await UI.confirmProceed('Clear Entry','Discard the current unsaved entry?','Clear Entry'))return;
