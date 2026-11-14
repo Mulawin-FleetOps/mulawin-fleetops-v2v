@@ -135,6 +135,27 @@ const HeadTripsUI = {
       empty
     });
   },
+  renderTripTable(body, rows, empty) {
+    const statuses = [...new Set(rows.map(x=>x.status).filter(Boolean))].sort();
+    const types = [...new Set(rows.map(x=>x.truck_type).filter(Boolean))].sort();
+    body.innerHTML = '<div class="board-tools mb-3 d-flex gap-2 flex-wrap">'
+      + '<label class="small">Trip status <select class="form-select form-select-sm" data-head-status>'
+      + '<option value="">All statuses</option>' + statuses.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('') + '</select></label>'
+      + '<label class="small">Truck type <select class="form-select form-select-sm" data-head-type>'
+      + '<option value="">All truck types</option>' + types.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('') + '</select></label>'
+      + '</div><div data-head-trip-list></div>';
+    const slot = body.querySelector('[data-head-trip-list]');
+    const draw = () => {
+      const status = body.querySelector('[data-head-status]').value;
+      const type = body.querySelector('[data-head-type]').value;
+      const filtered = rows.filter(t=>(!status || t.status===status) && (!type || t.truck_type===type));
+      slot.innerHTML = HeadTripsUI.table(filtered,empty);
+      UI.activate(slot);
+    };
+    body.querySelector('[data-head-status]').onchange = draw;
+    body.querySelector('[data-head-type]').onchange = draw;
+    draw();
+  },
   render(ctx) {
     const d = ctx.data || {}, total = d.summary || {};
     const active = d.active || [], history = d.history || [], incidents = d.incidents || [];
@@ -150,10 +171,10 @@ const HeadTripsUI = {
     const root = ctx.el.querySelector('[data-head-trip-tabs]');
     const tabs = [
       ['active','Active & Scheduled ('+active.length+')', body => {
-        body.innerHTML = HeadTripsUI.table(active,'No active or scheduled trips.');
+        HeadTripsUI.renderTripTable(body,active,'No active or scheduled trips.');
       }],
       ['history','Trip History', body => {
-        body.innerHTML = HeadTripsUI.table(history,'No completed or closed trips.');
+        HeadTripsUI.renderTripTable(body,history,'No completed or closed trips.');
       }],
       ['incidents','Incidents ('+incidents.filter(x=>x.status!=='Resolved').length+' open)', body => {
         body.innerHTML = UI.table([
@@ -171,7 +192,7 @@ const HeadTripsUI = {
     UI.tabs(root,tabs,ctx.query?.tab || 'active');
     UI.activate(ctx.el);
     const warnings = d._errors || [];
-    if (warnings.length) UI.toast('Some trip monitoring records could not be loaded. Check the server log.','error');
+    if (Object.keys(warnings).length) UI.toast('Some trip monitoring records could not be loaded. Check the server log.','error');
   }
 };
 App.page('head-trips',{
