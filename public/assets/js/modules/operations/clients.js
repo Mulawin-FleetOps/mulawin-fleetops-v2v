@@ -152,31 +152,43 @@ const ClientUI = {
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') {
-        // Reuse the standard validated UI.formModal and its unsaved-change guard.
-        // Group only at presentation level: all original field names and values stay intact.
+        // Primary client details are immediately visible; secondary attributes
+        // remain editable under a native disclosure. All fields use shared UI.fields.
         const source = ClientUI.infoFields(c);
-        const field = (name, col) => {
+        const field = (name, col=6) => {
           const original = source.find(item => item.name === name);
           if (!original) throw new Error('Client edit field missing: ' + name);
           return { ...original, col };
         };
-        const section = (label, icon) => ({
-          type: 'html', col: 12,
-          html: '<div class="client-edit-section-label"><i class="bi '+icon+'" aria-hidden="true"></i><span>'+UI.esc(label)+'</span></div>'
-        });
-        const fields = [
-          section('Company information', 'bi-building'),
-          field('company_name', 8), field('tin', 4),
-          field('trade_name', 6), field('nature_of_business', 6),
-          field('business_address', 12),
-          section('Contact information', 'bi-person-lines-fill'),
-          field('contact_person', 4), field('contact_position', 4), field('contact_number', 4),
-          field('email', 6), field('notes', 6)
+        const primary = [
+          field('company_name',12), field('business_address',12),
+          field('contact_person',6), field('contact_number',6),
+          field('email',12)
         ];
-        UI.formModal('Edit ' + UI.esc(c.company_name), fields, 'Clients.update', {
-          size: 'modal-lg', submit: 'Save changes', extra: { id: c.id },
-          onShow: (modal) => modal.classList.add('client-edit-modal'),
-          after: () => { ClientUI.open(c.id, d); App.route(); }
+        const secondary = [
+          field('tin',6), field('trade_name',6),
+          field('nature_of_business',6), field('contact_position',6),
+          field('notes',12)
+        ];
+        const body = '<div class="client-edit-compact">'
+          + '<div class="client-edit-intro"><i class="bi bi-pencil-square" aria-hidden="true"></i>'
+          + '<span>Update the key details below. Additional company information is available when needed.</span></div>'
+          + '<div class="client-edit-main">'+UI.fields(primary)+'</div>'
+          + '<details class="record-form-extra client-edit-more"'
+          + (secondary.some(item=>String(item.value??'').trim()!=='')?' open':'')+'>'
+          + '<summary><span class="record-form-extra-heading"><i class="bi bi-card-list" aria-hidden="true"></i>'
+          + '<span><strong>Additional information</strong><small>TIN, trade name, business type, position and notes</small></span></span>'
+          + '<i class="bi bi-chevron-down record-form-chevron" aria-hidden="true"></i></summary>'
+          + '<div class="record-form-extra-content">'+UI.fields(secondary)+'</div></details>'
+          + '</div>';
+        UI.modal('Edit ' + UI.esc(c.company_name), body, async (payload) => {
+          const result = await App.api('Clients.update', { id:c.id, ...payload });
+          UI.result(result);
+          ClientUI.open(c.id,d);
+          App.route();
+        }, {
+          size:'modal-md',submit:'Save changes',
+          onShow:(modal)=>modal.classList.add('client-edit-modal')
         });
       }
       if (a === 'docs') UI.formModalFiles('Upload requirements of ' + UI.esc(c.company_name), [...ClientUI.fileFields(false), { name: 'other', label: 'Other client documents (contract, ...)', type: 'file', multiple: true, col: 12 }],
