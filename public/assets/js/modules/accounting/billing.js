@@ -175,18 +175,25 @@ App.page('billing', {
   render(ctx) {
     if(UI.role('admin')||UI.role('billing')||UI.role('audit'))UI.tool(ctx,'Pricing Impact',()=>BillUI.pricingReport(),'bi-clock-history','outline-secondary');
     const d = BillUI.data = ctx.data;
+    const head = UI.role('admin');
     const by = (s) => d.billings.filter(b => s.includes(b.status));
     const unpaid = by(['Invoiced', 'Partially Paid']);
     const adjBanner = d.adjustments.length && d.can.decide ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.adjustments.length} billing charge / adjustment request(s) are waiting for Admin approval.</div>` : '';
     ctx.el.innerHTML = adjBanner + (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.<a class="btn btn-sm btn-light" href="#clients?status=Pending%20Rate">Open clients</a></div>` : '') + UI.cards([
-      { label: 'Ongoing trips (drafts)', value: by(['Ongoing']).length, icon: 'bi-hourglass', color: 'gray' },
+      ...(!head ? [{ label: 'Ongoing trips (drafts)', value: by(['Ongoing']).length, icon: 'bi-hourglass', color: 'gray' }] : []),
       { label: 'For billing', value: by(['For Billing']).length, icon: 'bi-receipt', color: 'amber' },
       { label: 'Unpaid invoices', value: unpaid.length, icon: 'bi-file-earmark-text', color: 'blue' },
       { label: 'Outstanding balance', value: unpaid.reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-hourglass-split', color: 'red' },
       { label: 'Overdue', value: unpaid.filter(b => +b.days_overdue > 0).reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-exclamation-octagon', color: 'red' },
     ]);
     const open = { actions: () => UI.btn('view', 'Open'), onAction: (a, b) => BillUI.open(b.id) };
-    const box = document.createElement('div'); ctx.el.append(box);
+    const box = document.createElement('div');
+    if (head) {
+      ctx.el.classList.add('head-billing-overview');
+      box.className = 'head-financial-records';
+      box.innerHTML = '<div class="head-financial-heading"><h2>Billing & Collection Records</h2><p>Monitor billing drafts, approvals, outstanding invoices and collections.</p></div>';
+    }
+    ctx.el.append(box);
     UI.tabs(box, [
       ['ongoing', `Ongoing trips (${by(['Ongoing']).length})`, () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Route', 'delivery_point'], ['Dispatched', 'dispatched_at', 'datetime'],
         ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
