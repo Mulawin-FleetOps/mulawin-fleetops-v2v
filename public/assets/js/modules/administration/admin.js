@@ -222,7 +222,7 @@ const FuelAdjustmentUI={
   ];
   ctx.el.innerHTML='<div class="head-fuel-workspace">'
     +RecordComponents.kpis(kpis)
-    +'<div data-head-fuel-records></div></div>';
+    +'<div class="head-fuel-config" data-head-fuel-records></div></div>';
   const root=ctx.el.querySelector('[data-head-fuel-records]');
   const buttons=selected=>RecordComponents.categories(categories,selected,'data-head-fuel-tab');
   const attachTabs=()=>{
@@ -233,14 +233,22 @@ const FuelAdjustmentUI={
     if(category==='diesel'){
       root.innerHTML='<section class="record-workspace-panel">'
         +'<div class="record-workspace-heading"><div><h2>Fuel Configuration</h2>'
-        +'<p class="record-workspace-count">Weekly diesel pricing and effective date</p></div>'
+        +'<p class="record-workspace-count">Weekly diesel pricing, truck efficiency and audit history</p></div>'
         +'<button type="button" class="btn btn-sm btn-primary" data-edit-diesel>'
         +'<i class="bi bi-pencil" aria-hidden="true"></i> Edit Price</button></div>'
         +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
-        +'<div class="card-body">'+UI.kv([
-          ['Current price per liter',dieselValue===null?'Not configured':UI.money(dieselValue)],
-          ['Current effective date',diesel?UI.date(diesel.effective_date):'Not configured']])
-        +'<p class="small text-muted mb-0">Updates normally occur on Tuesdays. The previous effective price remains applicable until another takes effect. Historical invoices are not automatically recalculated.</p>'
+        +'<div class="head-fuel-diesel-content">'
+        +'<div class="head-fuel-section-heading"><div class="head-fuel-section-icon"><i class="bi bi-fuel-pump" aria-hidden="true"></i></div>'
+        +'<div><h3>Weekly Diesel Price</h3><p>Current company-wide diesel configuration</p></div>'
+        +'<span class="head-fuel-config-state '+(dieselValue===null?'is-missing':'is-ready')+'">'
+        +(dieselValue===null?'Not configured':'Configured')+'</span></div>'
+        +'<div class="head-fuel-setting-grid">'
+        +'<div class="head-fuel-setting"><span class="head-fuel-setting-label">Current price per liter</span>'
+        +'<strong>'+ (dieselValue===null?'Not configured':UI.money(dieselValue))+'</strong><small>Philippine peso per liter</small></div>'
+        +'<div class="head-fuel-setting"><span class="head-fuel-setting-label">Effective date</span>'
+        +'<strong>'+ (diesel?UI.date(diesel.effective_date):'Not configured')+'</strong><small>Current effective price record</small></div></div>'
+        +'<div class="head-fuel-policy"><i class="bi bi-info-circle" aria-hidden="true"></i>'
+        +'<p>Diesel price updates normally occur on Tuesdays. The previous effective price remains applicable until the next price takes effect. Historical invoices are not automatically recalculated.</p></div>'
         +'</div></section>';
       root.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');
     }else{
