@@ -364,8 +364,15 @@ catch (PDOException $e) { ok(str_contains($e->getMessage(), 'uq_route_rate_curre
 
 // Rollback: make activation of the next revision fail AFTER the old rate was superseded -> everything rolled back.
 $rev3 = (int)$act('admin', 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '14000'])['rate_id'];
-$p->exec("CREATE TRIGGER test_fail_activation BEFORE UPDATE ON client_route_rates FOR EACH ROW
-          BEGIN IF NEW.id = $rev3 AND NEW.status = 'Approved' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'simulated failure'; END IF; END");
+$routeTriggerReady = true;
+try { $p->exec("CREATE TRIGGER test_fail_activation BEFORE UPDATE ON client_route_rates FOR EACH ROW
+          BEGIN IF NEW.id = $rev3 AND NEW.status = 'Approved' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'simulated failure'; END IF; END"); }
+catch (PDOException $e) {
+    if ((int)($e->errorInfo[1] ?? 0) !== 1419) throw $e;
+    $routeTriggerReady = false;
+    echo "  SKIP  activation rollback trigger test: test MySQL server denies CREATE TRIGGER with binary logging enabled\n";
+}
+if ($routeTriggerReady) {
 try { $act('admin', 'decide', ['rate_id' => $rev3, 'decision' => 'approve']); ok(false, 'simulated failure raised'); }
 catch (Throwable $e) { ok(str_contains($e->getMessage(), 'simulated failure'), 'simulated failure during activation raised'); }
 $p->exec('DROP TRIGGER test_fail_activation');
@@ -373,6 +380,7 @@ $n = one($p, 'SELECT * FROM client_route_rates WHERE id=?', [$rev2]);
 ok($n['status'] === 'Approved' && $n['effective_to'] === null, 'after the failure the previous approved rate is still Approved (rolled back)');
 ok(one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$rev3])['status'] === 'Pending Approval', 'after the failure the revision is still Pending Approval');
 ok(!$p->inTransaction(), 'no transaction left open after the failure');
+}
 
 // Concurrency: two processes approve the same revision at the same moment -> exactly one succeeds.
 $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__FILE__) . " --decide $rev3 ";
