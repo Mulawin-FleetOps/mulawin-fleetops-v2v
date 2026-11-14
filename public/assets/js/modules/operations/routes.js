@@ -348,64 +348,28 @@ const RouteUI = {
 
 /* Executive route workspace is presentation-only: retains the existing
  * authorized Rate, Review, Approve, Reject and View workflows. */
+/* Head Management routes use the SAME table workspace as Client Management.
+ * Only the existing rate-authorized actions remain; no duplicate table toolbar. */
 const HeadRouteWorkspace = {
-  tabs: [
-    {id:'waiting',title:'Waiting',empty:'Nothing is waiting for a rate or approval.',accept:r=>RouteUI.waiting(r)},
-    {id:'approved',title:'Approved',empty:'No approved routes yet.',accept:r=>r.status==='Approved'},
-    {id:'closed',title:'Rejected / Withdrawn / Inactive',empty:'No closed routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
+  categories: [
+    {value:'waiting',label:'Waiting',empty:'Nothing is waiting for a rate or approval.',accept:r=>RouteUI.waiting(r)},
+    {value:'approved',label:'Approved',empty:'No approved routes yet.',accept:r=>r.status==='Approved'},
+    {value:'closed',label:'Rejected / Withdrawn / Inactive',empty:'No closed routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
   ],
   render(ctx,d) {
     const all=d.routes||[];
     const count=fn=>all.filter(fn).length;
-    const clientOpts=[...new Map([...all.map(r=>[String(r.client_id),r.client]),
-      ...(d.clients||[]).map(r=>[String(r.id),r.company_name])]).entries()]
-      .sort((a,b)=>a[1].localeCompare(b[1]));
-    const option=(value,label)=>'<option value="'+UI.esc(value)+'">'+UI.esc(label)+'</option>';
     const initial=count(RouteUI.waiting)?'waiting':'approved';
-    ctx.el.innerHTML='<section class="head-route-workspace">'
-      +UI.cards([
-        {label:'Approved routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
-        {label:'Waiting for rate',value:count(r=>r.status==='Pending Rate'),color:'blue',icon:'bi-calendar-check'},
-        {label:'Waiting for approval',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',hint:'new routes and rate revisions'},
-        {label:'Closed / Inactive routes',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
-      ])
-      +'<section class="head-route-records head-monitor-panel">'
-      +'<div class="head-fleet-records-heading"><h2>Route & Contract Records</h2><p>Review route requests, contractual rates and approvals.</p></div>'
-      +'<nav class="head-fleet-tabs" role="tablist" aria-label="Route record categories">'
-      +this.tabs.map(tab=>'<button type="button" role="tab" class="head-fleet-tab" data-head-route-tab="'+tab.id+'" aria-selected="false">'
-        +UI.esc(tab.title)+'</button>').join('')
-      +'</nav><div class="head-monitor-header"><h2 class="h6 mb-0" data-head-route-title>Waiting</h2>'
-      +'<span class="head-monitor-subcount" data-head-route-count></span></div>'
-      +'<div class="head-monitor-tools record-workspace-search">'
-      +'<div class="head-search-box"><i class="bi bi-search" aria-hidden="true"></i>'
-      +'<input type="search" class="form-control head-monitor-search" placeholder="Search routes or clients..." data-head-route-search aria-label="Search routes"></div>'
-      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="head-route-filter-panel" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter <span data-head-route-filters></span></button>'
-      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="head-route-sort-panel" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
-      +'<button type="button" class="btn btn-sm btn-outline-success" data-head-route-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>'
-      +'<div class="record-workspace-popovers">'
-      +'<div id="head-route-filter-panel" class="record-workspace-popover" hidden><strong>Filter routes</strong>'
-      +'<label>Client<select class="form-select form-select-sm" data-head-route-client>'
-      +option('','All clients')+clientOpts.map(([id,label])=>option(id,label)).join('')+'</select></label>'
-      +'<label>Truck type<select class="form-select form-select-sm" data-head-route-type>'
-      +option('','All truck types')
-      +[...new Set(all.map(r=>r.truck_type).filter(Boolean))].sort().map(t=>option(t,t)).join('')+'</select></label>'
-      +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
-      +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
-      +'<div id="head-route-sort-panel" class="record-workspace-popover record-workspace-sort-panel" hidden><strong>Sort routes</strong>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="head-route-sort" value="default" data-record-sort checked> Default order</label>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="head-route-sort" value="asc" data-record-sort> Route A–Z</label>'
-      +'<label class="record-workspace-sort-option"><input type="radio" name="head-route-sort" value="desc" data-record-sort> Route Z–A</label>'
-      +'</div></div></div><div class="head-monitor-table" data-head-route-table></div>'
-      +'</section></section>';
-    const root=ctx.el.querySelector('.head-route-records');
-    const search=root.querySelector('[data-head-route-search]');
-    const client=root.querySelector('[data-head-route-client]');
-    const type=root.querySelector('[data-head-route-type]');
-    const slot=root.querySelector('[data-head-route-table]');
+    const ids={filter:'head-route-client-filter',sort:'head-route-record-sort'};
+    const clients=[...new Map([
+      ...all.map(r=>[String(r.client_id),r.client]),
+      ...(d.clients||[]).map(r=>[String(r.id),r.company_name])
+    ])].sort((a,b)=>String(a[1]||'').localeCompare(String(b[1]||'')));
+    const types=[...new Set(all.map(r=>r.truck_type).filter(Boolean))].sort();
+    const option=(value,label)=>'<option value="'+UI.esc(value)+'">'+UI.esc(label)+'</option>';
     const cols=[
       ['Route / Pickup','route_ref',(v,r)=>'<b>'+UI.esc(v||'—')+'</b><div class="cell-sub">'+UI.esc(r.origin_label||'—')+'</div>'],
-      ['Client','client'],
-      ['Destination','destination_label'],
+      ['Client','client'],['Destination','destination_label'],
       ['Truck Type','truck_type'],
       ['Contract Rate','rate_amount',(v,r)=>RouteUI.rateText(r.rate_type,r.rate_amount,r.minimum_charge)],
       ['Status','status','badge']
@@ -417,53 +381,97 @@ const HeadRouteWorkspace = {
       return buttons;
     };
     const action=(name,row)=>name==='rate'?RouteUI.rate(row,d):RouteUI.open(row.id,d);
-    let tab=initial,sort='default',visible=[];
-    const draw=()=>{
-      const config=this.tabs.find(item=>item.id===tab);
-      const query=search.value.trim().toLocaleLowerCase();
-      visible=all.filter(row=>config.accept(row)
-        &&(!client.value||String(row.client_id)===client.value)
-        &&(!type.value||row.truck_type===type.value)
-        &&(!query||['route_ref','client','origin_label','destination_label','truck_type','status']
-          .some(key=>String(row[key]??'').toLocaleLowerCase().includes(query))));
-      if(sort!=='default')visible=[...visible].sort((a,b)=>(sort==='asc'?1:-1)
-        *String(a.route_ref??'').localeCompare(String(b.route_ref??''),undefined,{numeric:true}));
-      root.querySelector('[data-head-route-title]').textContent=config.title+' Routes';
-      root.querySelector('[data-head-route-count]').textContent=visible.length===all.filter(config.accept).length
-        ?visible.length+' records':visible.length+' filtered records';
-      const n=Number(Boolean(client.value))+Number(Boolean(type.value));
-      root.querySelector('[data-head-route-filters]').textContent=n?'('+n+')':'';
-      slot.innerHTML=UI.table(cols,visible,{showAllColumns:true,viewSwitch:false,actions,onAction:action,rowClick:r=>RouteUI.open(r.id,d),empty:config.empty});
-      UI.activate(slot);
-      // Head-only empty state: retain column names and navigation as in other executive tables.
-      if(typeof HeadOversight!=='undefined')HeadOversight.finishTable(slot);
-    };
-    const select=id=>{
-      tab=id;
-      root.querySelectorAll('[data-head-route-tab]').forEach(button=>{
-        const active=button.dataset.headRouteTab===id;
-        button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));
-        button.tabIndex=active?0:-1;
+    const toolbar='<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+ids.filter+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
+      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+ids.sort+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+      +'<div class="record-workspace-popovers">'
+      +'<div class="record-workspace-popover" id="'+ids.filter+'" hidden><strong>Filter routes</strong>'
+      +'<label>Client<select class="form-select form-select-sm" data-head-route-client>'+option('','All clients')
+      +clients.map(([id,name])=>option(id,name)).join('')+'</select></label>'
+      +'<label>Truck type<select class="form-select form-select-sm" data-head-route-type>'+option('','All truck types')
+      +types.map(type=>option(type,type)).join('')+'</select></label>'
+      +'<div class="record-workspace-popover-actions">'
+      +'<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+      +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+      +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+ids.sort+'" hidden><strong>Sort routes</strong>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="head_route_sort" value="default" data-record-sort checked> Default order</label>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="head_route_sort" value="asc" data-record-sort> Route A–Z</label>'
+      +'<label class="record-workspace-sort-option"><input type="radio" name="head_route_sort" value="desc" data-record-sort> Route Z–A</label>'
+      +'</div></div>'
+      +'<button type="button" class="btn btn-sm btn-outline-success record-workspace-export"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>';
+    const state={tab:initial,client:'',type:'',sort:'default'};
+    ctx.el.innerHTML='<div class="head-route-workspace">'
+      +RecordComponents.kpis([
+        {label:'Approved routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
+        {label:'Waiting for rate',value:count(r=>r.status==='Pending Rate'),color:'blue',icon:'bi-calendar-check'},
+        {label:'Waiting for approval',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',note:'new routes and rate revisions'},
+        {label:'Closed / Inactive routes',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
+      ])
+      +'<div data-head-route-workspace></div></div>';
+    const target=ctx.el.querySelector('[data-head-route-workspace]');
+    let tableId=null;
+    const renderTable=()=>{
+      const category=this.categories.find(item=>item.value===state.tab)||this.categories[0];
+      const rows=all.filter(row=>category.accept(row)
+        &&(!state.client||String(row.client_id)===state.client)
+        &&(!state.type||row.truck_type===state.type));
+      const table=UI.table(cols,rows,{
+        tools:toolbar,showAllColumns:true,viewSwitch:false,
+        actions,onAction:action,rowClick:r=>RouteUI.open(r.id,d),
+        empty:category.empty
       });
-      search.value='';draw();
+      target.innerHTML=RecordComponents.panel(table,RecordComponents.categories(
+        this.categories.map(({value,label})=>({value,label})),state.tab,'data-head-route-category'));
+      UI.activate(target);
+      RecordComponents.mountPanel(target,{title:'Route & Contract Records',addSelector:'.record-workspace-export'});
+      const body=target.querySelector('[data-tbody]');
+      tableId=body?.dataset.tbody||null;
+      // Keep normal table columns and a disabled pager when a category is empty.
+      if(tableId&&typeof HeadOversight!=='undefined')HeadOversight.finishTable(target);
+      const applySort=()=>{
+        const t=tableId?UI._tables[tableId]:null;
+        if(!t)return;
+        if(state.sort==='default')return;
+        t.rows.sort((a,b)=>(state.sort==='asc'?1:-1)
+          *String(a.route_ref??'').localeCompare(String(b.route_ref??''),undefined,{numeric:true}));
+        t.page=0;UI.drawTable(tableId);
+      };
+      applySort();
+      target.querySelectorAll('[data-head-route-category]').forEach(button=>
+        button.addEventListener('click',()=>{
+          if(state.tab===button.dataset.headRouteCategory)return;
+          state.tab=button.dataset.headRouteCategory;
+          renderTable();
+        }));
+      const filter=target.querySelector('.record-workspace-filter-trigger');
+      RecordComponents.bindDropdowns(target,{
+        apply(panel){
+          state.client=panel.querySelector('[data-head-route-client]').value;
+          state.type=panel.querySelector('[data-head-route-type]').value;
+          renderTable();
+        },
+        reset(){state.client='';state.type='';renderTable();},
+        sort(value){state.sort=value;renderTable();}
+      },ids);
+      target.querySelector('[data-head-route-client]').value=state.client;
+      target.querySelector('[data-head-route-type]').value=state.type;
+      target.querySelectorAll('[data-record-sort]').forEach(input=>input.checked=input.value===state.sort);
+      target.querySelector('.record-workspace-export')?.addEventListener('click',()=>{
+        const t=tableId?UI._tables[tableId]:null;
+        const visible=t?UI.tableRows(tableId):rows;
+        const headers=['Route','Client','Pickup','Destination','Truck Type','Rate','Status'];
+        const data=visible.map(r=>[r.route_ref,r.client,r.origin_label,r.destination_label,
+          r.truck_type,RouteUI.rateText(r.rate_type,r.rate_amount,r.minimum_charge),r.status]);
+        const quote=v=>'"'+String(v??'').replace(/"/g,'""')
+          .replace(/^[\s\uFEFF]*[=+\-@\t\r]/,match=>"'"+match)+'"';
+        const csv='\uFEFF'+[headers,...data].map(line=>line.map(quote).join(',')).join('\r\n');
+        const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+        const a=document.createElement('a');a.href=url;
+        a.download='mulawin_route_contract_rates_'+new Date().toISOString().slice(0,10)+'.csv';
+        document.body.append(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+      });
     };
-    root.querySelectorAll('[data-head-route-tab]').forEach(button=>button.onclick=()=>select(button.dataset.headRouteTab));
-    search.addEventListener('input',draw);
-    RecordComponents.bindDropdowns(root,{
-      apply:()=>{draw();root.querySelector('.record-workspace-filter-trigger').click();},
-      reset:()=>{client.value='';type.value='';draw();root.querySelector('.record-workspace-filter-trigger').click();},
-      sort:value=>{sort=value;draw();}
-    },{filter:'head-route-filter-panel',sort:'head-route-sort-panel'});
-    root.querySelector('[data-head-route-export]').onclick=()=>{
-      const headers=['Route','Client','Pickup','Destination','Truck Type','Rate','Status'];
-      const values=visible.map(r=>[r.route_ref,r.client,r.origin_label,r.destination_label,r.truck_type,RouteUI.rateText(r.rate_type,r.rate_amount,r.minimum_charge),r.status]);
-      const quote=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[\s\uFEFF]*[=+\-@\t\r]/,match=>"'"+match)+'"';
-      const csv='\uFEFF'+[headers,...values].map(row=>row.map(quote).join(',')).join('\r\n');
-      const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-      const a=document.createElement('a');a.href=url;a.download='mulawin_route_contract_rates_'+new Date().toISOString().slice(0,10)+'.csv';
-      document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-    };
-    select(initial);
+    renderTable();
   }
 };
 
