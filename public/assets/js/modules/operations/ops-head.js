@@ -726,7 +726,7 @@ const OpsHead = {
           { name: 'client_route_id', label: 'Approved Route', type: 'select', required: true, col: 12, options: [], value: '' },
           { name: 'scheduled_at', label: 'Scheduled Date & Time', type: 'datetime', required: true, col: 12, value: e.data.scheduled_at, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"` },
           { type: 'html', col: 6, html: `<label class="form-label" for="qty-${e.id}">Number of Required Trucks</label><div class="oh-stepper"><button type="button" class="btn btn-outline-secondary" data-minus aria-label="Decrease number of required trucks">−</button><input id="qty-${e.id}" name="quantity" type="number" class="form-control" min="1" max="20" step="1" required value="${e.data.quantity}"><button type="button" class="btn btn-outline-secondary" data-plus aria-label="Increase number of required trucks">+</button></div>` },
-          { name: 'dispatcher_assignment', label: 'Dispatcher Group / Shift', type: 'select', required: true, col: 6, placeholder: 'Choose dispatcher...', options: dispatcherOptions(e.data.truck_type), value: e.data.dispatcher_assignment, attrs: `aria-describedby="dispatcher-error-${e.id}"` },
+          { name: 'dispatcher_assignment', label: 'Dispatcher Shift', type: 'select', required: true, col: 6, placeholder: 'Choose shift...', options: dispatcherOptions(e.data.truck_type).map(([value]) => [value, value.split(':').slice(1).join(':')]), value: e.data.dispatcher_assignment, attrs: `aria-describedby="dispatcher-error-${e.id}"` },
           { name: 'responsible_dispatcher_id', label: 'Responsible Dispatcher', type: 'select', required: true, col: 12, options: accountOptions(e.data).map(a => [a.id,a.full_name]), value: e.data.responsible_dispatcher_id },
           { name: 'delivery_details', label: 'Delivery Instructions', type: 'textarea', rows: 2, col: 12, value: e.data.delivery_details, attrs: 'maxlength="500"' },
         ])}</div><p class="small text-muted mb-0" data-route-state role="status"></p></div>`;
@@ -762,7 +762,7 @@ const OpsHead = {
         const pick = card.querySelector('[name=client_route_id]'), note = card.querySelector('[data-route-state]');
         const truckField = card.querySelector('[name=truck_type]');
         const dispatcher = card.querySelector('[name=dispatcher_assignment]');
-        dispatcher.insertAdjacentHTML('afterend',`<div id="dispatcher-error-${e.id}" class="invalid-feedback" data-dispatcher-error hidden>Choose a compatible dispatcher group and shift.</div>`);
+        dispatcher.insertAdjacentHTML('afterend',`<div id="dispatcher-error-${e.id}" class="invalid-feedback" data-dispatcher-error hidden>Select an available shift for the selected route.</div><div class="oh-dispatcher-team-note" data-dispatcher-team role="status"></div>`);
         const dispatcherError = card.querySelector('[data-dispatcher-error]');
         const quantityField = card.querySelector('.oh-stepper').parentElement;
         quantityField.className = 'col-md-6 oh-planner-quantity-field';
@@ -772,7 +772,7 @@ const OpsHead = {
         scheduleField.insertAdjacentHTML('beforeend',`<div class="row g-2"><div class="col-md-6"><label class="form-label req" for="date-${e.id}">Scheduled Dispatch Date</label><input id="date-${e.id}" type="date" class="form-control" required data-schedule-date min="${UI.nowManila().slice(0,10)}" max="${UI.nowManila(365*1440).slice(0,10)}" value="${UI.esc((e.data.scheduled_at||'').split('T')[0])}"></div><div class="col-md-6"><label class="form-label req" for="time-${e.id}">Scheduled Dispatch Time</label><input id="time-${e.id}" type="time" class="form-control" required data-schedule-time value="${UI.esc((e.data.scheduled_at||'').split('T')[1]||'')}"></div></div>`);
         [card.querySelector('[data-schedule-date]'),card.querySelector('[data-schedule-time]')].forEach(input=>input.oninput=input.onchange=()=>{schedule.value=card.querySelector('[data-schedule-date]').value&&card.querySelector('[data-schedule-time]').value?card.querySelector('[data-schedule-date]').value+'T'+card.querySelector('[data-schedule-time]').value:'';e.data.scheduled_at=schedule.value;update();});
         card.querySelector('label[for="'+card.querySelector('[name=quantity]').id+'"]').textContent='Required Trucks';
-        card.querySelector('label[for="'+dispatcher.id+'"]').textContent='Dispatcher Group / Shift';card.querySelector('label[for="'+card.querySelector('[name=delivery_details]').id+'"]').textContent='Additional Instructions (optional)';
+        card.querySelector('label[for="'+dispatcher.id+'"]').textContent='Dispatcher Shift';card.querySelector('label[for="'+card.querySelector('[name=delivery_details]').id+'"]').textContent='Additional Instructions (optional)';
         const account = card.querySelector('[name=responsible_dispatcher_id]');
         account.parentElement?.classList.add('oh-planner-account-field');
         account.insertAdjacentHTML('afterend','<div class="small text-muted oh-planner-account-hint" data-account-state role="status"></div>');
@@ -782,14 +782,16 @@ const OpsHead = {
           account.replaceChildren(new Option('Choose responsible account...', ''), ...options.map(a => new Option(a.full_name, a.id)));
           account.value = e.data.responsible_dispatcher_id || '';
           account.disabled = !options.length;
-          card.querySelector('[data-account-state]').textContent = !e.data.dispatcher_assignment ? 'Select a dispatcher group and shift to see available accounts.' : !options.length ? 'No active dispatcher account is available for this group and shift. Contact Admin.' : 'Select the dispatcher responsible for this trip.';
+          card.querySelector('[data-account-state]').textContent = !e.data.dispatcher_assignment ? 'Select a dispatcher shift to see available accounts.' : !options.length ? 'No active dispatcher account is available for this group and shift. Contact Admin.' : 'Select the dispatcher responsible for this trip.';
         };
         const fillDispatchers = () => {
           const options = dispatcherOptions(e.data.truck_type);
           if(!options.some(([value]) => value === e.data.dispatcher_assignment))e.data.dispatcher_assignment = '';
-          dispatcher.innerHTML = '<option value="">Choose dispatcher...</option>' + options.map(([value,label]) => `<option value="${value}">${UI.esc(label)}</option>`).join('');
+          dispatcher.innerHTML = '<option value="">Choose shift...</option>' + options.map(([value]) => `<option value="${UI.esc(value)}">${UI.esc(value.split(':').slice(1).join(':'))}</option>`).join('');
           dispatcher.value = e.data.dispatcher_assignment || '';
           dispatcher.disabled = !options.length;
+          const team = card.querySelector('[data-dispatcher-team]');
+          if (team) team.textContent = !e.data.truck_type ? 'Dispatcher team follows the approved route.' : 'Team: ' + (e.data.truck_type === 'Car Carrier' ? 'Car Carrier' : 'Container / Wing Van');
           dispatcher.classList.remove('is-invalid');dispatcher.removeAttribute('aria-invalid');dispatcherError.hidden = true;dispatcherError.style.display='';
           fillAccounts();
         };
@@ -884,7 +886,7 @@ const OpsHead = {
         const invalid = [...ctx.el.querySelectorAll('input,select,textarea')].find(input => !['dispatcher_assignment','responsible_dispatcher_id'].includes(input.name) && !input.disabled && !input.checkValidity());
         if (invalid) { invalid.closest('details').open = true; invalid.reportValidity(); return; }
         const missingDispatcher = [entry].find(e => !dispatcherOptions(e.data.truck_type).some(([value]) => value === e.data.dispatcher_assignment));
-        if(missingDispatcher){const card=ctx.el.querySelector(`[data-entry="${missingDispatcher.id}"]`), select=card.querySelector('[name=dispatcher_assignment]'), feedback=card.querySelector('[data-dispatcher-error]');card.open=true;select.classList.add('is-invalid');select.setAttribute('aria-invalid','true');feedback.hidden=false;feedback.style.display='block';select.focus();return error('Choose a compatible dispatcher group and shift for every trip entry.');}
+        if(missingDispatcher){const card=ctx.el.querySelector(`[data-entry="${missingDispatcher.id}"]`), select=card.querySelector('[name=dispatcher_assignment]'), feedback=card.querySelector('[data-dispatcher-error]');card.open=true;select.classList.add('is-invalid');select.setAttribute('aria-invalid','true');feedback.hidden=false;feedback.style.display='block';select.focus();return error('Choose an available dispatcher shift for every trip entry.');}
         if(!accountOptions(entry.data).length)return error('No active Dispatcher account exists for the selected group and shift. Ask Admin to configure an authorized account.');
         if(!accountOptions(entry.data).some(a=>String(a.id)===String(entry.data.responsible_dispatcher_id)))return error('Choose a responsible Dispatcher account explicitly before adding this entry.');
         for (const e of [entry]) {
