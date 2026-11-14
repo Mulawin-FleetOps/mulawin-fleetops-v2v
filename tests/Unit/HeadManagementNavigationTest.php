@@ -336,6 +336,31 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('.head-settings-workspace .record-workspace-panel', $css);
     }
 
+    public function testHeadCompanyCommandCenterReusesVerifiedReadOnlySources(): void {
+        $root=dirname(__DIR__,2);
+        $dashboard=file_get_contents($root.'/public/assets/js/modules/general/dashboard.js');
+        $analytics=file_get_contents($root.'/backend/Modules/General/Analytics.php');
+        $css=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertIsString($dashboard);
+        self::assertIsString($analytics);
+        self::assertIsString($css);
+        self::assertStringContainsString("if (role === 'admin')", $dashboard);
+        self::assertStringContainsString("RPMDashboard.executive(d)", $dashboard);
+        self::assertStringContainsString("const approvals=['rates','funds','purchase_orders']", $dashboard);
+        self::assertStringContainsString("label:'Active Trips'", $dashboard);
+        self::assertStringContainsString("label:'Pending Approvals'", $dashboard);
+        self::assertStringContainsString("Outstanding receivables", $dashboard);
+        self::assertStringContainsString("Fuel & Operating Costs", $dashboard);
+        self::assertStringContainsString("No recent operational records in the available summaries", $dashboard);
+        self::assertStringContainsString("UI.canGo(d.page)", $dashboard);
+        self::assertStringContainsString("this.alerts(alerts)", $dashboard);
+        self::assertStringContainsString("this.breakdown(cards,'admin')", $dashboard);
+        self::assertStringContainsString("readSections([", $analytics);
+        self::assertStringContainsString("'executive' => $executive", $analytics);
+        self::assertStringContainsString("pricing_settings_history", $analytics);
+        self::assertStringContainsString(".rpm-executive-dashboard .rpm-exec-departments", $css);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
