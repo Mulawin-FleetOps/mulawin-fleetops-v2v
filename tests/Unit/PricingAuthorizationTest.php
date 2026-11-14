@@ -57,6 +57,20 @@ final class PricingAuthorizationTest extends TestCase {
         self::assertStringNotContainsString('[14.126449, 121.070384]', $ui);
     }
 
+    public function testExistingClientRouteMapUsesOnlyCurrentVerifiedGarageGeometry():void {
+        $root=dirname(__DIR__,2);
+        $routes=file_get_contents($root.'/backend/Modules/Operations/Routes.php');
+        $js=file_get_contents($root.'/public/assets/js/modules/operations/routes.js');
+        $map=file_get_contents($root.'/public/assets/js/map.js');
+        self::assertStringContainsString("['garage_preview']", $routes);
+        self::assertStringContainsString("Routing::route(\$p,(int)\$u['id']", $routes);
+        self::assertStringContainsString("if(estimate.garage_preview?.garage)", $js);
+        self::assertStringContainsString("opts.garagePreview=estimate.garage_preview", $js);
+        self::assertStringContainsString("Garage-to-pickup map unavailable", $js);
+        self::assertStringContainsString("if(o.garagePreview?.garage", $map);
+        self::assertStringContainsString("if(pts.length>1)", $map);
+    }
+
     public function testFuelAndRecalculationMutationsDenyOtherRolesBeforeDatabaseAccess():void {
         core('Settings');Actions::load('Billing');
         foreach(array_keys(ROLE_LABELS) as $role){if($role==='admin')continue;$u=['id'=>1,'role'=>$role];
