@@ -342,7 +342,7 @@ section('F. Rate revision: reject, approve, rollback, concurrency');
 fails(fn() => $act('admin', 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '12500']), 'revision equal to the current rate refused', 409, 'same');
 $rev1 = (int)$act('admin', 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13000'])['rate_id'];
 ok(one($p, 'SELECT status FROM client_routes WHERE id=?', [$route1])['status'] === 'Approved', 'during a revision the route stays Approved');
-fails(fn() => Routes::action($users['billing2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13100']), 'second pending revision refused (application rule)', 409, 'already has a rate waiting');
+fails(fn() => Routes::action($users['admin2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13100']), 'second pending revision refused (application rule)', 409, 'already has a rate waiting');
 $sel = Routes::approvedFor($p, $cActive, 'Container');
 $x = array_values(array_filter($sel, fn($s) => (int)$s['id'] === $route1))[0] ?? null;
 ok($x && $x['rate_amount'] === '12500.00' && (int)$x['rate_id'] === $rate1, 'during a revision the OLD approved rate is the one in use');
@@ -353,7 +353,7 @@ ok($o['status'] === 'Approved' && $o['rate_amount'] === '12500.00' && $o['effect
 ok(one($p, 'SELECT status FROM client_route_rates WHERE id=?', [$rev1])['status'] === 'Rejected', 'rejected revision: only the revision is Rejected');
 
 // Approve a revision
-$rev2 = (int)Routes::action($users['billing2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13500', 'notes' => '2027 contract'])['rate_id'];
+$rev2 = (int)Routes::action($users['admin2'], 'rate_enter', ['route_id' => $route1, 'rate_type' => 'Flat', 'rate_amount' => '13500', 'notes' => '2027 contract'])['rate_id'];
 $act('admin', 'decide', ['rate_id' => $rev2, 'decision' => 'approve']);
 $o = one($p, 'SELECT * FROM client_route_rates WHERE id=?', [$rate1]); $n = one($p, 'SELECT * FROM client_route_rates WHERE id=?', [$rev2]);
 ok($o['status'] === 'Superseded' && $o['effective_to'] !== null && $o['rate_amount'] === '12500.00', 'approved revision: old rate Superseded, amount kept, effective_to set');
