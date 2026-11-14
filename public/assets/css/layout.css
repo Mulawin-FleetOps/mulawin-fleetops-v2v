@@ -740,6 +740,29 @@ a:hover { color: var(--rpm-brand-strong); }
 
 @media (max-width: 575.98px) { .sidebar .nav-item-link { min-height: 42px; } }
 
+/* Head Management: compact, keyboard-accessible collapsible navigation groups. */
+.head-nav-group { margin: 5px 0; }
+.head-nav-group > summary {
+  display: flex; align-items: center; gap: 11px; min-height: 43px;
+  padding: 9px 10px; border-radius: var(--r); list-style: none;
+  cursor: pointer; color: #e6f1e8; font-size: 12px; font-weight: 650;
+  letter-spacing: .025em;
+}
+.head-nav-group > summary::-webkit-details-marker { display: none; }
+.head-nav-group > summary > .bi:first-child { font-size: 16px; width: 18px; text-align: center; }
+.head-nav-group > summary:hover,
+.head-nav-group[open] > summary { background: rgba(255,255,255,.09); color: #fff; }
+.head-nav-group > summary:focus-visible { outline: 2px solid #d5efb8; outline-offset: 2px; }
+.head-nav-chevron { margin-left: auto; font-size: 12px; transition: transform .17s ease; }
+.head-nav-group[open] .head-nav-chevron { transform: rotate(180deg); }
+.head-nav-items { padding: 3px 0 5px 9px; }
+.head-nav-items .nav-item-link { font-size: 12.5px; }
+.head-nav-items .nav-item-link.active::before { left: -9px; }
+@media (max-width: 575.98px) {
+  .head-nav-group > summary { min-height: 45px; }
+  .head-nav-items .nav-item-link { min-height: 42px; }
+}
+
 /* RPM SIDEBAR WORKSPACE V1 END */
 
 
