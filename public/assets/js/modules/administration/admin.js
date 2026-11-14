@@ -402,7 +402,7 @@ const FuelAdjustmentUI={
         update({lat:position[0],lng:position[1]});
       };
       const initMap=()=>{
-        if(typeof L==='undefined'||!window.UI?.Map){
+        if(typeof L==='undefined'||!UI.Map){
           status.textContent='Map unavailable. Enter the exact entrance latitude and longitude manually.';
           return;
         }
