@@ -66,7 +66,11 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('data-head-filter-count', $code);
         self::assertStringContainsString('HeadOversight.mount(ctx.el', $code);
         self::assertStringContainsString('data-head-panel-table', $code);
-        self::assertStringContainsString('data-head-visible-count', $code);
+        self::assertStringContainsString('head-monitor-header', $code);
+        self::assertStringContainsString('record-workspace-sort-trigger', $code);
+        self::assertStringContainsString('HeadOversight.finishTable(', $code);
+        self::assertStringContainsString('UI.recordPager(', $code);
+        self::assertStringContainsString('Reported Trip Incidents', $code);
         self::assertStringContainsString('Saved road geometry only', $code);
         $backend = file_get_contents(dirname(__DIR__, 2).'/backend/Modules/Administration/HeadManagement.php');
         self::assertStringContainsString('route_preview', $backend);
