@@ -220,6 +220,9 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertIsString($settings);
         self::assertStringContainsString("App.page('fuel-adjustment',{title:'Fuel & Operating Costs'", $js);
         self::assertStringContainsString("RecordComponents.kpis(kpis)", $js);
+        self::assertStringContainsString('head-fuel-diesel-content', $js);
+        self::assertStringContainsString('head-fuel-setting-grid', $js);
+        self::assertStringContainsString('head-fuel-config-state', $js);
         self::assertStringContainsString("Configured Truck Types", $js);
         self::assertStringContainsString("Latest Configuration", $js);
         self::assertStringContainsString("RecordComponents.categories(categories", $js);
@@ -230,6 +233,10 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString("App.api('Admin.pricing_save',reviewed)", $js);
         self::assertStringContainsString("requireRole($u,'admin')", $settings);
         self::assertStringNotContainsString("Fuel Efficiency per Truck Type</h2>", $js);
+        $css=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertIsString($css);
+        self::assertStringContainsString('.head-fuel-config > .record-workspace-panel', $css);
+        self::assertStringContainsString('.head-fuel-setting-grid', $css);
     }
 
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
