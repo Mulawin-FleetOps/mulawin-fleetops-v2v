@@ -180,20 +180,25 @@ final class HeadManagementNavigationTest extends TestCase {
     public function testExecutiveRecordTablesFollowClientManagementWorkspace(): void {
         $root=dirname(__DIR__,2);
         $records=file_get_contents($root.'/public/assets/js/components/records.js');
-        $head=file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
+        $finance=file_get_contents($root.'/public/assets/js/modules/accounting/finance.js');
+        $billing=file_get_contents($root.'/public/assets/js/modules/accounting/billing.js');
         $styles=file_get_contents($root.'/public/assets/css/records.css');
         self::assertIsString($records);
-        self::assertIsString($head);
+        self::assertIsString($finance);
+        self::assertIsString($billing);
         self::assertIsString($styles);
-        self::assertStringContainsString("['finance','billing'].includes(App.current?.page)", $records);
-        self::assertStringContainsString('const mountHeadWorkspace =', $records);
-        self::assertStringContainsString('RecordComponents.bindDropdowns(panel', $records);
-        self::assertStringContainsString('toolbar.replaceWith(heading,row,categories)', $records);
-        self::assertStringContainsString('ensureHeadEmptyTable(id)', $records);
-        self::assertStringContainsString('data-head-quick-categories', $head);
-        self::assertStringContainsString('data-head-quick-status', $head);
-        self::assertStringContainsString('.head-finance-table.record-workspace-panel', $styles);
-        self::assertStringContainsString('.head-finance-table .table-pager', $styles);
+        self::assertStringContainsString('executiveTabs(root, tabs, active, title)', $records);
+        self::assertStringContainsString('this.panel(\'\',categories)', $records);
+        self::assertStringContainsString('this.mountPanel(root,{title})', $records);
+        self::assertStringContainsString('this.bindDropdowns(root', $records);
+        self::assertStringContainsString('data-executive-tab', $records);
+        self::assertStringContainsString('this.keepExecutiveEmptyTable(root,id)', $records);
+        self::assertStringContainsString('RecordComponents.executiveTabs(box,financialTabs', $finance);
+        self::assertStringContainsString('RecordComponents.executiveTabs(box,billingTabs', $billing);
+        self::assertStringContainsString('else UI.tabs(box,financialTabs', $finance);
+        self::assertStringContainsString('else UI.tabs(box,billingTabs', $billing);
+        self::assertStringNotContainsString('mountHeadWorkspace', $records);
+        self::assertStringNotContainsString('.head-finance-table', $styles);
     }
 
     public function testTripUsesOneSharedCardWhileApprovalsRetainTheirOwnTabs(): void {
