@@ -237,6 +237,13 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertIsString($css);
         self::assertStringContainsString('.head-fuel-config > .record-workspace-panel', $css);
         self::assertStringContainsString('.head-fuel-setting-grid', $css);
+        self::assertStringContainsString('head-fuel-table-intro', $js);
+        self::assertStringContainsString('head-fuel-status', $js);
+        self::assertStringContainsString('head-fuel-history-empty', $js);
+        self::assertStringContainsString('No configuration changes yet', $js);
+        self::assertStringContainsString('onAction:(_,row)=>this.edit(ctx,row.type)', $js);
+        self::assertStringContainsString('.head-fuel-table-intro', $css);
+        self::assertStringContainsString('.head-fuel-history-empty', $css);
     }
 
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
