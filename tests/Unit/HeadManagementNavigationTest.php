@@ -61,6 +61,12 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('UI.routeMap(', $code);
         self::assertStringContainsString('data-head-export', $code);
         self::assertStringContainsString('data-head-date', $code);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(', $code);
+        self::assertStringContainsString('data-head-search', $code);
+        self::assertStringContainsString('data-head-filter-count', $code);
+        self::assertStringContainsString('HeadOversight.mount(ctx.el', $code);
+        self::assertStringContainsString('data-head-panel-table', $code);
+        self::assertStringContainsString('data-head-visible-count', $code);
         self::assertStringContainsString('Saved road geometry only', $code);
         $backend = file_get_contents(dirname(__DIR__, 2).'/backend/Modules/Administration/HeadManagement.php');
         self::assertStringContainsString('route_preview', $backend);
