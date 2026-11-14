@@ -746,6 +746,12 @@ const OpsHead = {
         instructions.open = !!String(e.data.delivery_details || '').trim();
         instructions.innerHTML = '<summary><i class="bi bi-file-text" aria-hidden="true"></i> Additional Instructions (optional)<i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="row g-2"></div>';
         instructions.querySelector('.row').append(fields[7]);
+        // Keep the accessible textarea label, but avoid repeating the
+        // disclosure's title inside the expanded content.
+        const instructionsLabel = instructions.querySelector('label');
+        if (instructionsLabel) instructionsLabel.classList.add('visually-hidden');
+        const instructionsInput = instructions.querySelector('[name=delivery_details]');
+        if (instructionsInput) instructionsInput.placeholder = 'Pickup instructions, special handling, or other details…';
         grid.append(instructions);
         // UI.fields uses generic IDs. Each independent card receives unique accessible IDs.
         card.querySelectorAll('[name]').forEach(input => {
@@ -758,7 +764,9 @@ const OpsHead = {
         const dispatcher = card.querySelector('[name=dispatcher_assignment]');
         dispatcher.insertAdjacentHTML('afterend',`<div id="dispatcher-error-${e.id}" class="invalid-feedback" data-dispatcher-error hidden>Choose a compatible dispatcher group and shift.</div>`);
         const dispatcherError = card.querySelector('[data-dispatcher-error]');
-        card.querySelector('.oh-stepper').parentElement.className='col-md-6';
+        const quantityField = card.querySelector('.oh-stepper').parentElement;
+        quantityField.className = 'col-md-6 oh-planner-quantity-field';
+        dispatcher.closest('.col-md-6')?.classList.add('oh-planner-dispatcher-field');
         const schedule=card.querySelector('[name=scheduled_at]'),scheduleField=schedule.parentElement;
         scheduleField.querySelector('label').remove();schedule.type='hidden';
         scheduleField.insertAdjacentHTML('beforeend',`<div class="row g-2"><div class="col-md-6"><label class="form-label req" for="date-${e.id}">Scheduled Dispatch Date</label><input id="date-${e.id}" type="date" class="form-control" required data-schedule-date min="${UI.nowManila().slice(0,10)}" max="${UI.nowManila(365*1440).slice(0,10)}" value="${UI.esc((e.data.scheduled_at||'').split('T')[0])}"></div><div class="col-md-6"><label class="form-label req" for="time-${e.id}">Scheduled Dispatch Time</label><input id="time-${e.id}" type="time" class="form-control" required data-schedule-time value="${UI.esc((e.data.scheduled_at||'').split('T')[1]||'')}"></div></div>`);
@@ -766,14 +774,15 @@ const OpsHead = {
         card.querySelector('label[for="'+card.querySelector('[name=quantity]').id+'"]').textContent='Required Trucks';
         card.querySelector('label[for="'+dispatcher.id+'"]').textContent='Dispatcher Group / Shift';card.querySelector('label[for="'+card.querySelector('[name=delivery_details]').id+'"]').textContent='Additional Instructions (optional)';
         const account = card.querySelector('[name=responsible_dispatcher_id]');
-        account.insertAdjacentHTML('afterend','<div class="small text-muted" data-account-state role="status"></div>');
+        account.parentElement?.classList.add('oh-planner-account-field');
+        account.insertAdjacentHTML('afterend','<div class="small text-muted oh-planner-account-hint" data-account-state role="status"></div>');
         const fillAccounts = () => {
           const options = accountOptions(e.data);
           if(!options.some(a => String(a.id) === String(e.data.responsible_dispatcher_id)))e.data.responsible_dispatcher_id = '';
           account.replaceChildren(new Option('Choose responsible account...', ''), ...options.map(a => new Option(a.full_name, a.id)));
           account.value = e.data.responsible_dispatcher_id || '';
           account.disabled = !options.length;
-          card.querySelector('[data-account-state]').textContent = !e.data.dispatcher_assignment ? 'Choose the Dispatcher group and shift first.' : !options.length ? 'No active Dispatcher account exists for this group and shift. Ask Admin to configure an authorized account before planning this trip.' : 'Select the account explicitly. Responsibility is saved together with each trip.';
+          card.querySelector('[data-account-state]').textContent = !e.data.dispatcher_assignment ? 'Select a dispatcher group and shift to see available accounts.' : !options.length ? 'No active dispatcher account is available for this group and shift. Contact Admin.' : 'Select the dispatcher responsible for this trip.';
         };
         const fillDispatchers = () => {
           const options = dispatcherOptions(e.data.truck_type);
