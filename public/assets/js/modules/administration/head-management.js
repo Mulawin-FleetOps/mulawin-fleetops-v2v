@@ -135,53 +135,116 @@ const HeadTripsUI = {
       empty
     });
   },
+  /** Route preview is a saved road shape, never a live vehicle tracker. */
+  mountRoutePreview(root, trip) {
+    const box=root.querySelector('[data-head-route-map]');
+    if (!box || !trip?.route_geometry) return;
+    try {
+      UI.routeMap(box,trip,{
+        a:[Number(trip.pickup_lat),Number(trip.pickup_lng)],
+        b:[Number(trip.delivery_lat),Number(trip.delivery_lng)],
+        aLabel:'Pickup: '+trip.pickup_point,
+        bLabel:'Destination: '+trip.delivery_point,
+        geometry:trip.route_geometry
+      });
+    } catch(error) {
+      box.innerHTML='<p class="small text-muted p-3">Saved road route could not be displayed.</p>';
+    }
+  },
+  /** Only rows already visible in a monitoring tab are exported. No server writes. */
+  exportRows(rows) {
+    const cols=[
+      ['Trip No.','trip_ref'],['Client','client'],['Pickup','pickup_point'],
+      ['Destination','delivery_point'],['Truck','plate_number'],['Driver','driver_name'],
+      ['Helper','helper_name'],['Dispatcher','dispatcher_name'],['Schedule','scheduled_at'],
+      ['Status','status'],['Open incidents','open_incidents']
+    ];
+    const quote=v=>'"'+String(v??'').replace(/"/g,'""').replace(/^[=+\-@]/,x=>"'"+x)+'"';
+    const csv='\uFEFF'+[cols.map(([n])=>quote(n)).join(','),...rows.map(row=>cols.map(([,key])=>quote(row[key])).join(','))].join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;link.download='mulawin_trip_monitoring_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  },
   renderTripTable(body, rows, empty) {
     const statuses = [...new Set(rows.map(x=>x.status).filter(Boolean))].sort();
     const types = [...new Set(rows.map(x=>x.truck_type).filter(Boolean))].sort();
-    body.innerHTML = '<div class="board-tools mb-3 d-flex gap-2 flex-wrap">'
-      + '<label class="small">Trip status <select class="form-select form-select-sm" data-head-status>'
+    const today = new Date();
+    const day = [today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+    body.innerHTML = '<div class="head-trip-toolbar">'
+      + '<label>Trip status<select class="form-select form-select-sm" data-head-status>'
       + '<option value="">All statuses</option>' + statuses.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('') + '</select></label>'
-      + '<label class="small">Truck type <select class="form-select form-select-sm" data-head-type>'
+      + '<label>Truck type<select class="form-select form-select-sm" data-head-type>'
       + '<option value="">All truck types</option>' + types.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('') + '</select></label>'
+      + '<label>Schedule date<input type="date" class="form-control form-control-sm" data-head-date aria-label="Filter by scheduled date"></label>'
+      + '<button class="btn btn-sm btn-outline-secondary" data-head-reset type="button">Clear filters</button>'
+      + '<button class="btn btn-sm btn-outline-success ms-auto" data-head-export type="button"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>'
       + '</div><div data-head-trip-list></div>';
     const slot = body.querySelector('[data-head-trip-list]');
+    let filtered = rows;
     const draw = () => {
       const status = body.querySelector('[data-head-status]').value;
       const type = body.querySelector('[data-head-type]').value;
-      const filtered = rows.filter(t=>(!status || t.status===status) && (!type || t.truck_type===type));
+      const date = body.querySelector('[data-head-date]').value;
+      filtered = rows.filter(t=>(!status || t.status===status)
+        && (!type || t.truck_type===type)
+        && (!date || String(t.scheduled_at||'').slice(0,10)===date));
       slot.innerHTML = HeadTripsUI.table(filtered,empty);
       UI.activate(slot);
     };
-    body.querySelector('[data-head-status]').onchange = draw;
-    body.querySelector('[data-head-type]').onchange = draw;
+    body.querySelectorAll('[data-head-status],[data-head-type],[data-head-date]').forEach(x=>x.onchange=draw);
+    body.querySelector('[data-head-reset]').onclick=()=>{
+      body.querySelectorAll('[data-head-status],[data-head-type],[data-head-date]').forEach(x=>x.value='');
+      draw();
+    };
+    body.querySelector('[data-head-export]').onclick=()=>HeadTripsUI.exportRows(filtered);
     draw();
   },
   render(ctx) {
-    const d = ctx.data || {}, total = d.summary || {};
-    const active = d.active || [], history = d.history || [], incidents = d.incidents || [];
-    const count = key => Number(total[key] || 0);
-    ctx.el.innerHTML = '<p class="small text-muted mb-3">Live company-wide trip monitoring. Operational planning, resource assignments and dispatch remain with the responsible teams.</p>'
-      + UI.cards([
-        {label:'Scheduled / Preparing',value:count('scheduled'),icon:'bi-calendar-check',color:'blue'},
-        {label:'On Trip / Incident',value:count('ongoing'),icon:'bi-truck',color:'green'},
-        {label:'Completed Today',value:count('completed_today'),icon:'bi-check-circle',color:'green'},
-        {label:'Delayed / Problem',value:count('delayed_problem'),icon:'bi-exclamation-triangle',color:'red'}
-      ])
-      + '<div class="mt-3" data-head-trip-tabs></div>';
-    const root = ctx.el.querySelector('[data-head-trip-tabs]');
-    const tabs = [
-      ['active','Active & Scheduled ('+active.length+')', body => {
-        HeadTripsUI.renderTripTable(body,active,'No active or scheduled trips.');
-      }],
-      ['history','Trip History', body => {
-        HeadTripsUI.renderTripTable(body,history,'No completed or closed trips.');
-      }],
-      ['incidents','Incidents ('+incidents.filter(x=>x.status!=='Resolved').length+' open)', body => {
-        body.innerHTML = UI.table([
+    const d=ctx.data||{}, summary=d.summary||{};
+    const active=d.active||[],history=d.history||[],incidents=d.incidents||[];
+    const count=key=>Number(summary[key]||0);
+    const statusOf=t=>t.status==='Completed'?'Completed':
+      ['Dispatched','In Transit','On Hold - Incident Reported'].includes(t.status)?'On Trip':
+      ['Cancelled','Rejected'].includes(t.status)?'Closed':'Scheduled';
+    const buckets=['Completed','On Trip','Scheduled','Closed'];
+    const all=[...active,...history];
+    const values=buckets.map(label=>all.filter(t=>statusOf(t)===label).length);
+    const total=values.reduce((n,v)=>n+v,0);
+    const route=d.route_preview;
+    const chart=UI.chartHtml({
+      title:'Trip Operations Overview',
+      type:'doughnut',
+      labels:buckets,
+      datasets:[{label:'Trips',data:values}],
+      how:'Company-wide stored trip records. Delays and incidents can overlap these categories.'
+    });
+    const mapPanel=UI.card('Saved Road Route Preview',route
+      ? '<div class="head-route-map" data-head-route-map></div>'
+        +'<div class="head-map-caption"><b>'+UI.esc(route.trip_ref)+'</b> · '
+        +UI.esc(route.pickup_point)+' → '+UI.esc(route.delivery_point)
+        +'<p class="mb-0 small text-muted">Saved road geometry only — not real-time truck tracking.</p></div>'
+      : '<div class="head-route-empty"><i class="bi bi-geo-alt" aria-hidden="true"></i><strong>No saved map route available</strong><span>Routes appear here only when verified road geometry is stored. No GPS location is inferred.</span></div>');
+    ctx.el.innerHTML='<div class="head-trip-dashboard">'
+      +'<div class="head-trip-intro"><span><i class="bi bi-truck" aria-hidden="true"></i> Company-wide operations overview</span><span class="small text-muted"><i class="bi bi-eye" aria-hidden="true"></i> Read-only · Saved operational records</span></div>'
+      +'<div class="head-trip-kpis">'+[
+        ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','blue'],
+        ['On Trip / In Transit',count('ongoing'),'bi-truck','green'],
+        ['Completed Today',count('completed_today'),'bi-check-circle','purple'],
+        ['Delayed / Problem',count('delayed_problem'),'bi-exclamation-triangle','red']
+      ].map(([title,value,icon,tone])=>'<div class="head-kpi '+tone+'"><div class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></div><div><span>'+UI.esc(title)+'</span><strong>'+value+'</strong></div></div>').join('')
+      +'</div><div class="head-trip-overview"><div class="head-trip-chart">'+chart
+      +'<div class="head-chart-total">'+total+' total trip'+(total===1?'':'s')+'</div></div><div class="head-trip-map">'+mapPanel+'</div></div>'
+      +'<section class="head-trip-records"><div data-head-trip-tabs></div></section></div>';
+    const root=ctx.el.querySelector('[data-head-trip-tabs]');
+    const tabs=[
+      ['active','Active & Scheduled ('+active.length+')',body=>HeadTripsUI.renderTripTable(body,active,'No active or scheduled trips.')],
+      ['history','Trip History',body=>HeadTripsUI.renderTripTable(body,history,'No completed or closed trips.')],
+      ['incidents','Incidents ('+incidents.filter(x=>x.status!=='Resolved').length+' open)',body=>{
+        body.innerHTML=UI.table([
           ['Incident','incident_ref'],['Trip','trip_ref'],['Client','client'],
           ['Truck','plate_number'],['Status','status','badge'],['Severity','severity'],
           ['Reported','incident_at','datetime']
-        ], incidents, {
+        ],incidents,{
           title:'Reported Trip Incidents',showAllColumns:true,viewSwitch:false,
           actions:()=>UI.btn('view','View Trip','outline-primary'),
           onAction:(_,incident)=>HeadTripsUI.details(incident.trip_id),
@@ -189,10 +252,10 @@ const HeadTripsUI = {
         });
       }]
     ];
-    UI.tabs(root,tabs,ctx.query?.tab || 'active');
+    UI.tabs(root,tabs,ctx.query?.tab||'active');
     UI.activate(ctx.el);
-    const warnings = d._errors || [];
-    if (Object.keys(warnings).length) UI.toast('Some trip monitoring records could not be loaded. Check the server log.','error');
+    if(route) HeadTripsUI.mountRoutePreview(ctx.el,route);
+    if(Object.keys(d._errors||{}).length) UI.toast('Some monitoring data could not be loaded. Check the server log.','error');
   }
 };
 App.page('head-trips',{
