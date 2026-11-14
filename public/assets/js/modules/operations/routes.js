@@ -316,11 +316,43 @@ const RouteUI = {
       { name: 'rate_amount', label: 'Fixed Client Route Rate (PHP)', type: 'money', required: true, col: 6 },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="300"' },
     ];
-    const intro = `<p class="modal-intro"><b>${UI.esc(route.route_ref)}</b> · ${UI.esc(route.client)} · ${UI.esc(RouteUI.name(route))} · ${UI.esc(route.truck_type)} · ${UI.num(route.distance_km, 2)} km</p>`
-      + (revision ? `<div class="alert alert-info py-2 small">Current approved rate: <b>${RouteUI.rateText(route.rate_type, route.rate_amount, route.minimum_charge)}</b>. It stays in use until the Admin approves this revision.</div>` : '');
-    UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), intro + pricingWarning + UI.kv([['Pickup to delivery km',pricing.delivery_km===null?'Unavailable':UI.num(pricing.delivery_km,2)],['Garage to pickup km',pricing.garage_km===null?'Unavailable':UI.num(pricing.garage_km,2)],['Current diesel price',pricing.diesel_value?UI.money(pricing.diesel_value.value):'Unavailable'],['Truck km/L',pricing.efficiency_value?UI.num(pricing.efficiency_value.value,4):'Unavailable'],['Estimated liters',pricing.liters??'Unavailable'],['Current fuel charge',pricing.fuel===null?'Fuel Estimate Unavailable':UI.money(pricing.fuel)],['Estimated total billing','<span data-pricing-total>Enter fixed rate</span>']])+UI.fields(fields), async (f) => {
-      const r = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' }); UI.result(r); UI.closeDrawer(); App.route();
-    }, { submit: 'Send for approval', size: '', onShow:(wrap,form)=>{const input=form.querySelector('[name=rate_amount]');let sequence=0;input.addEventListener('change',async()=>{const current=++sequence;try{const estimate=await App.api('Routes.pricing_estimate',{route_id:route.id,rate_amount:input.value});if(current===sequence)form.querySelector('[data-pricing-total]').textContent=estimate.estimate_total===undefined?'Fuel Estimate Unavailable':UI.money(estimate.estimate_total)+' (current estimate only)';}catch(e){if(current===sequence)form.querySelector('[data-pricing-total]').textContent=e.message;}});} });
+    const available = (v, decimals=2) => v===null || v===undefined ? 'Unavailable' : UI.num(v,decimals);
+    const fact = (label, value) => '<div class="fleet-rate-fact"><span>'+label+'</span><strong>'+value+'</strong></div>';
+    const summary = '<div class="fleet-rate-editor">'
+      + '<div class="fleet-rate-route"><div class="fleet-rate-eyebrow"><i class="bi bi-signpost-split"></i> ROUTE DETAILS</div>'
+      + '<strong>'+UI.esc(route.client)+'</strong>'
+      + '<div class="fleet-rate-route-path"><span>'+UI.esc(RouteUI.name(route))+'</span><i class="bi bi-arrow-right"></i><span>'+UI.esc(route.destination_label || route.destination || 'Destination')+'</span></div>'
+      + '<div class="fleet-rate-route-meta"><span><i class="bi bi-truck"></i> '+UI.esc(route.truck_type)+'</span><span><i class="bi bi-geo-alt"></i> '+available(pricing.delivery_km)+' km delivery</span></div></div>'
+      + (revision ? '<div class="alert alert-info py-2 small">Current approved rate: <b>'+RouteUI.rateText(route.rate_type,route.rate_amount,route.minimum_charge)+'</b>. It remains active until this revision is approved.</div>' : '')
+      + pricingWarning
+      + '<div class="fleet-rate-section-title"><i class="bi bi-fuel-pump"></i> Operational fuel estimate</div>'
+      + '<div class="fleet-rate-facts">'
+      + fact('Garage to pickup',available(pricing.garage_km)+' km')
+      + fact('Pickup to delivery',available(pricing.delivery_km)+' km')
+      + fact('Diesel price',pricing.diesel_value?UI.money(pricing.diesel_value.value)+' / L':'Unavailable')
+      + fact('Truck efficiency',pricing.efficiency_value?UI.num(pricing.efficiency_value.value,4)+' km/L':'Unavailable')
+      + fact('Estimated consumption',available(pricing.liters,4)+' L')
+      + '</div>'
+      + '<div class="fleet-rate-highlight"><div><span>Estimated fuel cost</span><small>Operating estimate, not the fixed client rate</small></div><strong>'+ (pricing.fuel===null?'Unavailable':UI.money(pricing.fuel)) +'</strong></div>'
+      + '<div class="fleet-rate-section-title"><i class="bi bi-currency-exchange"></i> Client contract rate</div>'
+      + UI.fields(fields)
+      + '<div class="fleet-rate-total"><span>Estimated total billing <small>For review only</small></span><strong data-pricing-total>Enter fixed rate</strong></div>'
+      + '</div>';
+    UI.modal((revision ? 'Revise rate of ' : 'Enter rate of ') + UI.esc(route.route_ref), summary, async (f) => {
+      const result = await App.api('Routes.rate_enter', { route_id: route.id, ...f, rate_type: 'Flat' });
+      UI.result(result); UI.closeDrawer(); App.route();
+    }, { submit: 'Send for approval', size: 'lg', onShow:(wrap,form)=>{
+      wrap.classList.add('fleet-rate-modal');
+      const input=form.querySelector('[name=rate_amount]');
+      let sequence=0;
+      input?.addEventListener('change',async()=>{
+        const current=++sequence;
+        try{
+          const estimate=await App.api('Routes.pricing_estimate',{route_id:route.id,rate_amount:input.value});
+          if(current===sequence)form.querySelector('[data-pricing-total]').textContent=estimate.estimate_total===undefined?'Fuel estimate unavailable':UI.money(estimate.estimate_total)+' (estimate)';
+        }catch(e){if(current===sequence)form.querySelector('[data-pricing-total]').textContent=e.message;}
+      });
+    } });
   },
 
   decide(route, decision) {
@@ -356,9 +388,9 @@ const RouteUI = {
         x.closed_reason ? ['Closed', UI.esc(x.closed_reason) + (x.closed_by_name ? ' · ' + UI.esc(x.closed_by_name) : '') + (x.closed_at ? ' · ' + UI.datetime(x.closed_at) : '')] : null])}
       ${UI.h('Current approved rate')}${x.rate_id ? UI.kv([['Rate', `<b>${RouteUI.rateText(x.rate_type, x.rate_amount, x.minimum_charge)}</b>`], ['Version', UI.e(x.rate_version)], ['Effective since', UI.datetime(x.effective_from)]]) : '<div class="text-muted small">No approved rate yet.</div>'}
       ${x.pending_rate_id ? UI.h('Waiting for approval') + UI.kv([['Proposed rate', `<b>${RouteUI.rateText(x.pending_rate_type, x.pending_rate_amount, x.pending_minimum_charge)}</b>`], ['Version', UI.e(x.pending_version)], ['Entered by', UI.esc(x.pending_entered_by_name) + ' · ' + UI.datetime(x.pending_entered_at)]]) : ''}
-      ${UI.h('Rate history')}${UI.table([['Version', 'version_no'], ['Rate', 'rate_amount', (v, t) => RouteUI.rateText(t.rate_type, t.rate_amount, t.minimum_charge)], ['Status', 'status', 'badge'],
-        ['Entered by', 'entered_by_name'], ['Decided by', 'decided_by_name'], ['Effective start date and time', 'effective_from', 'datetime'], ['Effective end date and time', 'effective_to', 'datetime'], ['Remarks', 'decision_notes']], r.rates, { plain: true, empty: 'No rate entered yet.' })}
-      ${UI.h('History')}${UI.table([['Action date and time', 'created_at', 'datetime'], ['Action', 'event_type'], ['Performed by', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}`;
+      ${UI.h('Rate history')}<div class="fleet-route-history-scroll">${UI.table([['Version', 'version_no'], ['Rate', 'rate_amount', (v, t) => RouteUI.rateText(t.rate_type, t.rate_amount, t.minimum_charge)], ['Status', 'status', 'badge'],
+        ['Entered by', 'entered_by_name'], ['Decided by', 'decided_by_name'], ['Effective start date and time', 'effective_from', 'datetime'], ['Effective end date and time', 'effective_to', 'datetime'], ['Remarks', 'decision_notes']], r.rates, { plain: true, empty: 'No rate entered yet.' })}</div>
+      ${UI.h('History')}<div class="fleet-route-history-scroll">${UI.table([['Action date and time', 'created_at', 'datetime'], ['Action', 'event_type'], ['Performed by', 'actor'], ['Status', 'to_status', 'badge'], ['Details', 'notes']], r.events, { plain: true })}</div>`;
     const el = UI.drawer(UI.esc(x.route_ref), html.replace(UI.h('Current approved rate'), (x.origin_lat && x.destination_lat ? '<div class="route-map mb-3" data-routedetailmap style="height:240px"></div>' : '') + UI.h('Current approved rate')), { subtitle: 'Client route' });
     const mbox = el.querySelector('[data-routedetailmap]');
     if (mbox) setTimeout(async () => {
