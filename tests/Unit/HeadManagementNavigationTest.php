@@ -176,6 +176,25 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertStringContainsString('min-height:124px', $css);
     }
 
+    public function testExecutiveRecordTablesFollowClientManagementWorkspace(): void {
+        $root=dirname(__DIR__,2);
+        $records=file_get_contents($root.'/public/assets/js/components/records.js');
+        $head=file_get_contents($root.'/public/assets/js/modules/administration/head-management.js');
+        $styles=file_get_contents($root.'/public/assets/css/records.css');
+        self::assertIsString($records);
+        self::assertIsString($head);
+        self::assertIsString($styles);
+        self::assertStringContainsString("['finance','billing'].includes(App.current?.page)", $records);
+        self::assertStringContainsString('const mountHeadWorkspace =', $records);
+        self::assertStringContainsString('RecordComponents.bindDropdowns(panel', $records);
+        self::assertStringContainsString('toolbar.replaceWith(heading,row,categories)', $records);
+        self::assertStringContainsString('ensureHeadEmptyTable(id)', $records);
+        self::assertStringContainsString('data-head-quick-categories', $head);
+        self::assertStringContainsString('data-head-quick-status', $head);
+        self::assertStringContainsString('.head-finance-table.record-workspace-panel', $styles);
+        self::assertStringContainsString('.head-finance-table .table-pager', $styles);
+    }
+
     public function testHeadTripDetailsRejectOtherRolesWithoutDatabaseAccess(): void {
         Actions::load('HeadManagement');
         foreach (['operations_head','billing','finance','audit'] as $role) {
