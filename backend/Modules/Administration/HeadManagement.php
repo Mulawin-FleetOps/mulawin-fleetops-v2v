@@ -51,16 +51,30 @@ final class HeadManagement {
         ]);
         throw new BusinessRuleException('Unknown oversight page.',404);
     }
+    /**
+     * Same eligibility rule used by Trips::closeOverdueUnassigned().
+     * Before the additive Missed-status migration is installed, Head Management
+     * still categorizes these records as Missed, without modifying the database.
+     */
+    private static function pendingMissedSql(): string {
+        return "t.status='Awaiting Resources' AND t.scheduled_at < NOW()
+            AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
+            AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
+            AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
+                AND f.status IN ('Pending Approval','Ready for Release','Released'))";
+    }
+
     /** Executive read projection: no operational actions, sensitive documents or mutations. */
     private static function tripsRead(PDO $p): array {
+        $pendingMissed = self::pendingMissedSql();
         return readSections([
             'summary' => fn() => one($p, "SELECT
                 COUNT(*) AS total,
-                COALESCE(SUM(status IN ('Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch','For Reschedule')),0) AS scheduled,
+                COALESCE(SUM(status IN ('Pending Review','Pre-Assigned','Ready for Dispatch','For Reschedule') OR (status='Awaiting Resources' AND NOT ($pendingMissed))),0) AS scheduled,
                 COALESCE(SUM(status IN ('Dispatched','In Transit','On Hold - Incident Reported')),0) AS ongoing,
                 COALESCE(SUM(status='Completed' AND DATE(completed_at)=CURDATE()),0) AS completed_today,
                 COALESCE(SUM(status IN ('On Hold - Incident Reported','For Reschedule') OR (status IN ('Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch') AND scheduled_at<NOW())),0) AS delayed_problem
-                FROM trips"),
+                FROM trips t"),
             'active' => fn() => self::tripRows($p, false),
             // A saved, verifiable route geometry, not a simulated GPS location.
             'route_preview' => fn() => one($p, "SELECT t.id,t.trip_ref,t.pickup_point,t.delivery_point,
@@ -81,8 +95,14 @@ final class HeadManagement {
     }
 
     private static function tripRows(PDO $p,bool $closed): array {
-        $status=$closed ? "IN ('Completed','Cancelled','Rejected','Missed')" : "NOT IN ('Completed','Cancelled','Rejected','Missed')";
-        return many($p, "SELECT t.id,t.trip_ref,t.status,t.pickup_point,t.delivery_point,t.truck_type,
+        $pendingMissed = self::pendingMissedSql();
+        $where = $closed
+            ? "(t.status IN ('Completed','Cancelled','Rejected','Missed') OR ($pendingMissed))"
+            : "(t.status NOT IN ('Completed','Cancelled','Rejected','Missed') AND NOT ($pendingMissed))";
+        return many($p, "SELECT t.id,t.trip_ref,
+            CASE WHEN ($pendingMissed) THEN 'Missed' ELSE t.status END AS status,
+            ($pendingMissed) AS pending_archival,
+            t.pickup_point,t.delivery_point,t.truck_type,
             t.scheduled_at,t.dispatched_at,t.completed_at,t.dispatcher_shift,
             c.company_name AS client,v.plate_number,
             d.full_name AS driver_name,h.full_name AS helper_name, d2.full_name AS driver2_name,
@@ -96,13 +116,17 @@ final class HeadManagement {
             LEFT JOIN users dispatcher ON dispatcher.id=t.dispatcher_id
             LEFT JOIN trip_responsibilities rsp ON rsp.trip_id=t.id
             LEFT JOIN users owner ON owner.id=rsp.current_dispatcher_id
-            WHERE t.status $status
+            WHERE $where
             ORDER BY t.scheduled_at DESC,t.id DESC LIMIT 500");
     }
 
     private static function tripDetails(PDO $p,array $d): array {
         $id=idField($d,'trip_id');
-        $trip=one($p,"SELECT t.id,t.trip_ref,t.status,t.scheduled_at,t.dispatched_at,t.completed_at,
+        $pendingMissed = self::pendingMissedSql();
+        $trip=one($p,"SELECT t.id,t.trip_ref,
+            CASE WHEN ($pendingMissed) THEN 'Missed' ELSE t.status END AS status,
+            ($pendingMissed) AS pending_archival,
+            t.scheduled_at,t.dispatched_at,t.completed_at,
             t.pickup_point,t.delivery_point,t.truck_type,t.dispatcher_shift,t.delivery_notes,
             c.company_name AS client,v.plate_number,d.full_name AS driver_name,
             d2.full_name AS driver2_name,h.full_name AS helper_name,

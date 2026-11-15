@@ -369,6 +369,7 @@ const HeadTripsUI = {
   issue(trip) {
     const issues = [];
     if (this.delayed(trip)) issues.push('Past schedule');
+    if (Number(trip.pending_archival)) issues.push('Pending archival');
     if (Number(trip.open_incidents) > 0) issues.push(trip.open_incidents + ' open incident(s)');
     if (['For Reschedule', 'On Hold - Incident Reported'].includes(trip.status)) issues.push(trip.status);
     return issues.length ? issues.map(v => UI.badge(v)).join(' ') : '—';
@@ -385,6 +386,7 @@ const HeadTripsUI = {
       const incidents = data.incidents || [];
       const detailHtml =
         '<p class="small text-muted">Monitoring only. Trip changes are handled by the Operations Head and assigned Dispatcher.</p>'
+        + (Number(t.pending_archival) ? '<p class="small text-warning">Dispatch was missed. The permanent status update is pending the Missed-status database migration.</p>' : '')
         + '<h6>Trip & Route</h6>' + UI.kv([
           ['Status',HeadTripsUI.status(t.status)],
           ['Client',e(t.client)],
