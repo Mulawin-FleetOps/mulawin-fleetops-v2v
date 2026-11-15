@@ -395,6 +395,31 @@ const App = {
           title:'Other Tools', icon:'bi-grid-3x3-gap',
           items:remaining.map(wsLink).join('')
         });
+      } else if (u.role === 'purchasing') {
+        // Same executive navigation as Admin and Motorpool. Use only routes
+        // already provided by the server-authorized Purchasing workspace.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['purchasing_overview']).map(wsLink).join('');
+        const groups = [
+          { title:'Purchasing Operations', icon:'bi-cart-check', ids:['parts_requests','purchase_orders'] },
+          { title:'Inventory Control', icon:'bi-boxes', ids:['inventory','stock_movements'] },
+          { title:'Records & Reports', icon:'bi-journal-text', ids:['purchasing_reports'] }
+        ];
+        nav += groups.map(group => {
+          const entries = take(group.ids);
+          return entries.length ? UI.sidebarGroup({
+            title:group.title, icon:group.icon,
+            items:entries.map(wsLink).join('')
+          }) : '';
+        }).join('');
+        const remaining = items.filter(n => !shown.has(n.id));
+        if (remaining.length) nav += UI.sidebarGroup({
+          title:'Other Tools', icon:'bi-grid-3x3-gap',
+          items:remaining.map(wsLink).join('')
+        });
       } else {
         nav = ws.groups.map((g,i)=>UI.sidebarGroup({
           title:g.title,
@@ -407,12 +432,12 @@ const App = {
     const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
-    const executiveSidebar = ['admin','operations_head','motorpool'].includes(u.role);
+    const executiveSidebar = ['admin','operations_head','motorpool','purchasing'].includes(u.role);
     const collapseKey = executiveSidebar ? 'executive-sidebar-collapsed-' + u.role : 'ws-sidebar-collapsed';
     let collapsed = false;
     try { collapsed = (!!ws || executiveSidebar) && localStorage.getItem(collapseKey) === '1'; } catch { /* storage unavailable */ }
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
           ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${collapsed ? 'Expand' : 'Collapse'} the menu" title="${collapsed ? 'Expand' : 'Collapse'} the menu" aria-pressed="${collapsed}"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
