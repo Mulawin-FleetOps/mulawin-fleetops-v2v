@@ -1082,3 +1082,62 @@
     transition:background-color .16s ease;
   }
 }
+
+
+/* Dispatch Monitoring trip records: match the five-column Trips table. */
+.oh-dispatch-records .oh-dispatch-table-wrap .data-table{
+  width:100%;min-width:880px;table-layout:fixed;border-collapse:separate;border-spacing:0;
+}
+.oh-dispatch-records .data-table thead th{
+  padding:15px 17px;background:#f5f9f6;border-bottom:1px solid #dbe8df;
+  color:#355740;font-size:12px;font-weight:750;letter-spacing:.01em;
+}
+.oh-dispatch-records .data-table tbody td{
+  padding:17px;vertical-align:middle;border-bottom:1px solid #e4eee6;
+  color:#304a38;font-size:12.5px;line-height:1.5;
+}
+.oh-dispatch-records .data-table tbody tr:hover td{background:#f8fcf9}
+.oh-dispatch-records .data-table th:nth-child(1),
+.oh-dispatch-records .data-table td:nth-child(1){width:19%}
+.oh-dispatch-records .data-table th:nth-child(2),
+.oh-dispatch-records .data-table td:nth-child(2){width:39%}
+.oh-dispatch-records .data-table th:nth-child(3),
+.oh-dispatch-records .data-table td:nth-child(3){width:18%}
+.oh-dispatch-records .data-table th:nth-child(4),
+.oh-dispatch-records .data-table td:nth-child(4){width:16%}
+.oh-dispatch-records .data-table th:nth-child(5),
+.oh-dispatch-records .data-table td:nth-child(5){width:8%;text-align:center}
+.oh-dispatch-records .fleet-trip-identity,
+.oh-dispatch-records .fleet-trip-route,
+.oh-dispatch-records .fleet-trip-dispatch{
+  display:flex;flex-direction:column;min-width:0;gap:5px;
+}
+.oh-dispatch-records .fleet-trip-ref{color:#234e38;font-size:13px;font-weight:750;letter-spacing:.01em}
+.oh-dispatch-records .fleet-trip-client{
+  font-size:11.5px;color:#74867a;overflow-wrap:anywhere;
+}
+.oh-dispatch-records .fleet-trip-route-path{
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  color:#304c3a;font-size:12.5px;line-height:1.55;overflow-wrap:anywhere;
+}
+.oh-dispatch-records .fleet-trip-route-arrow{color:#27804a;font-weight:750}
+.oh-dispatch-records .fleet-trip-truck{
+  display:inline-flex;align-items:center;gap:6px;
+  color:#75897b;font-size:11.5px;overflow-wrap:anywhere;
+}
+.oh-dispatch-records .fleet-trip-truck .bi{color:#42895d}
+.oh-dispatch-records .fleet-trip-dispatch strong{
+  color:#34503f;font-size:12.5px;font-weight:700;
+}
+.oh-dispatch-records .fleet-trip-dispatch span{color:#789082;font-size:11.5px}
+.oh-dispatch-records .fleet-trip-dispatch .bi{margin-right:3px}
+.oh-dispatch-records .fleet-trip-status{
+  display:flex;align-items:flex-start;flex-direction:column;gap:6px;
+}
+.oh-dispatch-records .data-table tbody td:last-child .btn{
+  min-width:76px;padding:8px 12px;border-radius:9px;
+  font-size:12px;font-weight:650;white-space:nowrap;
+}
+@media(prefers-reduced-motion:no-preference){
+  .oh-dispatch-records .data-table tbody td{transition:background-color .16s ease}
+}
