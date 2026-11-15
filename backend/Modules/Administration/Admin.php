@@ -47,6 +47,7 @@ final class Admin {
                 'dispatcherTrucks' => fn() => self::dispatcherTruckAssignments($p),
                 'truckOptions' => fn() => many($p, "SELECT id, truck_number, plate_number, truck_type FROM vehicles WHERE active=1 AND truck_type IN ('Car Carrier','Container','Wing Van') ORDER BY truck_type, truck_number, plate_number"),
             ]);
+            $data['dispatcherTruckSchemaReady'] = self::truckAuthorizationReady($p);
             $data['settings'] = Settings::all();
             $dir = dirname(__DIR__, 3) . '/storage/backups';
             $data['backups'] = array_values(array_map(fn($f) => ['name' => basename($f), 'size' => filesize($f), 'date' => date('Y-m-d H:i', filemtime($f))],
