@@ -2755,3 +2755,24 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .admin-account-modal .admin-dispatcher-shift-choices{flex-wrap:wrap}
   .admin-account-modal .admin-dispatcher-shift-option{flex-basis:100%}
 }
+
+
+/* Dispatcher multi-type account selector */
+.admin-account-modal .admin-dispatcher-type-choices{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+}
+.admin-account-modal .admin-dispatcher-type-option{
+ display:flex;align-items:center;gap:9px;min-height:42px;
+ padding:9px 11px;background:#fff;border:1px solid #d2e1d7;
+ border-radius:9px;color:#365d44;font-size:12px;font-weight:650;
+ cursor:pointer;transition:border-color .15s,background .15s
+}
+.admin-account-modal .admin-dispatcher-type-option:has(input:checked){
+ background:#e9f6ec;border-color:#7fbd94;color:#18623b
+}
+.admin-account-modal .admin-dispatcher-type-option input{
+ width:16px;height:16px;accent-color:#23814a;flex:none
+}
+@media(max-width:480px){
+ .admin-account-modal .admin-dispatcher-type-choices{grid-template-columns:1fr}
+}
