@@ -171,7 +171,7 @@ const FleetUI = {
       {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
       {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
       {name:'contact_number',label:'Contact Number',col:4,value:p.contact_number},
-      {name:'date_hired',label:'Start Date',type:'date',col:4,value:p.date_hired},
+      {name:'date_hired',label:'Date Hired',type:'date',col:4,value:p.date_hired},
       ...(!driver ? [
         {name:'license_number',type:'hidden',value:p.license_number},
         {name:'license_expiry',type:'hidden',value:p.license_expiry},
@@ -194,9 +194,10 @@ const FleetUI = {
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
       ...(driver?[FormComponents.section('License & Assignment','bi-card-checklist',[...licensing,...assignment])]:[]),
-      FormComponents.collapsible('Additional Information','Address and notes','bi-file-earmark-text',additional),
+      FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
+      intro:'Role: '+type+'. Employee number, contact, date hired, address and notes can be updated here.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
