@@ -52,7 +52,8 @@ final class Admin {
             $data['backups'] = array_values(array_map(fn($f) => ['name' => basename($f), 'size' => filesize($f), 'date' => date('Y-m-d H:i', filemtime($f))],
                 array_reverse(glob($dir . '/mulawin_backup_*.sql') ?: [])));
         }
-        $data['roles'] = array_diff_key(ROLE_LABELS, ['audit' => true]);
+        // Existing Audit users remain visible/editable; only new Audit creation is blocked.
+        $data['roles'] = ROLE_LABELS;
         $data['can'] = ['admin' => hasRole($u, 'admin')];
         return $data;
     }
