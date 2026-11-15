@@ -57,11 +57,7 @@ final class HeadManagement {
      * still categorizes these records as Missed, without modifying the database.
      */
     private static function pendingMissedSql(): string {
-        return "t.status='Awaiting Resources' AND t.scheduled_at < NOW()
-            AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
-            AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
-            AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
-                AND f.status IN ('Pending Approval','Ready for Release','Released'))";
+        return Trips::pendingMissedSql();
     }
 
     /** Executive read projection: no operational actions, sensitive documents or mutations. */
