@@ -172,31 +172,44 @@ const FleetUI = {
     // displayed the additive authorization backfill.
     if(driver&&!already.length&&p.fixed_truck_id)already.push(+p.fixed_truck_id);
     const groups=['Car Carrier','Container','Wing Van'];
-    const authorizedBoxes=driver?'<div class="driver-auth-layout" role="group" aria-label="Authorized specific trucks">'
-      +groups.map(group=>{
-        const candidates=allTrucks.filter(t=>{
-          if(t.truck_type!==group)return false;
-          // Keep this driver's current selections visible for edits, but hide
-          // trucks already claimed by another driver (including legacy links).
-          if(already.includes(+t.id))return true;
-          const owners=String(t.authorized_driver_ids||'').split(',').filter(Boolean);
-          const ownedByOther=owners.some(id=>String(id)!==String(p.id||''));
-          const fixedToOther=!!t.assigned_driver_id&&String(t.assigned_driver_id)!==String(p.id||'');
-          return !ownedByOther&&!fixedToOther;
-        });
-        return '<section class="driver-auth-box"><h4><i class="bi bi-truck" aria-hidden="true"></i>'+UI.esc(group)+'</h4>'
-          +'<div class="driver-auth-options">'
-          +(candidates.length?candidates.map(truck=>{
-            const key='auth_truck_'+truck.id,selected=already.includes(+truck.id);
-            return '<label class="driver-auth-option'+(selected?' is-locked':'')+'"><input type="checkbox" name="'+key+'" value="1"'
-              +(selected?' checked disabled data-locked-truck="1"':'')+'>'
-              +'<span><strong>'+UI.esc(truck.plate_number)+'</strong><small>'
-              +UI.esc(selected?'Assigned — locked':(truck.truck_number?'Unit '+truck.truck_number:'Available truck'))+'</small></span></label>';
-          }).join(''):'<p class="driver-auth-empty">No unassigned trucks</p>')
-          +'</div></section>';
+    const selectedTrucks=new Set(already);
+    const truckOptions=allTrucks.filter(truck=>groups.includes(truck.truck_type));
+    // All active trucks are searchable; existing authorizations are locked.
+    const truckCategories=['All',...groups];
+    const authorizedBoxes=driver?'<div class="driver-auth-selector" data-driver-truck-selector>'
+      +'<label class="driver-auth-search-label" for="driver-truck-search">Find a truck</label>'
+      +'<div class="driver-auth-search-field"><i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input id="driver-truck-search" type="search" class="form-control form-control-sm" '
+      +'placeholder="Search truck plate or unit number..." autocomplete="off" data-driver-truck-search></div>'
+      +'<div class="driver-auth-filters" role="group" aria-label="Filter trucks by category">'
+      +truckCategories.map((group,index)=>'<button type="button" class="driver-auth-filter'+(index===0?' is-active':'')+'"'
+        +' data-driver-truck-filter="'+UI.esc(group)+'" aria-pressed="'+(index===0?'true':'false')+'">'
+        +UI.esc(group)+'</button>').join('')+'</div>'
+      +'<div class="driver-auth-list" role="group" aria-label="Truck selection">'
+      +truckOptions.map(truck=>{
+        const selected=selectedTrucks.has(+truck.id);
+        const owners=String(truck.authorized_driver_ids||'').split(',').filter(Boolean);
+        const otherDriver=owners.some(id=>String(id)!==String(p.id||''))
+          ||(!!truck.assigned_driver_id&&String(truck.assigned_driver_id)!==String(p.id||''));
+        const unavailable=!selected&&otherDriver;
+        const locked=selected||unavailable;
+        const plate=String(truck.plate_number||'');
+        const unit=String(truck.truck_number||'');
+        return '<label class="driver-auth-option'+(locked?' is-locked':'')+'"'
+          +' data-driver-truck-option data-truck-type="'+UI.esc(truck.truck_type)+'"'
+          +' data-truck-search="'+UI.esc((plate+' '+unit+' '+truck.truck_type).toLowerCase())+'">'
+          +'<input type="checkbox" name="auth_truck_'+Number(truck.id)+'" value="1"'
+          +(selected?' checked data-locked-truck="1"':'')
+          +(locked?' disabled':'')+'>'
+          +'<span class="driver-auth-option-info"><strong>'+UI.esc(plate)+'</strong>'
+          +'<small>'+UI.esc(truck.truck_type)+(unit?' · Unit '+UI.esc(unit):'')+'</small></span>'
+          +'<span class="driver-auth-option-status'+(unavailable?' is-unavailable':selected?' is-selected':' is-available')+'">'
+          +(selected?'Assigned · Locked':unavailable?'Assigned':'Available')+'</span></label>';
       }).join('')
-      +'</div><p class="driver-auth-count" role="status" aria-live="polite" data-authorized-count></p>':'';
-    const identity=[
+      +'<p class="driver-auth-empty" data-driver-truck-empty hidden>No matching trucks found.</p>'
+      +'</div><div class="driver-auth-footer"><span data-driver-truck-results></span>'
+      +'<span class="driver-auth-count" role="status" aria-live="polite" data-authorized-count></span></div>'
+      +'</div>':'';    const identity=[
       {name:'person_type',type:'hidden',value:type},
       {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
       {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
@@ -219,8 +232,8 @@ const FleetUI = {
     const authorization='<section class="record-form-section driver-auth-section">'
       +'<div class="record-form-section-title"><i class="bi bi-truck" aria-hidden="true"></i>'
       +'<h3>Authorized Trucks</h3></div>'
-      +'<p class="form-help">Select one available truck. After selection it turns gray and cannot be removed in this form. '
-      +'Authorization does not reserve a trip; dispatch availability is checked separately.</p>'
+      +'<p class="form-help">Search by plate or unit, then select one available truck. Saved selections stay locked. '
+      +'Truck authorization does not reserve a trip; dispatch availability is checked separately.</p>'
       +authorizedBoxes+'</section>';
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
@@ -243,24 +256,66 @@ const FleetUI = {
       after(){UI.closeDrawer();App.route();},
       onShow(wrap,form){
         if(!driver)return;
-        const inputs=[...form.querySelectorAll('.driver-auth-option input[type=checkbox]')];
-        const count=wrap.querySelector('[data-authorized-count]');
+        const selector=form.querySelector('[data-driver-truck-selector]');
+        const inputs=[...selector.querySelectorAll('.driver-auth-option input[type=checkbox]')];
+        const options=[...selector.querySelectorAll('[data-driver-truck-option]')];
+        const count=selector.querySelector('[data-authorized-count]');
+        const resultCount=selector.querySelector('[data-driver-truck-results]');
+        const empty=selector.querySelector('[data-driver-truck-empty]');
+        const search=selector.querySelector('[data-driver-truck-search]');
+        const filters=[...selector.querySelectorAll('[data-driver-truck-filter]')];
+        let category='All';
         const update=()=>{
           const selected=inputs.filter(input=>input.checked);
           if(count)count.textContent=selected.length
-            ? selected.length+' assigned truck'+(selected.length===1?'':'s')+' — locked'
-            : 'Select one available truck';
-          if(!selected.length)return;
-          inputs.forEach(input=>{
-            input.disabled=true;
-            input.closest('.driver-auth-option')?.classList.add('is-locked');
-            if(input.checked)input.dataset.lockedTruck='1';
-          });
+            ? selected.some(input=>!already.includes(Number(input.name.slice('auth_truck_'.length))))
+              ? '1 truck selected · save to authorize'
+              : selected.length+' authorized truck'+(selected.length===1?'':'s')+' · locked'
+            : 'No truck selected';
+          if(selected.length){
+            inputs.forEach(input=>{
+              input.disabled=true;
+              if(input.checked){
+                input.dataset.lockedTruck='1';
+                const option=input.closest('.driver-auth-option');
+                option?.classList.add('is-locked');
+                const status=option?.querySelector('.driver-auth-option-status');
+                if(status){
+                  status.className='driver-auth-option-status is-selected';
+                  status.textContent=already.includes(Number(input.name.slice('auth_truck_'.length)))
+                    ?'Assigned · Locked':'Selected · Locked';
+                }
+              }
+            });
+          }
         };
+        const filterOptions=()=>{
+          const term=search.value.trim().toLowerCase();
+          let visible=0;
+          options.forEach(option=>{
+            const matches=(category==='All'||option.dataset.truckType===category)
+              &&(!term||(option.dataset.truckSearch||'').includes(term));
+            option.hidden=!matches;
+            if(matches)visible++;
+          });
+          if(empty)empty.hidden=visible>0;
+          if(resultCount)resultCount.textContent='Showing '+visible+' of '+options.length+' trucks';
+        };
+        filters.forEach(button=>button.addEventListener('click',()=>{
+          category=button.dataset.driverTruckFilter;
+          filters.forEach(other=>{
+            const active=other===button;
+            other.classList.toggle('is-active',active);
+            other.setAttribute('aria-pressed',String(active));
+          });
+          filterOptions();
+        }));
+        search.addEventListener('input',filterOptions);
         inputs.forEach(input=>input.addEventListener('change',()=>{
           if(input.checked)update();
         }));
         update();
+        filterOptions();
         form.addEventListener('submit',event=>{
           if(inputs.some(input=>input.checked))return;
           event.preventDefault();event.stopImmediatePropagation();

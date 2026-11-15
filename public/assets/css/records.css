@@ -1482,21 +1482,34 @@
 
 /* Driver authorization: one card each for Car Carrier, Container, and Wing Van. */
 .driver-auth-section .form-help{margin:0 0 12px;font-size:12px;color:#67806e}
-.driver-auth-layout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.driver-auth-box{min-width:0;min-height:156px;padding:12px;border:1px solid #d9e8df;border-radius:11px;background:#fbfdfb}
-.driver-auth-box h4{display:flex;align-items:center;gap:7px;margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid #e3ede6;font-size:12px;font-weight:750;color:#27553a}
-.driver-auth-box h4 .bi{color:#287b4b}
-.driver-auth-options{display:grid;align-content:start;gap:7px;max-height:220px;overflow-y:auto}
-.driver-auth-option{display:flex;align-items:flex-start;gap:7px;padding:9px 8px;border:1px solid #e1eae4;border-radius:8px;background:#fff;cursor:pointer;min-width:0}
-.driver-auth-option:has(input:checked){border-color:#68ae7e;background:#f0f8f2}
-.driver-auth-option:focus-within{outline:2px solid #318352;outline-offset:1px}
-.driver-auth-option input{flex:none;margin-top:3px;accent-color:#1e7547}
-.driver-auth-option span{display:flex;flex-direction:column;gap:2px;min-width:0}
-.driver-auth-option strong{font-size:11.5px;color:#294b38;overflow-wrap:anywhere}
-.driver-auth-option small,.driver-auth-empty{font-size:10.5px;line-height:1.4;color:#819288;margin:0}
-.driver-auth-count{font-size:12px;color:#3a7750;margin:11px 0 0;font-weight:650}
-@media(max-width:650px){.driver-auth-layout{grid-template-columns:1fr}.driver-auth-box{min-height:0}.driver-auth-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:390px){.driver-auth-options{grid-template-columns:1fr}}
+.driver-auth-selector{min-width:0}
+.driver-auth-search-label{display:block;font-size:11px;font-weight:650;color:#42614d;margin-bottom:6px}
+.driver-auth-search-field{position:relative}
+.driver-auth-search-field .bi{position:absolute;top:50%;left:12px;transform:translateY(-50%);color:#72917b;pointer-events:none}
+.driver-auth-search-field input{padding-left:36px;min-height:39px;border-radius:9px}
+.driver-auth-filters{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}
+.driver-auth-filter{border:1px solid #d4e4d8;background:#fff;color:#365941;font-size:12px;font-weight:600;padding:7px 11px;border-radius:8px;cursor:pointer}
+.driver-auth-filter.is-active{background:#217447;color:white;border-color:#217447}
+.driver-auth-filter:focus-visible,.driver-auth-option:focus-within{outline:2px solid #318352;outline-offset:2px}
+.driver-auth-list{border:1px solid #d9e8df;border-radius:10px;padding:7px;display:grid;align-content:start;gap:6px;max-height:254px;overflow-y:auto;overscroll-behavior:contain}
+.driver-auth-option{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #e1eae4;border-radius:8px;background:#fff;cursor:pointer;min-width:0}
+.driver-auth-option[hidden]{display:none!important}
+.driver-auth-option:has(input:checked){background:#e3e8e5;border-color:#bcc9c0}
+.driver-auth-option input{flex:none;accent-color:#1e7547}
+.driver-auth-option-info{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.driver-auth-option strong{font-size:12px;color:#294b38;overflow-wrap:anywhere}
+.driver-auth-option small{font-size:11px;color:#819288;overflow-wrap:anywhere}
+.driver-auth-option-status{flex:none;font-size:11px;font-weight:650;border-radius:14px;padding:4px 8px}
+.driver-auth-option-status.is-available{color:#287447;background:#eaf5ed}
+.driver-auth-option-status.is-selected,.driver-auth-option-status.is-unavailable{color:#65766b;background:#e1e7e3}
+.driver-auth-option.is-locked,.driver-auth-option.is-locked:has(input:checked){background:#edf0ee;border-color:#cbd5ce;cursor:not-allowed}
+.driver-auth-option.is-locked strong{color:#526a5c}
+.driver-auth-option.is-locked input{cursor:not-allowed;accent-color:#6e8777}
+.driver-auth-empty{font-size:12px;color:#728779;text-align:center;margin:12px 0}
+.driver-auth-empty[hidden]{display:none!important}
+.driver-auth-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;color:#607b69;font-size:11.5px}
+.driver-auth-count{font-size:12px;color:#3a7750;font-weight:650}
+@media(max-width:540px){.driver-auth-option{padding:9px 10px}.driver-auth-filters{gap:5px}.driver-auth-filter{padding:6px 8px}.driver-auth-footer{align-items:flex-start}}
 
 /* Fleet type selector is a compact second-level navigation, not repeated row headers. */
 .head-fleet-type-switch{padding:10px 20px;border-bottom:1px solid #deeadf;background:#f7faf8}
@@ -1595,9 +1608,3 @@
 .head-fuel-combined-table .actions-col{text-align:right}
 @media(max-width:760px){.head-fuel-combined-sections{padding:12px;gap:12px}.head-fuel-combined-card{padding:13px}.head-fuel-combined-facts{grid-template-columns:1fr}}
 
-/* Locked driver–truck authorization; selections are read-only until a dedicated reassignment workflow exists. */
-.driver-auth-option.is-locked{background:#edf0ee;border-color:#cbd5ce;cursor:not-allowed}
-.driver-auth-option.is-locked:has(input:checked){background:#e3e8e5;border-color:#bcc9c0}
-.driver-auth-option.is-locked strong{color:#526a5c}
-.driver-auth-option.is-locked small{color:#718379}
-.driver-auth-option.is-locked input{cursor:not-allowed;accent-color:#6e8777}
