@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Turnover UI fixture</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css"><link rel="stylesheet" href="../public/assets/css/dispatcher.css">
+<div id="toastZone"></div><pre id="results">RUNNING</pre>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/js/core.js"></script><script src="../public/assets/js/modules/operations/dispatcher-turnover.js"></script>
+<script>
+(async()=>{
+ const checks=[],calls=[],pause=async()=>{await new Promise(r=>setTimeout(r,380));for(let i=0;i<40&&[...document.querySelectorAll('.modal')].some(m=>bootstrap.Modal.getInstance(m)?._isTransitioning);i++)await new Promise(r=>setTimeout(r,50));},assert=(ok,label)=>{if(!ok)throw Error(label);checks.push('PASS '+label);};
+ const role='container_wingvan_dispatcher',accounts=[{id:1,role,full_name:'Fixture Day',shift:'Day'},{id:2,role,full_name:'Fixture Night',shift:'Night'},{id:3,role:'car_carrier_dispatcher',full_name:'Fixture Other',shift:'Night'}];
+ const trip={id:11,trip_ref:'TURN-FIXTURE',status:'In Transit',truck_type:'Container',dispatcher_role:role,dispatcher_shift:'Day',scheduled_at:'2026-11-12 08:00:00',holds:[{resource_type:'vehicle'}],incidents:[]};
+ const h={id:7,outgoing_id:1,incoming_id:2,outgoing_name:'Fixture Day',incoming_name:'Fixture Night',dispatcher_role:role,status:'Pending',endorsed_at:'2026-11-12 20:00:00',remarks:'Fixture remarks'};
+ let installed=true;
+ App.me={user:{id:9,role:'operations_head'},roles:{[role]:'Container / Wing Van Dispatcher',car_carrier_dispatcher:'Car Carrier Dispatcher'},nav:[]};App.current={page:'trips',query:{}};App.route=()=>{};document.body.className='operations-head';
+ UI.askWithinModal=async()=>true;
+ App.api=async(action,data)=>{calls.push({action,data});if(action==='Trips.turnover_list')return {schema_ready:installed,accounts:App.me.user.role==='operations_head'?accounts:accounts.filter(a=>a.role===role),unowned:[trip],rows:[h]};if(action==='Trips.turnover_preview')return {rows:data.trip_ids?[trip]:[trip,{...trip,id:12,trip_ref:'UNSELECTED-TRIP'}],fingerprint:'fixture-fingerprint'};if(action==='Trips.turnover_details')return {turnover:h,rows:[trip],current_rows:[{...trip,status:'Completed'}]};return {message:'Fixture recorded'};};
+ try{
+  await DispatcherTurnoverUI.open();await pause();
+  assert(document.querySelector('[data-initial]')&&!document.querySelector('[data-endorse]'),'Operations Head has initial assignment and read-only history, without endorsement processing');
+  document.querySelector('[data-initial]').click();await pause();
+  const initialRect=document.querySelector('.modal-content').getBoundingClientRect();assert(initialRect.left>=0&&initialRect.right<=innerWidth+1,'Initial responsibility form fits the current viewport');
+  const form=document.querySelector('.modal form');form.elements.trip_id.value='11';form.elements.trip_id.dispatchEvent(new Event('change'));
+  assert([...form.elements.dispatcher_id.options].find(o=>o.value==='3').disabled,'Initial-assignment account choices disable the other truck group');
+  form.elements.dispatcher_id.value='1';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();
+  assert(calls.some(c=>c.action==='Trips.turnover_assign_initial'&&c.data.trip_id==='11'&&c.data.dispatcher_id==='1'),'Initial assignment submits original trip and explicit account identifiers');
+  App.me.user={id:1,role};document.body.className='dispatcher-role';await DispatcherTurnoverUI.open();await pause();
+  assert(document.querySelector('[data-endorse]')&&!document.querySelector('[data-initial]'),'Dispatcher gets review/endorsement without initial assignment controls');
+  document.querySelector('[data-endorse]').click();await pause();
+  assert(document.querySelector('.app-drawer').textContent.includes('TURN-FIXTURE')&&document.querySelector('[data-submit-endorsement]'),'Endorsement is offered only after the authoritative work summary is displayed');
+  assert(document.querySelector('[data-submit-endorsement]').disabled,'Empty selection cannot proceed');
+  const selected=document.querySelector('[data-turnover-trip="11"]');selected.checked=true;selected.dispatchEvent(new Event('change',{bubbles:true}));
+  document.querySelector('[data-submit-endorsement]').click();await pause();
+  assert(calls.some(c=>c.action==='Trips.turnover_preview'&&c.data.trip_ids?.join(',')==='11'),'Review requests only the selected trip');
+  assert(!document.querySelector('.app-drawer').textContent.includes('UNSELECTED-TRIP'),'Selected review excludes unselected work');
+  document.querySelector('[data-confirm-selected]').click();await pause();
+  const endorse=document.querySelector('[name=incoming_id]').form;const endorseRect=endorse.getBoundingClientRect();assert(endorseRect.left>=0&&endorseRect.right<=innerWidth+1,'Endorsement form fits the current viewport');endorse.elements.incoming_id.value='2';endorse.elements.remarks.value='Reviewed fixture';
+  assert(![...endorse.elements.incoming_id.options].some(o=>['1','3'].includes(o.value)),'Incoming choices exclude self and other groups');
+  endorse.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();
+  assert(![...document.querySelectorAll('.modal .form-error')].some(e=>e.textContent),'Endorsement has no form errors: '+[...document.querySelectorAll('.modal .form-error')].map(e=>e.textContent).join('|'));
+  assert(calls.some(c=>c.action==='Trips.turnover_endorse'&&c.data.fingerprint==='fixture-fingerprint'&&c.data.request_key&&c.data.incoming_id==='2'&&c.data.trip_ids?.join(',')==='11'),'Endorsement sends reviewed fingerprint, request key and intended recipient');
+  await DispatcherTurnoverUI.details(7);await pause();assert(!document.querySelector('[data-accept-turnover]'),'Outgoing account cannot accept its own endorsement');
+  App.me.user.id=2;await DispatcherTurnoverUI.open('incoming');await pause();assert(document.querySelector('.app-drawer').textContent.includes('Incoming Turnovers'),'Incoming view is available for the addressed account');await DispatcherTurnoverUI.details(7);await pause();
+  assert(document.querySelector('[data-accept-turnover]')&&document.querySelector('.app-drawer').textContent.includes('Fixture remarks'),'Named incoming account reviews the persisted summary before accepting');
+  assert(document.querySelector('.app-drawer').textContent.includes('Endorsed: In Transit'),'Incoming review shows current status and preserves snapshot status');
+  document.querySelector('[data-accept-turnover]').click();await pause();[...document.querySelectorAll('.modal form')].at(-1).dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();
+  assert(calls.some(c=>c.action==='Trips.turnover_accept'&&c.data.turnover_id===7),'Acceptance uses the existing guarded API integration');
+  h.status='Accepted';await DispatcherTurnoverUI.details(7);await pause();assert(!document.querySelector('[data-accept-turnover]'),'Accepted history is read-only without repeated action controls');
+  UI.closeDrawer();await pause();installed=false;await DispatcherTurnoverUI.open();assert(!document.querySelector('.app-drawer'),'Missing migration is reported instead of showing nonfunctional turnover controls');
+  installed=true;await DispatcherTurnoverUI.open();await pause();
+  assert(!document.querySelector('.modal.show'),'Successful submissions close their dialogs before the next workflow');
+  document.querySelector('#results').textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+ }catch(e){document.querySelector('#results').textContent=checks.join('\n')+'\nFAIL '+e.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>
