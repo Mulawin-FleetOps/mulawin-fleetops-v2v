@@ -44,7 +44,7 @@ const HeadAdminPage = {
           intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
           transform: (d, form) => {
             const selected = [...selectedTrucks];
-            for (const name of Object.keys(d)) if (name.startsWith('dispatcher_truck_')) delete d[name];
+            for (const name of Object.keys(d)) if (name.startsWith('dispatcher_truck_') || name === 'dispatcher_shift_choice') delete d[name];
             if (dispatcherRoles.includes(d.role)) {
               if (!selected.length) throw new Error('Select at least one authorized truck for this Dispatcher account.');
               d.assigned_truck_ids = selected;
@@ -55,6 +55,12 @@ const HeadAdminPage = {
       const role = wrap.querySelector('[name=role]');
       const shiftInput = wrap.querySelector('[name=shift]');
       const shiftWrapper = shiftInput.closest('[class*=col-]');
+      const shiftChoices = document.createElement('div');
+      shiftChoices.className = 'admin-dispatcher-shift-choices';
+      shiftChoices.setAttribute('role','group');
+      shiftChoices.setAttribute('aria-label','Assigned Shift');
+      shiftInput.insertAdjacentElement('afterend', shiftChoices);
+      shiftInput.classList.add('visually-hidden');
       const truckSection = wrap.querySelector('[data-dispatcher-trucks]');
       const truckList = wrap.querySelector('[data-truck-list]');
       const truckSearch = wrap.querySelector('[data-truck-search]');
@@ -117,6 +123,21 @@ const HeadAdminPage = {
           !occupied(role.value, s, u.id));
         shiftInput.replaceChildren(new Option('Choose…', ''), ...options.map(s => new Option(s, s)));
         shiftInput.value = options.includes(current) ? current : '';
+        shiftChoices.replaceChildren();
+        shifts.forEach(s => {
+          const label = document.createElement('label');
+          label.className = 'admin-dispatcher-shift-option';
+          const radio = document.createElement('input');
+          radio.type = 'radio'; radio.name = 'dispatcher_shift_choice';
+          radio.value = s; radio.checked = shiftInput.value === s;
+          radio.disabled = !options.includes(s);
+          radio.required = dispatch;
+          radio.addEventListener('change', () => {
+            if (radio.checked) shiftInput.value = s;
+          });
+          label.append(radio, document.createTextNode(s + ' Shift'));
+          shiftChoices.append(label);
+        });
       };
       role.addEventListener('change', () => { shiftInput.value = ''; selectedTrucks.clear(); truckSearch.value = ''; refreshShifts(); });
       refreshShifts();
