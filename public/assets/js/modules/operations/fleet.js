@@ -91,14 +91,15 @@ const FleetUI = {
     ];
     const groups = [
       FormComponents.section('Truck Information', 'bi-truck', truckInfo),
-      FormComponents.section('Fixed Crew Assignment', 'bi-people', fixedCrew),
+      // Retain legacy truck assignment values without showing duplicate editable controls.
+      UI.fields(fixedCrew.map(field=>({name:field.name,type:'hidden',value:field.value}))),
       FormComponents.collapsible('Registration & Insurance', 'Vehicle documents, insurance and notes', 'bi-file-earmark-text', documents),
     ];
     return FormComponents.modal(
       v.id ? 'Edit Truck ' + UI.esc(v.plate_number) : 'Add Truck',
       groups, 'Fleet.truck_save', {
         extra: v.id ? { id: v.id } : {},
-        intro: 'OR/CR and insurance files can be attached later in Truck Details → Documents.',
+        intro: 'Truck authorizations are now managed in Drivers & Helpers. OR/CR and insurance files can be attached from Truck Details → Documents.',
         submit: v.id ? 'Save Changes' : 'Save Truck',
         after: v.id ? () => FleetUI.truckDetails(v.id, d) : undefined,
       }
