@@ -478,42 +478,125 @@ const OpsHead = {
       const buttons = [...h.querySelectorAll('button')]; buttons.forEach(b => fragment.prepend(b));
       sections.set(label, fragment); h.remove();
     });
-    const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
-    const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
-    const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
-    const approved = !!t.approved_at;
-    const dispatched = !!t.dispatched_at;
+    const ins = (r.inspections || []).find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
+    const arr = (r.inspections || []).find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
+    const fund = (r.funds || []).find(f => +f.attempt_number === +t.attempt_number);
     const prepared = !!ins?.completed_at && !+ins.has_not_ok;
-    const progress = t.status === 'Completed' ? 5 : dispatched ? 4 : prepared ? 3 : t.vehicle_id ? 2 : approved ? 1 : 0;
+    const crewAssigned = !!(t.vehicle_id && t.driver_id && (t.truck_type === 'Car Carrier' ? t.driver2_id : t.helper_id));
     const kv = UI.kv;
     const text = UI.e;
-    body.innerHTML = this.panel('Trip Summary', kv([['Client', text(t.client)], ['Approved Route', text(t.client_route_ref || (t.client_route_id ? 'Linked route' : 'No approved route linked'))], ['Route', `${UI.esc(t.pickup_point)} → ${UI.esc(t.delivery_point)}`], ['Truck', text(t.plate_number)], ['Driver / Helper', [t.driver_name, t.driver2_name, t.helper_name].filter(Boolean).map(UI.esc).join(' · ') || '—'], ['Schedule', this.datetime(t.scheduled_at)]])) +
-      this.panel('Progress', UI.tripProgress(t, r) + `<p class="small mb-0">Official status: ${OpsHead.badge(t.status)}</p><p class="small text-muted">${UI.esc(TripUI.next(t))}</p>`) +
-      this.panel('Readiness', kv([[t.intake_source === 'Dispatcher' ? 'Historical Request State' : 'Trip Creation', t.intake_source === 'Dispatcher' ? OpsHead.badge(t.status) : 'Created by Operations Head'], ['Truck & Personnel', t.status === 'Completed' ? 'See recorded Truck and personnel below' : t.vehicle_id && t.driver_id && (t.truck_type === 'Car Carrier' ? t.driver2_id : t.helper_id) ? 'Assigned' : 'Incomplete / awaiting resources'], ['Trip Fund', fund ? OpsHead.badge(fund.status) : (+t.attempt_number > 1 ? 'No new request (optional for redispatch)' : 'Not requested')], ['Pre-Dispatch Checklist', ins ? (prepared ? 'Completed' : 'NOT OK / incomplete') : 'Not completed'], ['Dispatch', dispatched ? this.datetime(t.dispatched_at) : 'Not dispatched'], ['Arrival Checklist', t.status === 'Completed' ? (+t.awaiting_arrival ? (arr ? 'Recorded; clearance pending' : 'Pending') : arr ? 'Recorded' : 'Not recorded') : 'Not yet applicable']])) + '<div data-trip-sections></div>';
+    const next = TripUI.next(t);
+    // A single at-a-glance area replaces repeated Overview, Readiness and Status panels.
+    const summaryCard = (label, value, note, icon) => '<div class="oh-trip-quick-card">'
+      + '<span class="oh-trip-quick-label"><i class="bi ' + icon + '" aria-hidden="true"></i> ' + label + '</span>'
+      + '<strong>' + value + '</strong>'
+      + (note ? '<span class="oh-trip-quick-note">' + note + '</span>' : '') + '</div>';
+    const routeSummary = UI.esc(t.pickup_point || 'Pickup not specified') + ' <span aria-hidden="true">→</span> ' + UI.esc(t.delivery_point || 'Destination not specified');
+    const scheduleSummary = UI.esc(this.datetime(t.scheduled_at));
+    const crewSummary = t.plate_number ? text(t.plate_number) : 'Awaiting assignment';
+    const readySummary = (fund ? 'Fund: ' + UI.esc(fund.status) : 'Fund: Not requested')
+      + ' · ' + (prepared ? 'Checklist completed' : 'Checklist pending');
+    body.innerHTML = '<div class="oh-trip-quick-grid">'
+      + summaryCard('Route', routeSummary, text(t.client_route_ref || 'Approved route'), 'bi-signpost-split')
+      + summaryCard('Scheduled Dispatch', scheduleSummary, '', 'bi-calendar-event')
+      + summaryCard('Truck & Personnel', crewSummary, crewAssigned ? 'Crew assigned' : 'Crew awaiting assignment', 'bi-truck')
+      + summaryCard('Dispatch Readiness', readySummary, '', 'bi-clipboard-check')
+      + '</div>'
+      + '<section class="oh-trip-progress-card"><div class="oh-trip-progress-heading"><h3>Trip Progress</h3></div>'
+      + UI.tripProgress(t, r)
+      + '<div class="oh-trip-next-step"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i><div><strong>Next step</strong><p>'
+      + UI.esc(next) + '</p></div></div></section>'
+      + '<div class="oh-trip-groups" data-trip-sections></div>';
     const content = body.querySelector('[data-trip-sections]');
-    const append = (title, html, open = false) => {
-      const details = document.createElement('details'); details.className = 'oh-detail-section'; details.open = open;
-      const summary = document.createElement('summary'); summary.textContent = title; details.append(summary);
-      const inner = document.createElement('div'); inner.className = 'oh-detail-body';
-      if (typeof html === 'string') inner.innerHTML = html; else if (html) inner.append(html);
-      details.append(inner); content.append(details); return details;
+    const append = (title, description, icon, open = false) => {
+      const details = document.createElement('details');
+      details.className = 'oh-detail-section oh-trip-group';
+      details.open = open;
+      const summary = document.createElement('summary');
+      summary.innerHTML = '<i class="bi ' + icon + '" aria-hidden="true"></i><span class="oh-trip-group-title">'
+        + UI.esc(title) + '<small>' + UI.esc(description) + '</small></span>'
+        + '<i class="bi bi-chevron-down oh-trip-group-chevron" aria-hidden="true"></i>';
+      details.append(summary);
+      const inner = document.createElement('div');inner.className = 'oh-detail-body';
+      details.append(inner);content.append(details);
+      return {details,inner};
     };
-    append('Overview', kv([['Reference', text(t.trip_ref)], ['Client', text(t.client)], ['Truck Type', text(t.truck_type)], ['Requested By', text(t.created_by_name)], ['Created', this.datetime(t.created_at)], ['Official Status', OpsHead.badge(t.status)], t.cancel_reason ? ['Cancellation / Rejection Reason', text(t.cancel_reason)] : null]), true);
-    const route = append('Route & Schedule', kv([['Approved Route', text(t.client_route_ref)], ['Pickup', text(t.pickup_point)], ['Delivery', text(t.delivery_point)], ['Dispatch Schedule', this.datetime(t.scheduled_at)], ['Billable Distance', UI.num(t.distance_km, 2) + ' km'], ['Distance Source', text(t.distance_source)], ['Computed Distance', t.distance_computed_km ? UI.num(t.distance_computed_km, 2) + ' km' : '—'], ['Override Reason', text(t.distance_override_reason)], ['Checklist Opens', this.datetime(t.time_gates?.checklist_opens_at)], ['Dispatch Opens', this.datetime(t.time_gates?.dispatch_opens_at)]]));
+    const addBlock = (parent, title, value) => {
+      if(!value)return;
+      const group = document.createElement('section');
+      group.className = 'oh-trip-subsection';
+      const heading=document.createElement('h4');heading.textContent=title;group.append(heading);
+      if(typeof value === 'string')group.insertAdjacentHTML('beforeend',value);
+      else group.append(value);
+      parent.append(group);
+    };
+    const tripSummary = append('Trip Summary', 'Route, schedule, shipment and request details', 'bi-journal-text', true);
+    addBlock(tripSummary.inner,'Trip Information',kv([['Reference',text(t.trip_ref)],['Client',text(t.client)],
+      ['Truck Type',text(t.truck_type)],['Requested By',text(t.created_by_name)],
+      ['Created',this.datetime(t.created_at)],
+      t.cancel_reason?['Cancellation / Rejection Reason',text(t.cancel_reason)]:null]));
+    addBlock(tripSummary.inner,'Route & Schedule',kv([
+      ['Approved Route',text(t.client_route_ref)],['Pickup',text(t.pickup_point)],['Delivery',text(t.delivery_point)],
+      ['Dispatch Schedule',this.datetime(t.scheduled_at)],['Billable Distance',UI.num(t.distance_km,2)+' km'],
+      ['Distance Source',text(t.distance_source)],
+      ['Computed Distance',t.distance_computed_km?UI.num(t.distance_computed_km,2)+' km':'—'],
+      ['Override Reason',text(t.distance_override_reason)],
+      ['Checklist Opens',this.datetime(t.time_gates?.checklist_opens_at)],
+      ['Dispatch Opens',this.datetime(t.time_gates?.dispatch_opens_at)]
+    ]));
     const savedMap = sections.get('Trip')?.querySelector?.('[data-routemap]');
-    if (savedMap) { route.querySelector('.oh-detail-body').append(savedMap); route.addEventListener('toggle', () => window.dispatchEvent(new Event('resize'))); }
-    append('Shipment & Delivery', kv([['Instructions', text(t.delivery_details)], ['Booking Reference', text(t.booking_reference)], ['Consignee', text(t.consignee)], ...(t.truck_type === 'Car Carrier' ? [['Cargo Units', text(t.units_planned)]] : [['Shipment Number', text(t.shipment_number)]]), ...(t.truck_type === 'Container' ? [['Container Number', text(t.container_number)], ['Container Size', text(t.container_size)], ['Seal Number', text(t.seal_number)]] : [])]));
-    append('Truck & Personnel', kv([['Truck', text(t.plate_number)], ['Vehicle Status', OpsHead.badge(t.truck_status)], ['Driver', text(t.driver_name)], ['Second Driver', text(t.driver2_name)], ['Helper', text(t.helper_name)], ['Dispatcher', text(t.dispatcher_name)], ['Team', text(UI.label(t.dispatcher_role))], ...(t.dispatcher_shift ? [['Planning Dispatcher Shift', text(t.dispatcher_shift)]] : []), ['Attendance Mode', text(t.crew_attendance?.mode)], ['Attendance Shift', text(t.crew_attendance?.dispatch_shift)]]) + (t.crew_attendance?.crew || []).map(c => `<p class="small">${UI.esc(c.role)} · ${UI.esc(c.full_name || c.name || '')}: ${UI.esc(c.issue || 'Present')}${c.problem ? ' · ' + UI.esc(c.problem) : ''}${c.outside_scheduled_shift ? ' · Outside scheduled shift' : ''}</p>`).join('') + (t.crew_attendance?.missing || []).map(x => `<p class="text-danger small">${UI.esc(x)}</p>`).join(''));
-    const funds = append('Trip Funds & Fuel', sections.get('Fund request'));
-    funds.querySelector('.oh-detail-body').insertAdjacentHTML('beforeend', kv([['Estimated Fuel Cost', t.fuel_estimate ? UI.money(t.fuel_estimate) : '—']]));
-    if (fund) { const b = document.createElement('button'); b.className = 'btn btn-sm btn-outline-success'; b.textContent = 'View Fund'; b.onclick = () => this.openFund(fund.id); funds.querySelector('.oh-detail-body').append(b); }
-    append('Pre-Dispatch Checklist', [...sections].find(([key]) => key.startsWith('Pre-dispatch checklist'))?.[1]);
-    append('Dispatch & Progress', sections.get('Updates and delays'));
-    const incidents = append('Incidents & Repairs', sections.get('Incidents') || '<p>No incidents recorded.</p>'); incidents.dataset.incidentSection = '';
-    const completion = append('Completion & Arrival', sections.get('Completion') || '<p>Trip is not completed.</p>');
-    if (sections.get('Arrival checklist')) completion.querySelector('.oh-detail-body').append(sections.get('Arrival checklist'));
-    append('Documents', sections.get('Documents'));
-    append('Activity Timeline', sections.get('History'));
+    if(savedMap){
+      tripSummary.inner.append(savedMap);
+      tripSummary.details.addEventListener('toggle',()=>window.dispatchEvent(new Event('resize')));
+    }
+    addBlock(tripSummary.inner,'Shipment & Delivery',kv([
+      ['Instructions',text(t.delivery_details)],['Booking Reference',text(t.booking_reference)],
+      ['Consignee',text(t.consignee)],
+      ...(t.truck_type==='Car Carrier'?[['Cargo Units',text(t.units_planned)]]:[['Shipment Number',text(t.shipment_number)]]),
+      ...(t.truck_type==='Container'?[['Container Number',text(t.container_number)],
+        ['Container Size',text(t.container_size)],['Seal Number',text(t.seal_number)]]:[])
+    ]));
+    const assignment=append('Resource Assignment','Truck, driver, helper, dispatcher and attendance','bi-people');
+    addBlock(assignment.inner,'Assigned Resources',kv([
+      ['Truck',text(t.plate_number)],['Vehicle Status',OpsHead.badge(t.truck_status)],
+      ['Driver',text(t.driver_name)],['Second Driver',text(t.driver2_name)],
+      ['Helper',text(t.helper_name)],['Dispatcher',text(t.dispatcher_name)],
+      ['Team',text(UI.label(t.dispatcher_role))],
+      ...(t.dispatcher_shift?[['Planning Dispatcher Shift',text(t.dispatcher_shift)]]:[]),
+      ['Attendance Mode',text(t.crew_attendance?.mode)],
+      ['Attendance Shift',text(t.crew_attendance?.dispatch_shift)]
+    ])+(t.crew_attendance?.crew||[]).map(c=>'<p class="small">'+UI.esc(c.role)+' · '
+      +UI.esc(c.full_name||c.name||'')+': '+UI.esc(c.issue||'Present')
+      +(c.problem?' · '+UI.esc(c.problem):'')
+      +(c.outside_scheduled_shift?' · Outside scheduled shift':'')+'</p>').join('')
+      +(t.crew_attendance?.missing||[]).map(x=>'<p class="text-danger small">'+UI.esc(x)+'</p>').join(''));
+    const readiness=append('Dispatch Readiness','Trip funds, fuel estimate and pre-dispatch checklist','bi-clipboard-check');
+    addBlock(readiness.inner,'Readiness Checks',kv([
+      [t.intake_source==='Dispatcher'?'Historical Request State':'Trip Creation',
+        t.intake_source==='Dispatcher'?OpsHead.badge(t.status):'Created by Operations Head'],
+      ['Truck & Personnel',t.status==='Completed'?'See recorded assignment':crewAssigned?'Assigned':'Incomplete / awaiting resources'],
+      ['Trip Fund',fund?OpsHead.badge(fund.status):(+t.attempt_number>1?'No new request (optional for redispatch)':'Not requested')],
+      ['Pre-Dispatch Checklist',ins?(prepared?'Completed':'NOT OK / incomplete'):'Not completed']
+    ]));
+    addBlock(readiness.inner,'Trip Funds & Fuel',sections.get('Fund request'));
+    addBlock(readiness.inner,'Estimated Fuel Cost',kv([['Estimated Fuel Cost',t.fuel_estimate?UI.money(t.fuel_estimate):'—']]));
+    if(fund){const button=document.createElement('button');button.className='btn btn-sm btn-outline-success';
+      button.textContent='View Fund';button.onclick=()=>this.openFund(fund.id);readiness.inner.append(button);}
+    addBlock(readiness.inner,'Pre-Dispatch Checklist',[...sections].find(([key])=>key.startsWith('Pre-dispatch checklist'))?.[1]);
+    const dispatch=append('Dispatch & Completion','Dispatch updates, completion and arrival inspection','bi-flag');
+    addBlock(dispatch.inner,'Dispatch Status',kv([
+      ['Dispatch',t.dispatched_at?this.datetime(t.dispatched_at):'Not dispatched'],
+      ['Arrival Checklist',t.status==='Completed'?(+t.awaiting_arrival?(arr?'Recorded; clearance pending':'Pending'):arr?'Recorded':'Not recorded'):'Not yet applicable']
+    ]));
+    addBlock(dispatch.inner,'Updates & Delays',sections.get('Updates and delays'));
+    addBlock(dispatch.inner,'Completion',sections.get('Completion')||'<p>Trip is not completed.</p>');
+    addBlock(dispatch.inner,'Arrival Inspection',sections.get('Arrival checklist'));
+    const support=append('Supporting Records','Incidents, documents and audit history','bi-folder2-open');
+    const incidentContent=sections.get('Incidents')||'<p>No incidents recorded.</p>';
+    addBlock(support.inner,'Incidents & Repairs',incidentContent);
+    if(incidentContent!==null)support.details.dataset.incidentSection='';
+    addBlock(support.inner,'Documents',sections.get('Documents'));
+    addBlock(support.inner,'Activity Timeline',sections.get('History'));
     if (originalActions) body.prepend(originalActions);
     // Move one existing authorized action to a fixed footer; moving preserves its listener.
     const primary = originalActions?.querySelector('button:not([disabled])');
