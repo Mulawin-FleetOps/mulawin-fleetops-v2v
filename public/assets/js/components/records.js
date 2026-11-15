@@ -235,7 +235,7 @@ const RecordComponents = Object.freeze({
 
   // Reuse the Client Management layout for existing Finance/Billing tab
   // callbacks. Move the actual table nodes so action handlers are preserved.
-  executiveTabs(root, tabs, active, title) {
+  executiveTabs(root, tabs, active, title, options = {}) {
     if (!tabs.length) return;
     let selected=active && tabs.some(tab=>tab[0]===active)?active:tabs[0][0];
     const show=key=>{
@@ -259,7 +259,7 @@ const RecordComponents = Object.freeze({
       if(contents)while(contents.firstChild)body.append(contents.firstChild);
       panel.append(body);
       const actions=[...panel.querySelectorAll('.table-tools-right > button, .table-tools-right > .btn')];
-      const categories=this.categories(tabs.map(([value,label])=>({value,label})),selected,'data-executive-tab');
+      const categories=this.categories(tabs.map(([value,label])=>({value,label})),selected,'data-executive-tab',{showAll:options.showAllTabs===true});
       const shell=document.createElement('div');
       shell.innerHTML=this.panel('',categories);
       const workspace=shell.querySelector('.record-workspace-panel');
@@ -282,7 +282,10 @@ const RecordComponents = Object.freeze({
       const values=status?[...new Set(original.map(row=>String(row[status]??'')).filter(Boolean))].sort():[];
       const serial='executive-'+id,filterId=serial+'-filter',sortId=serial+'-sort';
       const searchRow=root.querySelector('.record-workspace-search');
-      let chosen='',direction='default';
+      const clients=options.clientFilter
+        ? [...new Set(original.map(row=>String(row.client??'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b))
+        : [];
+      let chosen='',chosenClient='',direction='default';
       const filterButton=document.createElement('button');
       filterButton.type='button';filterButton.className='btn btn-sm btn-outline-secondary record-workspace-filter-trigger';
       filterButton.setAttribute('aria-controls',filterId);
@@ -296,21 +299,25 @@ const RecordComponents = Object.freeze({
       popovers.className='record-workspace-popovers';
       popovers.innerHTML='<div id="'+filterId+'" class="record-workspace-popover" hidden>'
         +'<strong>Filter records</strong>'
+        +(options.clientFilter?'<label>Client<select class="form-select form-select-sm" data-executive-client>'
+          +'<option value="">All clients</option>'
+          +clients.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('')+'</select></label>':'')
         +(status?'<label>'+UI.esc(status.replace(/_/g,' '))
           +'<select class="form-select form-select-sm" data-executive-filter>'
           +'<option value="">All statuses</option>'
           +values.map(v=>'<option value="'+UI.esc(v)+'">'+UI.esc(v)+'</option>').join('')+'</select></label>'
-          :'<p class="small text-muted">No additional status filters for this table.</p>')
+          :!options.clientFilter?'<p class="small text-muted">No additional status filters for this table.</p>':'')
         +'<div class="record-workspace-popover-actions"><button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button><button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
         +'<div id="'+sortId+'" class="record-workspace-popover record-workspace-sort-panel" hidden>'
         +'<strong>Sort records</strong>'
         +'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="'+sortId+'" value="default" checked> Default</label>'
         +'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="'+sortId+'" value="asc"> First column A–Z</label>'
         +'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="'+sortId+'" value="desc"> First column Z–A</label></div>';
-      if(status)searchRow.append(filterButton);
+      if(status||options.clientFilter)searchRow.append(filterButton);
       searchRow.append(sortButton,popovers);
       const apply=()=>{
-        const next=original.filter(row=>!chosen||String(row[status]??'')===chosen);
+        const next=original.filter(row=>(!chosen||String(row[status]??'')===chosen)
+          &&(!chosenClient||String(row.client??'').trim()===chosenClient));
         if(direction!=='default'){
           const col=t.allColumns[0]?.[1];
           next.sort((a,b)=>(direction==='asc'?1:-1)
@@ -320,8 +327,17 @@ const RecordComponents = Object.freeze({
         this.keepExecutiveEmptyTable(root,id);
       };
       this.bindDropdowns(root,{
-        apply:menu=>{chosen=menu.querySelector('[data-executive-filter]')?.value||'';apply();filterButton.click();},
-        reset:()=>{chosen='';const select=root.querySelector('[data-executive-filter]');if(select)select.value='';apply();filterButton.click();},
+        apply:menu=>{
+          chosen=menu.querySelector('[data-executive-filter]')?.value||'';
+          chosenClient=menu.querySelector('[data-executive-client]')?.value||'';
+          apply();filterButton.click();
+        },
+        reset:()=>{
+          chosen='';chosenClient='';
+          const select=root.querySelector('[data-executive-filter]');if(select)select.value='';
+          const client=root.querySelector('[data-executive-client]');if(client)client.value='';
+          apply();filterButton.click();
+        },
         sort:value=>{direction=value;apply();}
       },{filter:filterId,sort:sortId});
       root.querySelector('[data-tsearch]')?.addEventListener('input',()=>{

@@ -1542,3 +1542,32 @@
 .fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(4){text-align:center;font-variant-numeric:tabular-nums}
 .fleet-clients-workspace .record-workspace-panel .data-table .row-actions{justify-content:flex-end}
 .fleet-clients-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+
+/* Head Management billing: compact, fully visible category navigation. */
+.head-billing-overview .head-financial-records .record-workspace-category-row{
+  padding:10px 18px;
+  min-height:54px;
+  min-width:0;
+}
+.head-billing-overview .head-financial-records .record-workspace-categories{
+  display:flex;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  max-width:100%;
+  min-width:0;
+  gap:7px;
+  scrollbar-width:thin;
+  overscroll-behavior-x:contain;
+}
+.head-billing-overview .head-financial-records .record-workspace-categories > .btn{
+  flex:0 0 auto;
+  min-height:36px;
+  padding:7px 12px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:650;
+  white-space:nowrap;
+}
+@media(max-width:700px){
+  .head-billing-overview .head-financial-records .record-workspace-category-row{padding:9px 12px}
+}
