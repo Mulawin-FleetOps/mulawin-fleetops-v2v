@@ -2654,3 +2654,23 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 @media(max-width:575px){
   .admin-dispatcher-truck-list{grid-template-columns:1fr}
 }
+
+
+/* Dispatcher shift radio group */
+.admin-dispatcher-shift-choices{
+  display:flex;gap:9px;align-items:center;flex-wrap:wrap;min-height:38px
+}
+.admin-dispatcher-shift-option{
+  display:inline-flex;align-items:center;gap:9px;min-width:110px;
+  padding:9px 14px;border:1px solid #d6e5da;border-radius:8px;
+  background:#fff;color:#345c40;font-size:12px;font-weight:650;cursor:pointer
+}
+.admin-dispatcher-shift-option:has(input:checked){
+  background:#e9f6ec;color:#176438;border-color:#85bf97
+}
+.admin-dispatcher-shift-option:has(input:disabled){
+  opacity:.45;cursor:not-allowed
+}
+.admin-dispatcher-shift-option input{
+  accent-color:#23814a;width:15px;height:15px;margin:0
+}
