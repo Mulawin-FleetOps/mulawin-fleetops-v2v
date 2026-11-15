@@ -176,6 +176,11 @@ const FleetUI = {
     const truckOptions=allTrucks.filter(truck=>groups.includes(truck.truck_type));
     // All active trucks are searchable; existing authorizations are locked.
     const truckCategories=['All',...groups];
+    const regularTruck=allTrucks.find(truck=>already.includes(+truck.id));
+    const existingHelperId=already.length===1?Number(regularTruck?.assigned_helper_id||0):0;
+    const availableHelpers=(d.assignmentHelpers||[]).filter(helper=>
+      !helper.assigned_vehicle_id||Number(helper.id)===existingHelperId);
+
     const authorizedBoxes=driver?'<div class="driver-auth-selector" data-driver-truck-selector>'
       +'<label class="driver-auth-search-label" for="driver-truck-search">Find a truck</label>'
       +'<div class="driver-auth-search-field"><i class="bi bi-search" aria-hidden="true"></i>'
@@ -235,9 +240,35 @@ const FleetUI = {
       +'<p class="form-help">Search by plate or unit, then select one available truck. Saved selections stay locked. '
       +'Truck authorization does not reserve a trip; dispatch availability is checked separately.</p>'
       +authorizedBoxes+'</section>';
+    const helperSection='<section class="record-form-section driver-auth-section">'
+      +'<div class="record-form-section-title"><i class="bi bi-people" aria-hidden="true"></i><h3>Regular Helper</h3></div>'
+      +'<p class="form-help">Select one available regular helper. Existing pairings remain locked; trip-level crew assignments are separate.</p>'
+      +'<div class="driver-auth-selector" data-driver-helper-selector>'
+      +'<label class="driver-auth-search-label" for="driver-helper-search">Find a helper</label>'
+      +'<div class="driver-auth-search-field"><i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input id="driver-helper-search" type="search" class="form-control form-control-sm" '
+      +'placeholder="Search helper name or employee number..." autocomplete="off" data-driver-helper-search></div>'
+      +'<div class="driver-auth-list" role="group" aria-label="Regular helper selection">'
+      +(d.assignmentHelpers||[]).map(helper=>{
+        const selected=Number(helper.id)===existingHelperId;
+        const assigned=!!helper.assigned_vehicle_id&&!selected;
+        const name=String(helper.full_name||'');
+        const employee=String(helper.employee_no||'');
+        return '<label class="driver-auth-option'+(selected||assigned?' is-locked':'')+'"'
+          +' data-driver-helper-option data-helper-search="'+UI.esc((name+' '+employee).toLowerCase())+'">'
+          +'<input type="checkbox" name="regular_helper_choice_'+Number(helper.id)+'" value="1"'
+          +(selected?' checked':'')+(selected||assigned?' disabled':'')+'>'
+          +'<span class="driver-auth-option-info"><strong>'+UI.esc(name)+'</strong><small>'
+          +UI.esc(employee?'Employee '+employee:'Helper')+'</small></span>'
+          +'<span class="driver-auth-option-status '+(selected?'is-selected':assigned?'is-unavailable':'is-available')+'">'
+          +(selected?'Assigned · Locked':assigned?'Assigned':'Available')+'</span></label>';
+      }).join('')
+      +'<p class="driver-auth-empty" data-driver-helper-empty hidden>No matching helpers found.</p>'
+      +'</div><div class="driver-auth-footer"><span data-driver-helper-results></span>'
+      +'<span class="driver-auth-count" role="status" data-driver-helper-count></span></div></div></section>';
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
-      ...(driver?[section,authorization]:[]),
+      ...(driver?[section,authorization,helperSection]:[]),
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
@@ -251,7 +282,10 @@ const FleetUI = {
         const authorized=[...form.querySelectorAll('.driver-auth-option input:checked')]
           .map(input=>Number(input.name.slice('auth_truck_'.length)));
         for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
-        return {...values,authorized_vehicle_ids:JSON.stringify(authorized)};
+        const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked');
+        const regularHelper=selectedHelper?Number(selectedHelper.name.slice('regular_helper_choice_'.length)):null;
+        for(const key of Object.keys(values).filter(k=>/^regular_helper_choice_\d+$/.test(k)))delete values[key];
+        return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||''};
       },
       after(){UI.closeDrawer();App.route();},
       onShow(wrap,form){
@@ -316,6 +350,45 @@ const FleetUI = {
         }));
         update();
         filterOptions();
+        const helperSelector=form.querySelector('[data-driver-helper-selector]');
+        const helperInputs=[...helperSelector.querySelectorAll('input[type=checkbox]')];
+        const helperOptions=[...helperSelector.querySelectorAll('[data-driver-helper-option]')];
+        const helperSearch=helperSelector.querySelector('[data-driver-helper-search]');
+        const helperCount=helperSelector.querySelector('[data-driver-helper-count]');
+        const helperResults=helperSelector.querySelector('[data-driver-helper-results]');
+        const helperEmpty=helperSelector.querySelector('[data-driver-helper-empty]');
+        const refreshHelpers=()=>{
+          const term=helperSearch.value.trim().toLowerCase();
+          let visible=0;
+          helperOptions.forEach(option=>{
+            option.hidden=!!term&&!(option.dataset.helperSearch||'').includes(term);
+            if(!option.hidden)visible++;
+          });
+          helperEmpty.hidden=visible>0;
+          helperResults.textContent='Showing '+visible+' of '+helperOptions.length+' helpers';
+        };
+        const lockHelpers=()=>{
+          const selected=helperInputs.filter(input=>input.checked);
+          helperCount.textContent=selected.length
+            ? (existingHelperId?'1 regular helper · locked':'1 helper selected · save to pair')
+            : 'No regular helper selected';
+          if(!selected.length)return;
+          helperInputs.forEach(input=>{
+            input.disabled=true;
+            const option=input.closest('.driver-auth-option');
+            option?.classList.add('is-locked');
+            if(input.checked){
+              const status=option?.querySelector('.driver-auth-option-status');
+              if(status){status.className='driver-auth-option-status is-selected';
+                status.textContent=existingHelperId?'Assigned · Locked':'Selected · Locked';}
+            }
+          });
+        };
+        helperInputs.forEach(input=>input.addEventListener('change',()=>{
+          if(input.checked)lockHelpers();
+        }));
+        helperSearch.addEventListener('input',refreshHelpers);
+        lockHelpers();refreshHelpers();
         form.addEventListener('submit',event=>{
           if(inputs.some(input=>input.checked))return;
           event.preventDefault();event.stopImmediatePropagation();

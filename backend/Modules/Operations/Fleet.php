@@ -87,7 +87,9 @@ final class Fleet {
             $data['attendanceContext'] = $shift;
             $data = mergeSections($data, [
                 'assignmentTrucks' => fn() => many($p, 'SELECT v.id,v.plate_number,v.truck_number,v.truck_type,v.assigned_driver_id,v.assigned_helper_id, (SELECT GROUP_CONCAT(DISTINCT a.driver_id ORDER BY a.driver_id) FROM driver_truck_authorizations a WHERE a.vehicle_id=v.id) AS authorized_driver_ids FROM vehicles v WHERE v.active=1 ORDER BY v.plate_number'),
-                'assignmentHelpers' => fn() => many($p, "SELECT id,full_name FROM personnel WHERE active=1 AND person_type='Helper' ORDER BY full_name"),
+                'assignmentHelpers' => fn() => many($p, "SELECT pe.id,pe.full_name,pe.employee_no,
+                    (SELECT MIN(v.id) FROM vehicles v WHERE v.active=1 AND v.assigned_helper_id=pe.id) AS assigned_vehicle_id
+                    FROM personnel pe WHERE pe.active=1 AND pe.person_type='Helper' ORDER BY pe.full_name"),
             ]);
             $data = mergeSections($data, [
                 'attendance' => fn() => many($p, "SELECT personnel_id, IF(time_out IS NULL, 'Timed In', 'Timed Out') AS status FROM dispatcher_attendance_sessions s WHERE id=(SELECT MAX(x.id) FROM dispatcher_attendance_sessions x WHERE x.personnel_id=s.personnel_id)", []),
@@ -404,6 +406,38 @@ final class Fleet {
             'Driver-specific truck permissions', ['Truck IDs'=>implode(',',$previous)],['Truck IDs'=>implode(',',$ids)]);
     }
 
+
+    /** Attach one regular helper to the driver's authorized truck, without altering trip assignments. */
+    private static function saveDriverRegularHelper(PDO $p, array $u, int $driverId, $raw): void {
+        $helperId=$raw===null||$raw===''?null:(ctype_digit((string)$raw)?(int)$raw:0);
+        must($helperId===null||$helperId>0,'Invalid regular helper.',422);
+        $truckIds=array_map('intval',array_column(many($p,
+            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? ORDER BY vehicle_id',[$driverId]),'vehicle_id'));
+        must(count($truckIds)===1||$helperId===null,
+            'Cannot pair a regular helper while this driver has multiple legacy trucks.',409);
+        if(count($truckIds)!==1)return;
+        $truckId=$truckIds[0];
+        $truck=one($p,'SELECT id,assigned_helper_id FROM vehicles WHERE id=? AND active=1 FOR UPDATE',[$truckId]);
+        must((bool)$truck,'Authorized truck is unavailable. Refresh the form.',409);
+        $current=(int)($truck['assigned_helper_id']??0);
+        if($current){
+            must($helperId===$current,'Regular helper is locked. Contact an administrator for reassignment.',409);
+            return;
+        }
+        if($helperId===null)return; // A driver can be saved before an unassigned helper becomes available.
+        $helper=one($p,"SELECT id FROM personnel WHERE id=? AND person_type='Helper' AND active=1 FOR UPDATE",[$helperId]);
+        must((bool)$helper,'Selected helper is unavailable. Refresh the form.',409);
+        $claimed=one($p,'SELECT id FROM vehicles WHERE active=1 AND assigned_helper_id=? AND id<>? LIMIT 1',
+            [$helperId,$truckId]);
+        must(!$claimed,'This helper is already assigned to another truck.',409);
+        run($p,'UPDATE vehicles SET assigned_helper_id=? WHERE id=? AND assigned_helper_id IS NULL',[$helperId,$truckId]);
+        $saved=one($p,'SELECT assigned_helper_id FROM vehicles WHERE id=?',[$truckId]);
+        must((int)($saved['assigned_helper_id']??0)===$helperId,
+            'Helper was assigned while saving. Refresh the form.',409);
+        auditWithChanges($p,$u['id'],'Fleet','vehicle '.$truckId,'regular helper assigned',
+            'Driver regular crew pairing',['Helper'=>'Unassigned'],['Helper ID'=>$helperId]);
+    }
+
     private static function crewSave(array $u, array $d): array {
         requireRole($u, ...self::EDIT);
         $id = optId($d, 'id');
@@ -441,6 +475,8 @@ final class Fleet {
                 run($p, "UPDATE personnel SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
                 if ($row['person_type'] === 'Driver' && array_key_exists('authorized_vehicle_ids', $d))
                     self::saveDriverTruckAuthorizations($p,$u,$id,$d['authorized_vehicle_ids']);
+                if ($row['person_type'] === 'Driver' && array_key_exists('regular_helper_id', $d))
+                    self::saveDriverRegularHelper($p,$u,$id,$d['regular_helper_id']);
                 elseif ($row['person_type'] === 'Driver' && array_key_exists('fixed_truck_id', $d))
                     FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
                 auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper updated', $row['full_name'],
@@ -450,6 +486,8 @@ final class Fleet {
             $id = insert($p, 'personnel', $row);
             if ($row['person_type'] === 'Driver' && array_key_exists('authorized_vehicle_ids',$d))
                 self::saveDriverTruckAuthorizations($p,$u,$id,$d['authorized_vehicle_ids']);
+            if ($row['person_type'] === 'Driver' && array_key_exists('regular_helper_id',$d))
+                self::saveDriverRegularHelper($p,$u,$id,$d['regular_helper_id']);
             elseif ($row['person_type'] === 'Driver' && hasRole($u,'operations_head'))
                 FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
             auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper added', $row['full_name'] . ' (' . $row['person_type'] . ')',
