@@ -150,7 +150,7 @@ const OpsHead = {
         {label:'Pending Arrival Inspections',value:d.opsSummary?.arrival ?? 0,color:'blue'},
       ])
       + RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],tab,'data-trip-view')
-      + (history ? '<p class="record-workspace-help"><a href="#trips?tab=history&legacy=1">Historical Trip Requests (read-only)</a></p>' : '')
+      + (history ? '<p class="record-workspace-help"><a href="#trips?tab=history&legacy=1">Historical Trip Requests</a></p>' : '')
       + (q.group && !history ? '<p class="record-workspace-help">Monitoring group: <b>' + UI.esc(q.group) + '</b> · <a href="#trips?tab=active">Clear group</a></p>' : '')
       + RecordComponents.panel(table) + '</div>';
     UI.activate(ctx.el);
