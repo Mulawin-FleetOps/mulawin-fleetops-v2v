@@ -40,11 +40,11 @@ final class DispatcherScope {
         must(self::truckAuthorizationsReady($p),
             'Install the additive dispatcher truck authorization migration before assigning trucks.', 409);
     }
-    public static function authorizedTruckIds(PDO $p, array $u): array {
+    public static function authorizedTruckIds(PDO $p, array $u, bool $lock = false): array {
         self::types($u);
         self::requireTruckAuthorizations($p);
         return array_map('intval', array_column(many($p,
-            'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? ORDER BY vehicle_id', [(int)$u['id']]), 'vehicle_id'));
+            'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? ORDER BY vehicle_id' . ($lock ? ' FOR UPDATE' : ''), [(int)$u['id']]), 'vehicle_id'));
     }
     public static function truck(PDO $p, array $u, int $id): array {
         $types = self::types($u); $marks = implode(',', array_fill(0,count($types),'?'));
