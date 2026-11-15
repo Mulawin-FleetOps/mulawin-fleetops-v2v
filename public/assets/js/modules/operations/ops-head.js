@@ -171,6 +171,7 @@ const OpsHead = {
     const tbody=ctx.el.querySelector('[data-tbody]');
     const state=tbody?UI._tables[tbody.dataset.tbody]:null;
     const initial=state?state.rows.slice():[];
+    const tripGrouping=RecordComponents.mountTripGrouping(ctx.el,tbody?.dataset.tbody,'client');
     RecordComponents.bindDropdowns(ctx.el,{
       apply(panel){
         const next={...q,tab};
@@ -196,7 +197,8 @@ const OpsHead = {
           ordered.sort((a,b)=>key==='newest'?timestamp(b)-timestamp(a):timestamp(a)-timestamp(b));
         } else if(key==='client'||key==='status')ordered.sort((a,b)=>
           String(a[key]||'').localeCompare(String(b[key]||''),undefined,{numeric:true}));
-        state.rows=ordered;state.page=0;UI.drawTable(tbody.dataset.tbody);
+        if(tripGrouping) tripGrouping.setRows(ordered);
+        else {state.rows=ordered;state.page=0;UI.drawTable(tbody.dataset.tbody);}
       },
     },{filter:'trip-filter-panel',sort:'trip-sort-panel'});
     if (legacyOpenPlanner) this.openTripPlanner(ctx);

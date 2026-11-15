@@ -5,6 +5,121 @@
 'use strict';
 
 const RecordComponents = Object.freeze({
+  // Shared client-grouped trip table: presentation only; original rows/actions remain.
+  clientTripSort(rows,key='client') {
+    return rows.map((row,i)=>({row,i})).sort((a,b)=>
+      String(a.row[key]||'Unspecified client').localeCompare(String(b.row[key]||'Unspecified client'),undefined,{numeric:true,sensitivity:'base'})||a.i-b.i).map(x=>x.row);
+  },
+  tripGroupControls() {
+    return '<div class="record-client-group-switch" role="group" aria-label="Trip display">'
+      +'<button type="button" class="active" aria-pressed="true" data-trip-group-mode="grouped"><i class="bi bi-collection" aria-hidden="true"></i> Grouped</button>'
+      +'<button type="button" aria-pressed="false" data-trip-group-mode="all">All Trips</button></div>';
+  },
+  bindTripGroupControls(root,change) {
+    root.querySelectorAll('[data-trip-group-mode]').forEach(button=>button.addEventListener('click',()=>{
+      const grouped=button.dataset.tripGroupMode==='grouped';
+      root.querySelectorAll('[data-trip-group-mode]').forEach(other=>{
+        const selected=other===button;
+        other.classList.toggle('active',selected);
+        other.setAttribute('aria-pressed',String(selected));
+      });
+      change(grouped);
+    }));
+  },
+  decorateTripGroups(box,shown,all,key='client',collapsed=new Set(),searching=false) {
+    const body=box?.querySelector('tbody');
+    if(!body||!shown.length)return;
+    const rows=[...body.querySelectorAll(':scope > tr[data-ri], :scope > tr[data-client-trip-row]')];
+    if(rows.length!==shown.length)return;
+    const counts=new Map();
+    all.forEach(t=>{
+      const name=String(t[key]||'Unspecified client').trim()||'Unspecified client';
+      counts.set(name,(counts.get(name)||0)+1);
+    });
+    const columns=box.querySelectorAll('thead th').length||5;
+    let prior=null;
+    shown.forEach((trip,i)=>{
+      const name=String(trip[key]||'Unspecified client').trim()||'Unspecified client';
+      const row=rows[i];
+      row.dataset.clientTripRow='1';
+      row.dataset.tripClientName=name;
+      row.hidden=!searching&&collapsed.has(name);
+      if(name===prior)return;
+      const group=document.createElement('tr');
+      group.className='record-client-group-header';
+      const cell=document.createElement('td');
+      cell.colSpan=columns;
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='record-client-group-toggle';
+      button.dataset.tripClientGroup=name;
+      button.setAttribute('aria-expanded',String(!row.hidden));
+      button.setAttribute('aria-label',(row.hidden?'Expand ':'Collapse ')+name+' trips');
+      const label=document.createElement('strong');
+      label.textContent=name;
+      const count=document.createElement('span');
+      const n=counts.get(name)||1;
+      count.textContent=n+' trip'+(n===1?'':'s');
+      const icon=document.createElement('i');
+      icon.className='bi bi-chevron-down';
+      icon.setAttribute('aria-hidden','true');
+      button.append(icon,label,count);
+      cell.append(button);
+      group.append(cell);
+      row.before(group);
+      prior=name;
+    });
+  },
+  mountTripGrouping(root,id,key='client') {
+    const state=UI._tables[id],box=root.querySelector('[data-tbody="'+id+'"]');
+    const row=root.querySelector('.record-workspace-category-row');
+    if(!state||!box||!row)return null;
+    row.insertAdjacentHTML('beforeend',this.tripGroupControls());
+    let grouped=true,flat=state.rows.slice();
+    const collapsed=new Set();
+    const decorate=()=>{
+      if(!grouped)return;
+      const all=UI.tableRows(id);
+      const shown=all.slice(state.page*state.limit,(state.page+1)*state.limit);
+      this.decorateTripGroups(box,shown,all,key,collapsed,!!root.querySelector('[data-tsearch]')?.value.trim());
+    };
+    const observer=new MutationObserver(()=>{
+      if(!root.isConnected){observer.disconnect();return;}
+      decorate();
+    });
+    observer.observe(box,{childList:true});
+    box.addEventListener('click',event=>{
+      const button=event.target.closest('[data-trip-client-group]');
+      if(!button)return;
+      const name=button.dataset.tripClientGroup;
+      if(collapsed.has(name))collapsed.delete(name);else collapsed.add(name);
+      box.querySelectorAll('[data-trip-client-group]').forEach(b=>{
+        if(b.dataset.tripClientGroup===name)b.setAttribute('aria-expanded',String(!collapsed.has(name)));
+      });
+      box.querySelectorAll('[data-client-trip-row]').forEach(tr=>{
+        if(tr.dataset.tripClientName===name)tr.hidden=collapsed.has(name);
+      });
+    });
+    const controller={
+      isGrouped:()=>grouped,
+      setRows(rows){
+        flat=rows.slice();
+        state.rows=grouped?RecordComponents.clientTripSort(flat,key):flat.slice();
+        state.page=0;
+        UI.drawTable(id);
+      }
+    };
+    this.bindTripGroupControls(row,value=>{
+      grouped=value;
+      collapsed.clear();
+      state.rows=grouped?this.clientTripSort(flat,key):flat.slice();
+      state.page=0;
+      UI.drawTable(id);
+    });
+    controller.setRows(flat);
+    return controller;
+  },
+
   kpis(items) {
     return '<div class="record-workspace-kpis">' + UI.statusStrip(items) + '</div>';
   },

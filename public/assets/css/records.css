@@ -984,6 +984,27 @@
   .app-drawer:has(.head-trip-detail) .offcanvas-body{padding:12px}
 }
 
+/* Client-grouped trip records: shared across executive, operations and dispatch. */
+.record-workspace-category-row:has(.record-client-group-switch){flex-wrap:wrap}
+.record-client-group-switch{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;margin-left:auto;padding:3px;border:1px solid #d8e6dc;background:#f5faf6;border-radius:9px}
+.record-client-group-switch button{display:inline-flex;align-items:center;gap:6px;justify-content:center;min-height:32px;padding:6px 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:#456b50;font-size:12px;font-weight:650;cursor:pointer}
+.record-client-group-switch button:hover{background:#e7f3ea}
+.record-client-group-switch button.active{background:#22764b;color:#fff}
+.record-client-group-switch button:focus-visible,.record-client-group-toggle:focus-visible{outline:2px solid #278854;outline-offset:2px}
+.data-table tbody .record-client-group-header td{padding:0!important;background:#edf6f0!important;border-top:1px solid #d6e7da;border-bottom:1px solid #d6e7da;white-space:normal}
+.record-client-group-toggle{display:flex;width:100%;min-height:48px;align-items:center;gap:11px;padding:11px 18px;background:transparent;border:0;text-align:left;color:#225137;cursor:pointer}
+.record-client-group-toggle:hover{background:#e2f1e6}
+.record-client-group-toggle strong{font-size:13px;font-weight:750;overflow-wrap:anywhere}
+.record-client-group-toggle span{margin-left:auto;flex:none;border-radius:12px;padding:4px 9px;color:#476c54;background:#fff;border:1px solid #d5e6da;font-size:11px;font-weight:650}
+.record-client-group-toggle .bi{transition:transform .15s;color:#327349}
+.record-client-group-toggle[aria-expanded="false"] .bi{transform:rotate(-90deg)}
+.data-table tbody tr[data-client-trip-row][hidden]{display:none!important}
+@media(max-width:620px){
+  .record-client-group-switch{width:100%;margin-left:0}
+  .record-client-group-switch button{flex:1}
+  .record-client-group-toggle{padding:10px 12px}
+}
+
 /* Fuel & Operating Costs: three equally weighted price status cards. */
 .head-fuel-diesel-content .head-fuel-price-grid{
   grid-template-columns:repeat(3,minmax(0,1fr));

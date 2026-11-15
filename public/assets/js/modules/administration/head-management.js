@@ -151,7 +151,7 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false, groupTrips=false} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
     const hasFilters=filters.length>0;
@@ -197,7 +197,7 @@ const HeadRecords = {
     const tableState=UI._tables[id],original=rows.slice();
     const search=root.querySelector('[data-tsearch]');
     const filterInputs=[...root.querySelectorAll('[data-head-record-filter]')];
-    let sort='default',filtered=rows.slice();
+    let sort='default',filtered=rows.slice(),tripGrouping=null;
     // Shared search can include extra underlying row properties without exposing columns.
     const matched=row=>{
       const q=search?.value.trim().toLocaleLowerCase()||'';
@@ -215,10 +215,9 @@ const HeadRecords = {
             *String(a[key]??'').localeCompare(String(b[key]??''),undefined,{numeric:true}));
         }
       }
-      tableState.rows=filtered;
       tableState.filter='';
-      tableState.page=0;
-      UI.drawTable(id);
+      if(tripGrouping) tripGrouping.setRows(filtered);
+      else {tableState.rows=filtered;tableState.page=0;UI.drawTable(id);}
       HeadOversight.finishTable(root);
     };
     // UI.activate bound its search listener already; register after it so the
@@ -233,6 +232,7 @@ const HeadRecords = {
     root.querySelectorAll('[data-head-record-category]').forEach(button=>
       button.addEventListener('click',()=>config.changeCategory?.(button.dataset.headRecordCategory)));
     HeadOversight.finishTable(root);
+    if(groupTrips) tripGrouping=RecordComponents.mountTripGrouping(root,id,'client');
   }
 };
 
@@ -537,6 +537,7 @@ const HeadTripsUI = {
       HeadRecords.render(root,{
         title:'Company Trip Records',categories:tabItems,selected:tab.value,
         columns:cols,rows:tab.rows,empty:tab.empty,filters,
+        groupTrips:!isIncident,
         searchFields:isIncident?[]:['client','delivery_point','plate_number','driver_name','helper_name','dispatcher_name'],
         onAction:(_,row)=>HeadTripsUI.details(isIncident?row.trip_id:row.id),
         rowClick:row=>HeadTripsUI.details(isIncident?row.trip_id:row.id),

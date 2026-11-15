@@ -80,7 +80,7 @@ const DispatcherMonitorUI = {
       +'<input data-monitor-search aria-label="Search monitored trips" class="form-control" type="search"'
       +' value="'+UI.esc(q.search||'')+'" placeholder="Search trip, client, route or truck"></div>'
       +controls+'</div>'
-      +'<div class="record-workspace-category-row oh-dispatch-view-row">'+tripViews+clearGroup+'</div>'
+      +'<div class="record-workspace-category-row oh-dispatch-view-row">'+tripViews+clearGroup+RecordComponents.tripGroupControls()+'</div>'
       +'<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr><th>Trip / Client</th><th>Route / Truck</th><th>'
       +(history?'Completion / Closure':'Scheduled Dispatch')
       +'</th><th>Status</th><th>Action</th></tr></thead><tbody data-monitor-tbody>'
@@ -105,7 +105,36 @@ const DispatcherMonitorUI = {
     }));
     root.querySelector('[data-monitor-prev]')?.addEventListener('click',()=>App.go('dispatcher-monitoring',{...q,trip_page:d.page-1}));
     root.querySelector('[data-monitor-next]')?.addEventListener('click',()=>App.go('dispatcher-monitoring',{...q,trip_page:d.page+1}));
-    root.querySelectorAll('[data-monitor-trip]').forEach(button=>button.addEventListener('click',()=>this.details(button.dataset.monitorTrip,groups)));
+    let tripSort='default',grouped=true;const collapsed=new Set();
+    const displayRows=()=>{
+      const ordered=originalRows.slice();
+      if(tripSort==='newest'||tripSort==='oldest')
+        ordered.sort((a,b)=>tripSort==='newest'?String(b.scheduled_at||'').localeCompare(String(a.scheduled_at||'')):String(a.scheduled_at||'').localeCompare(String(b.scheduled_at||'')));
+      else if(tripSort==='client'||tripSort==='status')
+        ordered.sort((a,b)=>String(a[tripSort]||'').localeCompare(String(b[tripSort]||''),undefined,{numeric:true}));
+      const shown=grouped?RecordComponents.clientTripSort(ordered,'client'):ordered;
+      const tbody=root.querySelector('[data-monitor-tbody]');
+      tbody.innerHTML=shown.map(rowHTML).join('')||'<tr><td colspan="5" class="table-empty">No trips match these filters.</td></tr>';
+      tbody.querySelectorAll('[data-monitor-trip]').forEach(button=>button.addEventListener('click',()=>this.details(button.dataset.monitorTrip,groups)));
+      if(grouped){
+        tbody.querySelectorAll('tr[data-monitor-row]').forEach(row=>row.dataset.clientTripRow='1');
+        RecordComponents.decorateTripGroups(tbody.closest('table'),shown,shown,'client',collapsed,!!q.search);
+      }
+    };
+    displayRows();
+    RecordComponents.bindTripGroupControls(root,value=>{grouped=value;collapsed.clear();displayRows();});
+    root.querySelector('[data-monitor-tbody]').addEventListener('click',event=>{
+      const button=event.target.closest('[data-trip-client-group]');
+      if(!button)return;
+      const name=button.dataset.tripClientGroup;
+      if(collapsed.has(name))collapsed.delete(name);else collapsed.add(name);
+      root.querySelectorAll('[data-trip-client-group]').forEach(other=>{
+        if(other.dataset.tripClientGroup===name)other.setAttribute('aria-expanded',String(!collapsed.has(name)));
+      });
+      root.querySelectorAll('[data-client-trip-row]').forEach(row=>{
+        if(row.dataset.tripClientName===name)row.hidden=collapsed.has(name);
+      });
+    });
     const search=root.querySelector('[data-monitor-search]');
     const doSearch=()=>{const value=search.value.trim();if(value===(q.search||''))return;const next={...q,trip_page:1};if(value)next.search=value;else delete next.search;App.go('dispatcher-monitoring',next);};
     search.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSearch();}});
@@ -113,7 +142,7 @@ const DispatcherMonitorUI = {
     RecordComponents.bindDropdowns(root,{
       apply(panel){const next={...q,tab:d.tab,trip_page:1};for(const key of ['group','shift','status','from','to']){const value=panel.querySelector('[name="'+key+'"]')?.value||'';if(value)next[key]=value;else delete next[key];}if(next.from&&next.to&&next.from>next.to){UI.toast('End date must be on or after start date.','error');return;}App.go('dispatcher-monitoring',next);},
       reset(){const next={...q,tab:d.tab,trip_page:1};for(const key of ['group','shift','status','from','to'])delete next[key];App.go('dispatcher-monitoring',next);},
-      sort(key){const tbody=root.querySelector('[data-monitor-tbody]');const ordered=originalRows.slice();if(key==='newest'||key==='oldest')ordered.sort((a,b)=>key==='newest'?String(b.scheduled_at||'').localeCompare(String(a.scheduled_at||'')):String(a.scheduled_at||'').localeCompare(String(b.scheduled_at||'')));else if(key==='client'||key==='status')ordered.sort((a,b)=>String(a[key]||'').localeCompare(String(b[key]||''),undefined,{numeric:true}));tbody.innerHTML=ordered.map(rowHTML).join('');tbody.querySelectorAll('[data-monitor-trip]').forEach(button=>button.addEventListener('click',()=>DispatcherMonitorUI.details(button.dataset.monitorTrip,groups)));}
+      sort(key){tripSort=key;collapsed.clear();displayRows();}
     },{filter:'monitor-filter-panel',sort:'monitor-sort-panel'});
   }
 };

@@ -336,7 +336,7 @@ const DispatcherUI = {
       '<div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2>'
       +'<p class="record-workspace-count" data-trip-record-count></p></div></div>'
       +'<div class="record-workspace-search">'+searchToolbar+'</div>'
-      +'<div class="record-workspace-category-row record-workspace-view-tabs">'+views+'</div>'
+      +'<div class="record-workspace-category-row record-workspace-view-tabs">'+views+RecordComponents.tripGroupControls()+'</div>'
       +'<section aria-label="Trip records" data-trip-records></section>')+'</div>';
     ctx.el.querySelector('.record-workspace-panel')?.classList.add('oh-dispatch-records');
     const searchForm=ctx.el.querySelector('[data-dispatch-trip-search]');
@@ -375,17 +375,37 @@ const DispatcherUI = {
       const left=String(a.scheduled_at||''),right=String(b.scheduled_at||'');
       return q.sort==='earliest'?left.localeCompare(right):right.localeCompare(left);
     });
-    let page=0;const pageSize=10;const draw=()=>{
+    let page=0,grouped=true;const collapsed=new Set();
+    const pageSize=10;const draw=()=>{
+      const displayed=grouped?RecordComponents.clientTripSort(filtered,'client'):filtered;
       const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.min(page,pages-1);
       ctx.el.querySelector('[data-trip-record-count]').textContent=filtered.length+' matching record'+(filtered.length===1?'':'s');
-      box.innerHTML=this.tripTable(filtered.slice(page*pageSize,(page+1)*pageSize),history)
+      const shown=displayed.slice(page*pageSize,(page+1)*pageSize);
+      box.innerHTML=this.tripTable(shown,history)
         +'<div class="table-pager oh-dispatch-pager">'
         +UI.recordPager({total:filtered.length,page:page+1,pages,pageSize,note:history?'Up to 1,000 records loaded':''})
         +'</div>';
       box.querySelector('[data-prev]').onclick=()=>{page--;draw();};
       box.querySelector('[data-next]').onclick=()=>{page++;draw();};
       this.bindTrips(box);
+      if(grouped){
+        box.querySelectorAll('tbody tr').forEach(row=>row.dataset.clientTripRow='1');
+        RecordComponents.decorateTripGroups(box,shown,displayed,'client',collapsed,!!search);
+      }
     };draw();
+    RecordComponents.bindTripGroupControls(ctx.el,value=>{grouped=value;page=0;collapsed.clear();draw();});
+    box.addEventListener('click',event=>{
+      const button=event.target.closest('[data-trip-client-group]');
+      if(!button)return;
+      const name=button.dataset.tripClientGroup;
+      if(collapsed.has(name))collapsed.delete(name);else collapsed.add(name);
+      box.querySelectorAll('[data-trip-client-group]').forEach(control=>{
+        if(control.dataset.tripClientGroup===name)control.setAttribute('aria-expanded',String(!collapsed.has(name)));
+      });
+      box.querySelectorAll('[data-client-trip-row]').forEach(row=>{
+        if(row.dataset.tripClientName===name)row.hidden=collapsed.has(name);
+      });
+    });
     if(q.open)TripUI.open(UI.takeQuery(ctx,'open').open);
   },
   requests(ctx) {
