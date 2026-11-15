@@ -1,6 +1,12 @@
 /* Explicit, account-addressed turnover inside the existing Trips/monitoring workflows. */
 'use strict';
 const DispatcherTurnoverUI={
+  accountTypes(u){
+    let types=[];try{types=JSON.parse(u.dispatcher_truck_types||'null')||[];}catch{}
+    if(Array.isArray(types)&&types.length)return types;
+    return u.dispatcher_truck_type?[u.dispatcher_truck_type]:
+      (u.role==='car_carrier_dispatcher'?['Car Carrier']:['Container','Wing Van']);
+  },
   async open(view='all'){
     try{
       const d=await App.api('Trips.turnover_list',{}),ops=UI.role('operations_head');
@@ -16,7 +22,7 @@ const DispatcherTurnoverUI={
           {name:'dispatcher_id',label:'Responsible Account',type:'select',required:true,options:d.accounts.map(u=>[u.id,u.full_name+' - '+(App.me.roles?.[u.role]||u.role)+' / '+(u.shift||'Unspecified')]),col:12}
         ],'Trips.turnover_assign_initial',{after:()=>{this.open();App.route();},intro:'Choose an active account in the trip truck group. Initial assignment cannot overwrite an existing owner.'});
         const trip=form.querySelector('[name=trip_id]'),account=form.querySelector('[name=dispatcher_id]');
-        const update=()=>{const selected=d.unowned.find(t=>String(t.id)===trip.value);[...account.options].forEach(o=>{const u=d.accounts.find(a=>String(a.id)===o.value);o.disabled=!!u&&!!selected&&u.role!==selected.dispatcher_role;});if(account.selectedOptions[0]?.disabled)account.value='';};trip.onchange=update;update();
+        const update=()=>{const selected=d.unowned.find(t=>String(t.id)===trip.value);[...account.options].forEach(o=>{const u=d.accounts.find(a=>String(a.id)===o.value);o.disabled=!!u&&!!selected&&!this.accountTypes(u).includes(selected.truck_type);});if(account.selectedOptions[0]?.disabled)account.value='';};trip.onchange=update;update();
       };
       else {el.querySelector('[data-endorse]').onclick=()=>this.preview(d.accounts);el.querySelector('[data-incoming]').onclick=()=>this.open('incoming');el.querySelector('[data-all-turnovers]').onclick=()=>this.open();}
     }catch(error){UI.toast(error.message,'error');}
@@ -36,7 +42,7 @@ const DispatcherTurnoverUI={
     try{
       const d=await App.api('Trips.turnover_preview',{trip_ids:tripIds}),el=UI.drawer('Review Selected Trips',this.records(d.rows)+'<button class="btn btn-primary mt-3" data-confirm-selected>Endorse Turnover</button>');
       el.querySelector('[data-confirm-selected]').onclick=()=>UI.formModal('Endorse Selected Trips',[
-        {name:'incoming_id',label:'Incoming Dispatcher',type:'select',required:true,options:accounts.filter(u=>+u.id!==+App.me.user.id&&u.role===App.me.user.role).map(u=>[u.id,u.full_name+' / '+(u.shift||'Unspecified')]),col:12},
+        {name:'incoming_id',label:'Incoming Dispatcher',type:'select',required:true,options:accounts.filter(u=>+u.id!==+App.me.user.id&&d.rows.every(t=>this.accountTypes(u).includes(t.truck_type))).map(u=>[u.id,u.full_name+' / '+(u.shift||'Unspecified')]),col:12},
         {name:'remarks',label:'Turnover Remarks',type:'textarea',col:12}
       ],'Trips.turnover_endorse',{extra:{trip_ids:d.rows.map(t=>+t.id),fingerprint:d.fingerprint,request_key:UI.uuid()},after:()=>this.open(),intro:'Only these '+d.rows.length+' selected trip(s) will be endorsed: '+d.rows.map(t=>t.trip_ref).join(', ')+'. You retain responsibility until the named recipient accepts.'});
     }catch(error){UI.toast(error.message,'error');}
