@@ -19,12 +19,9 @@ final class DispatcherResources {
             $eligible[(int)$pe['id']]=['id'=>(int)$pe['id'],'name'=>$pe['full_name'],'shift_warning'=>$check['issue']];
             $out[$pe['person_type']==='Driver'?'second_drivers':'helpers'][]=$eligible[(int)$pe['id']];
         }
-        $authorized = DispatcherScope::authorizedTruckIds($p, $u, $lock);
-        if (!$authorized) return $out;
-        $truckMarks = implode(',', array_fill(0, count($authorized), '?'));
         $vehicles=many($p,"SELECT v.id,v.plate_number,v.assigned_driver_id,v.assigned_helper_id,
             (SELECT COUNT(*) FROM trips x WHERE x.vehicle_id=v.id AND x.status='Completed' AND x.completed_at>=DATE_SUB(NOW(),INTERVAL 30 DAY)) AS recent
-            FROM vehicles v WHERE v.active=1 AND v.id IN ($truckMarks) AND v.truck_type=? AND (v.status='Available' OR (v.status='Assigned' AND EXISTS(SELECT 1 FROM trip_assignments own WHERE own.resource_type='vehicle' AND own.resource_id=v.id AND own.trip_id=?))) ORDER BY recent,v.id".($lock?' FOR UPDATE':''),[...$authorized,$t['truck_type'],$t['id']]);
+            FROM vehicles v WHERE v.active=1 AND v.truck_type=? AND (v.status='Available' OR (v.status='Assigned' AND EXISTS(SELECT 1 FROM trip_assignments own WHERE own.resource_type='vehicle' AND own.resource_id=v.id AND own.trip_id=?))) ORDER BY recent,v.id".($lock?' FOR UPDATE':''),[$t['truck_type'],$t['id']]);
         foreach($vehicles as $v){$pid=(int)$v['assigned_driver_id'];
             if(!isset($eligible[$pid])||!in_array($pid,array_column($out['second_drivers'],'id'),true)||FleetState::truckBlocker($p,(int)$v['id'],(int)$t['id']))continue;
             $links=(int)one($p,'SELECT COUNT(*) AS n FROM vehicles WHERE active=1 AND assigned_driver_id=?',[$pid])['n'];
