@@ -369,22 +369,50 @@ const App = {
                 <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>`;
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
-      nav = ws.groups.map((g,i)=>UI.sidebarGroup({
-        title:g.title,
-        icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
-        items:g.items.map(wsLink).join('')
-      })).join('');
+      if (u.role === 'motorpool') {
+        // Same navigation pattern as Head Management: direct Overview,
+        // categorized accordion groups, and icon-only collapsed flyouts.
+        // Only use the existing authorized Motorpool menu items.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['maintenance_overview']).map(wsLink).join('');
+        const groups = [
+          { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
+          { title:'Workforce', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
+          { title:'Records & Reports', icon:'bi-journal-text', ids:['maint_history','maintenance_reports'] }
+        ];
+        nav += groups.map(group => {
+          const entries = take(group.ids);
+          return entries.length ? UI.sidebarGroup({
+            title:group.title, icon:group.icon,
+            items:entries.map(wsLink).join('')
+          }) : '';
+        }).join('');
+        const remaining = items.filter(n => !shown.has(n.id));
+        if (remaining.length) nav += UI.sidebarGroup({
+          title:'Other Tools', icon:'bi-grid-3x3-gap',
+          items:remaining.map(wsLink).join('')
+        });
+      } else {
+        nav = ws.groups.map((g,i)=>UI.sidebarGroup({
+          title:g.title,
+          icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
+          items:g.items.map(wsLink).join('')
+        })).join('');
+      }
     }
     // UI CORRECTION: account controls stay in the top bar for every role; the workspace sidebar is navigation only.
     const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
-    const executiveSidebar = ['admin','operations_head'].includes(u.role);
+    const executiveSidebar = ['admin','operations_head','motorpool'].includes(u.role);
     const collapseKey = executiveSidebar ? 'executive-sidebar-collapsed-' + u.role : 'ws-sidebar-collapsed';
     let collapsed = false;
     try { collapsed = (!!ws || executiveSidebar) && localStorage.getItem(collapseKey) === '1'; } catch { /* storage unavailable */ }
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
           ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${collapsed ? 'Expand' : 'Collapse'} the menu" title="${collapsed ? 'Expand' : 'Collapse'} the menu" aria-pressed="${collapsed}"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
@@ -445,7 +473,7 @@ const App = {
     });
     // In compact workspace mode a group icon expands the sidebar before opening
     // its links; do not create duplicate flyouts or change route permissions.
-    if (ws) sb.querySelector('.sidebar-nav')?.addEventListener('click', event => {
+    if (ws && !executiveSidebar) sb.querySelector('.sidebar-nav')?.addEventListener('click', event => {
       const summary=event.target.closest('.head-nav-group > summary');
       const shell=document.getElementById('appShell');
       if (!summary||!shell?.classList.contains('sb-collapsed')
