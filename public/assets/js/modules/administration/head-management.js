@@ -372,7 +372,10 @@ const HeadTripsUI = {
     if (Number(trip.pending_archival)) issues.push('Pending archival');
     if (Number(trip.open_incidents) > 0) issues.push(trip.open_incidents + ' open incident(s)');
     if (['For Reschedule', 'On Hold - Incident Reported'].includes(trip.status)) issues.push(trip.status);
-    return issues.length ? issues.map(v => UI.badge(v)).join(' ') : '—';
+    if (!issues.length) return '';
+    const description = UI.esc(issues.join(' · '));
+    return '<span class="text-warning" role="img" aria-label="Trip issues: '+description+'" title="'+description+'">'
+      + '<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i></span>';
   },
   // Compact activity entries keep every original field without a wide table in the drawer.
   activitySection(title, rows, empty, render, expanded = false) {
@@ -455,8 +458,8 @@ const HeadTripsUI = {
       ['Trip / Client','trip_ref',(value,row)=>'<strong>'+UI.esc(value||'—')+'</strong><div class="cell-sub">'+UI.esc(row.client||'—')+'</div>'],
       ['Route / Truck','pickup_point',(value,row)=>'<strong>'+UI.esc(value||'—')+'</strong> → '+UI.esc(row.delivery_point||'—')+'<div class="cell-sub">'+UI.esc(row.plate_number||'—')+'</div>'],
       ['Scheduled Dispatch','scheduled_at','datetime'],
-      ['Status','status','badge'],
-      ['Issues','_issues',(_,row)=>HeadTripsUI.issue(row)]
+      ['Status','status',(value,row)=>'<span class="d-inline-flex align-items-center gap-2 flex-wrap">'
+        + UI.badge(value) + HeadTripsUI.issue(row) + '</span>']
     ];
   },
   /** Only rows already visible in a monitoring tab are exported. No server writes. */
