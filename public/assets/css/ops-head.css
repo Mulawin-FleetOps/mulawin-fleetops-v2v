@@ -1091,3 +1091,114 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
   .oh-trip-planner-modal .oh-review-route-facts{grid-template-columns:1fr}
   .oh-trip-planner-modal .oh-review-trip-list-head{flex-wrap:wrap}
 }
+
+
+/* Trip Details v2: summary-first drawer with five focused groups. */
+.oh-trip-drawer .offcanvas-body{
+  padding:18px 20px 24px;
+  background:#f8fbf9;
+}
+.oh-trip-drawer .oh-trip-quick-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:14px;
+}
+.oh-trip-drawer .oh-trip-quick-card{
+  display:flex;flex-direction:column;justify-content:flex-start;
+  gap:6px;min-width:0;padding:15px;
+  border:1px solid #dce8df;border-radius:12px;background:#fff;
+}
+.oh-trip-drawer .oh-trip-quick-label{
+  display:flex;align-items:center;gap:7px;
+  color:#668071;font-size:11.5px;font-weight:650;
+}
+.oh-trip-drawer .oh-trip-quick-label .bi{color:#328052;font-size:14px}
+.oh-trip-drawer .oh-trip-quick-card strong{
+  font-size:12.5px;line-height:1.55;font-weight:700;
+  color:#254632;overflow-wrap:anywhere;
+}
+.oh-trip-drawer .oh-trip-quick-note{
+  font-size:11px;color:#809285;line-height:1.45;
+}
+.oh-trip-drawer .oh-trip-progress-card{
+  margin-bottom:14px;padding:16px;
+  border:1px solid #d5e7d9;border-radius:12px;background:#fff;
+}
+.oh-trip-drawer .oh-trip-progress-heading h3{
+  margin:0 0 13px;color:#244e36;font-size:14px;font-weight:750;
+}
+.oh-trip-drawer .oh-trip-next-step{
+  display:flex;gap:10px;align-items:flex-start;
+  margin-top:14px;padding:12px 13px;
+  background:#edf7f0;border:1px solid #d6eadd;
+  border-radius:10px;color:#24583a;
+}
+.oh-trip-drawer .oh-trip-next-step>.bi{
+  flex:none;margin-top:1px;font-size:17px;color:#27814c;
+}
+.oh-trip-drawer .oh-trip-next-step strong{display:block;font-size:12px;font-weight:750}
+.oh-trip-drawer .oh-trip-next-step p{
+  margin:3px 0 0;font-size:12px;line-height:1.55;color:#496e55;
+}
+.oh-trip-drawer .oh-trip-groups{display:grid;gap:10px}
+.oh-trip-drawer .oh-trip-group{
+  margin:0;border:1px solid #dce8df;border-radius:11px;
+  background:#fff;overflow:hidden;
+}
+.oh-trip-drawer .oh-trip-group>summary{
+  display:flex;align-items:center;gap:12px;
+  padding:15px 16px;cursor:pointer;list-style:none;
+  color:#24513a;font-weight:700;font-size:13px;
+}
+.oh-trip-drawer .oh-trip-group>summary::-webkit-details-marker{display:none}
+.oh-trip-drawer .oh-trip-group>summary:hover{background:#f5faf6}
+.oh-trip-drawer .oh-trip-group[open]>summary{
+  background:#f5faf7;border-bottom:1px solid #e1ebe4;
+}
+.oh-trip-drawer .oh-trip-group>summary>.bi:first-child{
+  display:grid;place-items:center;flex:none;
+  width:34px;height:34px;border-radius:9px;
+  background:#e8f4ec;color:#26774a;font-size:16px;
+}
+.oh-trip-drawer .oh-trip-group-title{
+  display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;
+}
+.oh-trip-drawer .oh-trip-group-title small{
+  color:#7c9081;font-size:11px;font-weight:450;line-height:1.4;
+}
+.oh-trip-drawer .oh-trip-group-chevron{
+  margin-left:auto;color:#739181;
+  transition:transform .18s ease;
+}
+.oh-trip-drawer .oh-trip-group[open] .oh-trip-group-chevron{transform:rotate(180deg)}
+.oh-trip-drawer .oh-trip-group>.oh-detail-body{
+  padding:8px 17px 16px;overflow-wrap:anywhere;
+}
+.oh-trip-drawer .oh-trip-subsection+.oh-trip-subsection{
+  border-top:1px solid #e5eee7;margin-top:17px;padding-top:15px;
+}
+.oh-trip-drawer .oh-trip-subsection h4{
+  color:#43654e;font-size:12px;font-weight:750;
+  margin:8px 0 12px;
+}
+.oh-trip-drawer .oh-trip-subsection .kv{max-width:100%}
+.oh-trip-drawer .drawer-actions{
+  display:flex;gap:8px;flex-wrap:wrap;
+  padding:10px 12px;margin-bottom:14px;
+  border:1px solid #dce9df;border-radius:11px;background:#fff;
+}
+.oh-trip-drawer .oh-drawer-footer{
+  background:#f9fcfa;
+}
+@media(max-width:600px){
+  .oh-trip-drawer .offcanvas-body{padding:12px}
+  .oh-trip-drawer .oh-trip-quick-grid{grid-template-columns:1fr}
+  .oh-trip-drawer .oh-trip-quick-card{padding:13px}
+  .oh-trip-drawer .oh-trip-progress-card{padding:12px}
+  .oh-trip-drawer .oh-trip-group>summary{padding:12px}
+  .oh-trip-drawer .oh-trip-group>.oh-detail-body{padding:7px 12px 14px}
+}
+@media(prefers-reduced-motion:reduce){
+  .oh-trip-drawer .oh-trip-group-chevron{transition:none}
+}
