@@ -50,15 +50,18 @@ const RouteUI = {
     ];
     // Keep the existing shared field definitions and validation, but place the
     // map and journey summary beside the compact request form on wide screens.
-    const isPreviewField=field=>field.type==='html' &&
-      (field.html.includes('rpm-route-map-shell') || field.html.includes('rpm-route-distances'));
-    const inputFields=fields.filter(field=>!isPreviewField(field));
-    const previewFields=fields.filter(isPreviewField);
+    const isMapField=field=>field.type==='html' && field.html.includes('rpm-route-map-shell');
+    const isSummaryField=field=>field.type==='html' && field.html.includes('rpm-route-distances');
+    const inputFields=fields.filter(field=>!isMapField(field)&&!isSummaryField(field));
+    const summaryFields=fields.filter(isSummaryField);
+    const mapFields=fields.filter(isMapField);
     const body='<div class="rpm-route-composer">'
       +'<div class="rpm-route-input-col" aria-label="New route details">'
-      +UI.fields(inputFields)+'</div>'
-      +'<div class="rpm-route-preview-col" aria-label="Interactive route map and journey summary">'
-      +UI.fields(previewFields)+'</div></div>';
+      +UI.fields(inputFields)
+      +'<section class="rpm-route-summary-left" aria-label="Live distance summary">'
+      +UI.fields(summaryFields)+'</section></div>'
+      +'<div class="rpm-route-preview-col" aria-label="Interactive route map">'
+      +UI.fields(mapFields)+'</div></div>';
     UI.modal('Request a new route', body, async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
       if (form._distance) form._distance.clean(f);

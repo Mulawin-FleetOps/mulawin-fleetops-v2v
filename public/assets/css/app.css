@@ -2250,10 +2250,13 @@ button.docfm-folder:focus-visible {
 .rpm-route-composer .rpm-route-steps{padding:7px 10px}
 .rpm-route-composer .rpm-route-legend{padding:8px 11px;gap:9px}
 .rpm-route-composer .rpm-route-preview-col{position:sticky;top:0}
-.rpm-route-composer .rpm-route-distances{gap:7px;margin-top:9px}
-.rpm-route-composer .rpm-route-distances>div{padding:9px 10px}
-.rpm-route-composer .rpm-route-distances strong{font-size:13px}
-.rpm-route-composer .rpm-route-distance-note{margin:5px 0 0}
+.rpm-route-composer .rpm-route-summary-left{margin-top:10px;min-width:0}
+.rpm-route-composer .rpm-route-summary-left>.row{row-gap:0}
+.rpm-route-composer .rpm-route-distances{grid-template-columns:1fr;gap:7px;margin-top:0}
+.rpm-route-composer .rpm-route-distances>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 11px}
+.rpm-route-composer .rpm-route-distances span{font-size:11px;line-height:1.35;margin:0;min-width:0}
+.rpm-route-composer .rpm-route-distances strong{font-size:12px;text-align:right;flex:0 0 auto;max-width:45%}
+.rpm-route-composer .rpm-route-distance-note{margin:7px 0 0;line-height:1.4}
 @media(max-width:1020px){
  .rpm-route-composer{grid-template-columns:1fr;gap:14px}
  .rpm-route-composer .rpm-route-preview-col{position:static}
