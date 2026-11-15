@@ -2181,7 +2181,7 @@ button.docfm-folder:focus-visible {
 
 
 /* Operations > Client Routes: focused, responsive request modal */
-.modal-dialog.rpm-route-dialog { max-width: min(1120px, calc(100vw - 36px)); width: 100%; }
+.modal-dialog.rpm-route-dialog { max-width: min(1440px, 94vw); width: 100%; }
 .rpm-route-dialog .modal-content { max-height: calc(100dvh - 28px); overflow: hidden; }
 .rpm-route-dialog .modal-header, .rpm-route-dialog .modal-footer { flex-shrink: 0; }
 .rpm-route-dialog .modal-body { overflow-x: hidden; }
@@ -2225,6 +2225,40 @@ button.docfm-folder:focus-visible {
 }
 
 
+/* Compact route request composer: one shared form, map always alongside on desktop. */
+.rpm-route-composer{display:grid;grid-template-columns:minmax(0,42fr) minmax(0,58fr);align-items:start;gap:16px;min-width:0}
+.rpm-route-input-col,.rpm-route-preview-col{min-width:0}
+.rpm-route-input-col>.row,.rpm-route-preview-col>.row{row-gap:0}
+.rpm-route-input-col .form-label{font-size:12px;font-weight:600;margin-bottom:4px}
+.rpm-route-input-col .form-control,.rpm-route-input-col .form-select{min-height:38px}
+.rpm-route-input-col .mb-3{margin-bottom:10px!important}
+.rpm-route-input-col .form-help{font-size:11px;line-height:1.4}
+.rpm-route-composer .rpm-route-garage{padding:9px 11px;gap:8px;margin-bottom:2px}
+.rpm-route-composer .rpm-route-garage-icon{width:32px;height:32px;flex-basis:32px;font-size:16px}
+.rpm-route-composer .rpm-route-garage-top{gap:5px}
+.rpm-route-composer .rpm-garage-fixed{font-size:10px}
+.rpm-route-composer .rpm-route-garage-copy{font-size:11px;line-height:1.35}
+.rpm-route-composer .rpm-route-garage-copy small{font-size:10px}
+.rpm-route-composer .rpm-route-map-heading{padding:9px 12px}
+.rpm-route-composer .rpm-route-steps{padding:7px 10px}
+.rpm-route-composer .rpm-route-legend{padding:8px 11px;gap:9px}
+.rpm-route-composer .rpm-route-preview-col{position:sticky;top:0}
+.rpm-route-composer .rpm-route-distances{gap:7px;margin-top:9px}
+.rpm-route-composer .rpm-route-distances>div{padding:9px 10px}
+.rpm-route-composer .rpm-route-distances strong{font-size:13px}
+.rpm-route-composer .rpm-route-distance-note{margin:5px 0 0}
+@media(max-width:1020px){
+ .rpm-route-composer{grid-template-columns:1fr;gap:14px}
+ .rpm-route-composer .rpm-route-preview-col{position:static}
+ .rpm-route-map-shell .map-canvas{height:300px}
+}
+@media(max-width:575px){
+ .rpm-route-composer{gap:10px}
+ .rpm-route-input-col .row>[class*="col-"]{width:100%;flex:0 0 100%}
+ .rpm-route-composer .rpm-route-distances{grid-template-columns:1fr}
+ .rpm-route-map-shell .map-canvas{height:250px}
+}
+
 /* Route sequence clarity: distinguish starting garage, pickup and delivery. */
 .rpm-route-steps { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 9px 12px; background: #f4faf6; border-bottom: 1px solid var(--border); color: #355949; font-size: 12px; }
 .rpm-route-steps span { display: inline-flex; align-items: center; gap: 6px; }
@@ -2252,7 +2286,7 @@ button.docfm-folder:focus-visible {
 .rpm-route-steps .rpm-step-delivery b { background: #c54748; }
 .rpm-route-steps .bi-chevron-right { color: #a1b3aa; font-size: 11px; }
 .rpm-route-map-shell .loc-toolbar { background: #fff; }
-.rpm-route-map-shell .map-canvas { height: 320px; }
+.rpm-route-map-shell .map-canvas { height: clamp(320px, 45vh, 490px); }
 .rpm-route-legend { background: #fff; gap: 18px; padding: 10px 16px; }
 .rpm-route-legend > span { gap: 8px; }
 .rpm-route-line-key { width: 26px; border-top-width: 4px; }

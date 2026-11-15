@@ -26,10 +26,10 @@ const RouteUI = {
         <div class="rpm-route-garage-copy"><div class="rpm-route-garage-top"><span class="rpm-garage-eyebrow">COMPANY GARAGE</span><span class="rpm-garage-fixed"><i class="bi bi-lock" aria-hidden="true"></i> One garage for all trips</span></div>
         <strong class="rpm-garage-name">R.P. Mulawin Trucking Service</strong><small><i class="bi bi-geo-alt" aria-hidden="true"></i> Purok 2, 86-A, Luyos, Tanauan City, Batangas</small></div>
       </section>` },
-      { name: 'client_id', label: 'Client', type: 'select', required: true, col: 8, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
-      { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 4, options: UI.list(d.truckTypes), value:d.filterType||'' },
-      { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
-      { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
+      { name: 'client_id', label: 'Client', type: 'select', required: true, col: 6, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
+      { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 6, options: UI.list(d.truckTypes), value:d.filterType||'' },
+      { name: 'origin', label: 'Pickup point', required: true, col: 12, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
+      { name: 'destination', label: 'Delivery point', required: true, col: 12, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
       { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
         <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Live road route · Garage → Pickup → Destination</span></div>
         <div class="rpm-route-steps" aria-label="Driving sequence"><span class="rpm-step-garage"><b>1</b> Garage</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-pickup"><b>2</b> Pickup</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-delivery"><b>3</b> Destination</span></div>
@@ -48,8 +48,18 @@ const RouteUI = {
       </div><p class="rpm-route-distance-note" data-garage-note>Garage distance requires a verified garage entrance. The billable route remains pickup to delivery.</p>` },
       { name: 'notes', label: 'Notes (optional)', col: 12, attrs: 'maxlength="500"' },
     ];
-    UI.modal('Request a new route', '<p class="rpm-route-intro"><i class="bi bi-info-circle" aria-hidden="true"></i> Choose a client and truck, then pin the pickup and delivery addresses. Garage-to-pickup estimates require the verified company garage.</p>'
-      + UI.fields(fields), async (f, form) => {
+    // Keep the existing shared field definitions and validation, but place the
+    // map and journey summary beside the compact request form on wide screens.
+    const isPreviewField=field=>field.type==='html' &&
+      (field.html.includes('rpm-route-map-shell') || field.html.includes('rpm-route-distances'));
+    const inputFields=fields.filter(field=>!isPreviewField(field));
+    const previewFields=fields.filter(isPreviewField);
+    const body='<div class="rpm-route-composer">'
+      +'<div class="rpm-route-input-col" aria-label="New route details">'
+      +UI.fields(inputFields)+'</div>'
+      +'<div class="rpm-route-preview-col" aria-label="Interactive route map and journey summary">'
+      +UI.fields(previewFields)+'</div></div>';
+    UI.modal('Request a new route', body, async (f, form) => {
       // Send the route option only when the road distance was computed; otherwise the km is saved as Manual.
       if (form._distance) form._distance.clean(f);
       // Soft warning: same client and truck type, and one place name contains the other (e.g. "TANAUAN" and "TANAUAN CITY").
@@ -143,7 +153,7 @@ const RouteUI = {
       searchResultsTarget: (kind) => form.querySelector('[data-pin-results="' + kind + '"]'),
       onSearchSelect: (kind) => {
         form.querySelector('[data-pin-results="' + kind + '"]')?.classList.add('d-none');
-        form.querySelector('.rpm-route-map-shell')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // The map is already alongside the fields; do not scroll the modal away from the entry.
       },
       // Clear stale geometry as soon as the user moves either pin.
       onPointsChange: () => {
