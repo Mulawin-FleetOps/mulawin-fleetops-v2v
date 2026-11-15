@@ -99,9 +99,12 @@ const DispatcherUI = {
     let d;
     try { d=await App.api('Trips.dispatcher_resources',{trip_id:id}); }
     catch(error){return UI.toast(error.message,'error');}
-    const trip=d.trip||{},trucks=d.trucks||[],cc=trip.truck_type==='Car Carrier';
-    // The planned client, route and time come from the authorized trip list,
-    // while resource eligibility always comes from the server for THIS trip.
+    const trip=d.trip||{},cc=trip.truck_type==='Car Carrier';
+    // Server-authorized candidates already apply the trip's truck type,
+    // attendance, fixed assignments, maintenance and collision constraints.
+    const driverPairs=(d.drivers||[]).filter(pair=>(d.trucks||[]).some(truck=>
+      String(truck.id)===String(pair.vehicle_id)&&String(truck.driver_id)===String(pair.id)));
+    const trucks=d.trucks||[];
     const planned=[...(TripUI.data?.active||[]),...(TripUI.data?.history||[])]
       .find(row=>String(row.id)===String(trip.id))||{};
     const summary='<section class="ds-assignment-plan" aria-label="Operations Head trip plan">'
@@ -112,65 +115,80 @@ const DispatcherUI = {
       +'<div><dt>Scheduled Dispatch</dt><dd>'+UI.esc(this.datetime(planned.scheduled_at))+'</dd></div>'
       +'<div><dt>Required Truck Type</dt><dd><strong>'+UI.esc(trip.truck_type||planned.truck_type||'Not specified')+'</strong></dd></div></dl></section>';
     const secondaryList=cc?(d.second_drivers||[]):(d.helpers||[]);
-    const available=trucks.length>0&&secondaryList.length>0;
+    const available=driverPairs.length>0&&secondaryList.length>0;
     const note=available
-      ?'<div class="alert alert-info small" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i> Only trucks and personnel currently eligible for this trip are listed. The fixed driver is automatically linked to the selected truck.</div>'
+      ?'<div class="alert alert-info small" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i> Select an available Driver first. The linked Truck is filled automatically. '
+        +(cc?'Then choose a different eligible Driver 2.':'The regular Helper is preselected when eligible; otherwise select an available substitute and give a reason.')
+        +'</div>'
       :'<div class="alert alert-warning" role="status"><strong>No eligible assignment is available.</strong><p class="mb-0 mt-1">'
-       +(trucks.length?'No eligible '+(cc?'second driver':'helper')+' is available for this trip.':'No eligible truck and fixed driver pair is available for the planned truck type.')
-       +' Check current attendance, truck status, maintenance, permanent assignments and scheduling conflicts.</p></div>';
+       +(driverPairs.length?'No eligible '+(cc?'second driver':'helper')+' is available for this trip.':'No eligible timed-in Driver with an available fixed Truck matches this trip.')
+       +' Check attendance (Time In), truck type, maintenance, permanent assignments and scheduling conflicts.</p></div>';
     const fields=available?UI.fields([
-      {name:'vehicle_id',label:'Available Truck',type:'select',required:true,col:6,
-        options:trucks.map(t=>[t.id,t.plate_number+' — '+t.driver_name])},
-      {name:'driver_display',label:cc?'Fixed Driver 1':'Fixed Driver',col:6,
+      {name:'driver_id',label:'Available Fixed Driver',type:'select',required:true,col:12,
+        options:driverPairs.map(p=>[p.id,p.name+' — '+p.plate_number+(p.shift_warning?' ('+p.shift_warning+')':'')])},
+      {name:'vehicle_display',label:'Assigned Truck (automatic)',col:6,attrs:'readonly aria-readonly="true"'},
+      {name:'vehicle_id',type:'hidden'},
+      {name:'regular_helper_display',label:cc?'Crew Requirement':'Regular Helper (automatic)',col:6,
         attrs:'readonly aria-readonly="true"'},
-      {name:'driver_id',type:'hidden'},
-      {name:cc?'driver2_id':'helper_id',label:cc?'Available Driver 2':'Available Trip Helper',
-        type:'select',required:true,col:12,
+      {name:cc?'driver2_id':'helper_id',label:cc?'Available Driver 2':'Trip Helper',type:'select',required:true,col:12,
         options:secondaryList.map(p=>[p.id,p.name+(p.shift_warning?' — '+p.shift_warning:'')])},
       {name:'helper_substitution_reason',label:'Helper replacement reason',col:12,attrs:'maxlength="255"'}
     ]):'';
     const submit=async values=>{
-      const truck=trucks.find(t=>String(t.id)===values.vehicle_id);
-      if(!truck)throw new Error('Select an eligible truck.');
+      const driver=driverPairs.find(person=>String(person.id)===String(values.driver_id));
+      const truck=driver&&trucks.find(item=>String(item.id)===String(driver.vehicle_id)
+        &&String(item.driver_id)===String(driver.id));
+      if(!truck)throw new Error('Select an eligible fixed driver and linked truck.');
       const result=await App.api('Trips.assign_resources',{
-        ...values,trip_id:trip.id,driver_id:truck.driver_id
+        ...values,trip_id:trip.id,vehicle_id:truck.id,driver_id:driver.id
       });
       UI.result(result);UI.closeDrawer();App.route();
     };
     return UI.modal('Assign Resources — '+UI.esc(trip.trip_ref||'Trip'),
       summary+note+(available?'<div class="ds-assignment-fields">'+fields+'</div>':''),
       available?submit:null,
-      {submit:'Assign Resources',confirmBeforeSubmit:true,onShow:(wrap,form)=>{
+      {submit:'Assign',confirmBeforeSubmit:true,onShow:(wrap,form)=>{
         wrap.classList.add('ds-resource-assignment-modal');
         if(!available)return;
-        const pick=form.querySelector('[name=vehicle_id]');
+        const driverPick=form.querySelector('[name=driver_id]');
+        const vehicle=form.querySelector('[name=vehicle_display]');
+        const vehicleId=form.querySelector('[name=vehicle_id]');
+        const helperDisplay=form.querySelector('[name=regular_helper_display]');
         const secondary=form.querySelector('[name='+(cc?'driver2_id':'helper_id')+']');
         const reason=form.querySelector('[name=helper_substitution_reason]');
-        const driver=form.querySelector('[name=driver_display]');
-        const driverId=form.querySelector('[name=driver_id]');
         const reasonRow=reason?.closest('[class*=col-]');
-        const chosen=()=>trucks.find(t=>String(t.id)===pick.value);
+        const chosen=()=>{
+          const driver=driverPairs.find(p=>String(p.id)===driverPick.value);
+          const truck=driver&&trucks.find(t=>String(t.id)===String(driver.vehicle_id)
+            &&String(t.driver_id)===String(driver.id));
+          return truck||null;
+        };
         const reasonState=()=>{
           const truck=chosen(),replace=!cc&&!!truck&&!!secondary.value
             &&String(secondary.value)!==String(truck.regular_helper_id||'');
           if(reasonRow)reasonRow.hidden=!replace;
           if(reason){reason.disabled=!replace;reason.required=replace;if(!replace)reason.value='';}
         };
-        pick.onchange=()=>{
+        driverPick.onchange=()=>{
           const truck=chosen();
-          driver.value=truck?.driver_name||'';
-          driverId.value=truck?.driver_id||'';
+          vehicle.value=truck?.plate_number||'Choose a Driver first';
+          vehicleId.value=truck?.id||'';
+          const regular=secondaryList.find(person=>String(person.id)===String(truck?.regular_helper_id));
+          helperDisplay.value=cc?'Second Driver required':regular?.name||(truck?'No eligible regular Helper':'Choose a Driver first');
           secondary.querySelectorAll('option').forEach(option=>{
             option.disabled=cc&&!!truck&&option.value===String(truck.driver_id);
           });
-          if(cc&&secondary.value===String(truck?.driver_id))secondary.value='';
-          if(!cc)secondary.value=secondaryList.some(person=>
-            String(person.id)===String(truck?.regular_helper_id))
-            ?String(truck.regular_helper_id):'';
+          if(cc){
+            if(secondary.value===String(truck?.driver_id))secondary.value='';
+          }else{
+            secondary.value=regular?String(regular.id):'';
+          }
           reasonState();
         };
         secondary.onchange=reasonState;
-        pick.dispatchEvent(new Event('change'));
+        // Never preselect a Driver; selection is an explicit Dispatcher decision.
+        driverPick.value='';
+        driverPick.dispatchEvent(new Event('change'));
       }});
   },
   async ensureTrips() {
