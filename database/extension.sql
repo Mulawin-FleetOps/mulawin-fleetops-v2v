@@ -1213,3 +1213,13 @@ CREATE TABLE IF NOT EXISTS dispatcher_truck_authorizations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-15_15_dispatcher_truck_authorizations');
 
+
+-- Additive migration for existing installations only (fresh schema includes this column).
+ALTER TABLE users
+  ADD COLUMN dispatcher_truck_type VARCHAR(25) NULL AFTER shift,
+  ADD CONSTRAINT chk_user_dispatcher_type CHECK (
+    dispatcher_truck_type IS NULL OR
+    (role='car_carrier_dispatcher' AND dispatcher_truck_type='Car Carrier') OR
+    (role='container_wingvan_dispatcher' AND dispatcher_truck_type IN ('Container','Wing Van'))
+  );
+INSERT IGNORE INTO schema_migrations(id) VALUES('2026-11-15_16_dispatcher_truck_type');
