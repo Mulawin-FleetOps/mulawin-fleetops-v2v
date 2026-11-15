@@ -325,7 +325,8 @@ final class Trips {
     /** Explicit planning ownership is fixed; legacy NULL-shift trips retain group-wide access. */
     private static function mustBeTripDispatcher(array $u, array $t): void {
         must(roleIsDispatcher($u['role']), 'Only the dispatcher can do this step.', 403);
-        must($t['dispatcher_role'] === $u['role'], 'This trip belongs to the ' . (ROLE_LABELS[$t['dispatcher_role']] ?? 'other') . ' team.', 403);
+        // Multi-type Dispatchers may own trips in either historical internal group.
+        // Actual authority still requires this specific trip's responsibility record.
         if(isset($t['truck_type']))must(in_array($t['truck_type'],DispatcherScope::types($u),true),'Trip truck type belongs to another operational group.',403);
         must(DispatcherScope::permitsTrip($u,$t),'This account does not hold current operational responsibility for this trip.',403);
     }
