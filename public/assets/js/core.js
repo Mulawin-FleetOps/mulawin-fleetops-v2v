@@ -971,7 +971,7 @@ UI.toast = (msg, type = '') => {
   // Avoid piling up repeated validation errors on consecutive submissions.
   const duplicate = [...zone.querySelectorAll('.app-toast')].find(el =>
     el.dataset.kind === type && el.querySelector('span')?.textContent === message);
-  if (duplicate) { duplicate.querySelector('.toast-x')?.focus({preventScroll:true}); return; }
+  if (duplicate) return;
   const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', warning:'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
   const el = document.createElement('div');
   el.className = 'app-toast ' + (type === 'warning' ? 'warn' : type);
