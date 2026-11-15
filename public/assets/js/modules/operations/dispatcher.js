@@ -388,7 +388,35 @@ const DispatcherUI = {
   App.shell=function(){shell.call(this);document.body.classList.toggle('dispatcher-role',DispatcherUI.is());if(!DispatcherUI.is())return;
     const allowed=new Set(this.me.nav.map(n=>n.id));
     const link=(page,label,icon,query={},section='')=>allowed.has(page)?`<a class="nav-item-link" data-nav="${page}" ${section?`data-dispatch-section="${section}"`:''} href="${DispatcherUI.href(page,query)}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`:'';
-    document.querySelector('.sidebar-nav').innerHTML=`<div class="nav-section">Overview</div>${link('dashboard','Dashboard','bi-grid-1x2')}<div class="nav-section">Trip Operations</div>${link('trips','Trips','bi-truck',{},'management')}${link('funds','Funds & Fuel','bi-cash-coin')}${link('trips','Incidents','bi-exclamation-triangle',{tab:'incidents'},'incidents')}<div class="nav-section">Reference & Records</div>${link('crew','Attendance','bi-calendar-check',{view:'attendance'},'attendance')}${link('trucks','Trucks','bi-truck',{view:'masterlist'},'trucks')}${link('crew',UI.role('car_carrier_dispatcher')?'Drivers':'Drivers & Helpers','bi-person-badge',{view:'masterlist'},'personnel')}${link('trips','Trip History','bi-clock-history',{tab:'history'},'history')}${link('documents','Documents','bi-folder2-open')}`;
+    // Preserve dispatcher-specific authorized destinations while using the
+    // same accessible expandable navigation component as all other roles.
+    const navigation=[
+      {title:'Overview',icon:'bi-grid-1x2',items:link('dashboard','Dashboard','bi-grid-1x2')},
+      {title:'Trip Operations',icon:'bi-signpost-split',items:
+        link('trips','Trips','bi-truck',{},'management')
+        +link('funds','Funds & Fuel','bi-cash-coin')
+        +link('trips','Incidents','bi-exclamation-triangle',{tab:'incidents'},'incidents')},
+      {title:'Reference & Records',icon:'bi-folder2-open',items:
+        link('crew','Attendance','bi-calendar-check',{view:'attendance'},'attendance')
+        +link('trucks','Trucks','bi-truck',{view:'masterlist'},'trucks')
+        +link('crew',UI.role('car_carrier_dispatcher')?'Drivers':'Drivers & Helpers','bi-person-badge',{view:'masterlist'},'personnel')
+        +link('trips','Trip History','bi-clock-history',{tab:'history'},'history')
+        +link('documents','Documents','bi-folder2-open')}
+    ];
+    document.querySelector('.sidebar-nav').innerHTML=navigation.map(group=>UI.sidebarGroup(group)).join('');
+    // Keep the group of the active destination expanded on route changes.
+    const activeHash=window.location.hash.split('?')[0].replace(/^#/,'');
+    const activeSection=new URLSearchParams(window.location.hash.split('?')[1]||'');
+    document.querySelectorAll('.sidebar-nav .head-nav-group').forEach(group=>{
+      const selected=[...group.querySelectorAll('[data-nav]')].some(item=>{
+        if(item.dataset.nav!==activeHash)return false;
+        const destination=new URL(item.href,window.location.href).hash.split('?');
+        const params=new URLSearchParams(destination[1]||'');
+        return (!params.has('tab')||params.get('tab')===activeSection.get('tab'))
+          && (!params.has('view')||params.get('view')===activeSection.get('view'));
+      });
+      if(selected)group.open=true;
+    });
     const toggle=document.createElement('button');toggle.className='icon-btn ds-collapse-nav';toggle.type='button';toggle.setAttribute('aria-label','Collapse navigation');toggle.setAttribute('aria-expanded','true');toggle.innerHTML='<i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>';toggle.onclick=()=>{const collapsed=document.body.classList.toggle('ds-nav-collapsed');toggle.setAttribute('aria-expanded',String(!collapsed));};document.querySelector('.topbar').prepend(toggle);
   };
   for(const [page,render] of Object.entries({dashboard:ctx=>DispatcherUI.dashboard(ctx),trips:ctx=>DispatcherUI.trips(ctx),funds:ctx=>DispatcherUI.funds(ctx),trucks:ctx=>ctx.query.view==='availability'?DispatcherUI.availability(ctx):DispatcherUI.masterlist(ctx),crew:ctx=>ctx.query.view==='attendance'?DispatcherUI.attendance(ctx):ctx.query.view==='availability'?DispatcherUI.availability(ctx):DispatcherUI.masterlist(ctx),documents:ctx=>DispatcherUI.documents(ctx)})){
