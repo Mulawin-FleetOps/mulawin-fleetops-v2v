@@ -93,6 +93,9 @@ final class Admin {
         // Replacing authorization for already assigned vehicles is disallowed if they
         // are in the dispatcher's outstanding trip responsibilities.
         $existing = array_map('intval', array_column(many($p,'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? FOR UPDATE',[$id]),'vehicle_id'));
+        $currentIds = $existing; $newIds = $ids;
+        sort($currentIds, SORT_NUMERIC); sort($newIds, SORT_NUMERIC);
+        if ($currentIds === $newIds) return; // Preserve authorization audit timestamps on unrelated account edits.
         $removed = array_diff($existing, $ids);
         if ($removed) {
             $marks = implode(',', array_fill(0, count($removed), '?'));
