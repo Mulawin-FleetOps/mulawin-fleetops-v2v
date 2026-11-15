@@ -66,6 +66,15 @@ final class Trips {
      * Leave assigned, dispatched, and financially active trips untouched.
      * Row locking serializes expiry with resource assignment.
      */
+    /** Shared eligibility rule for overdue trips without resources or active funding. */
+    public static function pendingMissedSql(): string {
+        return "t.status='Awaiting Resources' AND t.scheduled_at < NOW()
+            AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
+            AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
+            AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
+                AND f.status IN ('Pending Approval','Ready for Release','Released'))";
+    }
+
     public static function closeOverdueUnassigned(PDO $p): void {
         static $migrationReady = null;
         if ($migrationReady === null) {
@@ -78,12 +87,8 @@ final class Trips {
         }
         if (!$migrationReady) return;
         transaction(function (PDO $tx): void {
-            $due = many($tx, "SELECT t.* FROM trips t
-                WHERE t.status='Awaiting Resources' AND t.scheduled_at < NOW()
-                  AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
-                  AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
-                  AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
-                                  AND f.status IN ('Pending Approval','Ready for Release','Released'))
+            $where = self::pendingMissedSql();
+            $due = many($tx, "SELECT t.* FROM trips t WHERE $where
                 ORDER BY t.scheduled_at,t.id LIMIT 200 FOR UPDATE SKIP LOCKED");
             foreach ($due as $trip) {
                 $reason = 'Scheduled dispatch time passed without assigned resources.';
@@ -118,17 +123,27 @@ final class Trips {
         [$where, $args] = self::filters($q);
         $closed = "'" . implode("','", self::CLOSED) . "'";
         $legacyHistory = hasRole($u,'operations_head') && !empty($q['legacy']);
+        $pendingMissed = self::pendingMissedSql();
         $data = readSections([
             // Open trips + completed trips whose truck is still returning (arrival checklist pending).
-            'active' => fn() => many($p, self::select() . " WHERE (t.status NOT IN ($closed) AND t.status<>'Pending Review'
-                    OR EXISTS (SELECT 1 FROM trip_assignments aa WHERE aa.trip_id=t.id AND aa.resource_type='vehicle')) $scope ORDER BY t.scheduled_at, t.id", $scopeArgs),
-            'history' => fn() => many($p, self::select() . " WHERE ".($legacyHistory?"t.status='Pending Review'":"t.status IN ($closed)")." $scope $where ORDER BY t.scheduled_at DESC, t.id DESC LIMIT 1000", array_merge($scopeArgs, $args)),
+            'active' => fn() => many($p, self::select() . " WHERE ((t.status NOT IN ($closed) AND t.status<>'Pending Review'
+                    AND NOT ($pendingMissed)) OR EXISTS (SELECT 1 FROM trip_assignments aa WHERE aa.trip_id=t.id AND aa.resource_type='vehicle')) $scope ORDER BY t.scheduled_at, t.id", $scopeArgs),
+            'history' => fn() => many($p, self::select() . " WHERE ".($legacyHistory?"t.status='Pending Review'":"(t.status IN ($closed) OR ($pendingMissed))")." $scope $where ORDER BY t.scheduled_at DESC, t.id DESC LIMIT 1000", array_merge($scopeArgs, $args)),
             'incidents' => fn() => many($p, "SELECT i.*, t.trip_ref, t.status AS trip_status, v.plate_number, c.company_name AS client, ru.full_name AS reported_by_name,
                     (SELECT au.full_name FROM users au WHERE au.id=i.assessed_by) AS assessed_by_name, m.job_ref, m.status AS job_status
                 FROM incidents i JOIN trips t ON t.id=i.trip_id JOIN vehicles v ON v.id=i.vehicle_id JOIN clients c ON c.id=t.client_id
                 JOIN users ru ON ru.id=i.reported_by LEFT JOIN maintenance_jobs m ON m.incident_id=i.id
                 WHERE 1=1 $scope ORDER BY i.id DESC LIMIT 300", $scopeArgs),
         ]);
+        if (!$legacyHistory && is_array($data['history'] ?? null)) {
+            foreach ($data['history'] as &$trip) {
+                if ($trip['status'] === 'Awaiting Resources') {
+                    $trip['status'] = 'Missed';
+                    $trip['pending_archival'] = 1;
+                }
+            }
+            unset($trip);
+        }
         $reference=null;
         if(roleIsDispatcher($u['role'])){require_once __DIR__.'/Fleet.php';$reference=Fleet::read($u,'trucks',[]);}
         if (self::canCreate($u) || hasRole($u, 'operations_head', 'admin')) {
@@ -1345,6 +1360,14 @@ final class Trips {
         [$scope, $args] = self::scope($u);
         $t = one($p, self::select() . " WHERE t.id=? $scope", array_merge([$id], $args));
         must((bool)$t, 'Trip not found.', 404);
+        if ($t['status'] === 'Awaiting Resources') {
+            $pendingMissed = self::pendingMissedSql();
+            $pending = one($p, "SELECT ($pendingMissed) AS pending_archival FROM trips t WHERE t.id=?", [$id]);
+            if (!empty($pending['pending_archival'])) {
+                $t['status'] = 'Missed';
+                $t['pending_archival'] = 1;
+            }
+        }
         $t['dispatch_blockers'] = self::dispatchBlockers($p, $t);
         $t['time_gates'] = self::timeGates($t);
         if (in_array($t['status'], ['Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'], true)) {
