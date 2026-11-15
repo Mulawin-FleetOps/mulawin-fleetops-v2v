@@ -62,7 +62,12 @@ final class Fleet {
         $data = readSections([
             'crew' => fn() => many($p, "SELECT pe.*, DATEDIFF(pe.license_expiry, CURRENT_DATE()) AS license_days,
                     t.id AS trip_id, t.trip_ref, t.status AS trip_status, v2.plate_number AS trip_plate,
-                    (SELECT GROUP_CONCAT(v.plate_number SEPARATOR ', ') FROM vehicles v WHERE v.active=1 AND (v.assigned_driver_id=pe.id OR v.assigned_helper_id=pe.id)) AS regular_truck,
+                    (CASE WHEN pe.person_type='Driver'
+                        THEN (SELECT GROUP_CONCAT(av.plate_number ORDER BY av.plate_number SEPARATOR ', ')
+                              FROM driver_truck_authorizations da JOIN vehicles av ON av.id=da.vehicle_id
+                              WHERE da.driver_id=pe.id AND av.active=1)
+                        ELSE (SELECT GROUP_CONCAT(v.plate_number SEPARATOR ', ') FROM vehicles v
+                              WHERE v.active=1 AND v.assigned_helper_id=pe.id) END) AS regular_truck,
                     (SELECT GROUP_CONCAT(dta.vehicle_id ORDER BY dta.vehicle_id SEPARATOR ',') FROM driver_truck_authorizations dta WHERE dta.driver_id=pe.id) AS authorized_truck_ids,
                     (SELECT MIN(vf.id) FROM vehicles vf WHERE vf.active=1 AND vf.assigned_driver_id=pe.id) AS fixed_truck_id,
                     (SELECT vf.assigned_helper_id FROM vehicles vf WHERE vf.active=1 AND vf.assigned_driver_id=pe.id ORDER BY vf.id LIMIT 1) AS regular_helper_id,
