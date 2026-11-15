@@ -152,6 +152,13 @@
 /* One compact toolbar with in-flow criteria below it. */
 .dispatcher-role .ds-filterbar { position: relative; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; padding: 11px; background: #fff; border: 1px solid var(--border); border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-surface); }
 .dispatcher-role .ds-filterbar:has(.ds-filter-panel:not([hidden])) { z-index: 1020; }
+/* Embedded shared record panels use the full-width filterbar, without an extra nested card. */
+.dispatcher-role .record-workspace-search > .ds-filterbar {
+  flex:1 1 100%;width:100%;min-width:0;
+  margin:0;padding:0;border:0;box-shadow:none;
+}
+.dispatcher-role .record-workspace-search .ds-search-bar { flex:1 1 0%;min-width:0; }
+.dispatcher-role .record-workspace-search .ds-search-input { min-width:0; }
 .dispatcher-role .ds-search-bar { display: flex; gap: 10px; flex: 1; min-width: 0; margin: 0; }
 .dispatcher-role .ds-search-input { flex: 1; min-width: 0; position: relative; }
 .dispatcher-role .ds-search-input > .bi { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 1; color: #475569; pointer-events: none; }
