@@ -33,125 +33,87 @@ const HeadAdminPage = {
         } });
     };
     const userForm = (u = {}) => {
-      const availableRoles = roles.filter(([role]) => (role !== 'audit' || (u.id && u.role === 'audit')) && roleAvailable(role, u));
+      const editingDispatcher = dispatcherRoles.includes(u.role);
+      const roleOptions = [
+        ...(roles.some(([r]) => dispatcherRoles.includes(r)) ? [['dispatcher', 'Dispatcher']] : []),
+        ...roles.filter(([r]) => !dispatcherRoles.includes(r) && (r !== 'audit' || (u.id && u.role === 'audit')) && roleAvailable(r, u)),
+      ];
       const wrap = UI.formModal(u.id ? 'Edit ' + UI.esc(u.username) : 'New user account', [
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
         { name: 'email', label: 'Email', type: 'email', required: true, col: 6, value: u.email },
-        { name: 'role', label: 'Role', type: 'select', options: availableRoles, required: true, col: 6, value: u.role },
+        { name: 'role', label: 'Role', type: 'select', options: roleOptions, required: true, col: 6, value: editingDispatcher ? 'dispatcher' : u.role },
+        { name: 'dispatcher_truck_type', label: 'Truck Type', type: 'select', options: UI.list(['Car Carrier','Container','Wing Van']), required: false, col: 6, value: u.dispatcher_truck_type || '' },
         { name: 'shift', label: 'Assigned Shift', type: 'select', options: UI.list(shifts), col: 6, value: u.shift },
-        { type: 'html', col: 12, html: '<section class="admin-dispatcher-truck-section" data-dispatcher-trucks hidden><div class="admin-dispatcher-truck-title"><strong><i class="bi bi-truck" aria-hidden="true"></i> Assigned Trucks</strong><span data-truck-count>0 selected</span></div><p class="small text-muted mb-2">Choose the trucks this account can manage. The same truck may be authorized for Day and Night, but existing trip holds still prevent conflicts.</p><input class="form-control form-control-sm mb-2" type="search" data-truck-search placeholder="Search truck number or plate" aria-label="Search available trucks"><div class="admin-dispatcher-truck-list" data-truck-list></div><div class="form-help mt-2" data-truck-warning></div><div class="admin-dispatcher-assignment-preview" data-truck-preview role="status"></div></section>' }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
-          intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
-          transform: (d, form) => {
-            const selected = [...selectedTrucks];
-            for (const name of Object.keys(d)) if (name.startsWith('dispatcher_truck_') || name === 'dispatcher_shift_choice') delete d[name];
-            if (dispatcherRoles.includes(d.role)) {
-              if (!selected.length) throw new Error('Select at least one authorized truck for this Dispatcher account.');
-              d.assigned_truck_ids = selected;
-            } else d.assigned_truck_ids = [];
-            return d;
-          },
-          after: (r) => { App.route(); if (r.temporary_password) showTempPassword(r); } });
+      ], 'Admin.user_save', {
+        extra: u.id ? { id: u.id } : {},
+        intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
+        transform: (values) => {
+          delete values.dispatcher_shift_choice;
+          if (values.role === 'dispatcher') {
+            if (!values.dispatcher_truck_type) throw new Error('Choose Car Carrier, Container, or Wing Van.');
+            if (!values.shift) throw new Error('Choose Day or Night Shift.');
+            values.role = values.dispatcher_truck_type === 'Car Carrier'
+              ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher';
+          } else {
+            delete values.dispatcher_truck_type;
+            values.shift = '';
+          }
+          return values;
+        },
+        after: (result) => { App.route(); if (result.temporary_password) showTempPassword(result); }
+      });
       const role = wrap.querySelector('[name=role]');
-      const shiftInput = wrap.querySelector('[name=shift]');
-      const shiftWrapper = shiftInput.closest('[class*=col-]');
+      const truckType = wrap.querySelector('[name=dispatcher_truck_type]');
+      const shift = wrap.querySelector('[name=shift]');
+      const truckWrapper = truckType.closest('[class*=col-]');
+      const shiftWrapper = shift.closest('[class*=col-]');
       const shiftChoices = document.createElement('div');
       shiftChoices.className = 'admin-dispatcher-shift-choices';
       shiftChoices.setAttribute('role','group');
       shiftChoices.setAttribute('aria-label','Assigned Shift');
-      shiftInput.insertAdjacentElement('afterend', shiftChoices);
-      shiftInput.classList.add('visually-hidden');
-      const truckSection = wrap.querySelector('[data-dispatcher-trucks]');
-      const truckList = wrap.querySelector('[data-truck-list]');
-      const truckSearch = wrap.querySelector('[data-truck-search]');
-      const truckCount = wrap.querySelector('[data-truck-count]');
-      const truckPreview = wrap.querySelector('[data-truck-preview]');
-      const truckWarning = wrap.querySelector('[data-truck-warning]');
-      const truckSchemaReady = !!d.dispatcherTruckSchemaReady;
-      const saveButton = wrap.querySelector('button[type=submit]');
-      const existingTrucks = new Set((d.dispatcherTrucks || []).filter(x => String(x.dispatcher_id) === String(u.id)).map(x => Number(x.vehicle_id)));
-      const selectedTrucks = new Set(existingTrucks);
-      const truckChoices = (d.truckOptions || []).filter(v => Number(v.id) > 0);
-      const matchingTrucks = () => truckChoices.filter(v => role.value === 'car_carrier_dispatcher'
-        ? v.truck_type === 'Car Carrier'
-        : ['Container', 'Wing Van'].includes(v.truck_type));
-      const updateTruckCount = () => {
-        const compatible = new Set(matchingTrucks().map(v => Number(v.id)));
-        const count = [...selectedTrucks].filter(id => compatible.has(id)).length;
-        truckCount.textContent = count + ' selected';
-        const roleName = role.options[role.selectedIndex]?.textContent || 'Dispatcher';
-        truckPreview.textContent = roleName + ' · ' + (shiftInput.value || 'Choose shift') + ' · ' + count + ' authorized truck' + (count === 1 ? '' : 's');
-      };
-      const renderTrucks = () => {
-        const query = truckSearch.value.toLowerCase().trim();
-        const options = matchingTrucks().filter(v => [v.truck_number,v.plate_number,v.truck_type].some(x => String(x || '').toLowerCase().includes(query)));
-        truckList.replaceChildren();
-        if (!options.length) {
-          const note = document.createElement('p');
-          note.className = 'small text-muted mb-0 p-2';
-          note.textContent = truckChoices.length ? 'No matching trucks for this dispatcher group.' : 'No active trucks found. Add vehicles in the Trucks masterlist first.';
-          truckList.append(note);
-        }
-        options.forEach(v => {
-          const id = 'dispatcher-truck-' + v.id;
-          const item = document.createElement('label');
-          item.className = 'admin-dispatcher-truck-choice';
-          item.setAttribute('for', id);
-          const checkbox = document.createElement('input');
-          checkbox.type='checkbox'; checkbox.name='dispatcher_truck_' + v.id;
-          checkbox.value=String(v.id); checkbox.id=id;
-          checkbox.dataset.truckChoice='1'; checkbox.checked=selectedTrucks.has(Number(v.id));
-          const details = document.createElement('span');
-          details.className = 'admin-dispatcher-truck-info';
-          const title = document.createElement('strong');
-          title.textContent = v.truck_number || v.plate_number;
-          const sub = document.createElement('small');
-          sub.textContent = (v.truck_number && v.plate_number ? v.plate_number + ' · ' : '') + v.truck_type;
-          details.append(title,sub); item.append(checkbox,details);
-          checkbox.onchange = () => { if(checkbox.checked)selectedTrucks.add(Number(v.id)); else selectedTrucks.delete(Number(v.id));updateTruckCount(); };
-          truckList.append(item);
-        });
-        updateTruckCount();
-      };
-      truckSearch.oninput = renderTrucks;
-      const refreshShifts = () => {
-        const dispatch = dispatcherRoles.includes(role.value);
-        shiftWrapper.style.display = dispatch ? '' : 'none';
-        truckSection.hidden = !dispatch;
-        saveButton.disabled = dispatch && !truckSchemaReady;
-        truckWarning.textContent = !truckSchemaReady
-          ? 'Setup required: install and verify database/migrations/2026-11-15_15_dispatcher_truck_authorizations.sql before creating or editing Dispatcher accounts.'
-          : '';
-        shiftInput.required = false; // visible radio group owns required-field validation
-        if (dispatch) {
-          const compatible = new Set(matchingTrucks().map(v => Number(v.id)));
-          for (const id of selectedTrucks) if (!compatible.has(id)) selectedTrucks.delete(id);
-          renderTrucks();
-        }
-        if (!dispatch) { shiftInput.value = ''; return; }
-        const current = shiftInput.value;
-        const options = shifts.filter(s => (u.id && role.value === u.role && s === u.shift) ||
-          !occupied(role.value, s, u.id));
-        shiftInput.replaceChildren(new Option('Choose…', ''), ...options.map(s => new Option(s, s)));
-        shiftInput.value = options.includes(current) ? current : '';
+      shift.insertAdjacentElement('afterend',shiftChoices);
+      shift.classList.add('visually-hidden');
+      const preview = document.createElement('div');
+      preview.className = 'admin-dispatcher-assignment-preview';
+      preview.setAttribute('role','status');
+      shiftWrapper.insertAdjacentElement('afterend',preview);
+      const refresh = () => {
+        const dispatcher = role.value === 'dispatcher';
+        truckWrapper.style.display = dispatcher ? '' : 'none';
+        shiftWrapper.style.display = dispatcher ? '' : 'none';
+        preview.hidden = !dispatcher;
+        truckType.required = dispatcher;
+        shift.required = false;
+        if (!dispatcher) { shift.value=''; truckType.value=''; shiftChoices.replaceChildren(); return; }
+        const internalRole = truckType.value === 'Car Carrier' ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher';
+        const available = shifts.filter(s => !activeAccounts.some(a =>
+          String(a.id) !== String(u.id ?? '') && a.role === internalRole && a.shift === s &&
+          (a.dispatcher_truck_type === truckType.value || !a.dispatcher_truck_type)));
+        if (u.id && u.shift && truckType.value === u.dispatcher_truck_type && internalRole === u.role && !available.includes(u.shift)) available.push(u.shift);
+        const selected = shift.value;
+        shift.replaceChildren(new Option('Choose…',''), ...shifts.filter(s=>available.includes(s)).map(s=>new Option(s,s)));
+        shift.value = available.includes(selected) ? selected : '';
         shiftChoices.replaceChildren();
         shifts.forEach(s => {
-          const label = document.createElement('label');
-          label.className = 'admin-dispatcher-shift-option';
-          const radio = document.createElement('input');
-          radio.type = 'radio'; radio.name = 'dispatcher_shift_choice';
-          radio.value = s; radio.checked = shiftInput.value === s;
-          radio.disabled = !options.includes(s);
-          radio.required = dispatch;
-          radio.addEventListener('change', () => {
-            if (radio.checked) { shiftInput.value = s; updateTruckCount(); }
-          });
-          label.append(radio, document.createTextNode(s + ' Shift'));
+          const label=document.createElement('label');
+          label.className='admin-dispatcher-shift-option';
+          const radio=document.createElement('input');
+          radio.type='radio'; radio.name='dispatcher_shift_choice';radio.value=s;
+          radio.disabled=!available.includes(s);
+          radio.checked=shift.value===s;radio.required=dispatcher;
+          radio.onchange=()=>{if(radio.checked){shift.value=s;updatePreview();}};
+          label.append(radio,document.createTextNode(s+' Shift'));
           shiftChoices.append(label);
         });
+        updatePreview();
       };
-      role.addEventListener('change', () => { shiftInput.value = ''; selectedTrucks.clear(); truckSearch.value = ''; refreshShifts(); });
-      refreshShifts();
+      const updatePreview = () => {
+        preview.textContent = 'Dispatcher · ' + (truckType.value||'Select truck type') + ' · ' + (shift.value||'Select shift');
+      };
+      role.onchange=()=>{truckType.value='';shift.value='';refresh();};
+      truckType.onchange=()=>{shift.value='';refresh();};
+      refresh();
     };
     const tabs = [];
       // CHECKLIST_42_ATTENDANCE_PHASE2_V1: time-of-day settings (format 'hour') are shown and chosen as 12-hour
