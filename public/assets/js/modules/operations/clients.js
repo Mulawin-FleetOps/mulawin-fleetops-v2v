@@ -117,7 +117,7 @@ const ClientUI = {
     }).join('');
     const hasBilling = Number(r.billing?.invoices || 0) > 0;
     const hasTrips = Array.isArray(r.trips) && r.trips.length > 0;
-    const activeRecentTrips = (r.trips || []).filter(t=>['Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule'].includes(t.status)).length;
+    const activeTrips = Number(c.active_trip_count||0);
     const info = [
       ['Registered name',UI.e(c.company_name)],['Trade name',UI.e(c.trade_name)],
       ['TIN',UI.e(c.tin)],['Nature of business',UI.e(c.nature_of_business)],
@@ -130,7 +130,7 @@ const ClientUI = {
     const html = '<div class="client-profile-clean">'
       +'<div class="client-profile-top"><div class="client-profile-identity"><span class="client-profile-code">'+UI.e(c.client_code)+'</span>'+UI.badge(c.status)+'</div>'
       +'<h3>'+UI.e(c.company_name)+'</h3>'
-      +'<div class="client-profile-overview"><span><i class="bi bi-truck" aria-hidden="true"></i> '+activeRecentTrips+' active trip'+(activeRecentTrips===1?'':'s')+' in recent records</span>'
+      +'<div class="client-profile-overview"><span><i class="bi bi-truck" aria-hidden="true"></i> '+activeTrips+' active trip'+(activeTrips===1?'':'s')+'</span>'
       +'<span><i class="bi bi-receipt" aria-hidden="true"></i> '+(hasBilling?UI.money(r.billing.outstanding):'No invoiced receivables')+'</span></div></div>'
       +(c.status==='Incomplete'?'<div class="alert alert-warning py-2 small">Missing requirements: '+r.missing.map(UI.esc).join(', ')+'. This client is not eligible for trips yet.</div>':'')
       +(c.status==='Pending Rate'?'<div class="alert alert-info py-2 small">Legacy client status: verify accreditation before activating.</div>':'')
@@ -252,6 +252,7 @@ App.page('clients', {
       ['Outstanding Balance','balance','money'],
     ],rows,{
       tools:toolbar,
+      showAllColumns:true,
       actions:()=>UI.btn('view','View'),
       onAction:(action,c)=>ClientUI.open(c.id,d),
       rowClick:c=>ClientUI.open(c.id,d),

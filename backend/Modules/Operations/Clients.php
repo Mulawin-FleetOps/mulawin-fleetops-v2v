@@ -28,7 +28,13 @@ final class Clients {
                     NULL AS rates,
                     (SELECT COUNT(DISTINCT d.category) FROM documents d WHERE d.entity_type='client' AND d.entity_id=c.id AND d.category IN ('" . implode("','", self::REQUIRED_DOCS) . "')) AS docs_done,
                     (SELECT COUNT(*) FROM trips t WHERE t.client_id=c.id AND t.status NOT IN ('Cancelled','Rejected')) AS trip_count,
-                    (SELECT COUNT(*) FROM trips t WHERE t.client_id=c.id AND t.status IN ('Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule')) AS active_trip_count,
+                    (SELECT COUNT(*) FROM trips t WHERE t.client_id=c.id
+                        AND t.status IN ('Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule')
+                        AND NOT (t.status='Awaiting Resources' AND t.scheduled_at < NOW()
+                            AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
+                            AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
+                            AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
+                                AND f.status IN ('Pending Approval','Ready for Release','Released')))) AS active_trip_count,
                     (SELECT COALESCE(SUM(b.total_amount - b.amount_paid),0) FROM billings b WHERE b.client_id=c.id AND b.status IN ('Invoiced','Partially Paid')) AS balance
                 FROM clients c ORDER BY FIELD(c.status,'Pending Rate','Active','Incomplete','Inactive'), c.company_name"),
         ]);
@@ -173,6 +179,13 @@ final class Clients {
         }
         $c = one($p, 'SELECT c.*, cu.full_name AS created_by_name, ru.full_name AS rate_set_by_name FROM clients c LEFT JOIN users cu ON cu.id=c.created_by LEFT JOIN users ru ON ru.id=c.rate_set_by WHERE c.id=?', [$id]);
         must((bool)$c, 'Client not found.', 404);
+        $c['active_trip_count'] = (int)(one($p, "SELECT COUNT(*) AS total FROM trips t WHERE t.client_id=?
+            AND t.status IN ('Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule')
+            AND NOT (t.status='Awaiting Resources' AND t.scheduled_at < NOW()
+                AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
+                AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
+                    AND f.status IN ('Pending Approval','Ready for Release','Released')))", [$id])['total'] ?? 0);
         return [
             'client' => $c,
             'rates' => many($p, 'SELECT r.*, u.full_name AS updated_by_name FROM client_rates r JOIN users u ON u.id=r.updated_by WHERE r.client_id=? ORDER BY r.truck_type', [$id]),
