@@ -270,13 +270,13 @@ const HeadFleetWorkspace = {
         ['Status','status','badge'],['Current Trip','active_trip']]},
     {id:'drivers', label:'Drivers', key:'personnel', personType:'Driver', empty:'No driver records available.',
       cols:[['Driver','full_name'],['Availability','availability','badge'],
-        ['Authorized Trucks','authorized_trucks',(value)=>value?'<span class="head-fleet-truck-list">'+UI.esc(value)+'</span>':'—'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
+        ['Authorized Trucks','authorized_trucks',(value)=>value?'<span class="head-fleet-truck-list">'+UI.esc(value)+'</span>':'—'],['Record Status','active',value=>UI.badge(Number(value)===1?'Active':'Inactive')]]},
     {id:'helpers', label:'Helpers', key:'personnel', personType:'Helper', empty:'No helper records available.',
       cols:[['Helper','full_name'],['Availability','availability','badge'],
-        ['Regular Truck','regular_truck'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
+        ['Regular Truck','regular_truck'],['Record Status','active',value=>UI.badge(Number(value)===1?'Active':'Inactive')]]},
     {id:'mechanics', label:'Mechanics', key:'mechanics', empty:'No mechanics recorded.',
       cols:[['Mechanic','full_name'],['Active Jobs','open_jobs'],
-        ['Assigned Trucks','assigned_trucks'],['Active','active',value=>Number(value)===1?'Yes':'No']]}
+        ['Assigned Trucks','assigned_trucks'],['Record Status','active',value=>UI.badge(Number(value)===1?'Active':'Inactive')]]}
   ],
   metrics(summary) {
     const value=key=>summary && summary[key] !== null && summary[key] !== undefined
@@ -329,8 +329,8 @@ const HeadFleetWorkspace = {
       const filters=category.id==='trucks'
         ? [filterField('Status','status')]
         : category.id==='mechanics'
-          ? [filterField('Active status','active',activeOptions)]
-          : [filterField('Availability','availability'),filterField('Active status','active',activeOptions)];
+          ? [filterField('Record status','active',activeOptions)]
+          : [filterField('Availability','availability'),filterField('Record status','active',activeOptions)];
       const sortOptions=category.id==='trucks'
         ? [{key:'plate_number',label:'Truck / Plate'},{key:'status',label:'Status'}]
         : [{key:'full_name',label:category.id==='mechanics'?'Mechanic name':category.id==='drivers'?'Driver name':'Helper name'}];
