@@ -65,15 +65,38 @@ const DispatcherMonitorUI = {
       {label:'Completed Trips',value:d.summary.completed??'—',color:'blue'},
       {label:'Needs Attention',value:d.summary.needs_attention??d.summary.attention??'—',color:'amber'}
     ]);
+    // Reuse the same shared records shell and tab components as the Trips page.
+    const tripViews=RecordComponents.tabs([
+      {value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}
+    ],d.tab,'data-monitor-view');
+    const clearGroup=q.group||q.shift
+      ?'<a class="record-workspace-help oh-dispatch-clear-group" data-clear-group href="'+UI.esc(href({group:undefined,shift:undefined}))+'">Clear Group</a>'
+      :'';
+    const recordsMarkup=
+      '<div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2>'
+      +'<p class="record-workspace-count">'+UI.num(d.total)+' matching records</p></div></div>'
+      +'<div class="record-workspace-search">'
+      +'<div class="table-search oh-dispatch-search-box"><i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input data-monitor-search aria-label="Search monitored trips" class="form-control" type="search"'
+      +' value="'+UI.esc(q.search||'')+'" placeholder="Search trip, client, route or truck"></div>'
+      +controls+'</div>'
+      +'<div class="record-workspace-category-row oh-dispatch-view-row">'+tripViews+clearGroup+'</div>'
+      +'<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr><th>Trip / Client</th><th>Route / Truck</th><th>'
+      +(history?'Completion / Closure':'Scheduled Dispatch')
+      +'</th><th>Status</th><th>Action</th></tr></thead><tbody data-monitor-tbody>'
+      +(originalRows.map(rowHTML).join('')||'<tr><td colspan="5" class="table-empty">No trips match these filters.</td></tr>')
+      +'</tbody></table></div>'
+      +'<div class="table-pager oh-dispatch-pager">'
+      +UI.recordPager({total:d.total,page:d.page,pages:d.pages,pageSize:d.pageSize||12,previous:'data-monitor-prev',next:'data-monitor-next'})
+      +'</div>';
     ctx.el.innerHTML='<div class="oh-dispatch-workspace">'+metrics
-      +'<section class="oh-dispatch-shifts"><div class="oh-dispatch-section-head"><h2>Dispatcher Shift Overview</h2><span>'+UI.num(groups.length)+' groups / shifts</span></div><div class="oh-dispatch-shift-grid">'+(groupCards||'<p class="small text-muted">No dispatcher groups configured.</p>')+'</div></section>'
-      +RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],d.tab,'data-monitor-view')
-      +(q.group||q.shift?'<p class="small"><a data-clear-group href="'+UI.esc(href({group:undefined,shift:undefined}))+'">Clear Group</a></p>':'')
-      +'<section class="record-workspace-panel oh-dispatch-records"><div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2><p class="record-workspace-count">'+UI.num(d.total)+' matching records</p></div>'
-      +'</div><div class="record-workspace-search"><input data-monitor-search aria-label="Search monitored trips" class="form-control" type="search" value="'+UI.esc(q.search||'')+'" placeholder="Search trip, client, route or truck">'+controls+'</div>'
-      +'<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr><th>Trip / Client</th><th>Route / Truck</th><th>'+(history?'Completion / Closure':'Scheduled Dispatch')+'</th><th>Status</th><th>Action</th></tr></thead><tbody data-monitor-tbody>'
-      +(originalRows.map(rowHTML).join('')||'<tr><td colspan="5" class="table-empty">No trips match these filters.</td></tr>')+'</tbody></table></div>'
-      +'<div class="oh-dispatch-pager">'+UI.recordPager({total:d.total,page:d.page,pages:d.pages,pageSize:d.pageSize||12,previous:'data-monitor-prev',next:'data-monitor-next'})+'</div></section></div>';
+      +'<section class="oh-dispatch-shifts"><div class="oh-dispatch-section-head"><h2>Dispatcher Shift Overview</h2>'
+      +'<span>'+UI.num(groups.length)+' groups / shifts</span></div><div class="oh-dispatch-shift-grid">'
+      +(groupCards||'<p class="small text-muted">No dispatcher groups configured.</p>')
+      +'</div></section>'
+      +RecordComponents.panel(recordsMarkup)
+      +'</div>';
+    ctx.el.querySelector('.record-workspace-panel')?.classList.add('oh-dispatch-records');
     const root=ctx.el.querySelector('.oh-dispatch-workspace');
     root.querySelectorAll('[data-monitor-view]').forEach(button=>button.addEventListener('click',()=>{
       const next={...q,tab:button.dataset.monitorView,trip_page:1};
