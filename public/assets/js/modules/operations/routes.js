@@ -38,8 +38,8 @@ const RouteUI = {
       </section>` },
       { type: 'hidden', name: 'origin_lat' }, { type: 'hidden', name: 'origin_lng' }, { type: 'hidden', name: 'destination_lat' }, { type: 'hidden', name: 'destination_lng' },
       ...UI.distanceFieldDefs().filter(f => f.name === 'route_option'),
-      { name: 'distance_km', label: 'Pickup → delivery distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 4, attrs: `max="${+d.maxDistance}"`,
-        help: d.routing ? 'Filled in from the road distance when both points are pinned. You may change it (a reason is required).' : 'Type the km (automatic road distance is not set up on the server).' },
+      { name: 'distance_km', label: 'Delivery Distance (km)', type: 'number', step: '0.01', min: '0.01', required: true, col: 12, attrs: `max="${+d.maxDistance}"`,
+        help: d.routing ? 'Calculated when both points are pinned. Changes require a reason.' : 'Enter the verified road distance.' },
       ...UI.distanceFieldDefs().filter(f => f.name !== 'route_option'),
       { type: 'html', col: 12, html: `<div class="rpm-route-distances" aria-label="Distance summary">
         <div><span>Empty-truck travel · Garage → Pickup</span><strong data-garage-km>Not available</strong></div>

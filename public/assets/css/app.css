@@ -2229,16 +2229,23 @@ button.docfm-folder:focus-visible {
 .rpm-route-composer{display:grid;grid-template-columns:minmax(0,42fr) minmax(0,58fr);align-items:start;gap:16px;min-width:0}
 .rpm-route-input-col,.rpm-route-preview-col{min-width:0}
 .rpm-route-input-col>.row,.rpm-route-preview-col>.row{row-gap:0}
-.rpm-route-input-col .form-label{font-size:12px;font-weight:600;margin-bottom:4px}
-.rpm-route-input-col .form-control,.rpm-route-input-col .form-select{min-height:38px}
+.rpm-route-dialog .rpm-route-input-col .form-label{font-size:12px;font-weight:650;margin-bottom:4px}
+.rpm-route-dialog .rpm-route-input-col .form-control,.rpm-route-dialog .rpm-route-input-col .form-select{min-height:39px}
 .rpm-route-input-col .mb-3{margin-bottom:10px!important}
 .rpm-route-input-col .form-help{font-size:11px;line-height:1.4}
-.rpm-route-composer .rpm-route-garage{padding:9px 11px;gap:8px;margin-bottom:2px}
+.rpm-route-composer .rpm-route-garage{padding:8px 10px;gap:8px;margin-bottom:0;align-items:center}
 .rpm-route-composer .rpm-route-garage-icon{width:32px;height:32px;flex-basis:32px;font-size:16px}
-.rpm-route-composer .rpm-route-garage-top{gap:5px}
+.rpm-route-composer .rpm-route-garage-top{gap:6px;margin-bottom:0}
 .rpm-route-composer .rpm-garage-fixed{font-size:10px}
-.rpm-route-composer .rpm-route-garage-copy{font-size:11px;line-height:1.35}
-.rpm-route-composer .rpm-route-garage-copy small{font-size:10px}
+.rpm-route-composer .rpm-route-garage-copy{font-size:11px;line-height:1.3}
+.rpm-route-composer .rpm-route-garage-copy small{font-size:10px;line-height:1.3}
+.rpm-route-dialog .rpm-route-composer .rpm-route-garage-copy .rpm-garage-name{font-size:12px;margin-bottom:1px}
+.rpm-route-composer .rpm-garage-fixed{white-space:nowrap}
+.rpm-route-dialog .rpm-route-input-col>.row{row-gap:0}
+.rpm-route-dialog .rpm-route-input-col .form-help{max-width:100%;margin-top:4px;line-height:1.35}
+.rpm-route-dialog .rpm-route-input-col [name="distance_km"]{width:100%;max-width:100%;font-variant-numeric:tabular-nums}
+.rpm-route-dialog .rpm-route-input-col [name="notes"]{width:100%}
+
 .rpm-route-composer .rpm-route-map-heading{padding:9px 12px}
 .rpm-route-composer .rpm-route-steps{padding:7px 10px}
 .rpm-route-composer .rpm-route-legend{padding:8px 11px;gap:9px}
