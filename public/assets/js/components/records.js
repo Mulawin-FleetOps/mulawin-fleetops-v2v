@@ -20,7 +20,7 @@ const RecordComponents = Object.freeze({
       + '</nav>';
   },
 
-  categories(items, active, attribute = 'data-record-category') {
+  categories(items, active, attribute = 'data-record-category', options = {}) {
     // Keep large category groups compact. Preserve every original category
     // button and data attribute so existing selection/permission handlers work.
     const renderButton = item => {
@@ -30,8 +30,8 @@ const RecordComponents = Object.freeze({
         + '" ' + attribute + '="' + UI.esc(item.value) + '" aria-pressed="' + selected + '">'
         + UI.esc(UI.tabLabel(item.label)) + '</button>';
     };
-    const primary=items.length>3?items.slice(0,3):items;
-    const extra=items.length>3?items.slice(3):[];
+    const primary=items.length>3 && !options.showAll ? items.slice(0,3) : items;
+    const extra=items.length>3 && !options.showAll ? items.slice(3) : [];
     const activeExtra=extra.find(item=>String(item.value)===String(active));
     return '<div class="record-workspace-categories" role="group" aria-label="Record categories">'
       +primary.map(renderButton).join('')

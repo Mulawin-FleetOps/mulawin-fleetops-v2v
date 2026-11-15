@@ -151,7 +151,7 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
     const hasFilters=filters.length>0;
@@ -185,7 +185,7 @@ const HeadRecords = {
       tools:toolbar,showAllColumns:true,viewSwitch:false,empty,
       ...(onAction?{actions:()=>UI.btn('view','View','outline-primary'),onAction,rowClick}:{})
     });
-    root.innerHTML=RecordComponents.panel(table,RecordComponents.categories(categories,selected,'data-head-record-category'));
+    root.innerHTML=RecordComponents.panel(table,RecordComponents.categories(categories,selected,'data-head-record-category',{showAll:showAllCategories}));
     UI.activate(root);
     RecordComponents.mountPanel(root,{title,addSelector:'.record-workspace-add'});
     const tableBody=root.querySelector('[data-tbody]'),id=tableBody?.dataset.tbody;
@@ -238,8 +238,11 @@ const HeadFleetWorkspace = {
     {id:'trucks', label:'Trucks', key:'vehicles', empty:'No truck records available.',
       cols:[['Truck / Plate','plate_number'],['Type','truck_type'],['Status','status','badge'],
         ['Driver','driver_name'],['Helper','helper_name'],['Current Trip','active_trip']]},
-    {id:'crew', label:'Drivers & Helpers', key:'personnel', empty:'No personnel records available.',
-      cols:[['Personnel','full_name'],['Role','person_type'],['Availability','availability','badge'],
+    {id:'drivers', label:'Drivers', key:'personnel', personType:'Driver', empty:'No driver records available.',
+      cols:[['Driver','full_name'],['Availability','availability','badge'],
+        ['Regular Truck','regular_truck'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
+    {id:'helpers', label:'Helpers', key:'personnel', personType:'Helper', empty:'No helper records available.',
+      cols:[['Helper','full_name'],['Availability','availability','badge'],
         ['Regular Truck','regular_truck'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
     {id:'mechanics', label:'Mechanics', key:'mechanics', empty:'No mechanics recorded.',
       cols:[['Mechanic','full_name'],['Active Jobs','open_jobs'],
@@ -251,7 +254,7 @@ const HeadFleetWorkspace = {
     const items=[
       ['Total Trucks',value('total_trucks'),'bi-truck','green','trucks'],
       ['Available Trucks',value('available_trucks'),'bi-check-circle','blue','trucks'],
-      ['Active Drivers & Helpers',value('active_crew'),'bi-people','purple','crew'],
+      ['Active Drivers & Helpers',value('active_crew'),'bi-people','purple','drivers'],
       ['Under Maintenance',value('under_maintenance'),'bi-wrench-adjustable','red','trucks']
     ];
     return '<div class="head-trip-kpis head-fleet-kpis">'
@@ -263,7 +266,11 @@ const HeadFleetWorkspace = {
   },
   render(ctx) {
     const data=ctx.data||{};
-    const tabs=this.categories.map(category=>({...category,records:Array.isArray(data[category.key])?data[category.key]:[]}));
+    const tabs=this.categories.map(category=>({
+      ...category,
+      records:(Array.isArray(data[category.key])?data[category.key]:[])
+        .filter(row=>!category.personType || row.person_type===category.personType)
+    }));
     ctx.el.innerHTML='<div class="head-fleet-workspace">'
       +'<p class="small text-muted">Company-wide monitoring only. Operational changes belong to their assigned departments.</p>'
       +this.metrics(data.fleet_summary)
@@ -278,6 +285,7 @@ const HeadFleetWorkspace = {
         categories:tabs.map(tab=>({value:tab.id,label:tab.label})),
         selected:category.id,
         columns:category.cols,rows:records,empty:category.empty,
+        showAllCategories:true,
         filters:field?[{label:field.replace(/_/g,' '),key:field,
           options:[...new Set(records.map(row=>row[field]).filter(Boolean))].sort()}]:[],
         changeCategory:select
