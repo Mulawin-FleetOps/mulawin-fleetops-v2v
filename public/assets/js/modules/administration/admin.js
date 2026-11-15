@@ -39,15 +39,17 @@ const HeadAdminPage = {
         ...roles.filter(([r]) => !dispatcherRoles.includes(r) && (r !== 'audit' || (u.id && u.role === 'audit')) && roleAvailable(r, u)),
       ];
       const wrap = UI.formModal(u.id ? 'Edit ' + UI.esc(u.username) : 'New user account', [
+        { type: 'html', col: 12, html: '<div class="admin-account-section-heading"><span class="admin-account-section-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span><span><strong>Account information</strong><small>Enter the employee details used for sign-in and identification.</small></span></div>' },
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
         { name: 'email', label: 'Email', type: 'email', required: true, col: 6, value: u.email },
         { name: 'role', label: 'Role', type: 'select', options: roleOptions, required: true, col: 6, value: editingDispatcher ? 'dispatcher' : u.role },
+        { type: 'html', col: 12, html: '<div class="admin-account-dispatcher-heading" data-dispatcher-heading><div class="admin-account-section-heading"><span class="admin-account-section-icon"><i class="bi bi-truck" aria-hidden="true"></i></span><span><strong>Dispatcher assignment</strong><small>Choose the fleet category and working shift for this account.</small></span></div></div>' },
         { name: 'dispatcher_truck_type', label: 'Truck Type', type: 'select', options: UI.list(['Car Carrier','Container','Wing Van']), required: false, col: 6, value: u.dispatcher_truck_type || '' },
         { name: 'shift', label: 'Assigned Shift', type: 'select', options: UI.list(shifts), col: 6, value: u.shift },
       ], 'Admin.user_save', {
         extra: u.id ? { id: u.id } : {},
-        intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
+        intro: u.id ? '' : '<i class="bi bi-shield-lock" aria-hidden="true"></i><span>The system will generate a <strong>one-time temporary password</strong> after saving. Share it privately with the employee.</span>',
         transform: (values) => {
           delete values.dispatcher_shift_choice;
           if (values.role === 'dispatcher') {
@@ -63,10 +65,23 @@ const HeadAdminPage = {
         },
         after: (result) => { App.route(); if (result.temporary_password) showTempPassword(result); }
       });
+      wrap.classList.add('admin-account-modal');
+      const dialog = wrap.querySelector('.modal-dialog');
+      dialog?.classList.add('admin-account-dialog');
+      const headerTitle = wrap.querySelector('.modal-title');
+      if (headerTitle) {
+        headerTitle.classList.add('admin-account-title');
+        headerTitle.insertAdjacentHTML('afterend', '<p class="admin-account-subtitle">Manage employee access and account permissions</p>');
+      }
+      const submitButton = wrap.querySelector('button[type=submit]');
+      if (submitButton) {
+        submitButton.innerHTML = '<i class="bi bi-check2-circle" aria-hidden="true"></i> ' + (u.id ? 'Save changes' : 'Create account');
+      }
       const role = wrap.querySelector('[name=role]');
       const truckType = wrap.querySelector('[name=dispatcher_truck_type]');
       const shift = wrap.querySelector('[name=shift]');
       const truckWrapper = truckType.closest('[class*=col-]');
+      const dispatcherHeading = wrap.querySelector('[data-dispatcher-heading]');
       const shiftWrapper = shift.closest('[class*=col-]');
       const shiftChoices = document.createElement('div');
       shiftChoices.className = 'admin-dispatcher-shift-choices';
@@ -78,8 +93,11 @@ const HeadAdminPage = {
       preview.className = 'admin-dispatcher-assignment-preview';
       preview.setAttribute('role','status');
       shiftWrapper.insertAdjacentElement('afterend',preview);
+      truckWrapper.classList.add('admin-account-truck-field');
+      shiftWrapper.classList.add('admin-account-shift-field');
       const refresh = () => {
         const dispatcher = role.value === 'dispatcher';
+        dispatcherHeading.hidden = !dispatcher;
         truckWrapper.style.display = dispatcher ? '' : 'none';
         shiftWrapper.style.display = dispatcher ? '' : 'none';
         preview.hidden = !dispatcher;
@@ -109,7 +127,18 @@ const HeadAdminPage = {
         updatePreview();
       };
       const updatePreview = () => {
-        preview.textContent = 'Dispatcher · ' + (truckType.value||'Select truck type') + ' · ' + (shift.value||'Select shift');
+        const selectedType = truckType.value;
+        const selectedShift = shift.value;
+        preview.classList.toggle('is-complete', !!selectedType && !!selectedShift);
+        preview.replaceChildren();
+        const symbol = document.createElement('i');
+        symbol.className = 'bi ' + (selectedType && selectedShift ? 'bi-check-circle-fill' : 'bi-info-circle');
+        symbol.setAttribute('aria-hidden','true');
+        const info = document.createElement('span');
+        info.textContent = selectedType && selectedShift
+          ? 'Assignment ready: ' + selectedType + ' · ' + selectedShift + ' Shift'
+          : 'Select a truck type and shift to complete the assignment.';
+        preview.append(symbol, info);
       };
       role.onchange=()=>{truckType.value='';shift.value='';refresh();};
       truckType.onchange=()=>{shift.value='';refresh();};
