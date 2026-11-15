@@ -1202,3 +1202,119 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
 @media(prefers-reduced-motion:reduce){
   .oh-trip-drawer .oh-trip-group-chevron{transition:none}
 }
+
+
+/* Trip Progress: compact six-stage tracker inside Operations Head detail drawer only.
+   Milestone status, recorded dates and exception states still originate from UI.tripProgress. */
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow{
+  margin:0;
+  min-width:0;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-status{
+  display:none; /* Official status already appears prominently in the drawer header. */
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow ol{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(94px,1fr));
+  gap:7px;
+  margin:0;
+  padding:3px 2px 7px;
+  overflow-x:auto;
+  scrollbar-width:thin;
+  scroll-snap-type:x proximity;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:7px;
+  min-width:0;
+  min-height:115px;
+  padding:12px 10px;
+  border:1px solid #e1e9e3;
+  border-top:3px solid #dce6df;
+  border-radius:10px;
+  background:#f8faf8;
+  box-shadow:none;
+  scroll-snap-align:start;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li>div{
+  min-width:0;
+  width:100%;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li b{
+  display:block;
+  font-size:11px;
+  font-weight:750;
+  line-height:1.4;
+  color:#45614f;
+  overflow-wrap:normal;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li small{
+  margin-top:5px;
+  color:#819084;
+  font-size:10px;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li div>span{
+  display:none; /* Verbose milestone notes remain available in history; next step is shown below. */
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-dot{
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:27px;
+  height:27px;
+  border-radius:50%;
+  border:1px solid #d8e3db;
+  background:#ecf1ed;
+  color:#819487;
+  font-size:14px;
+  line-height:1;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-complete{
+  border-top-color:#329258;
+  background:#f2f9f4;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-complete .ui-workflow-dot{
+  background:#dff2e5;
+  border-color:#bce0c6;
+  color:#18713b;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-current{
+  outline:0;
+  border-color:#e3bb79;
+  border-top-color:#cb8c27;
+  background:#fff9ee;
+  box-shadow:0 0 0 1px rgba(197,131,28,.12);
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-current .ui-workflow-dot{
+  background:#fff0ce;
+  border-color:#ecc784;
+  color:#9b640d;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-current b{
+  color:#855918;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-exception{
+  border-color:#edc6c0;
+  border-top-color:#d4614b;
+  background:#fff7f5;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-exception .ui-workflow-dot{
+  border-color:#ebc7c0;background:#fbe6e0;color:#a94734;
+}
+.oh-trip-drawer .oh-trip-progress-card .oh-trip-next-step{
+  margin-top:10px;
+}
+@media(max-width:600px){
+  .oh-trip-drawer .oh-trip-progress-card .ui-workflow ol{
+    grid-template-columns:repeat(6,minmax(108px,1fr));
+  }
+  .oh-trip-drawer .oh-trip-progress-card .ui-workflow li{
+    min-height:105px;
+    padding:10px 9px;
+  }
+}
