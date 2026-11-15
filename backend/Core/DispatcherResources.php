@@ -19,7 +19,7 @@ final class DispatcherResources {
             $eligible[(int)$pe['id']]=['id'=>(int)$pe['id'],'name'=>$pe['full_name'],'shift_warning'=>$check['issue']];
             $out[$pe['person_type']==='Driver'?'second_drivers':'helpers'][]=$eligible[(int)$pe['id']];
         }
-        $authorized = DispatcherScope::authorizedTruckIds($p, $u);
+        $authorized = DispatcherScope::authorizedTruckIds($p, $u, $lock);
         if (!$authorized) return $out;
         $truckMarks = implode(',', array_fill(0, count($authorized), '?'));
         $vehicles=many($p,"SELECT v.id,v.plate_number,v.assigned_driver_id,v.assigned_helper_id,
