@@ -105,14 +105,17 @@ final class DispatcherTurnover {
                 foreach($rows as $t)must(DispatcherScope::permitsTrip($actor,$t),'Turnover contains work outside your account or truck group.',403);
                 if($action==='preview')return ['rows'=>$rows,'fingerprint'=>self::fingerprint($rows)];
                 must((bool)$rows,'No outstanding work is available to endorse.',409);
-                $incoming=self::account($p,idField($d,'incoming_id'));
+                $turnoverRole = $rows[0]['dispatcher_role'];
+                must(count(array_unique(array_column($rows, 'dispatcher_role'))) === 1,
+                    'Endorse each operational group separately when selecting trips from multiple truck groups.', 409);
+                $incoming=self::account($p,idField($d,'incoming_id'),$turnoverRole);
                 must($incoming['id']!==$actor['id'],'Choose a different incoming account.',409);
                 foreach ($rows as $t) {
                     must(in_array($t['truck_type'], DispatcherScope::types($incoming), true),
                         'Incoming Dispatcher is assigned to a different truck type. Choose a matching account.', 409);
                 }
                 must(hash_equals(self::fingerprint($rows),field($d,'fingerprint',64)),'The work changed after review. Review the latest summary before endorsing.',409);
-                $id=insert($p,'dispatcher_turnovers',['outgoing_id'=>$actor['id'],'incoming_id'=>$incoming['id'],'dispatcher_role'=>$actor['role'],'request_key'=>$key,'remarks'=>optField($d,'remarks',1000)]);
+                $id=insert($p,'dispatcher_turnovers',['outgoing_id'=>$actor['id'],'incoming_id'=>$incoming['id'],'dispatcher_role'=>$turnoverRole,'request_key'=>$key,'remarks'=>optField($d,'remarks',1000)]);
                 foreach($rows as $t){
                     must(!one($p,'SELECT turnover_id FROM dispatcher_turnover_trips WHERE pending_trip_id=?',[$t['id']]),'A referenced trip already has a pending turnover.',409);
                     run($p,'INSERT INTO dispatcher_turnover_trips(turnover_id,trip_id,responsibility_version,summary_json,pending_trip_id) VALUES(?,?,?,?,?)',[$id,$t['id'],$t['version'],json_encode($t,JSON_THROW_ON_ERROR),$t['id']]);
@@ -122,7 +125,7 @@ final class DispatcherTurnover {
                 return ['message'=>'Turnover endorsed. You retain responsibility until acceptance.','turnover_id'=>$id];
             }
             $id=idField($d,'turnover_id');$h=one($p,'SELECT * FROM dispatcher_turnovers WHERE id=? FOR UPDATE',[$id]);must((bool)$h,'Turnover not found.',404);
-            must($u['role']==='operations_head'||($u['role']===$h['dispatcher_role']&&in_array((int)$u['id'],[(int)$h['outgoing_id'],(int)$h['incoming_id']],true)),'This turnover is not addressed to your account.',403);
+            must($u['role']==='operations_head'||(roleIsDispatcher($u['role'])&&in_array((int)$u['id'],[(int)$h['outgoing_id'],(int)$h['incoming_id']],true)),'This turnover is not addressed to your account.',403);
             $items=many($p,'SELECT trip_id,responsibility_version,summary_json FROM dispatcher_turnover_trips WHERE turnover_id=? ORDER BY trip_id',[$id]);
             $h['outgoing_name']=one($p,'SELECT full_name FROM users WHERE id=?',[$h['outgoing_id']])['full_name']??null;$h['incoming_name']=one($p,'SELECT full_name FROM users WHERE id=?',[$h['incoming_id']])['full_name']??null;
             if($action==='details')return ['turnover'=>$h,'rows'=>array_map(fn($r)=>json_decode($r['summary_json'],true,512,JSON_THROW_ON_ERROR),$items),'current_rows'=>self::summary($p,null,false,array_map('intval',array_column($items,'trip_id')),false)];
@@ -150,7 +153,7 @@ final class DispatcherTurnover {
         $p=db();if(!self::ready($p))return ['schema_ready'=>false,'rows'=>[],'accounts'=>[],'unowned'=>[]];
         $ops=$u['role']==='operations_head';$args=$ops?[]:[$u['id'],$u['id']];
         $rows=many($p,'SELECT h.*,o.full_name AS outgoing_name,i.full_name AS incoming_name FROM dispatcher_turnovers h JOIN users o ON o.id=h.outgoing_id JOIN users i ON i.id=h.incoming_id'.($ops?'':' WHERE (h.outgoing_id=? OR h.incoming_id=?)').' ORDER BY h.id DESC LIMIT 500',$args);
-        $accounts=many($p,"SELECT id,full_name,role,shift FROM users WHERE active=1 AND role IN ('car_carrier_dispatcher','container_wingvan_dispatcher')".($ops?'':' AND role=?').' ORDER BY full_name',$ops?[]:[$u['role']]);
+        $accounts=many($p,"SELECT id,full_name,role,shift,dispatcher_truck_type,dispatcher_truck_types FROM users WHERE active=1 AND role IN ('car_carrier_dispatcher','container_wingvan_dispatcher') ORDER BY full_name");
         $unowned=$ops?many($p,"SELECT t.id,t.trip_ref,t.dispatcher_role,t.dispatcher_shift,t.truck_type FROM trips t LEFT JOIN trip_responsibilities r ON r.trip_id=t.id WHERE r.trip_id IS NULL AND t.dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher') ORDER BY ".self::workSql().' DESC,t.id DESC LIMIT 1000'):[];
         return ['schema_ready'=>true,'rows'=>$rows,'accounts'=>$accounts,'unowned'=>$unowned];
     }
