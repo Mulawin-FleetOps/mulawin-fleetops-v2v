@@ -2674,3 +2674,11 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .admin-dispatcher-shift-option input{
   accent-color:#23814a;width:15px;height:15px;margin:0
 }
+
+
+/* Dispatcher assignment preview */
+.admin-dispatcher-assignment-preview{
+  margin-top:11px;padding:9px 12px;background:#edf7f0;
+  color:#356b49;border-radius:8px;font-size:11px;
+  line-height:1.45;font-weight:650
+}
