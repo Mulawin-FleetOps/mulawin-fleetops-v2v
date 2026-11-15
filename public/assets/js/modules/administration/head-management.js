@@ -151,12 +151,12 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
     const hasFilters=filters.length>0;
     const hasRecords=rows.length>0;
-    const showTools=hasRecords||alwaysShowTools;
+    const showTools=(hasRecords||alwaysShowTools)&&!hideFilterSort;
     const sortFields=sortOptions?.length?sortOptions:[
       {key:columns[0]?.[1],label:columns[0]?.[0]||'Record'}];
     const choices=options=>options.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
@@ -286,6 +286,7 @@ const HeadFleetWorkspace = {
         selected:category.id,
         columns:category.cols,rows:records,empty:category.empty,
         showAllCategories:true,
+        hideFilterSort:true,
         filters:field?[{label:field.replace(/_/g,' '),key:field,
           options:[...new Set(records.map(row=>row[field]).filter(Boolean))].sort()}]:[],
         changeCategory:select
