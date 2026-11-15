@@ -483,8 +483,7 @@ const HeadRouteWorkspace = {
   categories: [
     {value:'all',label:'All Routes',empty:'No routes recorded.',accept:()=>true},
     {value:'waiting',label:'Needs Action',empty:'No routes need rate entry or review.',accept:r=>RouteUI.waiting(r)},
-    {value:'approved',label:'Approved',empty:'No approved routes yet.',accept:r=>r.status==='Approved'},
-    {value:'closed',label:'Closed / Inactive',empty:'No rejected, withdrawn, or inactive routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
+    {value:'approved',label:'Approved',empty:'No approved routes yet.',accept:r=>r.status==='Approved'}
   ],
   render(ctx,d) {
     const all=d.routes||[];
@@ -496,6 +495,7 @@ const HeadRouteWorkspace = {
       ...(d.clients||[]).map(r=>[String(r.id),r.company_name])
     ])].sort((a,b)=>String(a[1]||'').localeCompare(String(b[1]||'')));
     const types=[...new Set(all.map(r=>r.truck_type).filter(Boolean))].sort();
+    const statuses=[...new Set(all.map(r=>r.status).filter(Boolean))].sort();
     const option=(value,label)=>'<option value="'+UI.esc(value)+'">'+UI.esc(label)+'</option>';
     const cols=[
       ['Route / Pickup','route_ref',(v,r)=>'<div class="fleet-record-primary"><strong>'+UI.esc(v||'—')+'</strong><span class="cell-sub">'+UI.esc(r.origin_label||'—')+'</span></div>'],
@@ -520,6 +520,8 @@ const HeadRouteWorkspace = {
       +clients.map(([id,name])=>option(id,name)).join('')+'</select></label>'
       +'<label>Truck type<select class="form-select form-select-sm" data-head-route-type>'+option('','All truck types')
       +types.map(type=>option(type,type)).join('')+'</select></label>'
+      +'<label>Route status<select class="form-select form-select-sm" data-head-route-status>'+option('','All statuses')
+      +statuses.map(status=>option(status,status)).join('')+'</select></label>'
       +'<div class="record-workspace-popover-actions">'
       +'<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
       +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
@@ -529,13 +531,13 @@ const HeadRouteWorkspace = {
       +'<label class="record-workspace-sort-option"><input type="radio" name="head_route_sort" value="desc" data-record-sort> Route Z–A</label>'
       +'</div></div>'
       +'<button type="button" class="btn btn-sm btn-outline-success record-workspace-export"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>';
-    const state={tab:initial,client:'',type:'',sort:'default'};
+    const state={tab:initial,client:'',type:'',status:'',sort:'default'};
     ctx.el.innerHTML='<div class="head-route-workspace">'
       +RecordComponents.kpis([
+        {label:'Total Routes',value:all.length,color:'blue',icon:'bi-signpost-2'},
         {label:'Approved Routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
-        {label:'Needs Action',value:count(RouteUI.waiting),color:'blue',icon:'bi-calendar-check'},
-        ...(count(r=>r.pending_rate_id)>0?[{label:'Legacy Rates to Resolve',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',note:'Older requests or revisions requiring review'}]:[]),
-        {label:'Closed / Inactive',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
+        {label:'Needs Action',value:count(RouteUI.waiting),color:'amber',icon:'bi-exclamation-circle'},
+        {label:'Clients with Routes',value:new Set(all.map(r=>r.client_id).filter(id=>id!=null)).size,color:'purple',icon:'bi-buildings'}
       ])
       +'<div data-head-route-workspace></div></div>';
     const target=ctx.el.querySelector('[data-head-route-workspace]');
@@ -544,7 +546,8 @@ const HeadRouteWorkspace = {
       const category=this.categories.find(item=>item.value===state.tab)||this.categories[0];
       const rows=all.filter(row=>category.accept(row)
         &&(!state.client||String(row.client_id)===state.client)
-        &&(!state.type||row.truck_type===state.type));
+        &&(!state.type||row.truck_type===state.type)
+        &&(!state.status||row.status===state.status));
       const table=UI.table(cols,rows,{
         tools:toolbar,showAllColumns:true,viewSwitch:false,
         actions,onAction:action,rowClick:r=>RouteUI.open(r.id,d),
@@ -581,13 +584,15 @@ const HeadRouteWorkspace = {
         apply(panel){
           state.client=panel.querySelector('[data-head-route-client]').value;
           state.type=panel.querySelector('[data-head-route-type]').value;
+          state.status=panel.querySelector('[data-head-route-status]').value;
           renderTable();
         },
-        reset(){state.client='';state.type='';renderTable();},
+        reset(){state.client='';state.type='';state.status='';renderTable();},
         sort(value){state.sort=value;renderTable();}
       },ids);
       target.querySelector('[data-head-route-client]').value=state.client;
       target.querySelector('[data-head-route-type]').value=state.type;
+      target.querySelector('[data-head-route-status]').value=state.status;
       target.querySelectorAll('[data-record-sort]').forEach(input=>input.checked=input.value===state.sort);
       target.querySelector('.record-workspace-export')?.addEventListener('click',()=>{
         const t=tableId?UI._tables[tableId]:null;
