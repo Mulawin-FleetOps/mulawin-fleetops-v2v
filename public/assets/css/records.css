@@ -1255,3 +1255,117 @@
     white-space:nowrap;flex:none;
   }
 }
+
+
+/* Shared Fleet masterlist details: trucks, drivers, helpers. */
+.fleet-master-detail-drawer{
+  --bs-offcanvas-width:min(800px,100vw);
+}
+.fleet-master-detail-drawer .offcanvas-header{
+  padding:19px 23px;
+  background:#fff;border-bottom:1px solid #dde9e0;
+}
+.fleet-master-detail-drawer .offcanvas-title{
+  color:#204d33;font-size:18px;font-weight:750;
+  overflow-wrap:anywhere;
+}
+.fleet-master-detail-drawer .offcanvas-body{
+  background:#f7faf8;padding:18px 20px 26px;
+}
+.fleet-master-detail-drawer .fleet-detail-status{
+  display:flex;align-items:center;flex-wrap:wrap;gap:9px;
+  padding:0;margin-bottom:12px!important;
+  color:#64796c;font-size:12px;
+}
+.fleet-master-detail-drawer .fleet-detail-actions{
+  display:flex;align-items:center;gap:9px;
+  flex-wrap:wrap;
+  padding:12px;margin:0 0 14px;
+  border:1px solid #dce9e0;border-radius:12px;background:#fff;
+}
+.fleet-master-detail-drawer .fleet-detail-actions .btn{
+  min-height:38px;padding:8px 13px;
+  border-radius:9px;font-size:12px;font-weight:650;
+}
+.fleet-master-detail-drawer .fleet-detail-actions .btn:focus-visible{
+  outline:2px solid #227b48;outline-offset:2px;
+}
+.fleet-master-detail-drawer .fleet-detail-section{
+  margin:0 0 11px;
+  border:1px solid #dce8df;border-radius:12px;
+  overflow:hidden;background:#fff;
+  box-shadow:0 1px 3px rgba(25,67,41,.025);
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary{
+  display:flex;align-items:center;gap:11px;
+  min-height:58px;padding:12px 16px;
+  list-style:none;cursor:pointer;
+  color:#254e37;
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary::-webkit-details-marker{display:none}
+.fleet-master-detail-drawer .fleet-detail-section>summary:hover{background:#f4faf6}
+.fleet-master-detail-drawer .fleet-detail-section[open]>summary{
+  background:#f5faf6;border-bottom:1px solid #e1ebe4;
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary>.bi:first-child{
+  display:grid;place-items:center;
+  width:34px;height:34px;flex:none;border-radius:9px;
+  background:#e8f4eb;color:#27784a;font-size:16px;
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary>strong{
+  font-size:13px;font-weight:750;flex:1;
+}
+.fleet-master-detail-drawer .fleet-detail-chevron{
+  color:#779282;transition:transform .18s ease;
+}
+.fleet-master-detail-drawer .fleet-detail-section[open] .fleet-detail-chevron{
+  transform:rotate(180deg);
+}
+.fleet-master-detail-drawer .fleet-detail-section-body{
+  padding:8px 16px 18px;
+  min-width:0;overflow-wrap:anywhere;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .kv{
+  max-width:100%;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .table-wrap,
+.fleet-master-detail-drawer .fleet-detail-section-body .table-responsive{
+  max-width:100%;overflow-x:auto;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .data-table{
+  min-width:620px;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .table-tools{
+  flex-wrap:wrap;gap:8px;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .table-tools .table-search{
+  min-width:140px;flex:1 1 180px;
+}
+.fleet-master-detail-drawer .fleet-detail-empty{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;
+  min-height:122px;padding:23px 15px;
+  border:1px dashed #dce8df;border-radius:10px;background:#fafcfb;
+  color:#7d9284;gap:6px;
+}
+.fleet-master-detail-drawer .fleet-detail-empty .bi{
+  font-size:22px;color:#7bad8a;
+}
+.fleet-master-detail-drawer .fleet-detail-empty strong{
+  font-size:12.5px;font-weight:700;color:#45684f;
+}
+.fleet-master-detail-drawer .fleet-detail-empty span{
+  font-size:11.5px;line-height:1.5;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .timeline{
+  padding-left:20px;
+}
+@media(max-width:600px){
+  .fleet-master-detail-drawer .offcanvas-header{padding:15px 16px}
+  .fleet-master-detail-drawer .offcanvas-body{padding:12px}
+  .fleet-master-detail-drawer .fleet-detail-section>summary{padding:11px 12px}
+  .fleet-master-detail-drawer .fleet-detail-section-body{padding:8px 12px 15px}
+}
+@media(prefers-reduced-motion:reduce){
+  .fleet-master-detail-drawer .fleet-detail-chevron{transition:none}
+}
