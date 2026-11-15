@@ -9,8 +9,8 @@ final class DispatcherTurnover {
     }
     private static function installed(PDO $p): void { must(self::ready($p),'Install and verify the additive Dispatcher turnover migration before using account responsibility.',409); }
     private static function account(PDO $p,int $id,?string $role=null,bool $lock=true): array {
-        $u=one($p,'SELECT id,full_name,role,shift,dispatcher_truck_type,active FROM users WHERE id=?'.($lock?' FOR UPDATE':''),[$id]);
-        must($u&&(int)$u['active']===1&&roleIsDispatcher($u['role'])&&($role===null||$u['role']===$role),'Choose an active Dispatcher account in the same truck group.',403);
+        $u=one($p,'SELECT id,full_name,role,shift,dispatcher_truck_type,dispatcher_truck_types,active FROM users WHERE id=?'.($lock?' FOR UPDATE':''),[$id]);
+        must($u&&(int)$u['active']===1&&roleIsDispatcher($u['role'])&&($role===null||$u['role']===$role||($role==='car_carrier_dispatcher'&&in_array('Car Carrier',DispatcherScope::types($u),true))||($role==='container_wingvan_dispatcher'&&(in_array('Container',DispatcherScope::types($u),true)||in_array('Wing Van',DispatcherScope::types($u),true)))),'Choose an active Dispatcher account in the same truck group.',403);
         return $u;
     }
     /** Explicit planning choice, rechecked under the account lock when the trip is saved. */
@@ -18,8 +18,8 @@ final class DispatcherTurnover {
         self::installed($p);
         $account=self::account($p,$id,$planning['dispatcher_role'],$lock);
         must($account['shift']===$planning['dispatcher_shift'],'Choose an active responsible Dispatcher account matching the planned group and shift.',409);
-        if (!empty($planning['truck_type']) && !empty($account['dispatcher_truck_type'])) {
-            must($account['dispatcher_truck_type'] === $planning['truck_type'],
+        if (!empty($planning['truck_type'])) {
+            must(in_array($planning['truck_type'], DispatcherScope::types($account), true),
                 'The responsible Dispatcher is assigned to a different truck type.', 409);
         }
         return $account;
@@ -105,7 +105,7 @@ final class DispatcherTurnover {
                 foreach($rows as $t)must(DispatcherScope::permitsTrip($actor,$t),'Turnover contains work outside your account or truck group.',403);
                 if($action==='preview')return ['rows'=>$rows,'fingerprint'=>self::fingerprint($rows)];
                 must((bool)$rows,'No outstanding work is available to endorse.',409);
-                $incoming=self::account($p,idField($d,'incoming_id'),$actor['role']);
+                $incoming=self::account($p,idField($d,'incoming_id'));
                 must($incoming['id']!==$actor['id'],'Choose a different incoming account.',409);
                 foreach ($rows as $t) {
                     must(in_array($t['truck_type'], DispatcherScope::types($incoming), true),
@@ -136,7 +136,7 @@ final class DispatcherTurnover {
                 $r=one($p,'SELECT * FROM trip_responsibilities WHERE trip_id=? FOR UPDATE',[$item['trip_id']]);
                 must($t&&self::eligible($p,$t),'A referenced trip is no longer eligible. No responsibility was transferred.',409);
                 must($r&&(int)$r['current_dispatcher_id']===(int)$h['outgoing_id']&&(int)$r['version']===(int)$item['responsibility_version'],'Responsibility changed. This turnover requires authorized review.',409);
-                must($t['dispatcher_role']===$incoming['role']&&in_array($t['truck_type'],DispatcherScope::types($incoming),true),'Trip truck group changed. Turnover cannot be partially accepted.',409);
+                must(in_array($t['truck_type'],DispatcherScope::types($incoming),true),'Trip truck group changed. Turnover cannot be partially accepted.',409);
                 run($p,'UPDATE trip_responsibilities SET current_dispatcher_id=?,version=version+1 WHERE trip_id=?',[$incoming['id'],$item['trip_id']]);
                 run($p,'UPDATE dispatcher_turnover_trips SET pending_trip_id=NULL WHERE turnover_id=? AND trip_id=?',[$id,$item['trip_id']]);
                 run($p,"INSERT INTO trip_events(trip_id,actor_id,event_type,from_status,to_status,notes) VALUES(?,?,'Dispatcher turnover accepted',?,?,?)",[$item['trip_id'],$u['id'],$t['status'],$t['status'],'Turnover #'.$id.'; outgoing #'.$h['outgoing_id'].'; incoming #'.$u['id']]);
