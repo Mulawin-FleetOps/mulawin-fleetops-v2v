@@ -927,6 +927,59 @@
   }
 }
 
+/* Head Management Trip Details: compact shared drawer and no wide activity tables. */
+.app-drawer:has(.head-trip-detail){--bs-offcanvas-width:min(760px,100vw)}
+.app-drawer:has(.head-trip-detail) .offcanvas-header{padding:13px 20px}
+.app-drawer:has(.head-trip-detail) .offcanvas-body{padding:16px 18px 24px;background:#f7faf8}
+.head-trip-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;color:#294938;font-size:12.5px}
+.head-trip-detail>*{min-width:0}
+.head-trip-overview,.head-trip-readonly,.head-trip-alert,.head-trip-activity-heading,.head-trip-activity,.head-trip-detail-card:first-of-type{grid-column:1/-1}
+.head-trip-overview{padding:15px 17px;background:#fff;border:1px solid #dbe9df;border-radius:12px}
+.head-trip-status-line{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.head-trip-overview-type{color:#587363;font-weight:650;font-size:12px}
+.head-trip-route{display:flex;align-items:center;gap:10px;margin:12px 0;line-height:1.5}
+.head-trip-route strong{flex:1;min-width:0;font-weight:650;overflow-wrap:anywhere}
+.head-trip-route .bi{color:#3c8a59;flex:none}
+.head-trip-overview-meta{display:flex;flex-wrap:wrap;gap:8px 18px;color:#526d5c}
+.head-trip-overview-meta .bi{margin-right:4px}
+.head-trip-readonly{margin:0;color:#668072;font-size:11.5px}
+.head-trip-alert{margin:0;padding:9px 12px;border:1px solid #efd398;border-radius:8px;background:#fff7e7;color:#805600}
+.head-trip-detail-card{background:#fff;border:1px solid #dce9df;border-radius:12px;padding:13px 15px;min-width:0}
+.head-trip-detail-card h6,.head-trip-activity-heading h6{font-size:13.5px;font-weight:750;margin:0 0 8px;color:#214a30}
+.head-trip-detail-card .kv{grid-template-columns:minmax(85px,36%) minmax(0,1fr);font-size:12px}
+.head-trip-detail-card .kv dt,.head-trip-detail-card .kv dd{padding-top:7px;padding-bottom:7px;line-height:1.4;min-width:0}
+.head-trip-detail-card .kv dd{padding-left:8px}
+.head-trip-activity-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:3px}
+.head-trip-activity-heading h6{margin:0}
+.head-trip-activity-heading>span{font-size:11px;color:#738778}
+.head-trip-activity{background:#fff;border:1px solid #dce9df;border-radius:10px;overflow:hidden}
+.head-trip-activity>summary{display:flex;align-items:center;gap:10px;padding:12px 15px;cursor:pointer;list-style:none;font-weight:700;font-size:12.5px;user-select:none}
+.head-trip-activity>summary::-webkit-details-marker{display:none}
+.head-trip-activity>summary:hover{background:#f1f8f3}
+.head-trip-activity>summary:focus-visible{outline:2px solid #268251;outline-offset:-3px}
+.head-trip-activity-count{margin-left:auto;color:#668172;font-weight:500;font-size:11px}
+.head-trip-activity>summary .bi{transition:transform .15s;color:#61826b}
+.head-trip-activity[open]>summary .bi{transform:rotate(180deg)}
+.head-trip-activity-body{border-top:1px solid #e4eee6;padding:4px 15px}
+.head-trip-activity-list{list-style:none;margin:0;padding:0}
+.head-trip-activity-item{padding:12px 0;border-bottom:1px solid #e7eee9;overflow-wrap:anywhere}
+.head-trip-activity-item:last-child{border-bottom:0}
+.head-trip-activity-item-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:5px 12px}
+.head-trip-activity-item-head strong{font-size:12px;line-height:1.45;min-width:0}
+.head-trip-activity-item-head time{font-size:11px;color:#6d8172}
+.head-trip-activity-meta{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:7px;color:#61776a;font-size:11px}
+.head-trip-inline-status{display:inline-block;background:#f1f7f3;border:1px solid #dfebe1;border-radius:5px;padding:2px 6px;color:#365941}
+.head-trip-activity-note{margin:8px 0 0;line-height:1.55;white-space:pre-wrap;color:#385545}
+.head-trip-activity-empty{padding:11px 0;margin:0;color:#718778;font-size:11.5px}
+@media(max-width:620px){
+  .head-trip-detail{grid-template-columns:minmax(0,1fr)}
+  .head-trip-detail-card{grid-column:1/-1}
+  .head-trip-route{flex-wrap:wrap}
+  .head-trip-route strong{flex:1 1 100%}
+  .head-trip-route .bi{transform:rotate(90deg)}
+  .app-drawer:has(.head-trip-detail) .offcanvas-body{padding:12px}
+}
+
 /* Fuel & Operating Costs: three equally weighted price status cards. */
 .head-fuel-diesel-content .head-fuel-price-grid{
   grid-template-columns:repeat(3,minmax(0,1fr));
