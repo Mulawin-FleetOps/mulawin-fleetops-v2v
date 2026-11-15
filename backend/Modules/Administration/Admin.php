@@ -178,12 +178,15 @@ final class Admin {
         }
     }
 
-    /** Active non-dispatcher roles have one slot; each dispatcher role has Day and Night slots. */
-    private static function assertRoleShiftVacancy(PDO $p, string $role, ?string $shift, ?int $excludeId = null): void {
+    /** Only one active Dispatcher per selected truck type and shift. Legacy
+     * accounts without a selected type occupy their entire old group slot. */
+    private static function assertRoleShiftVacancy(PDO $p, string $role, ?string $shift, ?int $excludeId = null, ?string $truckType = null): void {
         if (roleIsDispatcher($role)) {
             must(in_array($shift, ['Day', 'Night'], true), 'Select a dispatcher shift.', 400);
-            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND shift=? AND active=1 AND id<>? LIMIT 1', [$role, $shift, $excludeId ?? 0]);
-            must(!$occupied, 'This dispatcher role and shift already have an active account. Deactivate that account first.', 409);
+            must($truckType !== null && dispatcherRoleFor($truckType) === $role, 'Select a valid Dispatcher truck type.', 400);
+            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND shift=? AND active=1 AND id<>? AND (dispatcher_truck_type=? OR dispatcher_truck_type IS NULL) LIMIT 1',
+                [$role, $shift, $excludeId ?? 0, $truckType]);
+            must(!$occupied, 'This truck type and shift already have an active Dispatcher. Deactivate or edit that account first.', 409);
         } else {
             $occupied = one($p, 'SELECT id FROM users WHERE role=? AND active=1 AND id<>? LIMIT 1', [$role, $excludeId ?? 0]);
             must(!$occupied, 'This role already has an active account. Deactivate that account first.', 409);
@@ -222,7 +225,7 @@ final class Admin {
                     core('DispatcherTurnover');
                     DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($oldUser['role'])||roleIsDispatcher($role));
                 }
-                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'])) self::assertRoleShiftVacancy($p, $role, $shift, $id);
+                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'] || $truckType !== $oldUser['dispatcher_truck_type'])) self::assertRoleShiftVacancy($p, $role, $shift, $id, $truckType);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=?, dispatcher_truck_type=? WHERE id=?', [$name, $email, $role, $shift, $truckType, $id]);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
                     ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift'], 'Truck type' => $oldUser['dispatcher_truck_type']],
@@ -233,7 +236,7 @@ final class Admin {
             must((bool)preg_match('/^[a-zA-Z0-9_.-]{3,70}$/', $username), 'Username: 3-70 letters, numbers, dot, dash or underscore.');
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
             $pw = AccountSecurity::newTemporaryPassword();
-            self::assertRoleShiftVacancy($p, $role, $shift);
+            self::assertRoleShiftVacancy($p, $role, $shift, null, $truckType);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
                 'full_name' => $name, 'role' => $role, 'shift' => $shift, 'dispatcher_truck_type' => $truckType, 'must_change_password' => 1]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
@@ -248,11 +251,11 @@ final class Admin {
         $id = idField($d, 'user_id'); $active = !empty($d['active']) ? 1 : 0;
         must($id !== $u['id'], 'You cannot deactivate your own account.');
         return transaction(function (PDO $p) use ($u, $id, $active) {
-            $t = one($p, 'SELECT role, shift, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
+            $t = one($p, 'SELECT role, shift, dispatcher_truck_type, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
             must((bool)$t, 'User not found.', 404);
             if(!$active){core('DispatcherTurnover');DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($t['role']));}
             if (!$active && $t['role'] === 'admin') must((int)one($p, "SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1")['n'] > 1, 'Keep at least one active Admin.');
-            if ($active && (int)$t['active'] !== 1) self::assertRoleShiftVacancy($p, $t['role'], $t['shift'], $id);
+            if ($active && (int)$t['active'] !== 1) self::assertRoleShiftVacancy($p, $t['role'], $t['shift'], $id, $t['dispatcher_truck_type']);
             run($p, 'UPDATE users SET active=? WHERE id=?', [$active, $id]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, $active ? 'account activated' : 'account deactivated', $t['full_name'],
                 ['Account active' => (int)$t['active'] ? 'Yes' : 'No'], ['Account active' => $active ? 'Yes' : 'No']);
