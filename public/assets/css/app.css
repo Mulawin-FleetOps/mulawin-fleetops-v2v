@@ -2941,3 +2941,15 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .head-user-management [data-tbody] tr td{
   vertical-align:middle
 }
+
+/* Fuel pricing modal: explain price continuity beneath the effective date. */
+.head-fuel-date-hint{
+  display:flex;align-items:flex-start;gap:9px;
+  margin:12px 0 3px;padding:11px 13px;
+  border:1px solid #d4e7da;border-radius:10px;
+  background:#f0f8f2;color:#426950;
+  font-size:12px;line-height:1.5;
+}
+.head-fuel-date-hint .bi{
+  flex:none;margin-top:1px;font-size:15px;color:#24804a;
+}
