@@ -9,7 +9,7 @@ final class DispatcherTurnover {
     }
     private static function installed(PDO $p): void { must(self::ready($p),'Install and verify the additive Dispatcher turnover migration before using account responsibility.',409); }
     private static function account(PDO $p,int $id,?string $role=null,bool $lock=true): array {
-        $u=one($p,'SELECT id,full_name,role,shift,active FROM users WHERE id=?'.($lock?' FOR UPDATE':''),[$id]);
+        $u=one($p,'SELECT id,full_name,role,shift,dispatcher_truck_type,active FROM users WHERE id=?'.($lock?' FOR UPDATE':''),[$id]);
         must($u&&(int)$u['active']===1&&roleIsDispatcher($u['role'])&&($role===null||$u['role']===$role),'Choose an active Dispatcher account in the same truck group.',403);
         return $u;
     }
@@ -18,11 +18,9 @@ final class DispatcherTurnover {
         self::installed($p);
         $account=self::account($p,$id,$planning['dispatcher_role'],$lock);
         must($account['shift']===$planning['dispatcher_shift'],'Choose an active responsible Dispatcher account matching the planned group and shift.',409);
-        if (!empty($planning['truck_type'])) {
-            DispatcherScope::requireTruckAuthorizations($p);
-            must((bool)one($p, 'SELECT 1 FROM dispatcher_truck_authorizations a JOIN vehicles v ON v.id=a.vehicle_id WHERE a.dispatcher_id=? AND v.active=1 AND v.truck_type=? LIMIT 1',
-                [$id,$planning['truck_type']]),
-                'The responsible Dispatcher has no authorized active truck for this route type. Assign compatible trucks in User Accounts.',409);
+        if (!empty($planning['truck_type']) && !empty($account['dispatcher_truck_type'])) {
+            must($account['dispatcher_truck_type'] === $planning['truck_type'],
+                'The responsible Dispatcher is assigned to a different truck type.', 409);
         }
         return $account;
     }
