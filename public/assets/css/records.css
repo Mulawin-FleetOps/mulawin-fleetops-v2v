@@ -1216,3 +1216,42 @@
   .oh-dispatch-records .oh-dispatch-search-box{flex:1 1 100%}
   .oh-dispatch-records .oh-dispatch-view-row{padding:10px 14px;flex-wrap:wrap;gap:10px}
 }
+
+
+/* Shared record-card view tabs: Fund Approvals and Drivers & Helpers. */
+.record-workspace-panel .record-workspace-view-tabs{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 20px;min-height:57px;
+  background:#fff;border-top:1px solid #e4eee7;
+  border-bottom:1px solid #dce8df;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tabs{
+  display:flex;gap:8px;align-items:center;
+  margin:0;flex-wrap:wrap;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;padding:8px 13px;
+  border:1px solid #cbded0;border-radius:8px;
+  background:#fff;color:#3a5945;
+  font-size:12px;font-weight:650;line-height:1.4;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab:hover{
+  background:#eef7f0;border-color:#93c5a1;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab.active{
+  background:#207547;border-color:#207547;color:#fff;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab:focus-visible{
+  outline:2px solid #2a8951;outline-offset:2px;
+}
+@media(max-width:680px){
+  .record-workspace-panel .record-workspace-view-tabs{padding:10px 14px}
+  .record-workspace-panel .record-workspace-view-tabs .record-workspace-tabs{
+    flex-wrap:nowrap;overflow-x:auto;max-width:100%;
+    scrollbar-width:thin;
+  }
+  .record-workspace-panel .record-workspace-view-tabs .record-workspace-tab{
+    white-space:nowrap;flex:none;
+  }
+}
