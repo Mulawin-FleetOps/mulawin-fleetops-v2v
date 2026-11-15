@@ -818,9 +818,6 @@ a:hover { color: var(--rpm-brand-strong); }
 
 /* HEAD TRIP MONITORING V2: existing UI components in an executive two-column layout. */
 .head-trip-dashboard { display: grid; gap: 18px; }
-.head-trip-intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; color: #315b42; font-size: 13px; }
-.head-trip-intro > span:first-child { font-weight: 650; }
-.head-trip-intro .bi { margin-right: 7px; }
 .head-trip-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
 .head-kpi { display:flex; align-items:center; gap:13px; padding:17px 16px; border:1px solid #e0e9e3; border-radius: 12px; background:#fff; min-width:0; box-shadow:0 2px 8px rgba(23,71,43,.04); }
 .head-kpi-icon { width:46px; height:46px; display:grid; place-items:center; flex:0 0 46px; border-radius:50%; background:#e9f3ec; color:#17743c; font-size:21px; }

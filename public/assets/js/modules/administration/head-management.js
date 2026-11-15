@@ -481,7 +481,6 @@ const HeadTripsUI = {
     const active=d.active||[],history=d.history||[],incidents=d.incidents||[];
     const count=key=>Number(summary[key]||0);
     ctx.el.innerHTML='<div class="head-trip-dashboard">'
-      +'<div class="head-trip-intro"><span><i class="bi bi-truck" aria-hidden="true"></i> Company-wide operations overview</span><span class="small text-muted"><i class="bi bi-clipboard-data" aria-hidden="true"></i> Saved operational records</span></div>'
       +'<div class="head-trip-kpis">'+[
         ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','blue'],
         ['On Trip / In Transit',count('ongoing'),'bi-truck','green'],

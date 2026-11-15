@@ -284,8 +284,6 @@ const HeadMaintenanceUI = {
       ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open']
     ];
     ctx.el.innerHTML='<section class="head-maintenance-workspace">'
-      +'<div class="head-trip-intro"><span><i class="bi bi-wrench-adjustable" aria-hidden="true"></i> Company-wide maintenance overview</span>'
-      +'<span class="small text-muted"><i class="bi bi-clipboard-data" aria-hidden="true"></i> Monitoring records</span></div>'
       +'<div class="head-trip-kpis">'+metrics.map(([label,value,icon,tone,tab])=>
         '<button type="button" class="head-kpi head-fleet-kpi '+tone+'" data-head-maintenance-kpi="'+tab+'">'
         +'<span class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></span>'
