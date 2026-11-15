@@ -42,7 +42,7 @@ final class Admin {
         $data['range'] = ['from' => $from, 'to' => $to];
         if (hasRole($u, 'admin')) {
             $data = mergeSections($data, [
-                'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, dispatcher_truck_type, active, must_change_password, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, shift, full_name'),
+                'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, dispatcher_truck_type, dispatcher_truck_types, active, must_change_password, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, shift, full_name'),
                 'fundCategories' => fn() => many($p, 'SELECT * FROM fund_categories ORDER BY sort_order, name'),
             ]);
             $data['settings'] = Settings::all();
@@ -178,19 +178,15 @@ final class Admin {
         }
     }
 
-    /** Only one active Dispatcher per selected truck type and shift. Legacy
-     * accounts without a selected type occupy their entire old group slot. */
+    /** Multiple Dispatchers may share a shift. Ownership and vehicle holds
+     * still prevent simultaneous conflicting trip assignments. */
     private static function assertRoleShiftVacancy(PDO $p, string $role, ?string $shift, ?int $excludeId = null, ?string $truckType = null): void {
         if (roleIsDispatcher($role)) {
-            must(in_array($shift, ['Day', 'Night'], true), 'Select a dispatcher shift.', 400);
-            must($truckType !== null && dispatcherRoleFor($truckType) === $role, 'Select a valid Dispatcher truck type.', 400);
-            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND shift=? AND active=1 AND id<>? AND (dispatcher_truck_type=? OR dispatcher_truck_type IS NULL) LIMIT 1',
-                [$role, $shift, $excludeId ?? 0, $truckType]);
-            must(!$occupied, 'This truck type and shift already have an active Dispatcher. Deactivate or edit that account first.', 409);
-        } else {
-            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND active=1 AND id<>? LIMIT 1', [$role, $excludeId ?? 0]);
-            must(!$occupied, 'This role already has an active account. Deactivate that account first.', 409);
+            must(in_array($shift, ['Day', 'Night'], true), 'Select Day or Night shift.', 400);
+            return;
         }
+        $occupied = one($p, 'SELECT id FROM users WHERE role=? AND active=1 AND id<>? LIMIT 1', [$role, $excludeId ?? 0]);
+        must(!$occupied, 'This role already has an active account. Deactivate that account first.', 409);
     }
 
     // ---------------------------------------------------------------- users
@@ -210,26 +206,32 @@ final class Admin {
         $role = choiceField($d, 'role', allowedRoles());
         must($role !== 'audit' || optId($d, 'id') !== null, 'New Audit accounts are no longer available.', 409);
         $shift = roleIsDispatcher($role) ? choiceField($d, 'shift', ['Day', 'Night']) : null;
-        $truckType = roleIsDispatcher($role) ? choiceField($d, 'dispatcher_truck_type', TRUCK_TYPES) : null;
-        must($truckType === null || dispatcherRoleFor($truckType) === $role, 'Selected truck type does not match Dispatcher role.', 400);
+        $selectedTypes = $d['dispatcher_truck_types'] ?? [];
+        must(is_array($selectedTypes) && array_is_list($selectedTypes), 'Choose valid Dispatcher truck types.');
+        must(count($selectedTypes) <= 3 && count($selectedTypes) === count(array_unique($selectedTypes)), 'Choose up to three unique truck types.');
+        foreach ($selectedTypes as $t) must(is_string($t) && in_array($t, TRUCK_TYPES, true), 'Invalid Dispatcher truck type.');
+        if (roleIsDispatcher($role)) must(count($selectedTypes) >= 1, 'Select at least one Dispatcher truck type.');
+        else must(!$selectedTypes, 'Truck types can only be assigned to Dispatchers.');
+        $truckType = roleIsDispatcher($role) ? $selectedTypes[0] : null;
+        must($truckType === null || $role === dispatcherRoleFor($truckType), 'Dispatcher role and selected primary type must match.');
         $name = field($d, 'full_name', 100);
         $email = self::emailField($d);
-        return transaction(function (PDO $p) use ($u, $id, $role, $shift, $truckType, $name, $email, $d) {
+        return transaction(function (PDO $p) use ($u, $id, $role, $shift, $truckType, $selectedTypes, $name, $email, $d) {
             must(!one($p, 'SELECT id FROM users WHERE email=? AND id<>?', [$email, $id ?? 0]), 'Another account already uses this email address.', 409);
             if ($id) {
                 if ($id === $u['id']) must($role === 'admin', 'You cannot remove your own Admin role.');
-                $oldUser = one($p, 'SELECT full_name, email, role, shift, dispatcher_truck_type, active FROM users WHERE id=? FOR UPDATE', [$id]);
+                $oldUser = one($p, 'SELECT full_name, email, role, shift, dispatcher_truck_type, dispatcher_truck_types, active FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
                 must($role !== 'audit' || $oldUser['role'] === 'audit', 'The Audit role is retired for account assignments.', 409);
-                if($role!==$oldUser['role']||$shift!==$oldUser['shift']||$truckType!==$oldUser['dispatcher_truck_type']){
+                if($role!==$oldUser['role']||$shift!==$oldUser['shift']||json_encode($selectedTypes)!==($oldUser['dispatcher_truck_types'] ?? null)){
                     core('DispatcherTurnover');
                     DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($oldUser['role'])||roleIsDispatcher($role));
                 }
-                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'] || $truckType !== $oldUser['dispatcher_truck_type'])) self::assertRoleShiftVacancy($p, $role, $shift, $id, $truckType);
-                run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=?, dispatcher_truck_type=? WHERE id=?', [$name, $email, $role, $shift, $truckType, $id]);
+                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'] || json_encode($selectedTypes) !== ($oldUser['dispatcher_truck_types'] ?? null))) self::assertRoleShiftVacancy($p, $role, $shift, $id, $truckType);
+                run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=?, dispatcher_truck_type=?, dispatcher_truck_types=? WHERE id=?', [$name, $email, $role, $shift, $truckType, $selectedTypes ? json_encode($selectedTypes, JSON_THROW_ON_ERROR) : null, $id]);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
-                    ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift'], 'Truck type' => $oldUser['dispatcher_truck_type']],
-                    ['Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Truck type' => $truckType]);
+                    ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift'], 'Truck type' => $oldUser['dispatcher_truck_types']],
+                    ['Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Truck type' => implode(', ', $selectedTypes)]);
                 return ['message' => 'Account updated.'];
             }
             $username = field($d, 'username', 70);
@@ -238,7 +240,7 @@ final class Admin {
             $pw = AccountSecurity::newTemporaryPassword();
             self::assertRoleShiftVacancy($p, $role, $shift, null, $truckType);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
-                'full_name' => $name, 'role' => $role, 'shift' => $shift, 'dispatcher_truck_type' => $truckType, 'must_change_password' => 1]);
+                'full_name' => $name, 'role' => $role, 'shift' => $shift, 'dispatcher_truck_type' => $truckType, 'dispatcher_truck_types' => $selectedTypes ? json_encode($selectedTypes, JSON_THROW_ON_ERROR) : null, 'must_change_password' => 1]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
                 ['Username' => $username, 'Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Truck type' => $truckType, 'Active' => 'Yes']);
             return ['id' => $id, 'temporary_password' => $pw, 'temporary_for' => $username,
