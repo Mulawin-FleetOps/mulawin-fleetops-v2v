@@ -272,7 +272,6 @@ const HeadFleetWorkspace = {
         .filter(row=>!category.personType || row.person_type===category.personType)
     }));
     ctx.el.innerHTML='<div class="head-fleet-workspace">'
-      +'<p class="small text-muted">Company-wide monitoring only. Operational changes belong to their assigned departments.</p>'
       +this.metrics(data.fleet_summary)
       +'<div data-head-fleet-table></div></div>';
     const container=ctx.el.querySelector('[data-head-fleet-table]');
