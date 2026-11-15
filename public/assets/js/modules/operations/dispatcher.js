@@ -2,7 +2,7 @@
 'use strict';
 const DispatcherUI = {
   is: () => UI.isDispatcher(),
-  types: () => UI.role('car_carrier_dispatcher') ? ['Car Carrier'] : ['Container','Wing Van'],
+  types: () => TripUI.truckTypeOptions(),
   categories: [
     ['preparation','Pre-Dispatch Preparation',['Pre-Assigned'],'bi-truck','green'],
     ['ready','Ready for Dispatch',['Ready for Dispatch'],'bi-calendar-check','green'],
@@ -122,7 +122,7 @@ const DispatcherUI = {
   },
   dashboard(ctx) {
     this.tripIdentity='';
-    ctx.setTitle('Dashboard', UI.role('car_carrier_dispatcher')?'Car Carrier dispatch preparation and operational priorities.':'Container and Wing Van dispatch preparation and operational priorities.');
+    ctx.setTitle('Dashboard', DispatcherUI.types().join(', ') + ' dispatch preparation and operational priorities.');
     UI.tool(ctx,'Refresh',()=>ctx.reload(),'bi-arrow-clockwise','outline-secondary');
     const rows=ctx.data.active;
     const actionable=Array.isArray(rows)?rows.filter(t=>t.status!=='Pending Review'):null;
@@ -240,7 +240,7 @@ const DispatcherUI = {
   async openDiesel(t,d) {
     let docs=d.dieselDocuments.filter(doc=>+doc.trip_id===+t.id);
     if(+t.diesel_po_docs>docs.length)try{docs=(await App.api('Trips.details',{trip_id:t.id})).documents.filter(doc=>doc.category==='Diesel PO');}catch(ex){return UI.toast(ex.message,'error');}
-    const canAttach=t.dispatcher_role===App.me.user.role&&['Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule','Completed'].includes(t.status);
+    const canAttach=Number(t.responsible_dispatcher_id)===Number(App.me.user.id)&&['Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule','Completed'].includes(t.status);
     const el=UI.drawer('Diesel PO Documents',this.panel('Linked Trip',UI.kv([['Trip',UI.e(t.trip_ref)],['Truck',UI.e(t.plate_number)],['Type',UI.e(t.truck_type)],['Status',this.status(t.status)]]))+UI.docs(docs)+'<p class="small text-muted mt-3">Documents are existing attachments. No request approval or PO issuance status is implied.</p>'+(canAttach?'<button class="btn btn-primary" data-attach-diesel>Attach Diesel PO Document</button>':''),{subtitle:UI.esc(t.trip_ref)});
     el.querySelector('[data-attach-diesel]')?.addEventListener('click',()=>{const modal=UI.formModalFiles('Attach Diesel PO Document',[{name:'diesel_po',label:'Diesel PO Document',type:'file',multiple:true,required:true,col:12,attrs:'accept="application/pdf,image/jpeg,image/png,image/webp"'}],'Trips.diesel_po',{extra:{trip_id:t.id},intro:'Attach an existing document to this trip. This does not create or approve a Diesel PO request.',after:()=>{UI.closeDrawer();App.route();}});this.groupModal(modal,[['01 — Associated Trip',[],UI.kv([['Trip',UI.e(t.trip_ref)],['Truck',UI.e(t.plate_number)]])],['02 — Supporting Documents',['diesel_po']]]);});
   },
@@ -257,7 +257,7 @@ const DispatcherUI = {
   },
   async reportIncident() {
     let d;try{d=await this.ensureTrips();}catch(ex){return UI.toast(ex.message,'error');}
-    const eligible=d.active.filter(t=>t.dispatcher_role===App.me.user.role&&['Dispatched','In Transit'].includes(t.status)&&t.vehicle_id);
+    const eligible=d.active.filter(t=>Number(t.responsible_dispatcher_id)===Number(App.me.user.id)&&['Dispatched','In Transit'].includes(t.status)&&t.vehicle_id);
     if(!eligible.length)return UI.toast('No dispatched or in-transit trip is eligible for an incident report.','warn');
     const modal=UI.modal('Submit Incident Report',UI.fields([{name:'trip_id',label:'Associated Trip / Vehicle',type:'select',required:true,col:12,options:eligible.map(t=>[t.id,t.trip_ref+' · '+t.plate_number])}]),async values=>{const r=await App.api('Trips.details',{trip_id:values.trip_id});if(r.trip.dispatcher_role!==App.me.user.role||!['Dispatched','In Transit'].includes(r.trip.status))throw new Error('This trip is no longer eligible for incident reporting.');modal.addEventListener('hidden.bs.modal',()=>TripUI.incident(r.trip),{once:true});},{submit:'Continue',confirmBeforeSubmit:false});
   },
@@ -396,5 +396,5 @@ const DispatcherUI = {
   }
   const open=TripUI.open;TripUI.open=async function(id){if(DispatcherUI.is())try{await DispatcherUI.ensureTrips();}catch(ex){return UI.toast(ex.message,'error');}return open.call(this,id);};
   const drawer=UI.drawer;UI.drawer=(...args)=>{const previous=document.querySelector('.app-drawer');previous?.classList.remove('ds-trip-drawer');previous?.querySelector('.ds-drawer-footer')?.remove();return drawer(...args);};
-  const incident=TripUI.incident;TripUI.incident=function(t){if(!DispatcherUI.is())return incident.call(this,t);if(t.dispatcher_role!==App.me.user.role||!['Dispatched','In Transit'].includes(t.status))return UI.toast('This trip is not eligible for an incident report.','error');incident.call(this,t);const modal=[...document.querySelectorAll('.modal')].at(-1);if(modal){modal.querySelector('.modal-title').textContent='Submit Incident Report · '+t.trip_ref;DispatcherUI.groupModal(modal,[['01 — Associated Trip',[],`<p class="small"><b>Associated Trip:</b> ${UI.esc(t.trip_ref)} · <b>Vehicle:</b> ${UI.esc(t.plate_number)}</p>`],['02 — Incident Information',['incident_type','incident_at','location','persons_involved','problem','reason']],['03 — Incident Description and Evidence',['details','photos','attachments']]]);const date=modal.querySelector('[name=incident_at]');if(date)date.value=UI.nowManila();}};
+  const incident=TripUI.incident;TripUI.incident=function(t){if(!DispatcherUI.is())return incident.call(this,t);if(Number(t.responsible_dispatcher_id)!==Number(App.me.user.id)||!['Dispatched','In Transit'].includes(t.status))return UI.toast('This trip is not eligible for an incident report.','error');incident.call(this,t);const modal=[...document.querySelectorAll('.modal')].at(-1);if(modal){modal.querySelector('.modal-title').textContent='Submit Incident Report · '+t.trip_ref;DispatcherUI.groupModal(modal,[['01 — Associated Trip',[],`<p class="small"><b>Associated Trip:</b> ${UI.esc(t.trip_ref)} · <b>Vehicle:</b> ${UI.esc(t.plate_number)}</p>`],['02 — Incident Information',['incident_type','incident_at','location','persons_involved','problem','reason']],['03 — Incident Description and Evidence',['details','photos','attachments']]]);const date=modal.querySelector('[name=incident_at]');if(date)date.value=UI.nowManila();}};
 })();
