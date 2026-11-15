@@ -12,6 +12,16 @@
 'use strict';
 
 const UI = {};
+/** One expandable sidebar component for all authorized role menus. */
+UI.sidebarGroup = ({title,icon='bi-grid-3x3-gap',items='',key='',variant=''}) => {
+  if (!items) return '';
+  const name=UI.esc(title);
+  return '<details class="head-nav-group'+(variant?' '+UI.esc(variant):'')+'" data-sidebar-group="'+UI.esc(key||title)+'">'
+    +'<summary><i class="bi '+UI.esc(icon)+'" aria-hidden="true"></i><span>'+name+'</span>'
+    +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
+    +'<div class="head-nav-items">'+items+'</div></details>';
+};
+
 const App = {
   pages: {}, me: null, csrf: '', current: null, timer: null,
 
@@ -279,19 +289,17 @@ const App = {
         'Financial Oversight': 'bi-graph-up-arrow',
         'Management Control': 'bi-shield-check',
       };
-      nav = '';
-      let section = null;
+      const menuGroups=[];
       for (const item of allowed) {
-        if (item.section !== section) {
-          if (section !== null) nav += '</div></details>';
-          section = item.section;
-          if (section) {
-            nav += `<details class="head-nav-group"><summary><i class="bi ${sectionIcons[section] || 'bi-folder2'}" aria-hidden="true"></i><span>${UI.esc(section)}</span><i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary><div class="head-nav-items">`;
-          }
-        }
-        nav += `<a href="#${item.id}" class="nav-item-link" data-nav="${item.id}"><i class="bi ${item.icon}" aria-hidden="true"></i><span>${UI.esc(item.label)}</span></a>`;
+        let group=menuGroups.find(g=>g.title===(item.section||'General'));
+        if(!group){group={title:item.section||'General',items:[]};menuGroups.push(group);}
+        group.items.push(item);
       }
-      if (section !== null) nav += '</div></details>';
+      nav=menuGroups.map(group=>UI.sidebarGroup({
+        title:group.title,
+        icon:sectionIcons[group.title]||'bi-folder2',
+        items:group.items.map(item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.label)+'</span></a>').join('')
+      })).join('');
     } else if (u.role === 'operations_head') {
       // Collapsible, role-specific sidebar: render only entries authorized by
       // the server-provided navigation, preserving every existing route target.
@@ -315,20 +323,32 @@ const App = {
           .filter(item=>item && !used.has(item.id));
         if(!entries.length)return '';
         entries.forEach(item=>used.add(item.id));
-        return '<details class="head-nav-group ops-head-nav-group" data-sidebar-group="'+UI.esc(group.name)+'">'
-          +'<summary><i class="bi '+group.icon+'" aria-hidden="true"></i><span>'+UI.esc(group.name)+'</span>'
-          +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
-          +'<div class="head-nav-items">'+entries.map(item=>
-            '<a href="#'+item.id+'" class="nav-item-link" data-nav="'+item.id+'">'
-            +'<i class="bi '+item.icon+'" aria-hidden="true"></i><span>'+UI.esc(labels[item.id]||item.label)+'</span></a>'
-          ).join('')+'</div></details>';
+        return UI.sidebarGroup({
+          title:group.name,icon:group.icon,variant:'ops-head-nav-group',
+          items:entries.map(item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'">'
+            +'<i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(labels[item.id]||item.label)+'</span></a>').join('')
+        });
       };
       nav=groups.map(renderGroup).join('');
       const remaining=allowed.filter(item=>!used.has(item.id));
       if(remaining.length)nav+=renderGroup({name:'Other Tools',icon:'bi-grid-3x3-gap',ids:remaining.map(item=>item.id)});
     } else {
-      nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
-      if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
+      // Dispatcher retains the existing deep links, but uses the same accessible
+      // groups as Admin/Operations Head. Other roles continue through wsNav.
+      if (operationsRole) {
+        const overview=primary.filter(n=>n.id==='dashboard').map(link).join('');
+        const tripItems=tripLink('New Trip','bi-plus-circle','new=1')
+          +tripLink('Active Trips','bi-signpost-split','tab=active')
+          +tripLink('Trip History','bi-clock-history','tab=history')
+          +tripLink('Incidents','bi-exclamation-triangle','tab=incidents')
+          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('');
+        nav=UI.sidebarGroup({title:'Overview',icon:'bi-grid-1x2',items:overview})
+          +UI.sidebarGroup({title:'Trip Operations',icon:'bi-signpost-split',items:tripItems})
+          +UI.sidebarGroup({title:'Reference & Records',icon:'bi-folder2-open',items:extra.map(link).join('')});
+      } else {
+        nav=UI.sidebarGroup({title:'My Workspace',icon:'bi-grid-1x2',items:primary.map(link).join('')})
+          +UI.sidebarGroup({title:'More Tools',icon:'bi-grid-3x3-gap',items:extra.map(link).join('')});
+      }
     }
     // WS_SHELL_V1: Maintenance and Accounting roles (Motorpool, Purchasing, Finance, Billing, Audit) get one grouped
     // workspace menu with the profile at the bottom. Links come only from me.nav (server-side permissions); nothing is added.
@@ -341,7 +361,11 @@ const App = {
                 <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>`;
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
-      nav = ws.groups.map(g => `<div class="nav-group"><div class="nav-section">${UI.esc(g.title)}</div>${g.items.map(wsLink).join('')}</div>`).join('');
+      nav = ws.groups.map((g,i)=>UI.sidebarGroup({
+        title:g.title,
+        icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
+        items:g.items.map(wsLink).join('')
+      })).join('');
     }
     // UI CORRECTION: account controls stay in the top bar for every role; the workspace sidebar is navigation only.
     const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
