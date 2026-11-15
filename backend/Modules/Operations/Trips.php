@@ -118,7 +118,7 @@ final class Trips {
         $data['incidentTypes'] = self::INCIDENT_TYPES;
         $data['statuses'] = self::STATUSES;
         $data['fuelLevels'] = self::FUEL_LEVELS;
-        $data['dispatcherAccounts'] = hasRole($u,'operations_head') ? many($p,"SELECT id,full_name,role,shift FROM users WHERE active=1 AND role IN ('car_carrier_dispatcher','container_wingvan_dispatcher') AND shift IN ('Day','Night') ORDER BY full_name,id") : [];
+        $data['dispatcherAccounts'] = hasRole($u,'operations_head') ? many($p,"SELECT id,full_name,role,shift,dispatcher_truck_type,dispatcher_truck_types FROM users WHERE active=1 AND role IN ('car_carrier_dispatcher','container_wingvan_dispatcher') AND shift IN ('Day','Night') ORDER BY full_name,id") : [];
         $data['checklistMinMinutes'] = (int)Settings::value('inspection_min_minutes');
         $data['unitsPerTrip'] = Settings::value('units_per_trip');
         $data['filterOptions'] = roleIsDispatcher($u['role'])?['clients'=>$data['clients']??[],'trucks'=>$reference['trucks']??[],'drivers'=>$reference['personnel']??[],'dispatchers'=>[]]:readSections([
