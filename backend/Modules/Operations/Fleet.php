@@ -93,10 +93,8 @@ final class Fleet {
     /** Read-only operational projection; no unverified shared personnel pool. */
     private static function dispatcherAvailability(array $u): array {
         $p = db(); core('CrewAttendance');
-        $types = $u['role'] === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container', 'Wing Van'];
+        $types = DispatcherScope::types($u);
         $marks = implode(',', array_fill(0, count($types), '?'));
-        $authorizedTruckIds = DispatcherScope::authorizedTruckIds($p, $u);
-        $authorizedTruckMarks = $authorizedTruckIds ? implode(',', array_fill(0, count($authorizedTruckIds), '?')) : 'NULL';
         $shift = CrewAttendance::shiftFor();
         [$tripScope,$tripArgs]=DispatcherScope::tripSql($u);
         $data = readSections([
@@ -106,7 +104,7 @@ final class Fleet {
                 (SELECT m.status FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1 LIMIT 1) AS open_job_status
                 FROM vehicles v LEFT JOIN trip_assignments a ON a.resource_type='vehicle' AND a.resource_id=v.id
                 LEFT JOIN trips t ON t.id=a.trip_id $tripScope LEFT JOIN personnel d ON d.id=v.assigned_driver_id LEFT JOIN personnel h ON h.id=v.assigned_helper_id
-                WHERE v.active=1 AND v.truck_type IN ($marks) AND v.id IN ($authorizedTruckMarks) ORDER BY v.plate_number", [...$tripArgs,...$types,...$authorizedTruckIds]),
+                WHERE v.active=1 AND v.truck_type IN ($marks) ORDER BY v.plate_number", [...$tripArgs,...$types]),
             'personnel' => function() use($p,$u,$shift,$tripScope,$tripArgs){[$personScope,$personArgs]=DispatcherScope::personnelSql($u);return many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, pe.duty_shift, pe.license_expiry,
                 (SELECT GROUP_CONCAT(vr.plate_number ORDER BY vr.plate_number SEPARATOR ', ') FROM vehicles vr WHERE vr.active=1 AND ((pe.person_type='Driver' AND vr.assigned_driver_id=pe.id) OR (pe.person_type='Helper' AND vr.assigned_helper_id=pe.id))) AS regular_truck,
                 t.trip_ref, v.plate_number, (SELECT IF(s.time_out IS NULL,'Timed In','Timed Out') FROM dispatcher_attendance_sessions s WHERE s.personnel_id=pe.id ORDER BY s.id DESC LIMIT 1) AS attendance_status
