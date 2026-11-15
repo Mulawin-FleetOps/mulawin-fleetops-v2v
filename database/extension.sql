@@ -94,7 +94,7 @@ CREATE TABLE trips (
   INDEX idx_trip_dispatcher_shift (dispatcher_role,dispatcher_shift,status),
   CONSTRAINT chk_trip_dispatcher_shift CHECK (dispatcher_shift IS NULL OR (dispatcher_shift IN ('Day','Night') AND dispatcher_role IS NOT NULL AND dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher'))),
   CONSTRAINT chk_trip_status CHECK (status IN ('Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched',
-                                               'On Hold - Incident Reported','In Transit','For Reschedule','Completed','Cancelled','Rejected')),
+                                               'On Hold - Incident Reported','In Transit','For Reschedule','Completed','Cancelled','Rejected','Missed')),
   CONSTRAINT chk_trip_type CHECK (truck_type IS NULL OR truck_type IN ('Car Carrier','Container','Wing Van')),
   CONSTRAINT chk_trip_distance CHECK (distance_km IS NULL OR distance_km >= 0),
   CONSTRAINT chk_trip_attempt CHECK (attempt_number >= 1),

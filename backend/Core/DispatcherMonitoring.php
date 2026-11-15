@@ -6,7 +6,7 @@ core('DispatcherPlanning');
 final class DispatcherMonitoring {
     public static function operationalCounts(PDO $p): array {
         return one($p, "SELECT
-            COALESCE(SUM(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected')),0) AS active,
+            COALESCE(SUM(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected','Missed')),0) AS active,
             COALESCE(SUM(t.status IN ('Awaiting Resources','On Hold - Incident Reported','For Reschedule')),0) AS attention,
             COALESCE(SUM(EXISTS(SELECT 1 FROM incidents i WHERE i.trip_id=t.id AND i.status<>'Resolved')),0) AS incidents,
             COALESCE(SUM(t.status='Completed' AND EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle')),0) AS arrival
@@ -15,7 +15,8 @@ final class DispatcherMonitoring {
 
     public static function read(array $u, array $q): array {
         requireRole($u, 'operations_head');
-        return self::projection(db(), $q);
+        $p = db(); Trips::closeOverdueUnassigned($p);
+        return self::projection($p, $q);
     }
 
     public static function statuses(string $tab): array {
@@ -32,7 +33,7 @@ final class DispatcherMonitoring {
         must($shift === '' || in_array($shift, [...DispatcherPlanning::SHIFTS, 'legacy'], true), 'Choose a supported shift.');
         $responsibility = 'dispatcher_role IN ('.implode(',', array_fill(0, count($roles), '?')).')';
         $counts = many($p, "SELECT dispatcher_role AS role,dispatcher_shift AS shift,COUNT(*) AS total,
-            SUM(status NOT IN ('Pending Review','Completed','Cancelled','Rejected')) AS active,
+            SUM(status NOT IN ('Pending Review','Completed','Cancelled','Rejected','Missed')) AS active,
             SUM(status='Completed') AS completed,
             SUM(status IN ('Awaiting Resources','On Hold - Incident Reported','For Reschedule')) AS attention
             FROM trips WHERE $responsibility GROUP BY dispatcher_role,dispatcher_shift", $roles);
@@ -50,12 +51,12 @@ final class DispatcherMonitoring {
         elseif ($shift !== '') { $where[] = 't.dispatcher_shift=?'; $args[] = $shift; }
         $base = implode(' AND ', $where);
         $summary = one($p, "SELECT COUNT(*) AS total,
-            COALESCE(SUM(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected')),0) AS active,
+            COALESCE(SUM(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected','Missed')),0) AS active,
             COALESCE(SUM(t.status='Completed'),0) AS completed,
             COALESCE(SUM(t.status IN ('Awaiting Resources','On Hold - Incident Reported','For Reschedule')),0) AS attention
             FROM trips t WHERE $base", $args);
         $tab = ($q['tab'] ?? '') === 'history' ? 'history' : 'active';
-        $where[] = $tab === 'history' ? "t.status IN ('Completed','Cancelled','Rejected')" : "t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected')";
+        $where[] = $tab === 'history' ? "t.status IN ('Completed','Cancelled','Rejected','Missed')" : "t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected','Missed')";
         $statuses = self::statuses($tab);
         if (($status = (optField($q,'status',60) ?? '')) !== '') { must(in_array($status, $statuses, true), 'Choose a trip status valid for the selected monitoring tab.'); $where[] = 't.status=?'; $args[] = $status; }
         $from = (optField($q,'from',10) ?? ''); $to = (optField($q,'to',10) ?? '');

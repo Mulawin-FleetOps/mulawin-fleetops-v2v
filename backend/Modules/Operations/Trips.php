@@ -43,8 +43,8 @@ core('DispatcherPlanning');
 
 final class Trips {
     public const STATUSES = ['Pending Review', 'Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'Dispatched',
-                             'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed', 'Cancelled', 'Rejected'];
-    public const CLOSED = ['Completed', 'Cancelled', 'Rejected'];
+                             'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed', 'Cancelled', 'Rejected', 'Missed'];
+    public const CLOSED = ['Completed', 'Cancelled', 'Rejected', 'Missed'];
     public const BEFORE_DISPATCH = ['Pending Review', 'Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch', 'For Reschedule'];
     public const UPDATE_TYPES = ['Progress', 'Loading', 'Unloading', 'Delivery', 'Delay', 'Other'];
     public const DELAY_CAUSES = ['Client', 'Pending Documents', 'Traffic', 'Weather', 'Operational', 'Other'];
@@ -60,6 +60,40 @@ final class Trips {
     /** Trip statuses where the dispatcher may attach the Diesel PO (assigned, on the road, or just completed). */
     private const DIESEL_PO_STATUSES = ['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed'];
     public const FUEL_LEVELS = ['Full', '3/4', '1/2', '1/4', 'Low'];
+
+    /**
+     * Archive unassigned trips when their scheduled dispatch time passes.
+     * Leave assigned, dispatched, and financially active trips untouched.
+     * Row locking serializes expiry with resource assignment.
+     */
+    public static function closeOverdueUnassigned(PDO $p): void {
+        static $migrationReady = null;
+        if ($migrationReady === null) {
+            try {
+                $migrationReady = (bool)one($p, "SELECT id FROM schema_migrations WHERE id='2026-11-15_19_missed_trips'");
+            } catch (PDOException $e) {
+                // Legacy installations remain usable until the additive migration is applied.
+                $migrationReady = false;
+            }
+        }
+        if (!$migrationReady) return;
+        transaction(function (PDO $tx): void {
+            $due = many($tx, "SELECT t.* FROM trips t
+                WHERE t.status='Awaiting Resources' AND t.scheduled_at < NOW()
+                  AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
+                  AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
+                                  AND f.status IN ('Pending Approval','Ready for Release','Released'))
+                ORDER BY t.scheduled_at,t.id LIMIT 200 FOR UPDATE SKIP LOCKED");
+            foreach ($due as $trip) {
+                $reason = 'Scheduled dispatch time passed without assigned resources.';
+                run($tx, 'UPDATE trips SET cancel_reason=? WHERE id=?', [$reason, $trip['id']]);
+                self::setStatus($tx, null, $trip, 'Missed', 'trip missed scheduled dispatch', $reason);
+                Notify::resolve($tx, 'trip-review-' . $trip['id']);
+                Notify::resolve($tx, 'trip-prep-' . $trip['id'] . '-*');
+            }
+        }, $p);
+    }
 
     // =================================================================
     // READ
@@ -78,6 +112,7 @@ final class Trips {
 
         }
         $p = db();
+        self::closeOverdueUnassigned($p);
         if(roleIsDispatcher($u['role'])){core('DispatcherTurnover');must(DispatcherTurnover::ready($p),'Dispatcher account responsibility requires the verified additive turnover migration. Ask Operations Head to assign initial responsibility after installation.',409);}
         [$scope, $scopeArgs] = self::scope($u);
         [$where, $args] = self::filters($q);
@@ -147,9 +182,9 @@ final class Trips {
     /** Dashboard read projection, using the same team/creator scope as the trip workspace. */
     public static function dispatcherOverview(array $u): array {
         must(roleIsDispatcher($u['role']), 'Only dispatchers can open this overview.', 403);
-        $p = db(); [$scope, $args] = self::scope($u);
+        $p = db(); self::closeOverdueUnassigned($p); [$scope, $args] = self::scope($u);
         return readSections([
-            'active' => fn() => many($p, self::select() . " WHERE (t.status NOT IN ('Completed','Cancelled','Rejected')
+            'active' => fn() => many($p, self::select() . " WHERE (t.status NOT IN ('Completed','Cancelled','Rejected','Missed')
                 OR EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle' AND t.status='Completed')) $scope ORDER BY t.scheduled_at,t.id", $args),
             'incidents' => fn() => many($p, "SELECT i.*, t.trip_ref, t.status AS trip_status, v.plate_number, m.job_ref, m.status AS job_status
                 FROM incidents i JOIN trips t ON t.id=i.trip_id JOIN vehicles v ON v.id=i.vehicle_id
@@ -846,12 +881,15 @@ final class Trips {
     }
 
     private static function dispatcherResources(array $u,array $d): array {
-        DispatcherScope::types($u);$p=db();$t=self::lockTrip($p,idField($d,'trip_id'));
+        DispatcherScope::types($u);
+        self::closeOverdueUnassigned(db());
+        $p=db();$t=self::lockTrip($p,idField($d,'trip_id'));
         must((bool)$t,'Trip not found.',404);self::mustBeTripDispatcher($u,$t);self::mustBeStatus($t,['Awaiting Resources','For Reschedule'],'assign resources');
         return DispatcherResources::candidates($p,$u,$t)+['trip'=>['id'=>$t['id'],'trip_ref'=>$t['trip_ref'],'truck_type'=>$t['truck_type']]];
     }
     private static function assignResources(array $u,array $d): array {
         DispatcherScope::types($u);$id=idField($d,'trip_id');
+        self::closeOverdueUnassigned(db());
         return transaction(function(PDO $p)use($u,$d,$id){$t=self::lockTrip($p,$id);self::mustBeTripDispatcher($u,$t);self::mustBeStatus($t,['Awaiting Resources','For Reschedule'],'assign resources');
             $res=DispatcherResources::choose(DispatcherResources::candidates($p,$u,$t,true),$t,$d);
             self::applyAssignment($p,$u['id'],$t,$res,'Manual',$t['status']==='For Reschedule'?'For Reschedule':null);
@@ -1303,7 +1341,7 @@ final class Trips {
     /** Everything about one trip (details drawer). */
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'trips') || Access::canOpen($u, 'funds') || Access::canOpen($u, 'billing'), 'Not allowed.', 403);
-        $id = idField($d, 'trip_id'); $p = db();
+        $id = idField($d, 'trip_id'); $p = db(); self::closeOverdueUnassigned($p);
         [$scope, $args] = self::scope($u);
         $t = one($p, self::select() . " WHERE t.id=? $scope", array_merge([$id], $args));
         must((bool)$t, 'Trip not found.', 404);

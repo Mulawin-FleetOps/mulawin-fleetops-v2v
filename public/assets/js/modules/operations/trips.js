@@ -20,6 +20,7 @@ const TripUI = {
       case 'Dispatched': case 'In Transit': return [3, false];
       case 'On Hold - Incident Reported': return [3, true];
       case 'Completed': return +t.awaiting_arrival ? [4, false] : [5, false];
+      case 'Missed': return [0, true];
       default: return [0, true];
     }
   },
@@ -62,6 +63,7 @@ const TripUI = {
         if (t.incident_status === 'Repaired - Cleared to Continue') return 'Motorpool recorded Fit to Continue. Dispatcher resumes the trip.';
         return 'Mechanic is repairing the truck on site.';
       case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Truck is repaired. Dispatcher reschedules the trip.' : 'Truck is being repaired (major damage). Then the dispatcher reschedules.';
+      case 'Missed': return 'Scheduled dispatch missed. No resources were assigned before departure.';
       case 'Completed':
         if (+t.awaiting_arrival) return 'Delivered. The truck is returning: the dispatcher does the arrival checklist when it is back.' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
         return 'Completed' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
@@ -438,7 +440,7 @@ const TripUI = {
         ...crew.map(([l, v]) => [l, UI.e(v) + (v ? attBadge(l) : '')]), t.helper_substitution_reason ? ['Helper replacement reason', UI.esc(t.helper_substitution_reason)] : null, missingRow, attRow, ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ...(t.dispatcher_shift ? [['Planning dispatcher shift', UI.e(t.dispatcher_shift)]] : []), ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
         t.truck_type === 'Car Carrier' ? ['Units', UI.e(t.units_planned) + (t.units_delivered ? ' planned · ' + t.units_delivered + ' delivered' : '')] : ['Container / seal / shipment', [t.container_number, t.container_size, t.seal_number, t.shipment_number].filter(Boolean).map(UI.esc).join(' · ') || '—'],
-        ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Cancel / reject reason', UI.esc(t.cancel_reason)] : null])}
+        ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Closure reason', UI.esc(t.cancel_reason)] : null])}
       <div class="route-map" data-routemap></div>
       ${UI.h('Fund request', fund ? `<button class="btn btn-sm btn-link p-0" data-tact="printfund">Print request form</button>` : '')}
       ${fund ? UI.fundProgress(fund) + UI.kv([['Reference', UI.esc(fund.fund_ref)], ['Status', UI.badge(fund.status)], ['Amount', UI.money(fund.amount)], ['Breakdown', fund.lines.map(l => UI.esc(l.category_name) + ' ' + UI.money(l.amount)).join('<br>')],
@@ -523,7 +525,7 @@ App.page('trips', {
     const filterFields = [
       { name: 'from', label: 'Schedule from', type: 'date', col: 6 }, { name: 'to', label: 'Schedule to', type: 'date', col: 6 },
       { name: 'q', label: 'Search (trip no., place, waybill, booking)', col: 12 },
-      { name: 'status', label: 'Status', type: 'select', options: UI.list(['Completed', 'Cancelled', 'Rejected']), col: 6 },
+      { name: 'status', label: 'Status', type: 'select', options: UI.list(['Completed', 'Cancelled', 'Rejected', 'Missed']), col: 6 },
       { name: 'truck_type', label: 'Truck type', type: 'select', options: UI.list(App.me.truckTypes), col: 6 },
       { name: 'client_id', label: 'Client', type: 'select', options: UI.opts(d.filterOptions.clients, c => c.company_name), col: 6 },
       { name: 'vehicle_id', label: 'Truck', type: 'select', options: UI.opts(d.filterOptions.trucks, v => v.plate_number), col: 6 },

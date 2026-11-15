@@ -2,7 +2,7 @@
 'use strict';
 const OpsHead = {
   is: () => UI.role('operations_head'),
-  closed: ['Completed', 'Cancelled', 'Rejected'],
+  closed: ['Completed', 'Cancelled', 'Rejected', 'Missed'],
   groups: {
     pending: ['Pending Review'], awaiting: ['Awaiting Resources'], preparing: ['Pre-Assigned', 'Ready for Dispatch'],
     attention: ['Awaiting Resources','On Hold - Incident Reported','For Reschedule'], road: ['Dispatched', 'In Transit'], problems: ['On Hold - Incident Reported', 'For Reschedule'],
@@ -16,7 +16,7 @@ const OpsHead = {
   link(page, query = {}) { return '#' + page + (Object.keys(query).length ? '?' + new URLSearchParams(query) : ''); },
   panel(title, html, action = '') { return `<section class="oh-panel"><div class="oh-panel-head"><h2>${UI.operationsLabel(title)}</h2>${action}</div><div class="oh-panel-body">${html}</div></section>`; },
   metrics(items) { return `<div class="oh-metrics">${items.map(([label, count, href]) => `<${href ? 'a' : 'div'} class="oh-metric" ${href ? `href="${UI.esc(href)}"` : ''}><span>${UI.esc(UI.operationsLabel(label))}</span><strong>${count == null ? 'Unavailable' : UI.num(count)}</strong>${href ? '<i class="bi bi-arrow-up-right" aria-hidden="true"></i>' : ''}</${href ? 'a' : 'div'}>`).join('')}</div>`; },
-  badge(status) { const color=/Rejected|On Hold|Under Repair/.test(status||'')?'red':UI.badgeColor(status);return status?`<span class="badge-s ${color}">${UI.esc(status)}</span>`:UI.badge(status); },
+  badge(status) { const color=/Rejected|Missed|On Hold|Under Repair/.test(status||'')?'red':UI.badgeColor(status);return status?`<span class="badge-s ${color}">${UI.esc(status)}</span>`:UI.badge(status); },
   bindTrips(el) { el.querySelectorAll('[data-oh-trip]').forEach(b => b.onclick = () => TripUI.open(b.dataset.ohTrip)); },
   search(el, draw, label = 'Search records', fields = []) {
     el.innerHTML = `<form class="oh-record-search" role="search"><div class="oh-record-toolbar"><label class="oh-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" name="search" type="search" aria-label="${UI.esc(label)}" placeholder="${UI.esc(label)}"></label><button type="submit" class="btn btn-primary">Search</button><button type="button" class="btn btn-outline-success" data-record-filters aria-expanded="false">Filters</button></div><div class="oh-record-filter-panel" hidden>${UI.fields(fields.length?fields:[{name:'match',label:'Search within records',placeholder:'Type a matching value'}])}<div class="oh-filter-actions"><button type="button" class="btn btn-primary" data-record-apply>Apply Filters</button><button type="button" class="btn btn-outline-secondary" data-record-clear>Clear Filters</button></div></div></form><div data-list></div>`;
@@ -126,7 +126,7 @@ const OpsHead = {
       ['Trip / Client','trip_ref',(value,t) => '<div class="fleet-trip-identity"><strong class="fleet-trip-ref">' + UI.esc(value) + '</strong><span class="fleet-trip-client">' + UI.esc(t.client || 'Client not specified') + '</span></div>'],
       ['Route / Truck','pickup_point',(value,t) => '<div class="fleet-trip-route"><span class="fleet-trip-route-path">' + UI.esc(t.pickup_point || 'Pickup not specified') + ' <span class="fleet-trip-route-arrow" aria-hidden="true">→</span> ' + UI.esc(t.delivery_point || 'Destination not specified') + '</span><span class="fleet-trip-truck"><i class="bi bi-truck" aria-hidden="true"></i> ' + UI.esc(t.plate_number || 'Awaiting assignment') + '</span></div>'],
       [history?'Closure / Schedule':'Scheduled Dispatch','scheduled_at',(value,t) => {
-        if(history) return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(t.completed_at ? this.datetime(t.completed_at) : 'Closure date not recorded') + '</strong><span>Scheduled: ' + UI.esc(this.datetime(value)) + '</span></div>';
+        if(history) return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(t.completed_at ? this.datetime(t.completed_at) : t.status === 'Missed' ? 'Missed dispatch' : 'Closure date not recorded') + '</strong><span>Scheduled: ' + UI.esc(this.datetime(value)) + '</span></div>';
         const formatted=this.datetime(value);
         const separator=formatted.lastIndexOf(', ');
         return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(separator>=0 ? formatted.slice(0,separator) : formatted) + '</strong>' + (separator>=0 ? '<span><i class="bi bi-clock" aria-hidden="true"></i> ' + UI.esc(formatted.slice(separator+2)) + '</span>' : '') + '</div>';

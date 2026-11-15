@@ -4,6 +4,12 @@ use PHPUnit\Framework\TestCase;
 
 final class OperationsV43Test extends TestCase {
     protected function setUp():void { Actions::load('Trips');core('DispatcherMonitoring');core('Access'); }
+    public function testMissedTripsAreClosedAndCannotEnterPredispatch():void {
+        self::assertContains('Missed', Trips::STATUSES);
+        self::assertContains('Missed', Trips::CLOSED);
+        self::assertNotContains('Missed', Trips::BEFORE_DISPATCH);
+        self::assertSame(['Completed','Cancelled','Rejected','Missed'], DispatcherMonitoring::statuses('history'));
+    }
     public function testOnlyOperationsHeadCanCreateTrips():void {
         $permission=new ReflectionMethod(Trips::class,'canCreate');
         foreach(array_keys(ROLE_LABELS) as $role) self::assertSame($role==='operations_head',$permission->invoke(null,['id'=>1,'role'=>$role]));
