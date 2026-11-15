@@ -33,116 +33,106 @@ const HeadAdminPage = {
         } });
     };
     const userForm = (u = {}) => {
-      const editingDispatcher = dispatcherRoles.includes(u.role);
-      const roleOptions = [
-        ...(roles.some(([r]) => dispatcherRoles.includes(r)) ? [['dispatcher', 'Dispatcher']] : []),
-        ...roles.filter(([r]) => !dispatcherRoles.includes(r) && (r !== 'audit' || (u.id && u.role === 'audit')) && roleAvailable(r, u)),
+      const isDispatcher = dispatcherRoles.includes(u.role);
+      const availableRoles = [
+        ['dispatcher', 'Dispatcher'],
+        ...roles.filter(([key]) => !dispatcherRoles.includes(key) && (key !== 'audit' || (u.id && u.role === 'audit')) && roleAvailable(key, u))
       ];
+      const saved = (() => {
+        try {
+          const values = JSON.parse(u.dispatcher_truck_types || 'null');
+          if (Array.isArray(values)) return values;
+        } catch {}
+        return u.dispatcher_truck_type ? [u.dispatcher_truck_type] :
+          u.role === 'car_carrier_dispatcher' ? ['Car Carrier'] :
+          u.role === 'container_wingvan_dispatcher' ? ['Container','Wing Van'] : [];
+      })();
+      const selected = new Set(saved);
+      const types = ['Car Carrier', 'Container', 'Wing Van'];
       const wrap = UI.formModal(u.id ? 'Edit ' + UI.esc(u.username) : 'New user account', [
-        { type: 'html', col: 12, html: '<div class="admin-account-section-heading"><span class="admin-account-section-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span><span><strong>Account information</strong><small>Enter the employee details used for sign-in and identification.</small></span></div>' },
+        { type: 'html', col: 12, html: '<div class="admin-account-section-heading"><span class="admin-account-section-icon"><i class="bi bi-person-vcard" aria-hidden="true"></i></span><span><strong>Account information</strong><small>Enter employee details used for login and identification.</small></span></div>' },
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
         { name: 'email', label: 'Email', type: 'email', required: true, col: 6, value: u.email },
-        { name: 'role', label: 'Role', type: 'select', options: roleOptions, required: true, col: 6, value: editingDispatcher ? 'dispatcher' : u.role },
-        { type: 'html', col: 12, html: '<div class="admin-account-dispatcher-heading" data-dispatcher-heading><div class="admin-account-section-heading"><span class="admin-account-section-icon"><i class="bi bi-truck" aria-hidden="true"></i></span><span><strong>Dispatcher assignment</strong><small>Choose the fleet category and working shift for this account.</small></span></div></div>' },
-        { name: 'dispatcher_truck_type', label: 'Truck Type', type: 'select', options: UI.list(['Car Carrier','Container','Wing Van']), required: false, col: 6, value: u.dispatcher_truck_type || '' },
-        { name: 'shift', label: 'Assigned Shift', type: 'select', options: UI.list(shifts), col: 6, value: u.shift },
+        { name: 'role', label: 'Role', type: 'select', options: availableRoles, required: true, col: 6, value: isDispatcher ? 'dispatcher' : u.role },
+        { type: 'html', col: 12, html: '<div data-dispatcher-heading class="admin-account-section-heading"><span class="admin-account-section-icon"><i class="bi bi-truck" aria-hidden="true"></i></span><span><strong>Dispatcher assignment</strong><small>Choose one, two, or all three truck types and the assigned shift.</small></span></div>' },
+        { type: 'html', col: 6, html: '<div class="admin-dispatcher-type-field" data-dispatcher-type-field><label class="form-label">Truck Types <span class="text-danger">*</span></label><div class="admin-dispatcher-type-choices" data-type-choices></div><div class="form-help">Select at least one category. Individual trucks are assigned during dispatch.</div></div>' },
+        { name: 'shift', label: 'Assigned Shift', type: 'select', options: UI.list(['Day','Night']), col: 6, value: u.shift }
       ], 'Admin.user_save', {
         extra: u.id ? { id: u.id } : {},
-        intro: u.id ? '' : '<i class="bi bi-shield-lock" aria-hidden="true"></i><span>The system will generate a <strong>one-time temporary password</strong> after saving. Share it privately with the employee.</span>',
+        intro: u.id ? '' : '<i class="bi bi-shield-lock" aria-hidden="true"></i><span>A one-time temporary password is generated after saving. Share it privately.</span>',
         transform: (values) => {
           delete values.dispatcher_shift_choice;
           if (values.role === 'dispatcher') {
-            if (!values.dispatcher_truck_type) throw new Error('Choose Car Carrier, Container, or Wing Van.');
-            if (!values.shift) throw new Error('Choose Day or Night Shift.');
-            values.role = values.dispatcher_truck_type === 'Car Carrier'
-              ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher';
-          } else {
-            delete values.dispatcher_truck_type;
-            values.shift = '';
-          }
+            const chosen = types.filter(t => selected.has(t));
+            if (!chosen.length) throw new Error('Select at least one truck type.');
+            if (!values.shift) throw new Error('Select a Day or Night shift.');
+            values.dispatcher_truck_types = chosen;
+            values.role = chosen[0] === 'Car Carrier' ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher';
+            // The server retains the legacy internal role for compatibility.
+          } else { values.dispatcher_truck_types = []; values.shift = ''; }
           return values;
         },
-        after: (result) => { App.route(); if (result.temporary_password) showTempPassword(result); }
+        after: result => { App.route(); if (result.temporary_password) showTempPassword(result); }
       });
       wrap.classList.add('admin-account-modal');
-      const dialog = wrap.querySelector('.modal-dialog');
-      dialog?.classList.add('admin-account-dialog');
-      const headerTitle = wrap.querySelector('.modal-title');
-      if (headerTitle) {
-        headerTitle.classList.add('admin-account-title');
-        headerTitle.insertAdjacentHTML('afterend', '<p class="admin-account-subtitle">Manage employee access and account permissions</p>');
-      }
-      const submitButton = wrap.querySelector('button[type=submit]');
-      if (submitButton) {
-        submitButton.innerHTML = '<i class="bi bi-check2-circle" aria-hidden="true"></i> ' + (u.id ? 'Save changes' : 'Create account');
-      }
+      wrap.querySelector('.modal-dialog')?.classList.add('admin-account-dialog');
+      const title = wrap.querySelector('.modal-title');
+      if (title) { title.classList.add('admin-account-title'); title.insertAdjacentHTML('afterend','<p class="admin-account-subtitle">Manage employee access and account permissions</p>'); }
+      const save = wrap.querySelector('button[type=submit]');
+      if (save) save.innerHTML = '<i class="bi bi-check2-circle"></i> ' + (u.id ? 'Save changes' : 'Create account');
       const role = wrap.querySelector('[name=role]');
-      const truckType = wrap.querySelector('[name=dispatcher_truck_type]');
       const shift = wrap.querySelector('[name=shift]');
-      const truckWrapper = truckType.closest('[class*=col-]');
-      const dispatcherHeading = wrap.querySelector('[data-dispatcher-heading]');
-      const shiftWrapper = shift.closest('[class*=col-]');
+      const shiftWrap = shift.closest('[class*=col-]');
+      const typeField = wrap.querySelector('[data-dispatcher-type-field]');
+      const typeChoices = wrap.querySelector('[data-type-choices]');
+      const heading = wrap.querySelector('[data-dispatcher-heading]');
       const shiftChoices = document.createElement('div');
       shiftChoices.className = 'admin-dispatcher-shift-choices';
-      shiftChoices.setAttribute('role','group');
-      shiftChoices.setAttribute('aria-label','Assigned Shift');
       shift.insertAdjacentElement('afterend',shiftChoices);
       shift.classList.add('visually-hidden');
       const preview = document.createElement('div');
       preview.className = 'admin-dispatcher-assignment-preview';
       preview.setAttribute('role','status');
-      shiftWrapper.insertAdjacentElement('afterend',preview);
-      truckWrapper.classList.add('admin-account-truck-field');
-      shiftWrapper.classList.add('admin-account-shift-field');
-      const refresh = () => {
+      shiftWrap.insertAdjacentElement('afterend',preview);
+      const paint = () => {
         const dispatcher = role.value === 'dispatcher';
-        dispatcherHeading.hidden = !dispatcher;
-        truckWrapper.style.display = dispatcher ? '' : 'none';
-        shiftWrapper.style.display = dispatcher ? '' : 'none';
+        heading.hidden = !dispatcher;
+        typeField.parentElement.hidden = !dispatcher;
+        shiftWrap.hidden = !dispatcher;
         preview.hidden = !dispatcher;
-        truckType.required = dispatcher;
-        shift.required = false;
-        if (!dispatcher) { shift.value=''; truckType.value=''; shiftChoices.replaceChildren(); return; }
-        const internalRole = truckType.value === 'Car Carrier' ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher';
-        const available = shifts.filter(s => !activeAccounts.some(a =>
-          String(a.id) !== String(u.id ?? '') && a.role === internalRole && a.shift === s &&
-          (a.dispatcher_truck_type === truckType.value || !a.dispatcher_truck_type)));
-        if (u.id && u.shift && truckType.value === u.dispatcher_truck_type && internalRole === u.role && !available.includes(u.shift)) available.push(u.shift);
-        const selected = shift.value;
-        shift.replaceChildren(new Option('Choose…',''), ...shifts.filter(s=>available.includes(s)).map(s=>new Option(s,s)));
-        shift.value = available.includes(selected) ? selected : '';
+        if (!dispatcher) { shift.value=''; shiftChoices.replaceChildren(); return; }
+        typeChoices.replaceChildren();
+        types.forEach(t => {
+          const label = document.createElement('label');
+          label.className='admin-dispatcher-type-option';
+          const box = document.createElement('input');
+          box.type='checkbox';box.checked=selected.has(t);box.value=t;
+          box.onchange=()=>{if(box.checked)selected.add(t);else selected.delete(t);updatePreview();};
+          const words=document.createElement('span');words.textContent=t;
+          label.append(box,words);typeChoices.append(label);
+        });
         shiftChoices.replaceChildren();
-        shifts.forEach(s => {
-          const label=document.createElement('label');
+        ['Day','Night'].forEach(s => {
+          const label = document.createElement('label');
           label.className='admin-dispatcher-shift-option';
           const radio=document.createElement('input');
-          radio.type='radio'; radio.name='dispatcher_shift_choice';radio.value=s;
-          radio.disabled=!available.includes(s);
-          radio.checked=shift.value===s;radio.required=dispatcher;
+          radio.type='radio';radio.name='dispatcher_shift_choice';radio.value=s;
+          radio.checked=shift.value===s;
           radio.onchange=()=>{if(radio.checked){shift.value=s;updatePreview();}};
-          label.append(radio,document.createTextNode(s+' Shift'));
-          shiftChoices.append(label);
+          label.append(radio,document.createTextNode(s+' Shift'));shiftChoices.append(label);
         });
         updatePreview();
       };
       const updatePreview = () => {
-        const selectedType = truckType.value;
-        const selectedShift = shift.value;
-        preview.classList.toggle('is-complete', !!selectedType && !!selectedShift);
-        preview.replaceChildren();
-        const symbol = document.createElement('i');
-        symbol.className = 'bi ' + (selectedType && selectedShift ? 'bi-check-circle-fill' : 'bi-info-circle');
-        symbol.setAttribute('aria-hidden','true');
-        const info = document.createElement('span');
-        info.textContent = selectedType && selectedShift
-          ? 'Assignment ready: ' + selectedType + ' · ' + selectedShift + ' Shift'
-          : 'Select a truck type and shift to complete the assignment.';
-        preview.append(symbol, info);
+        const choices=types.filter(t=>selected.has(t));
+        preview.classList.toggle('is-complete',choices.length>0 && !!shift.value);
+        preview.textContent=choices.length && shift.value
+          ? 'Assignment ready · '+choices.join(' + ')+' · '+shift.value+' Shift'
+          : 'Choose at least one truck type and a Day or Night shift.';
       };
-      role.onchange=()=>{truckType.value='';shift.value='';refresh();};
-      truckType.onchange=()=>{shift.value='';refresh();};
-      refresh();
+      role.onchange=()=>{selected.clear();shift.value='';paint();};
+      paint();
     };
     const tabs = [];
       // CHECKLIST_42_ATTENDANCE_PHASE2_V1: time-of-day settings (format 'hour') are shown and chosen as 12-hour
