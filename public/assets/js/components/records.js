@@ -26,20 +26,20 @@ const RecordComponents = Object.freeze({
       change(grouped);
     }));
   },
-  decorateTripGroups(box,shown,all,key='client',collapsed=new Set(),searching=false) {
+  decorateTripGroups(box,shown,all,key='client',collapsed=new Set(),searching=false,options={}) {
     const body=box?.querySelector('tbody');
     if(!body||!shown.length)return;
     const rows=[...body.querySelectorAll(':scope > tr[data-ri], :scope > tr[data-client-trip-row]')];
     if(rows.length!==shown.length)return;
     const counts=new Map();
     all.forEach(t=>{
-      const name=String(t[key]||'Unspecified client').trim()||'Unspecified client';
+      const name=String(t[key]||options.fallback||'Unspecified client').trim()||options.fallback||'Unspecified client';
       counts.set(name,(counts.get(name)||0)+1);
     });
     const columns=box.querySelectorAll('thead th').length||5;
     let prior=null;
     shown.forEach((trip,i)=>{
-      const name=String(trip[key]||'Unspecified client').trim()||'Unspecified client';
+      const name=String(trip[key]||options.fallback||'Unspecified client').trim()||options.fallback||'Unspecified client';
       const row=rows[i];
       row.dataset.clientTripRow='1';
       row.dataset.tripClientName=name;
@@ -54,12 +54,13 @@ const RecordComponents = Object.freeze({
       button.className='record-client-group-toggle';
       button.dataset.tripClientGroup=name;
       button.setAttribute('aria-expanded',String(!row.hidden));
-      button.setAttribute('aria-label',(row.hidden?'Expand ':'Collapse ')+name+' trips');
+      button.setAttribute('aria-label',(row.hidden?'Expand ':'Collapse ')+name+' '+(options.label||'trip')+' records');
       const label=document.createElement('strong');
       label.textContent=name;
       const count=document.createElement('span');
       const n=counts.get(name)||1;
-      count.textContent=n+' trip'+(n===1?'':'s');
+      const noun=options.label||'trip';
+      count.textContent=n+' '+noun+(n===1?'':'s');
       const icon=document.createElement('i');
       icon.className='bi bi-chevron-down';
       icon.setAttribute('aria-hidden','true');
@@ -70,18 +71,18 @@ const RecordComponents = Object.freeze({
       prior=name;
     });
   },
-  mountTripGrouping(root,id,key='client') {
+  mountTripGrouping(root,id,key='client',options={}) {
     const state=UI._tables[id],box=root.querySelector('[data-tbody="'+id+'"]');
     const row=root.querySelector('.record-workspace-category-row');
     if(!state||!box||!row)return null;
-    row.insertAdjacentHTML('beforeend',this.tripGroupControls());
+    if(options.showSwitch!==false)row.insertAdjacentHTML('beforeend',this.tripGroupControls());
     let grouped=true,flat=state.rows.slice();
     const collapsed=new Set();
     const decorate=()=>{
       if(!grouped)return;
       const all=UI.tableRows(id);
       const shown=all.slice(state.page*state.limit,(state.page+1)*state.limit);
-      this.decorateTripGroups(box,shown,all,key,collapsed,!!root.querySelector('[data-tsearch]')?.value.trim());
+      this.decorateTripGroups(box,shown,all,key,collapsed,!!root.querySelector('[data-tsearch]')?.value.trim(),options);
     };
     const observer=new MutationObserver(()=>{
       if(!root.isConnected){observer.disconnect();return;}
@@ -109,7 +110,7 @@ const RecordComponents = Object.freeze({
         UI.drawTable(id);
       }
     };
-    this.bindTripGroupControls(row,value=>{
+    if(options.showSwitch!==false)this.bindTripGroupControls(row,value=>{
       grouped=value;
       collapsed.clear();
       state.rows=grouped?this.clientTripSort(flat,key):flat.slice();

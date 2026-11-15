@@ -26,11 +26,19 @@ final class HeadManagement {
                 FROM vehicles v LEFT JOIN personnel d ON d.id=v.assigned_driver_id
                 LEFT JOIN personnel h ON h.id=v.assigned_helper_id ORDER BY v.active DESC,v.truck_type,v.plate_number LIMIT 500"),
             'personnel'=>fn()=>many($p,"SELECT pe.id,pe.full_name,pe.person_type,pe.availability,pe.active,
-                v.plate_number AS regular_truck
-                FROM personnel pe LEFT JOIN vehicles v ON (v.assigned_driver_id=pe.id OR v.assigned_helper_id=pe.id) AND v.active=1
+                (SELECT GROUP_CONCAT(DISTINCT av.plate_number ORDER BY av.plate_number SEPARATOR ', ')
+                    FROM driver_truck_authorizations da
+                    JOIN vehicles av ON av.id=da.vehicle_id AND av.active=1
+                    WHERE da.driver_id=pe.id) AS authorized_trucks,
+                (SELECT GROUP_CONCAT(DISTINCT hv.plate_number ORDER BY hv.plate_number SEPARATOR ', ')
+                    FROM vehicles hv WHERE hv.active=1 AND hv.assigned_helper_id=pe.id) AS regular_truck
+                FROM personnel pe
                 ORDER BY pe.active DESC,pe.person_type,pe.full_name LIMIT 700"),
             'mechanics'=>fn()=>many($p,"SELECT m.id,m.full_name,m.active,
-                (SELECT COUNT(*) FROM maintenance_jobs j WHERE j.active_mechanic=m.id AND j.status NOT IN ('Completed','Cancelled')) AS open_jobs
+                (SELECT COUNT(*) FROM maintenance_jobs j WHERE j.active_mechanic=m.id AND j.status NOT IN ('Completed','Cancelled')) AS open_jobs,
+                (SELECT GROUP_CONCAT(DISTINCT v.plate_number ORDER BY v.plate_number SEPARATOR ', ')
+                    FROM maintenance_jobs j JOIN vehicles v ON v.id=j.vehicle_id
+                    WHERE j.active_mechanic=m.id AND j.status NOT IN ('Completed','Cancelled')) AS assigned_trucks
                 FROM mechanics m ORDER BY m.active DESC,m.full_name LIMIT 200"),
         ]);
         if($page==='head-approvals') return readSections([

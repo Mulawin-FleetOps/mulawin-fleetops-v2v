@@ -1489,3 +1489,7 @@
 .driver-auth-count{font-size:12px;color:#3a7750;margin:11px 0 0;font-weight:650}
 @media(max-width:650px){.driver-auth-layout{grid-template-columns:1fr}.driver-auth-box{min-height:0}.driver-auth-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:390px){.driver-auth-options{grid-template-columns:1fr}}
+
+/* Fleet categories reuse the shared, collapsible record group headers. */
+.head-fleet-workspace .record-client-group-toggle strong{font-size:13px}
+.head-fleet-truck-list{white-space:normal;overflow-wrap:anywhere;line-height:1.65}

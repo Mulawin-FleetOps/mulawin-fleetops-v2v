@@ -151,7 +151,7 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false, groupTrips=false} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false, groupTrips=false, groupFleetTrucks=false} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
     const hasFilters=filters.length>0;
@@ -233,6 +233,7 @@ const HeadRecords = {
       button.addEventListener('click',()=>config.changeCategory?.(button.dataset.headRecordCategory)));
     HeadOversight.finishTable(root);
     if(groupTrips) tripGrouping=RecordComponents.mountTripGrouping(root,id,'client');
+    if(groupFleetTrucks) tripGrouping=RecordComponents.mountTripGrouping(root,id,'truck_type',{showSwitch:false,label:'truck',fallback:'Other Trucks'});
   }
 };
 
@@ -241,16 +242,16 @@ const HeadFleetWorkspace = {
   categories: [
     {id:'trucks', label:'Trucks', key:'vehicles', empty:'No truck records available.',
       cols:[['Truck / Plate','plate_number'],['Type','truck_type'],['Status','status','badge'],
-        ['Driver','driver_name'],['Helper','helper_name'],['Current Trip','active_trip']]},
+        ['Regular Driver','driver_name'],['Regular Helper','helper_name'],['Current Trip','active_trip']]},
     {id:'drivers', label:'Drivers', key:'personnel', personType:'Driver', empty:'No driver records available.',
       cols:[['Driver','full_name'],['Availability','availability','badge'],
-        ['Regular Truck','regular_truck'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
+        ['Authorized Trucks','authorized_trucks',(value)=>value?'<span class="head-fleet-truck-list">'+UI.esc(value)+'</span>':'—'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
     {id:'helpers', label:'Helpers', key:'personnel', personType:'Helper', empty:'No helper records available.',
       cols:[['Helper','full_name'],['Availability','availability','badge'],
         ['Regular Truck','regular_truck'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
     {id:'mechanics', label:'Mechanics', key:'mechanics', empty:'No mechanics recorded.',
       cols:[['Mechanic','full_name'],['Active Jobs','open_jobs'],
-        ['Active','active',value=>Number(value)===1?'Yes':'No']]}
+        ['Assigned Trucks','assigned_trucks'],['Active','active',value=>Number(value)===1?'Yes':'No']]}
   ],
   metrics(summary) {
     const value=key=>summary && summary[key] !== null && summary[key] !== undefined
@@ -304,6 +305,7 @@ const HeadFleetWorkspace = {
         columns:category.cols,rows:records,empty:category.empty,
         showAllCategories:true,
         alwaysShowTools:true,
+        groupFleetTrucks:category.id==='trucks',
         filters,sortOptions,
         changeCategory:select
       });
