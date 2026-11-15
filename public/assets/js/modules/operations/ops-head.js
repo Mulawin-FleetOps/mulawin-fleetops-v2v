@@ -131,7 +131,7 @@ const OpsHead = {
         const separator=formatted.lastIndexOf(', ');
         return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(separator>=0 ? formatted.slice(0,separator) : formatted) + '</strong>' + (separator>=0 ? '<span><i class="bi bi-clock" aria-hidden="true"></i> ' + UI.esc(formatted.slice(separator+2)) + '</span>' : '') + '</div>';
       }],
-      ['Status','status',(value,t) => '<div class="fleet-trip-status">' + OpsHead.badge(value) + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '') + '</div>'],
+      ['Status','status',(value,t) => '<div class="fleet-trip-status">' + OpsHead.badge(value) + (+t.pending_archival ? '<div class="badge-s amber">Pending archival</div>' : '') + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '') + '</div>'],
     ];
     const table = UI.table(columns,rows,{
       tools:toolbar,
