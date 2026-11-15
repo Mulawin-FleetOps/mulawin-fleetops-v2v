@@ -130,7 +130,7 @@ App.page('funds', {
       workspace.innerHTML=tabs+RecordComponents.panel(table);
       UI.activate(workspace);
       RecordComponents.mountPanel(workspace,{title:active.label+' Records'});
-      workspace.querySelector('.record-workspace-category-row')?.remove();
+      RecordComponents.mountViewTabs(workspace);
       workspace.querySelectorAll('[data-fund-view]').forEach(button=>button.addEventListener('click',()=>{
         active=views.find(v=>v.value===button.dataset.fundView)||active;
         renderView();
