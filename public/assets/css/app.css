@@ -2776,3 +2776,109 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 @media(max-width:480px){
  .admin-account-modal .admin-dispatcher-type-choices{grid-template-columns:1fr}
 }
+
+
+/* Dispatcher account assignment – polished responsive selection layout.
+   Presentation only: existing form fields and selection logic are untouched. */
+.admin-account-modal .modal-body .row:has(.admin-dispatcher-type-choices) > [class*="col-"]{
+  flex:0 0 100%;
+  width:100%;
+  max-width:100%;
+}
+.admin-account-modal .admin-dispatcher-type-choices{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+.admin-account-modal .admin-dispatcher-type-option,
+.admin-account-modal .admin-dispatcher-shift-option{
+  position:relative;
+  justify-content:flex-start;
+  min-height:62px;
+  gap:12px;
+  padding:15px 17px;
+  border:1px solid #d6e5db;
+  border-radius:13px;
+  background:#fff;
+  color:#355844;
+  font-size:13px;
+  font-weight:650;
+  line-height:1.35;
+  box-shadow:0 1px 2px rgba(19,61,36,.035);
+  transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.admin-account-modal .admin-dispatcher-type-option:hover,
+.admin-account-modal .admin-dispatcher-shift-option:hover{
+  border-color:#99c4a7;
+  background:#f8fcf9;
+  box-shadow:0 3px 12px rgba(19,61,36,.065);
+}
+.admin-account-modal .admin-dispatcher-type-option:has(input:checked),
+.admin-account-modal .admin-dispatcher-shift-option:has(input:checked){
+  border-color:#32925c;
+  background:linear-gradient(135deg,#eaf7ee,#f5fbf6);
+  color:#185e36;
+  box-shadow:0 0 0 2px rgba(41,133,75,.09);
+}
+.admin-account-modal .admin-dispatcher-type-option:has(input:focus-visible),
+.admin-account-modal .admin-dispatcher-shift-option:has(input:focus-visible){
+  outline:3px solid rgba(41,133,75,.28);
+  outline-offset:2px;
+}
+.admin-account-modal .admin-dispatcher-type-option input,
+.admin-account-modal .admin-dispatcher-shift-option input{
+  width:18px;
+  height:18px;
+  flex:none;
+  margin:0;
+  accent-color:#23814a;
+}
+.admin-account-modal .admin-dispatcher-shift-choices{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  min-height:0;
+}
+.admin-account-modal .admin-dispatcher-shift-option{
+  min-width:0;
+  margin:0;
+}
+.admin-account-modal .admin-dispatcher-assignment-preview{
+  margin:3px 0 0;
+  padding:14px 17px;
+  min-height:50px;
+  border-radius:12px;
+  background:#f3f8f4;
+  border:1px solid #deebe1;
+  color:#55735f;
+  font-size:12px;
+  line-height:1.55;
+}
+.admin-account-modal .admin-dispatcher-assignment-preview.is-complete{
+  background:#ecf8ef;
+  border-color:#afd7bb;
+  color:#20643b;
+}
+@media(max-width:767px){
+  .admin-account-modal .admin-dispatcher-type-choices{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+  .admin-account-modal .admin-dispatcher-type-option,
+  .admin-account-modal .admin-dispatcher-shift-option{
+    min-height:56px;
+    padding:12px 14px;
+  }
+}
+@media(max-width:480px){
+  .admin-account-modal .admin-dispatcher-type-choices,
+  .admin-account-modal .admin-dispatcher-shift-choices{
+    grid-template-columns:1fr;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .admin-account-modal .admin-dispatcher-type-option,
+  .admin-account-modal .admin-dispatcher-shift-option{
+    transition:none;
+  }
+}
