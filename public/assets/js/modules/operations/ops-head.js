@@ -685,7 +685,7 @@ const OpsHead = {
       + '</div>';
     UI.activate(ctx.el);
     RecordComponents.mountPanel(ctx.el,{title: type + ' Records',addSelector:'.record-workspace-add'});
-    ctx.el.querySelector('.record-workspace-category-row')?.remove();
+    RecordComponents.mountViewTabs(ctx.el);
     ctx.el.querySelectorAll('[data-crew-type]').forEach(button => button.addEventListener('click',() => {
       const next = {...ctx.query,person_type:button.dataset.crewType};
       delete next.availability;delete next.license;delete next.inactive;
