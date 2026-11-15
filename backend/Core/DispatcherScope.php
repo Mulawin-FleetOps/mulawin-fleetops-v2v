@@ -37,13 +37,24 @@ final class DispatcherScope {
         return in_array($t['truck_type'] ?? null, $types, true)
             && (int)($t['responsible_dispatcher_id'] ?? $t['current_dispatcher_id'] ?? 0) === (int)$u['id'] && (int)$u['id']>0;
     }
-    /** No shared/unmapped pool: a person needs an exclusive, existing regular link to this group. */
+    /** Drivers are scoped by explicit vehicle authorization; Helpers keep their
+     * existing exclusive regular operational-group links. */
     public static function personnelSql(array $u, string $alias = 'pe'): array {
-        $types = self::types($u); $marks = implode(',', array_fill(0, count($types), '?'));
-        $link = "(({$alias}.person_type='Driver' AND sv.assigned_driver_id=$alias.id) OR ({$alias}.person_type='Helper' AND sv.assigned_helper_id=$alias.id))";
-        return [" AND $alias.person_type IN (" . (count($types) === 1 && $types[0] === 'Car Carrier' ? "'Driver'" : "'Driver','Helper'") . ")
-            AND EXISTS (SELECT 1 FROM vehicles sv WHERE sv.active=1 AND $link AND sv.truck_type IN ($marks))
-            AND NOT EXISTS (SELECT 1 FROM vehicles sv WHERE sv.active=1 AND $link AND sv.truck_type NOT IN ($marks))", [...$types, ...$types]];
+        $types=self::types($u);
+        $marks=implode(',',array_fill(0,count($types),'?'));
+        $driver="({$alias}.person_type='Driver' AND EXISTS (
+            SELECT 1 FROM driver_truck_authorizations da
+            JOIN vehicles av ON av.id=da.vehicle_id
+            WHERE da.driver_id={$alias}.id AND av.active=1 AND av.truck_type IN ($marks)
+        ))";
+        if(count($types)===1 && $types[0]==='Car Carrier')
+            return [" AND $driver",$types];
+        $helper="({$alias}.person_type='Helper' AND EXISTS (
+            SELECT 1 FROM vehicles sv WHERE sv.active=1 AND sv.assigned_helper_id={$alias}.id AND sv.truck_type IN ($marks)
+        ) AND NOT EXISTS (
+            SELECT 1 FROM vehicles sv WHERE sv.active=1 AND sv.assigned_helper_id={$alias}.id AND sv.truck_type NOT IN ($marks)
+        ))";
+        return [" AND ($driver OR $helper)",[...$types,...$types,...$types]];
     }
     public static function person(PDO $p, array $u, int $id, bool $lock = false): array {
         [$scope,$args] = self::personnelSql($u);
