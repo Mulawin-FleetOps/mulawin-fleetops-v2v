@@ -1971,7 +1971,7 @@ UI.tripProgress = (trip, data = {}) => {
   const exceptional=['Cancelled','Rejected','On Hold - Incident Reported','For Reschedule'].includes(trip.status);
   const milestones=[
     {label:'Created',at:trip.created_at,state:trip.created_at?'complete':'pending'},
-    {label:'Resources assigned',state:trip.vehicle_id&&trip.driver_id?'complete':'pending',note:'Current recorded assignment; see history for previous attempts.'},
+    {label:'Resource assignment',state:trip.vehicle_id&&trip.driver_id?'complete':'pending',note:trip.vehicle_id&&trip.driver_id?'Assigned resources are recorded; previous attempts remain in history.':null},
     {label:'Pre-dispatch · attempt '+attempt,at:pre?.completed_at,state:pre?(Number(pre.has_not_ok)?'exception':'complete'):'pending'},
     {label:'Dispatched',at:trip.dispatched_at,state:trip.dispatched_at?'complete':'pending'},
     {label:'Completed',at:trip.completed_at,state:trip.completed_at?'complete':'pending'},
