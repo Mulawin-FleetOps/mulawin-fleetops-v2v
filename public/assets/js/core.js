@@ -435,6 +435,22 @@ const App = {
       try { localStorage.setItem(collapseKey, on ? '1' : '0'); } catch { /* storage unavailable */ }
       if (executiveSidebar) document.querySelector('.executive-sidebar-flyout')?.remove();
     });
+    // In compact workspace mode a group icon expands the sidebar before opening
+    // its links; do not create duplicate flyouts or change route permissions.
+    if (ws) sb.querySelector('.sidebar-nav')?.addEventListener('click', event => {
+      const summary=event.target.closest('.head-nav-group > summary');
+      const shell=document.getElementById('appShell');
+      if (!summary||!shell?.classList.contains('sb-collapsed')
+          ||!window.matchMedia('(min-width: 992px)').matches)return;
+      shell.classList.remove('sb-collapsed');
+      const button=document.getElementById('sbCollapse');
+      if(button){
+        button.setAttribute('aria-pressed','false');
+        button.title='Collapse the menu';
+        button.setAttribute('aria-label',button.title);
+      }
+      try{localStorage.setItem(collapseKey,'0')}catch{}
+    });
     this._executiveSidebarAbort?.abort();
     this._executiveSidebarAbort = new AbortController();
     sb.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sb.classList.contains('open')) { bd.onclick(); document.getElementById('menuBtn')?.focus(); } });
