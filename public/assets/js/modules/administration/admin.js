@@ -111,7 +111,7 @@ const HeadAdminPage = {
         const dispatch = dispatcherRoles.includes(role.value);
         shiftWrapper.style.display = dispatch ? '' : 'none';
         truckSection.hidden = !dispatch;
-        shiftInput.required = dispatch;
+        shiftInput.required = false; // visible radio group owns required-field validation
         if (dispatch) {
           const compatible = new Set(matchingTrucks().map(v => Number(v.id)));
           for (const id of selectedTrucks) if (!compatible.has(id)) selectedTrucks.delete(id);
