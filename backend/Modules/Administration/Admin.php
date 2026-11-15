@@ -223,11 +223,15 @@ final class Admin {
                 $oldUser = one($p, 'SELECT full_name, email, role, shift, dispatcher_truck_type, dispatcher_truck_types, active FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
                 must($role !== 'audit' || $oldUser['role'] === 'audit', 'The Audit role is retired for account assignments.', 409);
-                if($role!==$oldUser['role']||$shift!==$oldUser['shift']||json_encode($selectedTypes)!==($oldUser['dispatcher_truck_types'] ?? null)){
+                $oldTypes = json_decode((string)($oldUser['dispatcher_truck_types'] ?? 'null'), true);
+                if (!is_array($oldTypes)) $oldTypes = $oldUser['dispatcher_truck_type']
+                    ? [$oldUser['dispatcher_truck_type']] : [];
+                $typeChanged = $selectedTypes !== $oldTypes;
+                if($role!==$oldUser['role']||$shift!==$oldUser['shift']||$typeChanged){
                     core('DispatcherTurnover');
                     DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($oldUser['role'])||roleIsDispatcher($role));
                 }
-                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'] || json_encode($selectedTypes) !== ($oldUser['dispatcher_truck_types'] ?? null))) self::assertRoleShiftVacancy($p, $role, $shift, $id, $truckType);
+                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'] || $typeChanged)) self::assertRoleShiftVacancy($p, $role, $shift, $id, $truckType);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=?, dispatcher_truck_type=?, dispatcher_truck_types=? WHERE id=?', [$name, $email, $role, $shift, $truckType, $selectedTypes ? json_encode($selectedTypes, JSON_THROW_ON_ERROR) : null, $id]);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
                     ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift'], 'Truck type' => $oldUser['dispatcher_truck_types']],
