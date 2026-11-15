@@ -71,7 +71,7 @@ const TripUI = {
   needsMe(t) {
     const r = App.me.user.role;
     if (r === 'operations_head') return t.status === 'Pending Review' || t.fund_status === 'Pending Approval' || t.status === 'Awaiting Resources';
-    if (UI.isDispatcher() && t.dispatcher_role === r) {
+    if (UI.isDispatcher() && Number(t.responsible_dispatcher_id) === Number(App.me.user.id)) {
       return (t.status === 'Pre-Assigned') || (t.status === 'Ready for Dispatch' && (t.fund_status === 'Released' || (!t.fund_status && +t.attempt_number > 1)))
         || t.fund_status === 'Rejected' || (t.status === 'On Hold - Incident Reported' && t.incident_status === 'Repaired - Cleared to Continue')
         || (t.status === 'For Reschedule' && t.truck_status === 'Assigned') || (t.status === 'Completed' && +t.awaiting_arrival);
@@ -96,8 +96,13 @@ const TripUI = {
   // ------------------------------------------------------------------ forms
   truckTypeOptions() {
     const r = App.me.user.role;
-    if (r === 'car_carrier_dispatcher') return ['Car Carrier'];
-    if (r === 'container_wingvan_dispatcher') return ['Container', 'Wing Van'];
+    if (UI.isDispatcher()) {
+      let types = [];
+      try { types = JSON.parse(App.me.user.dispatcher_truck_types || 'null') || []; } catch {}
+      if (Array.isArray(types) && types.length) return types;
+      if (App.me.user.dispatcher_truck_type) return [App.me.user.dispatcher_truck_type];
+      return r === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container','Wing Van'];
+    }
     return App.me.truckTypes;
   },
   deliveryFields(t = {}, opts = {}) {
@@ -339,7 +344,7 @@ const TripUI = {
   async open(id) {
     let r;
     try { r = await App.api('Trips.details', { trip_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
-    const t = r.trip, me = App.me.user, mine = UI.isDispatcher() && t.dispatcher_role === me.role, ops = UI.role('operations_head');
+    const t = r.trip, me = App.me.user, mine = UI.isDispatcher() && Number(t.responsible_dispatcher_id) === Number(me.id), ops = UI.role('operations_head');
     const [st, warn] = TripUI.stage(t);
     const btn = (act, label, cls = 'outline-primary', icon = '', disabled = false) => `<button class="btn btn-sm btn-${cls}" data-tact="${act}" ${disabled ? 'disabled' : ''}>${icon ? `<i class="bi ${icon}"></i> ` : ''}${UI.esc(label)}</button>`;
     const acts = [];
