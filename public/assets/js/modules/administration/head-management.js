@@ -159,7 +159,11 @@ const HeadRecords = {
     const showTools=(hasRecords||alwaysShowTools)&&!hideFilterSort;
     const sortFields=sortOptions?.length?sortOptions:[
       {key:columns[0]?.[1],label:columns[0]?.[0]||'Record'}];
-    const choices=options=>options.map(value=>'<option value="'+UI.esc(value)+'">'+UI.esc(value)+'</option>').join('');
+    const choices=options=>options.map(option=>{
+      const value=option && typeof option==='object' ? option.value : option;
+      const label=option && typeof option==='object' ? option.label : option;
+      return '<option value="'+UI.esc(String(value))+'">'+UI.esc(String(label))+'</option>';
+    }).join('');
     const toolbar=(showTools&&hasFilters?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>':'')
       +(showTools?'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>':'')
       +'<div class="record-workspace-popovers">'+(showTools&&hasFilters?'<div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter records</strong>'
@@ -278,16 +282,29 @@ const HeadFleetWorkspace = {
     const select=id=>{
       const category=tabs.find(tab=>tab.id===id)||tabs[0];
       const records=category.records;
-      const field=['status','availability','person_type'].find(key=>category.cols.some(col=>col[1]===key));
+      const available=key=>[...new Set(records.map(row=>row[key]).filter(value=>value!==null && value!==undefined && value!==''))]
+        .sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+      const filterField=(label,key,options=available(key))=>({label,key,options});
+      const activeOptions=[
+        {value:'1',label:'Active'},
+        {value:'0',label:'Inactive'}
+      ];
+      const filters=category.id==='trucks'
+        ? [filterField('Truck type','truck_type'),filterField('Status','status')]
+        : category.id==='mechanics'
+          ? [filterField('Active status','active',activeOptions)]
+          : [filterField('Availability','availability'),filterField('Active status','active',activeOptions)];
+      const sortOptions=category.id==='trucks'
+        ? [{key:'plate_number',label:'Truck / Plate'},{key:'truck_type',label:'Truck type'},{key:'status',label:'Status'}]
+        : [{key:'full_name',label:category.id==='mechanics'?'Mechanic name':category.id==='drivers'?'Driver name':'Helper name'}];
       HeadRecords.render(container,{
         title:'Fleet & Personnel Records',
         categories:tabs.map(tab=>({value:tab.id,label:tab.label})),
         selected:category.id,
         columns:category.cols,rows:records,empty:category.empty,
         showAllCategories:true,
-        hideFilterSort:true,
-        filters:field?[{label:field.replace(/_/g,' '),key:field,
-          options:[...new Set(records.map(row=>row[field]).filter(Boolean))].sort()}]:[],
+        alwaysShowTools:true,
+        filters,sortOptions,
         changeCategory:select
       });
     };
