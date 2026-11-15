@@ -182,11 +182,34 @@ const HeadAdminPage = {
           +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="default" data-record-sort checked> Default order</label>'
           +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="asc" data-record-sort> Name A–Z</label>'
           +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="desc" data-record-sort> Name Z–A</label></div></div>';
-        const columns=[['Name','full_name'],['Username','username'],['Email','email'],
-          ['Role','role',(v,u)=>{let types=[];try{types=JSON.parse(u.dispatcher_truck_types||'null')||[];}catch{};if(!Array.isArray(types)||!types.length)types=u.dispatcher_truck_type?[u.dispatcher_truck_type]:(v==='car_carrier_dispatcher'?['Car Carrier (legacy)']:['Container / Wing Van (legacy)']);return UI.esc(dispatcherRoles.includes(v)?'Dispatcher · '+types.join(', '):(d.roles[v]||v));}],['Shift','shift'],
+        const columns=[
+          ['User','full_name',(v,u)=>'<div class="head-account-user">'
+            +'<span class="head-account-user-name">'+UI.esc(v||'—')+'</span>'
+            +'<span class="head-account-user-handle">@'+UI.esc(u.username||'—')+'</span>'
+            +(u.email?'<span class="head-account-user-email" title="'+UI.esc(u.email)+'">'+UI.esc(u.email)+'</span>':'')
+            +'</div>'],
+          ['Role & Assignment','role',(v,u)=>{
+            if(!dispatcherRoles.includes(v))return '<div class="head-account-role">'+UI.esc(d.roles[v]||v||'—')+'</div>';
+            let types=[];
+            try{
+              const raw=u.dispatcher_truck_types;
+              types=Array.isArray(raw)?raw:JSON.parse(raw||'null')||[];
+            }catch{}
+            if(!Array.isArray(types)||!types.length){
+              types=u.dispatcher_truck_type?[u.dispatcher_truck_type]:
+                v==='car_carrier_dispatcher'?['Car Carrier (legacy)']:['Container / Wing Van (legacy)'];
+            }
+            return '<div class="head-account-role"><span class="head-account-role-title">Dispatcher</span>'
+              +'<div class="head-account-assignment">'
+              +(u.shift?'<span class="head-account-shift"><i class="bi bi-clock" aria-hidden="true"></i> '+UI.esc(u.shift)+' Shift</span>':'')
+              +'<span class="head-account-types">'+UI.esc(types.join(' · '))+'</span>'
+              +'</div></div>';
+          }],
           ['Status','active',(v,u)=>(Number(v)?UI.badge('Active'):UI.badge('Inactive'))
             +(Number(u.must_change_password)?'<div class="cell-sub">Must change password</div>':'')],
-          ['E-signature','has_signature','yes'],['Last login','last_login_at','datetime']];
+          ['E-signature','has_signature','yes'],
+          ['Last login','last_login_at','datetime']
+        ];
         const h=UI.table(columns,accounts,{
           title:'User Accounts',tools:toolbar,showAllColumns:true,viewSwitch:false,
           actions:u=>UI.btn('edit','Edit')+UI.btn('pw','Reset password','outline-secondary')
