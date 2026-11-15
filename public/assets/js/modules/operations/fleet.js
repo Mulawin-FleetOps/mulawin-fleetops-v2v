@@ -4,6 +4,42 @@
    Backend: backend/Modules/Operations/Fleet.php */
 'use strict';
 const FleetUI = {
+  // Shared presentation for Truck, Driver and Helper detail drawers.
+  // Move existing DOM nodes (never clone them), retaining all action and table handlers.
+  decorateDetailDrawer(drawer) {
+    drawer.classList.add('fleet-master-detail-drawer');
+    const body=drawer.querySelector('.offcanvas-body');
+    if(!body)return;
+    const actions=body.querySelector('.drawer-actions');
+    if(actions)actions.classList.add('fleet-detail-actions');
+    const status=body.firstElementChild;
+    if(status && status!==actions && status.classList.contains('mb-2') ||
+       status && status!==actions && status.classList.contains('d-flex')){
+      status.classList.add('fleet-detail-status');
+    }
+    const headings=[...body.querySelectorAll(':scope > .drawer-h')];
+    const icons=['bi-info-circle','bi-file-earmark-check','bi-clock-history','bi-wrench-adjustable','bi-list-check'];
+    headings.forEach((heading,index)=>{
+      const title=heading.querySelector('span')?.textContent?.trim()||'Details';
+      const section=document.createElement('details');
+      section.className='fleet-detail-section';
+      section.open=index===0;
+      const label=document.createElement('summary');
+      const icon=document.createElement('i');
+      icon.className='bi '+(icons[index]||'bi-folder2-open');
+      icon.setAttribute('aria-hidden','true');
+      const name=document.createElement('strong');name.textContent=title;
+      const chevron=document.createElement('i');chevron.className='bi bi-chevron-down fleet-detail-chevron';
+      chevron.setAttribute('aria-hidden','true');
+      label.append(icon,name,chevron);
+      const content=document.createElement('div');content.className='fleet-detail-section-body';
+      let next=heading.nextSibling;
+      while(next && !(next.nodeType===1&&next.classList.contains('drawer-h'))){
+        const moving=next;next=next.nextSibling;content.append(moving);
+      }
+      section.append(label,content);heading.replaceWith(section);
+    });
+  },
   // Checklist #13/#14: prominent type tabs; no change to server-side filters.
   masterlistTypeTabs(page, param, options, current) {
     return `<div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="${page === 'trucks' ? 'Truck types' : 'Personnel types'}">
@@ -90,11 +126,12 @@ const FleetUI = {
       ${UI.h('Vehicle documents')}${UI.kv([['MV file no.', UI.e(v.mv_file_number)], ['OR / CR no.', UI.esc([v.or_number, v.cr_number].filter(Boolean).join(' / ') || '—')],
         ['Registration expiry', UI.date(v.registration_expiry)], ['Insurance', UI.esc([v.insurance_provider, v.insurance_policy_number].filter(Boolean).join(' · ') || '—')], ['Insurance expiry', UI.date(v.insurance_expiry)]])}
       <div class="mt-2">${UI.docs(r.documents, 'No OR/CR or insurance files attached yet.')}</div>
-      ${UI.h('Trips (latest 50)')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Client', 'client'], ['Driver', 'driver_name'], ['Route', 'delivery_point']], r.trips, { plain: true, empty: 'No trips yet.' })}
-      ${UI.h('Maintenance history')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date'], ['Cost', 'cost', 'money']], r.maintenance,
-        { plain: true, empty: 'No maintenance records.', rowClick: (m) => { UI.closeDrawer(); App.go('maintenance', { open: m.id }); } })}
+      ${UI.h('Trips (latest 50)')}${(r.trips||[]).length ? UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Client', 'client'], ['Driver', 'driver_name'], ['Route', 'delivery_point']], r.trips, { plain: true, empty: 'No trips yet.' }) : '<div class="fleet-detail-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>No trip history yet</strong><span>Trips assigned to this truck will appear here.</span></div>'}
+      ${UI.h('Maintenance history')}${(r.maintenance||[]).length ? UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date'], ['Cost', 'cost', 'money']], r.maintenance,
+        { plain: true, empty: 'No maintenance records.', rowClick: (m) => { UI.closeDrawer(); App.go('maintenance', { open: m.id }); } }) : '<div class="fleet-detail-empty"><i class="bi bi-tools" aria-hidden="true"></i><strong>No maintenance history</strong><span>Repair records will appear here when available.</span></div>'}
       ${UI.h('Status history')}<ul class="timeline">${r.statusLog.map(l => `<li><span class="when">${UI.datetime(l.created_at)} · ${UI.esc(l.actor || 'System')}</span><br>${UI.esc(l.from_status || 'new')} → <b>${UI.esc(l.to_status)}</b>${l.reason ? ' · ' + UI.esc(l.reason) : ''}</li>`).join('') || '<li>No changes yet.</li>'}</ul>`;
     const el = UI.drawer('Truck ' + UI.esc(v.plate_number), html, { subtitle: UI.esc(v.truck_type) });
+    this.decorateDetailDrawer(el);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') FleetUI.truckForm(v, d);
@@ -191,8 +228,9 @@ const FleetUI = {
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
       ${UI.h(UI.role('operations_head')?'Overview':'Details')}${UI.kv([[UI.role('operations_head')?'Role':'Type', UI.e(p.person_type)], ['Employee no.', UI.e(p.employee_no)], ['Contact', UI.e(p.contact_number)], ['Address', UI.e(p.address)],
         ["License", UI.esc([p.license_number, p.license_expiry ? 'expires ' + UI.date(p.license_expiry) : ''].filter(Boolean).join(' · ') || '—')], ['Date hired', UI.date(p.date_hired)], ['Notes', UI.e(p.notes)]])}
-      ${UI.h('Trip history')}${UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
+      ${UI.h('Trip history')}${(r.trips||[]).length ? UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' }) : '<div class="fleet-detail-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>No trip history yet</strong><span>Trips assigned to this person will appear here.</span></div>'}`;
     const el = UI.drawer(UI.esc(p.full_name), html, { subtitle: UI.esc(p.person_type) });
+    this.decorateDetailDrawer(el);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') FleetUI.crewForm(p,d);
