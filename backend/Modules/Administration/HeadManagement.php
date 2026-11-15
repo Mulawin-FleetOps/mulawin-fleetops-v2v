@@ -9,7 +9,11 @@ final class HeadManagement {
     public static function read(array $u,string $page,array $q): array {
         requireRole($u,'admin');
         $p=db();
-        if ($page === 'head-trips') return self::tripsRead($p);
+        if ($page === 'head-trips') {
+            Actions::load('Trips');
+            Trips::closeOverdueUnassigned($p);
+            return self::tripsRead($p);
+        }
         if($page==='head-fleet') return readSections([
             'fleet_summary'=>fn()=>one($p,"SELECT
                 (SELECT COUNT(*) FROM vehicles) AS total_trucks,
@@ -77,7 +81,7 @@ final class HeadManagement {
     }
 
     private static function tripRows(PDO $p,bool $closed): array {
-        $status=$closed ? "IN ('Completed','Cancelled','Rejected')" : "NOT IN ('Completed','Cancelled','Rejected')";
+        $status=$closed ? "IN ('Completed','Cancelled','Rejected','Missed')" : "NOT IN ('Completed','Cancelled','Rejected','Missed')";
         return many($p, "SELECT t.id,t.trip_ref,t.status,t.pickup_point,t.delivery_point,t.truck_type,
             t.scheduled_at,t.dispatched_at,t.completed_at,t.dispatcher_shift,
             c.company_name AS client,v.plate_number,
