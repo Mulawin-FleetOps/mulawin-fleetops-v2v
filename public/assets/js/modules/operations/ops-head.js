@@ -123,12 +123,15 @@ const OpsHead = {
       + '</div></div>'
       + (d.can.create ? '<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg"></i> Add Trip</button>' : '');
     const columns = [
-      ['Trip / Client','trip_ref',(value,t) => '<b>' + UI.esc(value) + '</b><div class="cell-sub">' + UI.esc(t.client) + '</div>'],
-      ['Route / Truck','pickup_point',(value,t) => UI.esc(t.pickup_point || '') + ' → ' + UI.esc(t.delivery_point || '') + '<div class="cell-sub">' + UI.esc(t.plate_number || 'Awaiting assignment') + '</div>'],
-      [history?'Closure / Schedule':'Scheduled Dispatch','scheduled_at',(value,t) => history
-        ? (t.completed_at ? this.datetime(t.completed_at) : 'Closure date not recorded') + '<div class="cell-sub">Scheduled: ' + this.datetime(value) + '</div>'
-        : this.datetime(value)],
-      ['Status','status',(value,t) => OpsHead.badge(value) + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '')],
+      ['Trip / Client','trip_ref',(value,t) => '<div class="fleet-trip-identity"><strong class="fleet-trip-ref">' + UI.esc(value) + '</strong><span class="fleet-trip-client">' + UI.esc(t.client || 'Client not specified') + '</span></div>'],
+      ['Route / Truck','pickup_point',(value,t) => '<div class="fleet-trip-route"><span class="fleet-trip-route-path">' + UI.esc(t.pickup_point || 'Pickup not specified') + ' <span class="fleet-trip-route-arrow" aria-hidden="true">→</span> ' + UI.esc(t.delivery_point || 'Destination not specified') + '</span><span class="fleet-trip-truck"><i class="bi bi-truck" aria-hidden="true"></i> ' + UI.esc(t.plate_number || 'Awaiting assignment') + '</span></div>'],
+      [history?'Closure / Schedule':'Scheduled Dispatch','scheduled_at',(value,t) => {
+        if(history) return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(t.completed_at ? this.datetime(t.completed_at) : 'Closure date not recorded') + '</strong><span>Scheduled: ' + UI.esc(this.datetime(value)) + '</span></div>';
+        const formatted=this.datetime(value);
+        const separator=formatted.lastIndexOf(', ');
+        return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(separator>=0 ? formatted.slice(0,separator) : formatted) + '</strong>' + (separator>=0 ? '<span><i class="bi bi-clock" aria-hidden="true"></i> ' + UI.esc(formatted.slice(separator+2)) + '</span>' : '') + '</div>';
+      }],
+      ['Status','status',(value,t) => '<div class="fleet-trip-status">' + OpsHead.badge(value) + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '') + '</div>'],
     ];
     const table = UI.table(columns,rows,{
       tools:toolbar,
