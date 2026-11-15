@@ -183,7 +183,7 @@ const HeadAdminPage = {
           +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="asc" data-record-sort> Name A–Z</label>'
           +'<label class="record-workspace-sort-option"><input type="radio" name="'+sortId+'" value="desc" data-record-sort> Name Z–A</label></div></div>';
         const columns=[['Name','full_name'],['Username','username'],['Email','email'],
-          ['Role','role',(v,u)=>UI.esc(dispatcherRoles.includes(v) ? 'Dispatcher · ' + (u.dispatcher_truck_type || (v === 'car_carrier_dispatcher' ? 'Car Carrier (legacy)' : 'Container / Wing Van (legacy)')) : (d.roles[v]||v))],['Shift','shift'],
+          ['Role','role',(v,u)=>{let types=[];try{types=JSON.parse(u.dispatcher_truck_types||'null')||[];}catch{};if(!Array.isArray(types)||!types.length)types=u.dispatcher_truck_type?[u.dispatcher_truck_type]:(v==='car_carrier_dispatcher'?['Car Carrier (legacy)']:['Container / Wing Van (legacy)']);return UI.esc(dispatcherRoles.includes(v)?'Dispatcher · '+types.join(', '):(d.roles[v]||v));}],['Shift','shift'],
           ['Status','active',(v,u)=>(Number(v)?UI.badge('Active'):UI.badge('Inactive'))
             +(Number(u.must_change_password)?'<div class="cell-sub">Must change password</div>':'')],
           ['E-signature','has_signature','yes'],['Last login','last_login_at','datetime']];
