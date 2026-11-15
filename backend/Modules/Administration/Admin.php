@@ -81,6 +81,10 @@ final class Admin {
         }
         must(count($ids) === count(array_unique($ids)), 'Duplicate assigned trucks.');
         if (!$isDispatcher) must(!$ids, 'Only Dispatcher accounts can have assigned trucks.');
+        // Lock existing grants before vehicles; dispatcher resource assignment
+        // takes locks in this same order to avoid conflicting revoke/assign races.
+        $existing = array_map('intval', array_column(many($p,
+            'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? ORDER BY vehicle_id FOR UPDATE', [$id]), 'vehicle_id'));
         if ($isDispatcher) {
             must((bool)$ids, 'Select at least one authorized truck for the Dispatcher account.');
             $allowed = $role === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container','Wing Van'];
@@ -92,7 +96,6 @@ final class Admin {
         // Never replace trip-responsibility/turnover ownership here.
         // Replacing authorization for already assigned vehicles is disallowed if they
         // are in the dispatcher's outstanding trip responsibilities.
-        $existing = array_map('intval', array_column(many($p,'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? FOR UPDATE',[$id]),'vehicle_id'));
         $currentIds = $existing; $newIds = $ids;
         sort($currentIds, SORT_NUMERIC); sort($newIds, SORT_NUMERIC);
         if ($currentIds === $newIds) return; // Preserve authorization audit timestamps on unrelated account edits.
@@ -101,6 +104,26 @@ final class Admin {
             $marks = implode(',', array_fill(0, count($removed), '?'));
             $busy = one($p, "SELECT t.trip_ref FROM trips t JOIN trip_responsibilities r ON r.trip_id=t.id WHERE r.current_dispatcher_id=? AND t.vehicle_id IN ($marks) AND (t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected') OR EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle') OR EXISTS(SELECT 1 FROM incidents i WHERE i.trip_id=t.id AND i.status<>'Resolved')) LIMIT 1",[$id,...$removed]);
             must(!$busy, 'Cannot remove a truck assigned to an existing trip under this dispatcher. Resolve or transfer the trip first.',409);
+            // An unassigned trip may have no vehicle_id yet. Do not strand an
+            // owned unfinished trip by revoking the last truck of its type.
+            $remainingTypes = [];
+            if ($ids) {
+                $keepMarks = implode(',', array_fill(0, count($ids), '?'));
+                $remainingTypes = array_column(many($p, "SELECT DISTINCT truck_type FROM vehicles WHERE id IN ($keepMarks)", $ids), 'truck_type');
+            }
+            $removedTypes = array_unique(array_column(
+                many($p, "SELECT DISTINCT truck_type FROM vehicles WHERE id IN ($marks)", array_values($removed)), 'truck_type'));
+            foreach ($removedTypes as $removedType) {
+                if (in_array($removedType, $remainingTypes, true)) continue;
+                $outstanding = one($p, "SELECT t.trip_ref FROM trips t JOIN trip_responsibilities r ON r.trip_id=t.id
+                    WHERE r.current_dispatcher_id=? AND t.truck_type=? AND
+                    (t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected')
+                    OR EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle')
+                    OR EXISTS(SELECT 1 FROM incidents i WHERE i.trip_id=t.id AND i.status<>'Resolved'))
+                    LIMIT 1", [$id, $removedType]);
+                must(!$outstanding, 'Cannot remove the last authorized ' . $removedType .
+                    ' truck while this Dispatcher owns unfinished trips of that type. Transfer or resolve the work first.', 409);
+            }
         }
         run($p, 'DELETE FROM dispatcher_truck_authorizations WHERE dispatcher_id=?', [$id]);
         foreach ($ids as $vid) run($p, 'INSERT INTO dispatcher_truck_authorizations(dispatcher_id,vehicle_id,authorized_by) VALUES(?,?,?)', [$id,$vid,$actor]);
