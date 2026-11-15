@@ -214,7 +214,7 @@ App.page('admin_operations', {
       ['Dispatcher', 'dispatcher', (v, t) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(HM.DIV[t.dispatcher_role] || '')}${t.dispatcher_shift ? ' · ' + UI.esc(t.dispatcher_shift) : ''}</div>` : '<span class="text-muted">—</span>'],
       ['Route', 'pickup_point', (v, t) => `<span class="cell-clamp">${UI.esc(v || '')} → ${UI.esc(t.delivery_point || '')}</span>`], ['Scheduled', 'scheduled_at', 'datetime']],
       trips.filter(t => tab === 'all' || groupOf(t) === tab),
-      { showAllColumns: true, directActions: true, actions: () => UI.ibtn('view', 'Trip details (read only)', 'bi-eye'), onAction: (a, t) => App.go('trips', { open: t.id }), rowClick: (t) => App.go('trips', { open: t.id }),
+      { showAllColumns: true, directActions: true, actions: () => UI.ibtn('view', 'Trip details', 'bi-eye'), onAction: (a, t) => App.go('trips', { open: t.id }), rowClick: (t) => App.go('trips', { open: t.id }),
         empty: 'No trip in this list.' });
   },
 });
@@ -250,7 +250,7 @@ App.page('admin_maintenance', {
       ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`], ['Mechanic', 'mechanic', (v) => v ? UI.esc(v) : '<span class="text-muted">Not assigned</span>'],
       ['Status', 'status', (v, j) => UI.badge(j.verified_at ? 'Returned to service' : v === 'Completed' ? 'Awaiting verification' : v) + (+j.open_parts ? `<div class="cell-sub">${j.open_parts} parts request(s) open</div>` : '')],
       ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], jobs.filter(j => tab === 'all' || st(j) === tab),
-      { showAllColumns: true, directActions: true, actions: () => UI.ibtn('view', 'Repair details (read only)', 'bi-eye') + UI.ibtn('hist', 'Truck maintenance history', 'bi-clock-history'),
+      { showAllColumns: true, directActions: true, actions: () => UI.ibtn('view', 'Repair details', 'bi-eye') + UI.ibtn('hist', 'Truck maintenance history', 'bi-clock-history'),
         onAction: (a, j) => a === 'hist' ? App.go('maint_history', { truck: j.plate_number }) : App.go('maintenance', { open: j.id }), rowClick: (j) => App.go('maintenance', { open: j.id }), empty: 'No repair in this list.' });
   },
 });
