@@ -300,7 +300,7 @@ function currentUser(): array {
         throw new BusinessRuleException('Your session expired. Please log in again.', 401);
     }
     $_SESSION['last_seen'] = time();
-    $u = one(db(), 'SELECT id, username, email, full_name, role, shift, dispatcher_truck_type FROM users WHERE id=? AND active=1', [$id]);
+    $u = one(db(), 'SELECT id, username, email, full_name, role, shift, dispatcher_truck_type, dispatcher_truck_types FROM users WHERE id=? AND active=1', [$id]);
     if (!$u) { session_unset(); throw new BusinessRuleException('Session is no longer valid.', 401); }
     // Napalitan ang password pagkatapos mag-login ang session na ito (halimbawa ni-reset ng Admin o gamit ang recovery code).
     core('AccountSecurity');
