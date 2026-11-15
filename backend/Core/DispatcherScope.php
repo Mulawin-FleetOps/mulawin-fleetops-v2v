@@ -17,6 +17,17 @@ final class DispatcherScope {
         $selected = $u['dispatcher_truck_type'] ?? null;
         return $selected !== null && in_array($selected, $roleTypes, true) ? [$selected] : $roleTypes;
     }
+    /** Use the trip's historical operational group for attendance and fixed crew rules,
+     * while retaining the same authenticated Dispatcher identity. */
+    public static function forTruckType(array $u, string $truckType): array {
+        must(in_array($truckType, self::types($u), true),
+            'This Dispatcher is not assigned to that truck type.', 403);
+        $scoped = $u;
+        $scoped['role'] = dispatcherRoleFor($truckType);
+        $scoped['dispatcher_truck_type'] = $truckType;
+        $scoped['dispatcher_truck_types'] = json_encode([$truckType], JSON_THROW_ON_ERROR);
+        return $scoped;
+    }
     public static function tripSql(array $u, string $alias = 't'): array {
         $types = self::types($u); $marks = implode(',', array_fill(0, count($types), '?'));
         return [" AND $alias.truck_type IN ($marks) AND EXISTS(SELECT 1 FROM trip_responsibilities resp WHERE resp.trip_id=$alias.id AND resp.current_dispatcher_id=?)", [...$types, $u['id']]];
