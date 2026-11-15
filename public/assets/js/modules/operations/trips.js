@@ -170,7 +170,7 @@ const TripUI = {
     show();
   },
 
-  review() { UI.toast('Trip approvals are retired. Historical requests are read-only.', 'info'); },
+  review() { UI.toast('Trip approvals are retired. Historical requests remain available in Trip History.', 'info'); },
   edit(t) {
     if (UI.role('operations_head')) {
       UI.modal('Edit trip ' + UI.esc(t.trip_ref), (()=>{
