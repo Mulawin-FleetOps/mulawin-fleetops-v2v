@@ -13,7 +13,7 @@ const DispatcherMonitorUI = {
       OpsHead.panel('Documents',UI.tripDocuments(data.documents||[])+UI.docs(data.documents||[]))+
       OpsHead.panel('Recorded Progress',history(data.updates,'update_type'))+
       OpsHead.panel('Assignment & Activity History',history(data.events,'event_type')),
-      {subtitle:'Read-only Dispatcher monitoring'});
+      {subtitle:'Dispatcher monitoring'});
     UI.drawerSections(drawer,[['overview','Overview',['Dispatcher Responsibility','Trip Information']],['checks','Checklists',['Checklists']],['incidents','Incidents & Maintenance',['Incidents & Corrective Maintenance']],['documents','Documents',['Documents']],['activity','Recorded Activity',['Recorded Progress','Assignment & Activity History']]],{selector:'.oh-panel',titleSelector:'h2',key:'monitoring-details'});
     UI.activate(drawer);
   },
