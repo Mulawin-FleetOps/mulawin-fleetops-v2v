@@ -481,9 +481,10 @@ const RouteUI = {
  * Only the existing rate-authorized actions remain; no duplicate table toolbar. */
 const HeadRouteWorkspace = {
   categories: [
-    {value:'waiting',label:'Waiting',empty:'Nothing is waiting for a rate or approval.',accept:r=>RouteUI.waiting(r)},
+    {value:'all',label:'All Routes',empty:'No routes recorded.',accept:()=>true},
+    {value:'waiting',label:'Needs Action',empty:'No routes need rate entry or review.',accept:r=>RouteUI.waiting(r)},
     {value:'approved',label:'Approved',empty:'No approved routes yet.',accept:r=>r.status==='Approved'},
-    {value:'closed',label:'Closed',empty:'No closed routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
+    {value:'closed',label:'Closed / Inactive',empty:'No rejected, withdrawn, or inactive routes.',accept:r=>['Rejected','Withdrawn','Inactive'].includes(r.status)}
   ],
   render(ctx,d) {
     const all=d.routes||[];
@@ -531,10 +532,10 @@ const HeadRouteWorkspace = {
     const state={tab:initial,client:'',type:'',sort:'default'};
     ctx.el.innerHTML='<div class="head-route-workspace">'
       +RecordComponents.kpis([
-        {label:'Approved routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
-        {label:'Waiting for rate',value:count(r=>r.status==='Pending Rate'),color:'blue',icon:'bi-calendar-check'},
-        {label:'Legacy rates to resolve',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',note:'submitted before direct activation'},
-        {label:'Closed / Inactive routes',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
+        {label:'Approved Routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
+        {label:'Needs Action',value:count(RouteUI.waiting),color:'blue',icon:'bi-calendar-check'},
+        ...(count(r=>r.pending_rate_id)>0?[{label:'Legacy Rates to Resolve',value:count(r=>r.pending_rate_id),color:'amber',icon:'bi-clipboard-check',note:'Older requests or revisions requiring review'}]:[]),
+        {label:'Closed / Inactive',value:count(r=>['Rejected','Withdrawn','Inactive'].includes(r.status)),color:'red',icon:'bi-archive'}
       ])
       +'<div data-head-route-workspace></div></div>';
     const target=ctx.el.querySelector('[data-head-route-workspace]');
@@ -550,7 +551,7 @@ const HeadRouteWorkspace = {
         empty:category.empty
       });
       target.innerHTML=RecordComponents.panel(table,RecordComponents.categories(
-        this.categories.map(({value,label})=>({value,label})),state.tab,'data-head-route-category'));
+        this.categories.map(({value,label})=>({value,label})),state.tab,'data-head-route-category',{showAll:true}));
       UI.activate(target);
       RecordComponents.mountPanel(target,{title:'Route & Contract Records',addSelector:'.record-workspace-export'});
       const body=target.querySelector('[data-tbody]');

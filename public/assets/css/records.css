@@ -908,18 +908,21 @@
    Keep the shared RecordComponents category buttons and their existing handlers. */
 .head-trip-dashboard .record-workspace-category-row,
 .head-fleet-workspace .record-workspace-category-row,
-.fleet-clients-workspace .record-workspace-category-row {
+.fleet-clients-workspace .record-workspace-category-row,
+.head-route-workspace .record-workspace-category-row {
   min-height:57px;
   padding:12px 20px;
 }
 .head-trip-dashboard .record-workspace-categories,
 .head-fleet-workspace .record-workspace-categories,
-.fleet-clients-workspace .record-workspace-categories {
+.fleet-clients-workspace .record-workspace-categories,
+.head-route-workspace .record-workspace-categories {
   gap:8px;
 }
 .head-trip-dashboard .record-workspace-categories > .btn,
 .head-fleet-workspace .record-workspace-categories > .btn,
-.fleet-clients-workspace .record-workspace-categories > .btn {
+.fleet-clients-workspace .record-workspace-categories > .btn,
+.head-route-workspace .record-workspace-categories > .btn {
   min-height:37px;
   padding:8px 13px;
   border-radius:8px;
@@ -930,7 +933,8 @@
 @media (max-width:700px) {
   .head-trip-dashboard .record-workspace-category-row,
   .head-fleet-workspace .record-workspace-category-row,
-  .fleet-clients-workspace .record-workspace-category-row {
+  .fleet-clients-workspace .record-workspace-category-row,
+  .head-route-workspace .record-workspace-category-row {
     padding:11px 14px;
   }
 }
