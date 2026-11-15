@@ -18,6 +18,12 @@ final class DispatcherTurnover {
         self::installed($p);
         $account=self::account($p,$id,$planning['dispatcher_role'],$lock);
         must($account['shift']===$planning['dispatcher_shift'],'Choose an active responsible Dispatcher account matching the planned group and shift.',409);
+        if (!empty($planning['truck_type'])) {
+            DispatcherScope::requireTruckAuthorizations($p);
+            must((bool)one($p, 'SELECT 1 FROM dispatcher_truck_authorizations a JOIN vehicles v ON v.id=a.vehicle_id WHERE a.dispatcher_id=? AND v.active=1 AND v.truck_type=? LIMIT 1',
+                [$id,$planning['truck_type']]),
+                'The responsible Dispatcher has no authorized active truck for this route type. Assign compatible trucks in User Accounts.',409);
+        }
         return $account;
     }
     private static function workSql(): string {
