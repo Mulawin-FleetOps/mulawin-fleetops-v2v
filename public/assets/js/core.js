@@ -361,12 +361,8 @@ const App = {
     // WS_SHELL_V1: Maintenance and Accounting roles (Motorpool, Purchasing, Finance, Billing, Audit) get one grouped
     // workspace menu with the profile at the bottom. Links come only from me.nav (server-side permissions); nothing is added.
     const ws = UI.wsNav(u.role);
-    const profileMenu = `<div class="dropdown-header">${UI.esc(u.username)} · ${UI.esc(u.email || '')}</div>
-                <button class="dropdown-item" id="mySig"><i class="bi bi-pen"></i> My e-signature${u.has_signature ? '' : ' <span class="badge-s amber">not set</span>'}</button>
-                <button class="dropdown-item" id="chgPw"><i class="bi bi-key"></i> Change password</button>
-                <button class="dropdown-item" id="chgEmail"><i class="bi bi-envelope-check"></i> Change email</button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>`;
+    // The account button opens an actual live-user profile, not a second action menu.
+    // Password/email/signature controls remain accessible inside the profile modal.
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
       if (u.role === 'motorpool') {
@@ -473,6 +469,11 @@ const App = {
             ${ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : ''}` : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
         ${sideFoot}
+        <div class="sidebar-logout-wrap no-print">
+          <button type="button" class="sidebar-logout-button" id="sidebarLogout" aria-label="Log out" title="Log out">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Log out</span>
+          </button>
+        </div>
       </aside>
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <div class="main">
@@ -481,18 +482,18 @@ const App = {
           <div class="crumbs" id="crumbs"></div>
           <div class="topbar-actions">
             <div class="dropdown">
-              <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
+              <button class="icon-btn bell updated-bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell-fill" aria-hidden="true"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
               <div class="dropdown-menu dropdown-menu-end bell-menu">
                 <div class="bell-head"><span>Notifications</span><button type="button" class="btn btn-link btn-sm p-0" id="bellReadAll">Mark all as read</button></div>
                 <div id="bellList" class="bell-list"></div>
                 <a href="#notifications" class="bell-foot" id="bellAll">View all notifications</a>
               </div>
             </div>
-            <div class="dropdown">
-              <button class="profile-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account settings for ${UI.esc(u.full_name)}"><span class="avatar">${UI.esc(initials)}</span>
-                <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name)}</span><span class="profile-role">${UI.esc(u.role_label)}${ws && u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</span></span><i class="bi bi-chevron-down"></i></button>
-              <div class="dropdown-menu dropdown-menu-end">${profileMenu}</div>
-            </div>
+            <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
+              <span class="avatar">${UI.esc(initials)}</span>
+              <span class="profile-text"><span class="profile-name">My Profile</span><span class="profile-role">${UI.esc(u.role_label)}</span></span>
+              <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+            </button>
           </div>
         </header>
         <main class="content" id="pageContent"></main>
@@ -598,13 +599,51 @@ const App = {
       window.addEventListener('resize', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
       window.addEventListener('hashchange', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
     });
-    document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
-    document.getElementById('chgPw').onclick = () => this.passwordScreen();
-    document.getElementById('chgEmail').onclick = () => this.emailScreen();
-    document.getElementById('mySig').onclick = () => UI.signatureModal();
+    document.getElementById('sidebarLogout').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
+    document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
     this.renderBell();
+  },
+
+  /** Show real account details for the authenticated user, not demo identities. */
+  showMyProfile() {
+    const u = this.me?.user;
+    if (!u) return;
+    const fields = [
+      ['FULL NAME', u.full_name || u.username || '—'],
+      ['USERNAME', u.username || '—'],
+      ['EMAIL', u.email || 'Not set'],
+      ['ROLE', u.role_label || u.role || '—'],
+      ['SHIFT', u.shift || 'Not assigned'],
+      ['E-SIGNATURE', u.has_signature ? 'Saved' : 'Not set']
+    ];
+    const body = '<div class="my-profile-grid">' + fields.map(([label, value]) =>
+      '<div class="my-profile-field"><span>' + UI.esc(label) + '</span><strong>' + UI.esc(String(value)) + '</strong></div>'
+    ).join('') + '</div><div class="my-profile-actions">' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="signature"><i class="bi bi-pen" aria-hidden="true"></i> My e-signature</button>' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="password"><i class="bi bi-key" aria-hidden="true"></i> Change password</button>' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="email"><i class="bi bi-envelope-check" aria-hidden="true"></i> Change email</button>' +
+      '</div>';
+    UI.modal('My Profile', body, null, {
+      size: 'modal-lg',
+      onShow: wrap => {
+        wrap.classList.add('my-profile-modal');
+        wrap.querySelectorAll('[data-myprofile]').forEach(button => {
+          button.addEventListener('click', () => {
+            const action = button.dataset.myprofile;
+            // Wait until Bootstrap removes the current modal/backdrop before
+            // opening another modal or a full-screen account-security workflow.
+            wrap.addEventListener('hidden.bs.modal', () => {
+              if (action === 'signature') UI.signatureModal();
+              else if (action === 'password') this.passwordScreen();
+              else if (action === 'email') this.emailScreen();
+            }, { once: true });
+            bootstrap.Modal.getInstance(wrap)?.hide();
+          });
+        });
+      }
+    });
   },
 
   renderBell() {
