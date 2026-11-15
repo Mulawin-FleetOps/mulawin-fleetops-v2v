@@ -450,7 +450,7 @@ textarea.form-control { min-height: 64px; }
 
 /* toasts */
 
-.toast-zone { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; z-index: 2100; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(480px, calc(100vw - 32px)); max-width: calc(100vw - 32px); pointer-events: none; }
+.toast-zone { position: fixed; top: 20px; right: 20px; z-index: 2100; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(420px, calc(100vw - 32px)); max-width: calc(100vw - 32px); pointer-events: none; }
 .toast-zone .app-toast { pointer-events: auto; width: 100%; }
 .toast-zone .app-toast.error { border-left-width: 5px; font-weight: 600; }
 
@@ -769,172 +769,51 @@ a:hover { color: var(--rpm-brand-strong); }
 
 
 
-/* RPM STICKY PAGE NAV V2 START */
-
-/* The topbar already sticks at 0; the page title follows directly below it. */
-
+#pageContent .page-head > .rpm-back-to-top[hidden] { display:none; }
+#pageContent .page-head > .rpm-back-to-top:not([hidden]) { display:inline-flex; align-items:center; justify-content:center; }
+/* Page titles remain in normal flow. The global topbar alone is sticky,
+   preventing headers from floating over KPI cards or tables on scroll. */
 #pageContent .page-head {
-
-  position: sticky;
-
-  top: var(--topbar-h);
-
-  z-index: 1005;
-
-  background: rgba(250, 253, 250, .97);
-
-  border: 1px solid transparent;
-
-  border-radius: 10px;
-
-  padding: 8px 10px;
-
-  margin: -8px -10px 12px;
-
-  min-width: 0;
-
-  transition: box-shadow .15s ease, background .15s ease;
-
-}
-
-#pageContent .page-head.rpm-page-head-scrolled {
-
-  background: rgba(250, 253, 250, .99);
-
-  border-color: #dae9dd;
-
-  box-shadow: 0 3px 12px rgba(16, 82, 43, .075);
-
-}
-
-#pageContent .page-head.rpm-page-head-scrolled .page-subtitle { display: none; }
-
-#pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 17px; }
-
-#pageContent .page-head .page-head-text { flex: 1 1 190px; min-width: 0; }
-
-#pageContent .page-head .page-actions { align-items: center; min-width: 0; }
-
-#pageContent .page-head .page-actions .btn { max-width: 100%; }
-
-.rpm-back-to-top {
-
   position: static;
-
-  flex: 0 0 auto;
-
-  min-width: 62px;
-
-  height: 34px;
-
-  padding: 0 10px;
-
-  display: inline-flex;
-
+  display: flex;
   align-items: center;
-
-  justify-content: center;
-
-  gap: 6px;
-
-  border-radius: 8px;
-
-  border: 1px solid #b7ddbf;
-
-  color: #155b30;
-
-  background: #fff;
-
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 0;
+  margin: 0 0 18px;
+  background: transparent;
+  border: 0;
   box-shadow: none;
-
-  font: inherit;
-
+}
+#pageContent .page-head .page-head-text { flex: 1 1 190px; min-width: 0; }
+#pageContent .page-head .page-actions { align-items: center; min-width: 0; }
+#pageContent .page-head .page-actions .btn { max-width: 100%; }
+.rpm-back-to-top {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1000;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #b7ddbf;
+  border-radius: 8px;
+  color: #155b30;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(16,60,34,.12);
   font-size: 12px;
-
   font-weight: 650;
-
-  white-space: nowrap;
-
   cursor: pointer;
-
 }
-
-@media (max-width: 575.98px) {
-
-  .topbar-actions { gap: 3px; }
-
-  .rpm-back-to-top { min-width: 34px; width: 34px; height: 34px; padding: 0; }
-
-  .rpm-back-to-top span { display: none; }
-
-}
-
 .rpm-back-to-top:hover { background: #eaf7ed; border-color: #65ad78; }
-
 .rpm-back-to-top:focus-visible { outline: 2px solid #218b48; outline-offset: 2px; }
-
-@media (max-width: 767.98px) {
-
-  #pageContent .page-head { padding: 7px 8px; margin: -7px -8px 10px; }
-
-  #pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 15px; }
-
-  #pageContent .page-head.rpm-page-head-scrolled .page-actions .btn { font-size: 11px; }
-
+@media(max-width:767.98px) {
+  #pageContent .page-head { margin-bottom: 14px; }
+  .rpm-back-to-top { right: 14px; bottom: 14px; }
 }
+@media print { .rpm-back-to-top { display: none !important; } }
 
-@media print {
 
-  #pageContent .page-head { position: static; background: transparent; border: 0; box-shadow: none; }
-
-  .rpm-back-to-top { display: none !important; }
-
-}
-
-/* RPM STICKY PAGE NAV V2 END */
-/* RPM TOP BUTTON IN PAGE HEADER V3 START */
-/* Final action lives at the right edge of the sticky page-title bar, not the global topbar. */
-#pageContent .page-head { align-items: center; column-gap: 10px; row-gap: 7px; }
-#pageContent .page-head .page-head-text { min-width: 0; flex: 1 1 190px; }
-#pageContent .page-head .page-actions { flex: 0 1 auto; justify-content: flex-end; }
-#pageContent .page-head > .rpm-back-to-top { margin-left: auto; align-self: center; flex: 0 0 auto; }
-@media (max-width: 575.98px) {
-  #pageContent .page-head { flex-wrap: wrap; }
-  #pageContent .page-head > .rpm-back-to-top { min-width: 34px; }
-}
-/* RPM TOP BUTTON IN PAGE HEADER V3 END */
-
-/* RPM BACK TO TOP PLAIN SCROLL V4 START */
-/* Show a simple text action only once the sticky page title has condensed. */
-#pageContent .page-head > .rpm-back-to-top,
-#pageContent .page-head > .rpm-back-to-top[hidden] {
-  display: none !important;
-}
-#pageContent .page-head.rpm-page-head-scrolled > .rpm-back-to-top:not([hidden]) {
-  display: inline-flex !important;
-}
-#pageContent .page-head > .rpm-back-to-top {
-  width: auto; height: auto; min-width: 0; min-height: 30px;
-  padding: 2px 5px; border: 0; border-radius: 0;
-  background: transparent; box-shadow: none;
-  color: #176238; font-size: 12px; font-weight: 650;
-  text-decoration: underline; text-underline-offset: 3px;
-  white-space: nowrap; cursor: pointer;
-}
-#pageContent .page-head > .rpm-back-to-top:hover {
-  background: transparent; border: 0; color: #0d4628; text-decoration-thickness: 2px;
-}
-#pageContent .page-head > .rpm-back-to-top:focus-visible {
-  outline: 2px solid #218b48; outline-offset: 2px;
-}
-@media (max-width: 575.98px) {
-  #pageContent .page-head > .rpm-back-to-top { width: auto; height: auto; min-width: 0; padding: 2px 4px; }
-  #pageContent .page-head > .rpm-back-to-top span { display: inline; }
-}
-@media print {
-  #pageContent .page-head > .rpm-back-to-top { display: none !important; }
-}
-/* RPM BACK TO TOP PLAIN SCROLL V4 END */
 
 
 /* HEAD TRIP MONITORING V2: existing UI components in an executive two-column layout. */
