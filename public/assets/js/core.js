@@ -408,11 +408,11 @@ const App = {
         <main class="content" id="pageContent"></main>
       </div>
     </div><div id="printArea"></div>`;
-    // RPM STICKY PAGE NAV V1 START: keep the page heading visible and offer an accessible way back.
+    // Maintain the shared back-to-top control without making page titles sticky.
     if (this._rpmScrollNavigation) window.removeEventListener('scroll', this._rpmScrollNavigation);
     this._rpmScrollNavigation = () => {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
-      document.querySelector('#pageContent .page-head')?.classList.toggle('rpm-page-head-scrolled', y > 90);
+      // Page heading stays in document flow; only the Back to top control changes.
       const topButton = document.getElementById('rpmBackToTop');
       if (topButton) { topButton.hidden = y <= 90; topButton.setAttribute('aria-label', 'Back to top'); }
     };
@@ -424,7 +424,7 @@ const App = {
       window.scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
     });
     this._rpmScrollNavigation();
-    // RPM STICKY PAGE NAV V1 END
+    // Shared page navigation setup complete.
     const sb = document.getElementById('appSidebar'), bd = document.getElementById('sidebarBackdrop');
     document.getElementById('menuBtn').onclick = () => { sb.classList.add('open'); bd.classList.add('show'); };
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
