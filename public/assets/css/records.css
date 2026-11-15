@@ -907,16 +907,19 @@
 /* Head Management Trip Monitoring: use the larger Operations Trips tab dimensions.
    Keep the shared RecordComponents category buttons and their existing handlers. */
 .head-trip-dashboard .record-workspace-category-row,
-.head-fleet-workspace .record-workspace-category-row {
+.head-fleet-workspace .record-workspace-category-row,
+.fleet-clients-workspace .record-workspace-category-row {
   min-height:57px;
   padding:12px 20px;
 }
 .head-trip-dashboard .record-workspace-categories,
-.head-fleet-workspace .record-workspace-categories {
+.head-fleet-workspace .record-workspace-categories,
+.fleet-clients-workspace .record-workspace-categories {
   gap:8px;
 }
 .head-trip-dashboard .record-workspace-categories > .btn,
-.head-fleet-workspace .record-workspace-categories > .btn {
+.head-fleet-workspace .record-workspace-categories > .btn,
+.fleet-clients-workspace .record-workspace-categories > .btn {
   min-height:37px;
   padding:8px 13px;
   border-radius:8px;
@@ -926,7 +929,8 @@
 }
 @media (max-width:700px) {
   .head-trip-dashboard .record-workspace-category-row,
-  .head-fleet-workspace .record-workspace-category-row {
+  .head-fleet-workspace .record-workspace-category-row,
+  .fleet-clients-workspace .record-workspace-category-row {
     padding:11px 14px;
   }
 }
@@ -1506,3 +1510,31 @@
 .client-record-trip-count{font-weight:700;color:#285c40;font-variant-numeric:tabular-nums}
 .client-profile-overview{display:flex;gap:8px 16px;flex-wrap:wrap;margin-top:10px;color:#53715f;font-size:12px}
 .client-profile-overview span{display:inline-flex;align-items:center;gap:6px}
+
+/* Client Management: predictable header/body alignment and accessible compact widths. */
+.fleet-clients-workspace .record-workspace-panel .data-table{
+  table-layout:fixed;
+  width:100%;
+  min-width:1060px;
+}
+.fleet-clients-workspace .record-workspace-panel .data-table th,
+.fleet-clients-workspace .record-workspace-panel .data-table td{
+  vertical-align:middle;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(1){width:10%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(2){width:18%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(3){width:23%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(4){width:11%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(5){width:12%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(6){width:16%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(7){width:10%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(7),
+.fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(7){text-align:right}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(6),
+.fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(4),
+.fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(4){text-align:center;font-variant-numeric:tabular-nums}
+.fleet-clients-workspace .record-workspace-panel .data-table .row-actions{justify-content:flex-end}
+.fleet-clients-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
