@@ -9,11 +9,12 @@ final class DispatcherResources {
         must(DispatcherScope::permitsTrip($u,$t),'This trip belongs to another operational group.',403);
         $out=['drivers'=>[],'trucks'=>[],'helpers'=>[],'second_drivers'=>[]];
         if(!DispatcherAttendance::ready($p))return $out;
-        [$scope,$args]=DispatcherScope::personnelSql($u);
+        $crewScope = DispatcherScope::forTruckType($u, (string)$t['truck_type']);
+        [$scope,$args]=DispatcherScope::personnelSql($crewScope);
         $people=many($p,"SELECT pe.id,pe.full_name,pe.person_type FROM personnel pe WHERE pe.active=1 AND (pe.availability='Available' OR (pe.availability='On Trip' AND EXISTS(SELECT 1 FROM trip_assignments own WHERE own.resource_type='person' AND own.resource_id=pe.id AND own.trip_id=?))) $scope ORDER BY pe.full_name".($lock?' FOR UPDATE':''),[$t['id'],...$args]);
         $eligible=[];$plan=CrewAttendance::planningShift($t);
         foreach($people as $pe){
-            if(DispatcherAttendance::blocker($p,$u,(int)$pe['id'],(int)$t['id'],$lock))continue;
+            if(DispatcherAttendance::blocker($p,$crewScope,(int)$pe['id'],(int)$t['id'],$lock))continue;
             $check=CrewAttendance::assignmentCheck($p,(int)$pe['id'],$plan);
             if($check['absent']||(CrewAttendance::mode()===CrewAttendance::MODE_ENFORCE&&$check['issue']))continue;
             $eligible[(int)$pe['id']]=['id'=>(int)$pe['id'],'name'=>$pe['full_name'],'shift_warning'=>$check['issue']];
