@@ -292,7 +292,7 @@ const HeadFleetWorkspace = {
 };
 App.page('head-fleet',{
   title:'Fleet & Personnel Status',
-  subtitle:'Read-only truck, driver, helper and mechanic activity.',
+  subtitle:'Truck, driver, helper and mechanic activity.',
   render(ctx) { HeadFleetWorkspace.render(ctx); }
 });
 App.page('head-approvals',{
@@ -451,7 +451,7 @@ const HeadTripsUI = {
     const active=d.active||[],history=d.history||[],incidents=d.incidents||[];
     const count=key=>Number(summary[key]||0);
     ctx.el.innerHTML='<div class="head-trip-dashboard">'
-      +'<div class="head-trip-intro"><span><i class="bi bi-truck" aria-hidden="true"></i> Company-wide operations overview</span><span class="small text-muted"><i class="bi bi-eye" aria-hidden="true"></i> Read-only · Saved operational records</span></div>'
+      +'<div class="head-trip-intro"><span><i class="bi bi-truck" aria-hidden="true"></i> Company-wide operations overview</span><span class="small text-muted"><i class="bi bi-clipboard-data" aria-hidden="true"></i> Saved operational records</span></div>'
       +'<div class="head-trip-kpis">'+[
         ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','blue'],
         ['On Trip / In Transit',count('ongoing'),'bi-truck','green'],
@@ -497,6 +497,6 @@ const HeadTripsUI = {
 };
 App.page('head-trips',{
   title:'Trip Monitoring',
-  subtitle:'Company-wide trip progress, assignments, delays and history — read-only.',
+  subtitle:'Company-wide trip progress, assignments, delays and history.',
   render(ctx){ HeadTripsUI.render(ctx); }
 });
