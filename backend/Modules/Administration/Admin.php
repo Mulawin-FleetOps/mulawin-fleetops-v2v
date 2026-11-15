@@ -96,7 +96,7 @@ final class Admin {
         $removed = array_diff($existing, $ids);
         if ($removed) {
             $marks = implode(',', array_fill(0, count($removed), '?'));
-            $busy = one($p, "SELECT t.trip_ref FROM trips t JOIN trip_responsibilities r ON r.trip_id=t.id WHERE r.current_dispatcher_id=? AND t.vehicle_id IN ($marks) AND t.status NOT IN ('Cancelled','Rejected') LIMIT 1",[$id,...$removed]);
+            $busy = one($p, "SELECT t.trip_ref FROM trips t JOIN trip_responsibilities r ON r.trip_id=t.id WHERE r.current_dispatcher_id=? AND t.vehicle_id IN ($marks) AND (t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected') OR EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle') OR EXISTS(SELECT 1 FROM incidents i WHERE i.trip_id=t.id AND i.status<>'Resolved')) LIMIT 1",[$id,...$removed]);
             must(!$busy, 'Cannot remove a truck assigned to an existing trip under this dispatcher. Resolve or transfer the trip first.',409);
         }
         run($p, 'DELETE FROM dispatcher_truck_authorizations WHERE dispatcher_id=?', [$id]);
