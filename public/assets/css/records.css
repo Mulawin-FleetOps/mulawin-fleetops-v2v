@@ -1594,3 +1594,10 @@
 .head-fuel-combined-table th,.head-fuel-combined-table td{padding:10px 12px;text-align:left;vertical-align:middle}
 .head-fuel-combined-table .actions-col{text-align:right}
 @media(max-width:760px){.head-fuel-combined-sections{padding:12px;gap:12px}.head-fuel-combined-card{padding:13px}.head-fuel-combined-facts{grid-template-columns:1fr}}
+
+/* Locked driver–truck authorization; selections are read-only until a dedicated reassignment workflow exists. */
+.driver-auth-option.is-locked{background:#edf0ee;border-color:#cbd5ce;cursor:not-allowed}
+.driver-auth-option.is-locked:has(input:checked){background:#e3e8e5;border-color:#bcc9c0}
+.driver-auth-option.is-locked strong{color:#526a5c}
+.driver-auth-option.is-locked small{color:#718379}
+.driver-auth-option.is-locked input{cursor:not-allowed;accent-color:#6e8777}

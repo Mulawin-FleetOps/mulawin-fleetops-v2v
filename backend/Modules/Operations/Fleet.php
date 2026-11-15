@@ -343,7 +343,7 @@ final class Fleet {
         must(is_string($raw) && strlen($raw)<=12000, 'Invalid authorized truck selection.');
         $selected=json_decode($raw,true);
         must(is_array($selected) && array_is_list($selected), 'Invalid authorized truck selection.');
-        must(count($selected)>0 && count($selected)<=500, 'Select at least one authorized truck (maximum 500).');
+        must(count($selected)>0 && count($selected)<=500, 'Select a truck. Existing assignments cannot be changed here.');
         $ids=[];
         foreach($selected as $value){
             must((is_int($value) || (is_string($value) && ctype_digit($value))) && (int)$value>0, 'Invalid truck ID.');
@@ -366,6 +366,19 @@ final class Fleet {
         // driver's truck. Preserve any existing legacy overlaps unchanged.
         $existingIds=array_map('intval',array_column(many($p,
             'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? FOR UPDATE',[$driverId]),'vehicle_id'));
+        // One-to-one authorization: never silently remove legacy multi-truck
+        // associations; freeze them until an explicit reassignment workflow exists.
+        if($existingIds){
+            sort($existingIds);
+            $requested=$ids;
+            sort($requested);
+            must($requested===$existingIds,
+                'Existing truck authorization is locked. Contact an administrator for reassignment.',409);
+        }else{
+            must(count($ids)===1,'Select exactly one available truck for this Driver.',409);
+            $otherOwner=one($p,'SELECT driver_id FROM driver_truck_authorizations WHERE vehicle_id=? LIMIT 1',[$ids[0]]);
+            must(!$otherOwner,'This truck is already assigned to another Driver.',409);
+        }
         $newIds=array_values(array_diff($ids,$existingIds));
         foreach($vehicles as $vehicle){
             $vehicleId=(int)$vehicle['id'];

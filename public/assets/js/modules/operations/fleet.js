@@ -187,10 +187,11 @@ const FleetUI = {
         return '<section class="driver-auth-box"><h4><i class="bi bi-truck" aria-hidden="true"></i>'+UI.esc(group)+'</h4>'
           +'<div class="driver-auth-options">'
           +(candidates.length?candidates.map(truck=>{
-            const key='auth_truck_'+truck.id,checked=already.includes(+truck.id)?' checked':'';
-            return '<label class="driver-auth-option"><input type="checkbox" name="'+key+'" value="1"'+checked+'>'
+            const key='auth_truck_'+truck.id,selected=already.includes(+truck.id);
+            return '<label class="driver-auth-option'+(selected?' is-locked':'')+'"><input type="checkbox" name="'+key+'" value="1"'
+              +(selected?' checked disabled data-locked-truck="1"':'')+'>'
               +'<span><strong>'+UI.esc(truck.plate_number)+'</strong><small>'
-              +UI.esc(truck.truck_number?'Unit '+truck.truck_number:'Authorized vehicle')+'</small></span></label>';
+              +UI.esc(selected?'Assigned — locked':(truck.truck_number?'Unit '+truck.truck_number:'Available truck'))+'</small></span></label>';
           }).join(''):'<p class="driver-auth-empty">No unassigned trucks</p>')
           +'</div></section>';
       }).join('')
@@ -218,8 +219,8 @@ const FleetUI = {
     const authorization='<section class="record-form-section driver-auth-section">'
       +'<div class="record-form-section-title"><i class="bi bi-truck" aria-hidden="true"></i>'
       +'<h3>Authorized Trucks</h3></div>'
-      +'<p class="form-help">Choose the specific trucks this driver may operate. '
-      +'Authorization does not reserve a truck; availability is checked during dispatch.</p>'
+      +'<p class="form-help">Select one available truck. After selection it turns gray and cannot be removed in this form. '
+      +'Authorization does not reserve a trip; dispatch availability is checked separately.</p>'
       +authorizedBoxes+'</section>';
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
@@ -227,16 +228,16 @@ const FleetUI = {
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
-      intro:'Role: '+type+'. Driver truck authorizations are configured here and actual trip assignments are selected by the Dispatcher.',
+      intro:'Role: '+type+'. One truck can be authorized to one driver. Existing authorizations are locked; dispatch assignments are managed separately.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
       compactSize:driver?'normal':'small',
-      transform:values=>{
+      transform:(values,form)=>{
         if(!driver)return values;
-        const keys=Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k));
-        const authorized=keys.filter(k=>+values[k]===1).map(k=>Number(k.slice('auth_truck_'.length)));
-        for(const key of keys)delete values[key];
+        const authorized=[...form.querySelectorAll('.driver-auth-option input:checked')]
+          .map(input=>Number(input.name.slice('auth_truck_'.length)));
+        for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
         return {...values,authorized_vehicle_ids:JSON.stringify(authorized)};
       },
       after(){UI.closeDrawer();App.route();},
@@ -245,10 +246,21 @@ const FleetUI = {
         const inputs=[...form.querySelectorAll('.driver-auth-option input[type=checkbox]')];
         const count=wrap.querySelector('[data-authorized-count]');
         const update=()=>{
-          const n=inputs.filter(input=>input.checked).length;
-          if(count)count.textContent=n+' truck'+(n===1?'':'s')+' selected';
+          const selected=inputs.filter(input=>input.checked);
+          if(count)count.textContent=selected.length
+            ? selected.length+' assigned truck'+(selected.length===1?'':'s')+' — locked'
+            : 'Select one available truck';
+          if(!selected.length)return;
+          inputs.forEach(input=>{
+            input.disabled=true;
+            input.closest('.driver-auth-option')?.classList.add('is-locked');
+            if(input.checked)input.dataset.lockedTruck='1';
+          });
         };
-        inputs.forEach(input=>input.addEventListener('change',update));update();
+        inputs.forEach(input=>input.addEventListener('change',()=>{
+          if(input.checked)update();
+        }));
+        update();
         form.addEventListener('submit',event=>{
           if(inputs.some(input=>input.checked))return;
           event.preventDefault();event.stopImmediatePropagation();
