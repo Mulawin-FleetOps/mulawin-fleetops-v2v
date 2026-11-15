@@ -220,34 +220,67 @@ const DispatcherUI = {
       {label:'Pending Arrival Inspections',value:awaitingArrival.length,color:'blue'}
     ]);
     const views=RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],history?'history':'active','data-dispatch-trip-view');
+    // Shared records toolbar and dropdown contract; filter values stay in route query.
+    const filterId='dispatcher-trip-filter',sortId='dispatcher-trip-sort';
+    const filterCount=fields.filter(field=>String(q[field.name]||'')!=='').length;
+    const searchToolbar='<form class="table-search" role="search" data-dispatch-trip-search>'
+      +'<label class="visually-hidden" for="dispatcher-trip-search">Search trip records</label>'
+      +'<i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input id="dispatcher-trip-search" type="search" class="form-control" name="search" maxlength="200"'
+      +' placeholder="Search trip, client, route or truck" value="'+UI.esc(q.search||q.q||'')+'"></form>'
+      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger"'
+      +' aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter'
+      +(filterCount?' ('+filterCount+')':'')+'</button>'
+      +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger"'
+      +' aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+      +'<div class="record-workspace-popovers">'
+      +'<div id="'+filterId+'" class="record-workspace-popover record-workspace-popover-wide" hidden>'
+      +'<strong>Filter Trips</strong><form data-dispatch-trip-filter-form>'
+      +UI.fields(fields.map(field=>({...field,col:12,value:q[field.name]||''})))
+      +'<div class="record-workspace-popover-actions">'
+      +'<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+      +'<button type="submit" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button>'
+      +'</div></form></div>'
+      +'<div id="'+sortId+'" class="record-workspace-popover record-workspace-sort-panel" hidden>'
+      +'<strong>Sort Trips</strong>'
+      +[['latest','Scheduled: Latest first'],['earliest','Scheduled: Earliest first'],['reference','Trip reference']].map(([value,label])=>
+        '<label class="record-workspace-sort-option"><input type="radio" name="dispatcher-trip-order" data-record-sort value="'
+        +value+'"'+((q.sort||'latest')===value?' checked':'')+'> '+label+'</label>').join('')
+      +'</div></div>';
     ctx.el.innerHTML='<div class="fleet-trips-workspace dispatcher-trips-workspace">'+metrics+RecordComponents.panel(
       '<div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2>'
       +'<p class="record-workspace-count" data-trip-record-count></p></div></div>'
-      +'<div class="record-workspace-search">'
-      +this.filters(ctx,fields,{...opts,placeholder:'Search trip, client, route, or truck…',searchButton:false})
-      +'</div><div class="record-workspace-category-row record-workspace-view-tabs">'+views+'</div>'
+      +'<div class="record-workspace-search">'+searchToolbar+'</div>'
+      +'<div class="record-workspace-category-row record-workspace-view-tabs">'+views+'</div>'
       +'<section aria-label="Trip records" data-trip-records></section>')+'</div>';
     ctx.el.querySelector('.record-workspace-panel')?.classList.add('oh-dispatch-records');
-    // Shared Filter / Sort toolbar: Enter submits search; no redundant Search button.
-    const tripBar=ctx.el.querySelector('.record-workspace-search [data-ds-filters]');
-    if(tripBar){
-      const sort=document.createElement('details');
-      sort.className='ds-trip-sort';
-      sort.innerHTML='<summary class="btn btn-outline-success"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</summary>'
-        +'<div class="ds-trip-sort-options" role="group" aria-label="Sort trip records">'
-        +[['latest','Scheduled: Latest first'],['earliest','Scheduled: Earliest first'],['reference','Trip reference']].map(([value,label])=>
-          '<button type="button" data-trip-sort="'+value+'"'+((q.sort||'latest')===value?' aria-current="true"':'')+'>'+label+'</button>'
-        ).join('')+'</div>';
-      tripBar.querySelector('.ds-filter-panel').before(sort);
-      sort.querySelectorAll('[data-trip-sort]').forEach(button=>button.onclick=()=>{
-        App.go('trips',{...q,sort:button.dataset.tripSort});
-      });
-    }
-
+    const searchForm=ctx.el.querySelector('[data-dispatch-trip-search]');
+    const filterForm=ctx.el.querySelector('[data-dispatch-trip-filter-form]');
+    const filterFields=fields.map(field=>field.name);
+    const go=next=>App.go('trips',{...q,...next});
+    searchForm.onsubmit=event=>{
+      event.preventDefault();
+      go({search:searchForm.elements.search.value.trim()});
+    };
+    filterForm.onsubmit=event=>{
+      event.preventDefault();
+      const values=UI.formData(filterForm);
+      if(values.from&&values.to&&values.from>values.to){
+        const to=filterForm.elements.to;
+        to.setCustomValidity('End date must be on or after start date.');
+        to.reportValidity();
+        return;
+      }
+      go(Object.fromEntries(filterFields.map(key=>[key,values[key]||''])));
+    };
+    filterForm.addEventListener('input',()=>filterForm.elements.to?.setCustomValidity(''));
+    RecordComponents.bindDropdowns(ctx.el,{
+      reset:()=>go(Object.fromEntries(filterFields.map(key=>[key,'']))),
+      sort:value=>go({sort:value}),
+    },{filter:filterId,sort:sortId});
     ctx.el.querySelectorAll('[data-dispatch-trip-view]').forEach(button=>button.onclick=()=>{
       App.go('trips',button.dataset.dispatchTripView==='history'?{tab:'history'}:{});
     });
-    this.bindFilters(ctx,fields,opts);
     const box=ctx.el.querySelector('[data-trip-records]');
     if(!Array.isArray(rows)){box.innerHTML='<p role="alert">Trip records unavailable.</p>';return;}
     const search=(q.search||q.q||'').trim().toLowerCase();
