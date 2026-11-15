@@ -142,7 +142,36 @@ const DispatcherUI = {
     this.bindTrips(ctx.el);
   },
   tripTable(rows,history=false) {
-    return `<div class="table-responsive"><table class="data-table ds-trip-table${rows.length?'':' ds-is-empty'}"><thead><tr><th>Trip / Client</th><th>Truck</th><th>${history?'Completion / Schedule':'Scheduled Dispatch'}</th><th>${history?'Final Status':'Status'}</th><th>Action</th></tr></thead><tbody>${rows.map(t=>`<tr><td data-label="Trip / Client"><b>${UI.esc(t.trip_ref)}</b><div>${UI.esc(t.client)}</div></td><td data-label="Truck">${UI.esc(t.plate_number||'Assignment pending')}<div class="cell-sub">${UI.esc(t.truck_type||'Type pending')}</div></td><td data-label="${history?'Completion / Schedule':'Scheduled Dispatch'}">${this.datetime(history&&t.completed_at?t.completed_at:t.scheduled_at)}</td><td data-label="${history?'Final Status':'Status'}">${this.status(t.status)}${+t.awaiting_arrival?'<div class="cell-sub">Pending Arrival Inspection</div>':''}</td><td data-label="Action"><button type="button" class="btn btn-sm btn-outline-success" data-ds-trip="${+t.id}" data-ds-action="${history?'view':this.tripAction(t)[1]}">${history?'View':this.tripAction(t)[0]}</button></td></tr>`).join('')||'<tr><td colspan="5"><div class="ds-empty-state" role="status"><i class="bi bi-search" aria-hidden="true"></i><b>No trips match these filters.</b><span>Try another search or clear filters to see more trips.</span></div></td></tr>'}</tbody></table></div>`;
+    // Shared five-column Trips presentation. Dispatcher actions remain authoritative.
+    const schedule=(value,sub='')=>{
+      const label=this.datetime(value);
+      const comma=label.lastIndexOf(', ');
+      const date=comma>=0?label.slice(0,comma):label;
+      const time=comma>=0?label.slice(comma+2):'';
+      return '<div class="fleet-trip-dispatch"><strong>'+UI.esc(date)+'</strong>'
+        +(time?'<span><i class="bi bi-clock" aria-hidden="true"></i> '+UI.esc(time)+'</span>':'')
+        +(sub?'<span>'+UI.esc(sub)+'</span>':'')+'</div>';
+    };
+    const lines=rows.map(t=>{
+      const [action,kind]=history?['View','view']:this.tripAction(t);
+      const route=UI.esc(t.pickup_point||'Pickup not specified')
+        +' <span class="fleet-trip-route-arrow" aria-hidden="true">→</span> '
+        +UI.esc(t.delivery_point||'Destination not specified');
+      return '<tr>'
+        +'<td><div class="fleet-trip-identity"><strong class="fleet-trip-ref">'+UI.esc(t.trip_ref)+'</strong><span class="fleet-trip-client">'+UI.esc(t.client||'Client not specified')+'</span></div></td>'
+        +'<td><div class="fleet-trip-route"><span class="fleet-trip-route-path">'+route+'</span>'
+        +'<span class="fleet-trip-truck"><i class="bi bi-truck" aria-hidden="true"></i> '+UI.esc(t.truck_type||'Truck type pending')+' · '+UI.esc(t.plate_number||'Awaiting assignment')+'</span></div></td>'
+        +'<td>'+schedule(history&&t.completed_at?t.completed_at:t.scheduled_at,history&&t.completed_at?'Completed':'')+'</td>'
+        +'<td><div class="fleet-trip-status">'+this.status(t.status)
+        +(+t.awaiting_arrival?'<span class="cell-sub">Pending Arrival Inspection</span>':'')+'</div></td>'
+        +'<td><button type="button" class="btn btn-sm btn-outline-success" data-ds-trip="'+(+t.id)+'" data-ds-action="'+UI.esc(kind)+'">'
+        +(kind==='view'?'<i class="bi bi-eye" aria-hidden="true"></i> ':'')+UI.esc(action)+'</button></td></tr>';
+    }).join('');
+    return '<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr>'
+      +'<th>Trip / Client</th><th>Route / Truck</th><th>'+(history?'Completion / Schedule':'Scheduled Dispatch')+'</th>'
+      +'<th>Status</th><th>Action</th></tr></thead><tbody>'
+      +(lines||'<tr><td colspan="5" class="table-empty">No trips match these filters.</td></tr>')
+      +'</tbody></table></div>';
   },
   next(t) {
     if(t.status==='Pre-Assigned')return t.fund_status==='Rejected'?'Revise trip fund request':'Complete dispatch preparation';
@@ -173,13 +202,34 @@ const DispatcherUI = {
       {name:'client_id',label:'Client',type:'select',placeholder:'All clients',options:UI.opts(ctx.data.filterOptions?.clients||[],c=>c.company_name)},
       {name:'from',label:'Schedule From',type:'date'},{name:'to',label:'Schedule To',type:'date'},
     ],opts={base:history?{tab:'history'}:{},values:{...q,search:q.search||q.q||''}};
-    ctx.el.innerHTML=this.filters(ctx,fields,{...opts,placeholder:'Search trip, client, route, or truck…'})+'<section class="ds-records" aria-label="Trip records" data-trip-records></section>';
+    const views=RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],history?'history':'active','data-dispatch-trip-view');
+    ctx.el.innerHTML=RecordComponents.panel(
+      '<div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2>'
+      +'<p class="record-workspace-count" data-trip-record-count></p></div></div>'
+      +'<div class="record-workspace-search">'
+      +this.filters(ctx,fields,{...opts,placeholder:'Search trip, client, route, or truck…'})
+      +'</div><div class="record-workspace-category-row record-workspace-view-tabs">'+views+'</div>'
+      +'<section aria-label="Trip records" data-trip-records></section>');
+    ctx.el.querySelector('.record-workspace-panel')?.classList.add('oh-dispatch-records');
+    ctx.el.querySelectorAll('[data-dispatch-trip-view]').forEach(button=>button.onclick=()=>{
+      App.go('trips',button.dataset.dispatchTripView==='history'?{tab:'history'}:{});
+    });
     this.bindFilters(ctx,fields,opts);
     const box=ctx.el.querySelector('[data-trip-records]');
     if(!Array.isArray(rows)){box.innerHTML='<p role="alert">Trip records unavailable.</p>';return;}
     const search=(q.search||q.q||'').trim().toLowerCase();
     const filtered=rows.filter(t=>(history||t.status!=='Pending Review')&&(history||this.matches(t,q.group))&&(!q.status||t.status===q.status)&&(!q.truck_type||t.truck_type===q.truck_type)&&(!q.client_id||String(t.client_id)===String(q.client_id))&&(!q.from||String(t.scheduled_at).slice(0,10)>=q.from)&&(!q.to||String(t.scheduled_at).slice(0,10)<=q.to)&&[t.trip_ref,t.client,t.pickup_point,t.delivery_point,t.plate_number].join(' ').toLowerCase().includes(search));
-    let page=0;const pageSize=10;const draw=()=>{const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.min(page,pages-1);box.innerHTML=`<div class="ds-record-controls"><span>${filtered.length} record(s)</span></div>`+this.tripTable(filtered.slice(page*pageSize,(page+1)*pageSize),history)+`<div class="ds-pagination">${UI.recordPager({total:filtered.length,page:page+1,pages,pageSize,note:history?'Up to 1,000 records loaded':''})}</div>`;box.querySelector('[data-prev]').onclick=()=>{page--;draw();};box.querySelector('[data-next]').onclick=()=>{page++;draw();};this.bindTrips(box);UI.standardTable(box,{total:filtered.length,count:box.querySelector('.ds-record-controls > span')});};draw();
+    let page=0;const pageSize=10;const draw=()=>{
+      const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.min(page,pages-1);
+      ctx.el.querySelector('[data-trip-record-count]').textContent=filtered.length+' matching record'+(filtered.length===1?'':'s');
+      box.innerHTML=this.tripTable(filtered.slice(page*pageSize,(page+1)*pageSize),history)
+        +'<div class="table-pager oh-dispatch-pager">'
+        +UI.recordPager({total:filtered.length,page:page+1,pages,pageSize,note:history?'Up to 1,000 records loaded':''})
+        +'</div>';
+      box.querySelector('[data-prev]').onclick=()=>{page--;draw();};
+      box.querySelector('[data-next]').onclick=()=>{page++;draw();};
+      this.bindTrips(box);
+    };draw();
     if(q.open)TripUI.open(UI.takeQuery(ctx,'open').open);
   },
   requests(ctx) {
