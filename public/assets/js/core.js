@@ -290,16 +290,24 @@ const App = {
         'Management Control': 'bi-shield-check',
       };
       const menuGroups=[];
+      const ungrouped=[];
       for (const item of allowed) {
-        let group=menuGroups.find(g=>g.title===(item.section||'General'));
-        if(!group){group={title:item.section||'General',items:[]};menuGroups.push(group);}
+        // A dashboard is a direct destination, not a collapsible "General" category.
+        if(!item.section || item.section==='General'){
+          ungrouped.push(item);
+          continue;
+        }
+        let group=menuGroups.find(g=>g.title===item.section);
+        if(!group){group={title:item.section,items:[]};menuGroups.push(group);}
         group.items.push(item);
       }
-      nav=menuGroups.map(group=>UI.sidebarGroup({
-        title:group.title,
-        icon:sectionIcons[group.title]||'bi-folder2',
-        items:group.items.map(item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.label)+'</span></a>').join('')
-      })).join('');
+      const adminLink=item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.label)+'</span></a>';
+      nav=ungrouped.map(adminLink).join('')
+        +menuGroups.map(group=>UI.sidebarGroup({
+          title:group.title,
+          icon:sectionIcons[group.title]||'bi-folder2',
+          items:group.items.map(adminLink).join('')
+        })).join('');
     } else if (u.role === 'operations_head') {
       // Collapsible, role-specific sidebar: render only entries authorized by
       // the server-provided navigation, preserving every existing route target.
