@@ -107,6 +107,10 @@ final class DispatcherTurnover {
                 must((bool)$rows,'No outstanding work is available to endorse.',409);
                 $incoming=self::account($p,idField($d,'incoming_id'),$actor['role']);
                 must($incoming['id']!==$actor['id'],'Choose a different incoming account.',409);
+                foreach ($rows as $t) {
+                    must(in_array($t['truck_type'], DispatcherScope::types($incoming), true),
+                        'Incoming Dispatcher is assigned to a different truck type. Choose a matching account.', 409);
+                }
                 must(hash_equals(self::fingerprint($rows),field($d,'fingerprint',64)),'The work changed after review. Review the latest summary before endorsing.',409);
                 $id=insert($p,'dispatcher_turnovers',['outgoing_id'=>$actor['id'],'incoming_id'=>$incoming['id'],'dispatcher_role'=>$actor['role'],'request_key'=>$key,'remarks'=>optField($d,'remarks',1000)]);
                 foreach($rows as $t){
