@@ -961,15 +961,30 @@ UI.fmt = (type, v, row) => {
   }
 };
 
-/** Toast message (bottom right). type: '' (success), 'error', 'warn', 'info'. */
+/** Shared visible notifications, including validation errors inside modals. */
 UI.toast = (msg, type = '') => {
   if (!msg) return;
-  const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
-  const el = document.createElement('div'); el.className = 'app-toast ' + type; el.setAttribute('role', type === 'error' ? 'alert' : 'status');
-  el.innerHTML = `<i class="bi ${icon}"></i><span></span><button type="button" class="toast-x" aria-label="Close">&times;</button>`;
-  el.querySelector('span').textContent = msg;
-  el.querySelector('.toast-x').onclick = () => el.remove();
-  document.getElementById('toastZone').append(el); setTimeout(() => el.remove(), type ? 9000 : 5000);
+  const zone = document.getElementById('toastZone');
+  if (!zone) return;
+  const message = String(msg).trim();
+  if (!message) return;
+  // Avoid piling up repeated validation errors on consecutive submissions.
+  const duplicate = [...zone.querySelectorAll('.app-toast')].find(el =>
+    el.dataset.kind === type && el.querySelector('span')?.textContent === message);
+  if (duplicate) { duplicate.querySelector('.toast-x')?.focus({preventScroll:true}); return; }
+  const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', warning:'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
+  const el = document.createElement('div');
+  el.className = 'app-toast ' + (type === 'warning' ? 'warn' : type);
+  el.dataset.kind = type;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span></span><button type="button" class="toast-x" aria-label="Dismiss notification">&times;</button>`;
+  el.querySelector('span').textContent = message;
+  let timer;
+  const dismiss = () => { clearTimeout(timer); el.remove(); };
+  el.querySelector('.toast-x').onclick = dismiss;
+  zone.prepend(el);
+  while (zone.children.length > 3) zone.lastElementChild.remove();
+  timer = setTimeout(dismiss, type === 'error' ? 14000 : type ? 10000 : 5000);
 };
 /** Shows the result of a backend action (message + warning). */
 UI.result = (r) => { UI.toast(r.message || 'Saved.'); if (r.warning) UI.toast(r.warning, 'warn'); };
@@ -1481,7 +1496,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
       err.textContent = invalid.validity.valueMissing || (invalid.type === 'checkbox' && !invalid.checked)
         ? 'Complete the required field: ' + fieldLabel
         : 'Please enter a valid value for: ' + fieldLabel;
-      err.style.display = 'block'; invalid.focus(); return;
+      err.style.display = 'block'; UI.toast(err.textContent, 'error'); invalid.focus(); return;
     }
     // Validate first, ask user inside the app, then execute the save/API request.
     // Existing explicit confirm-action modals opt out to avoid double prompts.
@@ -1497,7 +1512,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
     }
     const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
     try { await onSubmit(UI.formData(form), form, wrap); saveCompleted = true; m.hide(); }
-    catch (x) { err.textContent = x.message; err.style.display = 'block'; }
+    catch (x) { err.textContent = x.message; err.style.display = 'block'; UI.toast(x.message, 'error'); }
     finally { btn.disabled = false; btn.innerHTML = label; }
   };
    // Checklist #18: in-app discard dialog; never call window.confirm.
