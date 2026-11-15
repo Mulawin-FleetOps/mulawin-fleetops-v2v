@@ -33,6 +33,7 @@ CREATE TABLE users (
   full_name VARCHAR(100) NOT NULL,
   role VARCHAR(40) NOT NULL,
   shift VARCHAR(10) NULL COMMENT 'Day or Night (dispatchers only)',
+  dispatcher_truck_type VARCHAR(25) NULL COMMENT 'One assigned dispatcher truck type; NULL for legacy accounts',
   signature_document_id INT NULL COMMENT 'e-signature image used on approved purchase orders',
   failed_logins INT NOT NULL DEFAULT 0,
   locked_until DATETIME NULL,
@@ -45,7 +46,10 @@ CREATE TABLE users (
   INDEX idx_users_role (role, active),
   CONSTRAINT chk_users_role CHECK (role IN ('admin','operations_head','car_carrier_dispatcher','container_wingvan_dispatcher',
                                             'motorpool','purchasing','finance','billing','audit')),
-  CONSTRAINT chk_users_shift CHECK (shift IS NULL OR shift IN ('Day','Night'))
+  CONSTRAINT chk_users_shift CHECK (shift IS NULL OR shift IN ('Day','Night')),
+  CONSTRAINT chk_user_dispatcher_type CHECK (dispatcher_truck_type IS NULL OR
+    (role='car_carrier_dispatcher' AND dispatcher_truck_type='Car Carrier') OR
+    (role='container_wingvan_dispatcher' AND dispatcher_truck_type IN ('Container','Wing Van')))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Email OTP login (second step after the password). Codes are stored hashed, expire,
