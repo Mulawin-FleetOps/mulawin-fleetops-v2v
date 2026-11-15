@@ -566,136 +566,100 @@ const FuelAdjustmentUI={
  },
  render(ctx){
   const current=ctx.data.current||{};
-  const diesel=current.diesel;
-  const garage=current.garage;
+  const diesel=current.diesel,garage=current.garage;
   const types=ctx.data.truckTypes||['Car Carrier','Container','Wing Van'];
   const history=(ctx.data.history||[]).filter(r=>r.setting_key==='diesel'||r.setting_key==='garage'||types.includes(r.setting_key));
   const number=row=>{
     if(!row)return null;
-    try {const value=JSON.parse(row.value_json).value;return Number.isFinite(Number(value))?Number(value):null;}
-    catch {return null;}
+    try{const value=JSON.parse(row.value_json).value;return Number.isFinite(Number(value))?Number(value):null;}
+    catch{return null;}
   };
-  const configured=types.filter(type=>number(current[type])!==null).length;
-  const latest=history.reduce((best,row)=>{
-    const date=row.effective_at||row.effective_date||row.created_at;
-    const previous=best?.effective_at||best?.effective_date||best?.created_at;
-    return !best||String(date||'')>String(previous||'')?row:best;
-  },null);
-  const categories=[
-    {value:'diesel',label:'Diesel Price'},
-    {value:'efficiency',label:'Truck Efficiency'},
-    {value:'garage',label:'Company Garage'},
-    {value:'history',label:'Configuration History'}
-  ];
   const dieselValue=number(diesel);
-  // Future versions are returned separately from the currently effective record.
   const nextDiesel=(ctx.data.history||[])
-    .filter(row=>row.setting_key==='diesel' && String(row.effective_date||'')>UI.today())
+    .filter(row=>row.setting_key==='diesel'&&String(row.effective_date||'')>UI.today())
     .sort((a,b)=>String(a.effective_date).localeCompare(String(b.effective_date)))[0]||null;
   const nextDieselValue=number(nextDiesel);
-  const kpis=[
-    {label:'Current Diesel Price',value:dieselValue===null?'Not set':dieselValue,format:dieselValue===null?'':'money',icon:'bi-fuel-pump',color:'green'},
-    {label:'Effective Date',value:diesel?UI.date(diesel.effective_date):'Not set',icon:'bi-calendar-check',color:'blue'},
-    {label:'Configured Truck Types',value:configured+' of '+types.length,icon:'bi-truck',color:'purple'},
-    {label:'Latest Configuration',value:latest?UI.date(latest.effective_at||latest.effective_date):'None',icon:'bi-clock-history',color:'amber'}
+  const configured=types.filter(type=>number(current[type])!==null).length;
+  let coordinates=null;
+  try{if(garage?.value_json)coordinates=JSON.parse(garage.value_json);}catch{}
+  const validGarage=coordinates&&Number.isFinite(Number(coordinates.lat))
+    &&Number.isFinite(Number(coordinates.lng));
+  const nav=[
+    {value:'fuel',label:'Fuel Configuration'},
+    {value:'history',label:'Configuration History'}
   ];
-  ctx.el.innerHTML='<div class="head-fuel-workspace">'
-    +RecordComponents.kpis(kpis)
+  ctx.el.innerHTML='<div class="head-fuel-workspace head-fuel-combined">'
     +'<div class="head-fuel-config" data-head-fuel-records></div></div>';
   const root=ctx.el.querySelector('[data-head-fuel-records]');
-  const buttons=selected=>RecordComponents.categories(categories,selected,'data-head-fuel-tab');
-  const attachTabs=()=>{
+  const tabs=selected=>RecordComponents.categories(nav,selected,'data-head-fuel-tab',{showAll:true});
+  const editButton=(attr,label,icon='bi-pencil')=>'<button type="button" class="btn btn-sm btn-outline-primary" '+attr+'>'
+    +'<i class="bi '+icon+'" aria-hidden="true"></i> '+label+'</button>';
+  const show=selected=>{
+    if(selected==='fuel'){
+      root.innerHTML='<section class="record-workspace-panel">'
+        +'<div class="record-workspace-heading"><div><h2>Fuel & Operating Configuration</h2>'
+        +'<p class="record-workspace-count">Diesel price, truck efficiency and company garage in one place</p></div></div>'
+        +'<div class="record-workspace-category-row">'+tabs(selected)+'</div>'
+        +'<div class="head-fuel-combined-sections">'
+        +'<section class="head-fuel-combined-card" aria-labelledby="fuel-diesel-heading">'
+        +'<div class="head-fuel-combined-header"><div class="head-fuel-combined-heading"><span class="head-fuel-combined-icon"><i class="bi bi-fuel-pump" aria-hidden="true"></i></span>'
+        +'<div><h3 id="fuel-diesel-heading">Diesel Price</h3><p>Company-wide price per liter</p></div></div>'
+        +editButton('data-edit-diesel','Edit Price')+'</div>'
+        +'<div class="head-fuel-combined-facts">'
+        +'<div><span>Current Price</span><strong>'+(dieselValue===null?'Not configured':UI.money(dieselValue))+'</strong></div>'
+        +'<div><span>Effective Date</span><strong>'+(diesel?UI.date(diesel.effective_date):'Not configured')+'</strong></div>'
+        +'<div><span>Next Scheduled Price</span><strong>'+(nextDiesel&&nextDieselValue!==null?UI.money(nextDieselValue):'None scheduled')+'</strong>'
+        +(nextDiesel?'<small>Effective '+UI.date(nextDiesel.effective_date)+'</small>':'')+'</div></div>'
+        +'<p class="head-fuel-combined-note">A scheduled price takes effect on its selected date. Existing invoices are not automatically recalculated.</p>'
+        +'</section>'
+        +'<section class="head-fuel-combined-card" aria-labelledby="fuel-efficiency-heading">'
+        +'<div class="head-fuel-combined-header"><div class="head-fuel-combined-heading"><span class="head-fuel-combined-icon"><i class="bi bi-speedometer2" aria-hidden="true"></i></span>'
+        +'<div><h3 id="fuel-efficiency-heading">Truck Fuel Efficiency</h3><p>Fuel consumption settings by truck type</p></div></div>'
+        +'<span class="head-fuel-config-state '+(configured===types.length?'is-ready':'is-missing')+'">'+configured+' of '+types.length+' configured</span></div>'
+        +'<div class="head-fuel-combined-table-wrap"><table class="data-table head-fuel-combined-table"><thead><tr>'
+        +'<th>Truck Type</th><th>Efficiency</th><th>Status</th><th class="actions-col">Action</th></tr></thead><tbody>'
+        +types.map((type,index)=>{
+          const value=number(current[type]);
+          return '<tr><td><strong>'+UI.esc(type)+'</strong></td>'
+            +'<td>'+(value===null?'—':UI.num(value,4)+' km/L')+'</td>'
+            +'<td><span class="head-fuel-status '+(value===null?'is-missing':'is-ready')+'">'
+            +(value===null?'Needs Setup':'Configured')+'</span></td>'
+            +'<td class="actions-col">'+editButton('data-edit-efficiency="'+index+'"','Edit')+'</td></tr>';
+        }).join('')+'</tbody></table></div></section>'
+        +'<section class="head-fuel-combined-card" aria-labelledby="fuel-garage-heading">'
+        +'<div class="head-fuel-combined-header"><div class="head-fuel-combined-heading"><span class="head-fuel-combined-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>'
+        +'<div><h3 id="fuel-garage-heading">Company Garage</h3><p>Fixed starting point used for routes and fuel estimates</p></div></div>'
+        +editButton('data-edit-garage',validGarage?'Edit Garage':'Set Garage','bi-geo-alt')+'</div>'
+        +(validGarage
+          ?'<div class="head-fuel-combined-facts"><div><span>Latitude</span><strong>'+UI.esc(coordinates.lat)+'</strong></div>'
+            +'<div><span>Longitude</span><strong>'+UI.esc(coordinates.lng)+'</strong></div>'
+            +'<div><span>Effective Date</span><strong>'+UI.date(garage.effective_date)+'</strong></div></div>'
+            +'<p class="head-fuel-combined-note">Garage location is saved. Use Edit Garage to review or move the exact entrance pin.</p>'
+          :'<p class="head-fuel-combined-note">No verified garage location is saved. Set the exact entrance on the map before planning routes.</p>')
+        +'</section></div></section>';
+      root.querySelector('[data-edit-diesel]')?.addEventListener('click',()=>this.edit(ctx,'diesel'));
+      root.querySelectorAll('[data-edit-efficiency]').forEach(button=>button.addEventListener('click',()=>{
+        const type=types[Number(button.dataset.editEfficiency)];
+        if(type)this.edit(ctx,type);
+      }));
+      root.querySelector('[data-edit-garage]')?.addEventListener('click',()=>this.garageEdit(ctx));
+    }else{
+      const columns=[
+        ['Setting','setting_key',v=>'<span class="head-fuel-history-setting"><i class="bi '+(v==='diesel'?'bi-fuel-pump':v==='garage'?'bi-geo-alt':'bi-truck')+'" aria-hidden="true"></i> '+UI.esc(v==='diesel'?'Diesel Price':v==='garage'?'Company Garage':v)+'</span>'],
+        ['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],
+        ['Value','value_json',(v,r)=>{try{const x=JSON.parse(v);return r.setting_key==='garage'?'<strong>'+UI.esc(x.lat)+', '+UI.esc(x.lng)+'</strong>':'<strong>'+UI.esc(x.value)+'</strong> <small>'+(r.setting_key==='diesel'?'PHP/L':'km/L')+'</small>'}catch{return '—'}}],
+        ['Reason / Reference','reference',v=>UI.esc(v||'—')]
+      ];
+      root.innerHTML=RecordComponents.panel(
+        UI.table(columns,history,{showAllColumns:true,viewSwitch:false,
+          empty:'No diesel, garage or truck efficiency changes recorded.'}),tabs(selected));
+      UI.activate(root);
+      RecordComponents.mountPanel(root,{title:'Configuration History'});
+    }
     root.querySelectorAll('[data-head-fuel-tab]').forEach(button=>
       button.addEventListener('click',()=>show(button.dataset.headFuelTab)));
   };
-  const show=category=>{
-    if(category==='garage'){
-      let coordinates=null;
-      try {if(garage?.value_json)coordinates=JSON.parse(garage.value_json);}catch{}
-      const valid=coordinates&&Number.isFinite(Number(coordinates.lat))&&Number.isFinite(Number(coordinates.lng));
-      root.innerHTML='<section class="record-workspace-panel">'
-        +'<div class="record-workspace-heading"><div><h2>Company Garage</h2>'
-        +'<p class="record-workspace-count">One shared garage entrance for all truck routes and fuel calculations</p></div>'
-        +'<button type="button" class="btn btn-sm btn-primary" data-verify-garage>'
-        +'<i class="bi bi-geo-alt" aria-hidden="true"></i> '+(valid?'Update Garage Location':'Set Garage Location')+'</button></div>'
-        +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
-        +'<div class="head-fuel-diesel-content">'
-        +'<div class="head-fuel-section-heading"><div class="head-fuel-section-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></div>'
-        +'<div><h3>Garage Entrance Coordinates</h3><p>Used for verified Garage → Pickup routing</p></div>'
-        +'<span class="head-fuel-config-state '+(valid?'is-ready':'is-missing')+'">'+(valid?'Verified record':'Not configured')+'</span></div>'
-        +(valid?UI.kv([['Latitude',UI.esc(coordinates.lat)],['Longitude',UI.esc(coordinates.lng)],
-          ['Effective Date',UI.date(garage.effective_date)],['Reference',UI.esc(garage.reference||'—')]])
-          :'<p class="small text-muted mb-3">No fixed garage entrance has been saved. Set the correct coordinates once to enable garage-to-pickup routing across all routes.</p>')
-        +'<div class="head-fuel-policy"><i class="bi bi-info-circle" aria-hidden="true"></i>'
-        +'<p>Use the actual garage entrance, not an approximate landmark. Existing route requests and historical snapshots are preserved; future routes use the currently effective verified garage record.</p></div>'
-        +'</div></section>';
-      root.querySelector('[data-verify-garage]').onclick=()=>this.garageEdit(ctx);
-    }else if(category==='diesel'){
-      root.innerHTML='<section class="record-workspace-panel">'
-        +'<div class="record-workspace-heading"><div><h2>Fuel Configuration</h2>'
-        +'<p class="record-workspace-count">Weekly diesel pricing, truck efficiency and audit history</p></div>'
-        +'<button type="button" class="btn btn-sm btn-primary" data-edit-diesel>'
-        +'<i class="bi bi-pencil" aria-hidden="true"></i> Edit Price</button></div>'
-        +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
-        +'<div class="head-fuel-diesel-content">'
-        +'<div class="head-fuel-section-heading"><div class="head-fuel-section-icon"><i class="bi bi-fuel-pump" aria-hidden="true"></i></div>'
-        +'<div><h3>Weekly Diesel Price</h3><p>Current company-wide diesel configuration</p></div>'
-        +'<span class="head-fuel-config-state '+(dieselValue===null?'is-missing':'is-ready')+'">'
-        +(dieselValue===null?'Not configured':'Configured')+'</span></div>'
-        +'<div class="head-fuel-setting-grid head-fuel-price-grid">'
-        +'<div class="head-fuel-setting head-fuel-price-current"><span class="head-fuel-setting-label"><i class="bi bi-fuel-pump" aria-hidden="true"></i> Current price per liter</span>'
-        +'<strong>'+ (dieselValue===null?'Not configured':UI.money(dieselValue))+'</strong><small>Philippine peso per liter</small></div>'
-        +'<div class="head-fuel-setting head-fuel-price-start"><span class="head-fuel-setting-label"><i class="bi bi-calendar-check" aria-hidden="true"></i> Current price started on</span>'
-        +'<strong>'+ (diesel?UI.date(diesel.effective_date):'Not configured')+'</strong><small>Effective start date of active price</small></div>'
-        +'<div class="head-fuel-setting head-fuel-price-next"><span class="head-fuel-setting-label"><i class="bi bi-clock-history" aria-hidden="true"></i> Next Scheduled Price</span>'
-        +'<strong>'+ (nextDiesel&&nextDieselValue!==null?UI.money(nextDieselValue):'None scheduled')+'</strong><small>'+(nextDiesel?'Starts '+UI.date(nextDiesel.effective_date):'Current price continues until replaced')+'</small></div></div>'
-        +'<div class="head-fuel-policy"><i class="bi bi-info-circle" aria-hidden="true"></i>'
-        +'<p>Set a new diesel price only when it changes. The current price stays in effect until the next saved price becomes effective on its selected date. Future-dated updates do not change today’s price. Historical invoices are not automatically recalculated.</p></div>'
-        +'</div></section>';
-      root.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');
-    }else{
-      const isEfficiency=category==='efficiency';
-      if(!isEfficiency && history.length===0){
-        root.innerHTML='<section class="record-workspace-panel">'
-          +'<div class="record-workspace-heading"><div><h2>Configuration History</h2>'
-          +'<p class="record-workspace-count">0 recorded changes</p></div></div>'
-          +'<div class="record-workspace-category-row">'+buttons(category)+'</div>'
-          +'<div class="head-fuel-history-empty" role="status">'
-          +'<div class="head-fuel-history-empty-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>'
-          +'<h3>No configuration changes yet</h3>'
-          +'<p>Changes to diesel pricing, garage location and truck fuel efficiency will appear here after they are saved, including their effective date and reference.</p>'
-          +'<div class="head-fuel-history-note"><i class="bi bi-shield-check" aria-hidden="true"></i> Historical pricing records are retained for auditing.</div>'
-          +'</div></section>';
-      }else{
-        const columns=isEfficiency
-          ?[['Truck Type','type',(v,r)=>'<div class="head-fuel-truck-label"><span class="head-fuel-truck-icon"><i class="bi bi-truck" aria-hidden="true"></i></span><span><b>'+UI.esc(v)+'</b><small>Fuel efficiency setting</small></span></div>'],
-            ['Current Efficiency','value',v=>v===null?'<span class="head-fuel-muted-value">Not configured</span>':'<strong class="head-fuel-efficiency-value">'+UI.num(v,4)+' <small>km/L</small></strong>'],
-            ['Configuration','status',(_,r)=>r.value===null?'<span class="head-fuel-status is-missing"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Needs setup</span>':'<span class="head-fuel-status is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Configured</span>']]
-          :[['Setting','setting_key',v=>'<span class="head-fuel-history-setting"><i class="bi '+(v==='diesel'?'bi-fuel-pump':v==='garage'?'bi-geo-alt':'bi-truck')+'" aria-hidden="true"></i> '+UI.esc(v==='diesel'?'Diesel Price':v==='garage'?'Company Garage':v)+'</span>'],
-            ['Effective','effective_date',(v,r)=>r.effective_at?UI.esc(r.effective_at):UI.date(v)],
-            ['Value','value_json',(v,r)=>{try{const d=JSON.parse(v);return r.setting_key==='garage'?'<strong>'+UI.esc(d.lat)+', '+UI.esc(d.lng)+'</strong>':'<strong>'+UI.esc(d.value)+'</strong> <small>'+ (r.setting_key==='diesel'?'PHP/L':'km/L')+'</small>'}catch{return '—'}}],
-            ['Reason / Reference','reference',v=>UI.esc(v||'—')]];
-        const rows=isEfficiency?types.map(type=>({type,value:number(current[type])})):history;
-        const options={showAllColumns:true,viewSwitch:false,
-          empty:isEfficiency?'No truck types available.':'No diesel, garage or fuel efficiency updates.',
-          ...(isEfficiency?{actions:()=>UI.btn('edit','Edit','outline-primary'),
-            onAction:(_,row)=>this.edit(ctx,row.type)}:{})};
-        root.innerHTML=RecordComponents.panel(UI.table(columns,rows,options),buttons(category));
-        UI.activate(root);
-        RecordComponents.mountPanel(root,{title:isEfficiency?'Truck Fuel Efficiency':'Configuration History'});
-        const categoryRow=root.querySelector('.record-workspace-category-row');
-        categoryRow?.insertAdjacentHTML('afterend',isEfficiency
-          ?'<div class="head-fuel-table-intro"><div class="head-fuel-table-intro-icon"><i class="bi bi-speedometer2" aria-hidden="true"></i></div>'
-           +'<div><strong>Fuel efficiency by truck type</strong><p>Configure kilometers per liter for each truck type. Values are used in fuel cost estimates; no default efficiency is assumed.</p></div>'
-           +'<span class="head-fuel-table-progress">'+configured+' of '+types.length+' configured</span></div>'
-          :'<div class="head-fuel-table-intro"><div class="head-fuel-table-intro-icon"><i class="bi bi-journal-check" aria-hidden="true"></i></div>'
-           +'<div><strong>Pricing change history</strong><p>Review saved values, effective dates and reasons for previous changes.</p></div>'
-           +'<span class="head-fuel-table-progress">'+history.length+' recorded changes</span></div>');
-      }
-    }
-    attachTabs();
-  };
-  show('diesel');
+  show('fuel');
   UI.activate(ctx.el);
  }
 };

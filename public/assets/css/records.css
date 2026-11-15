@@ -1571,3 +1571,26 @@
 @media(max-width:700px){
   .head-billing-overview .head-financial-records .record-workspace-category-row{padding:9px 12px}
 }
+
+/* Head Management fuel: three settings in one compact view, with a separate audit history. */
+.head-fuel-combined .record-workspace-category-row{padding:10px 20px;min-height:55px}
+.head-fuel-combined .record-workspace-categories{gap:8px}
+.head-fuel-combined .record-workspace-categories>.btn{padding:8px 14px;min-height:38px;border-radius:8px;font-weight:650;font-size:12px}
+.head-fuel-combined-sections{display:grid;gap:14px;padding:16px 20px 22px}
+.head-fuel-combined-card{background:#fff;border:1px solid #dae8de;border-radius:12px;padding:16px 18px;min-width:0}
+.head-fuel-combined-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.head-fuel-combined-heading{display:flex;align-items:center;gap:11px;min-width:0}
+.head-fuel-combined-heading h3{margin:0;color:#204d35;font-size:15px;font-weight:700}
+.head-fuel-combined-heading p{margin:3px 0 0;color:#667f70;font-size:12px}
+.head-fuel-combined-icon{width:38px;height:38px;display:grid;place-items:center;background:#e9f5ec;color:#237849;border-radius:10px;flex:none;font-size:17px}
+.head-fuel-combined-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.head-fuel-combined-facts>div{padding:12px 14px;background:#f7faf8;border:1px solid #e0ebe3;border-radius:9px;min-width:0}
+.head-fuel-combined-facts span{display:block;color:#607b69;font-size:11px;margin-bottom:5px}
+.head-fuel-combined-facts strong{display:block;color:#214c33;font-weight:700;font-size:17px;overflow-wrap:anywhere}
+.head-fuel-combined-facts small{display:block;color:#6d8374;font-size:11px;margin-top:3px}
+.head-fuel-combined-note{font-size:11.5px;color:#5d7866;background:#f4f9f5;padding:10px 12px;border-radius:8px;margin:11px 0 0}
+.head-fuel-combined-table-wrap{overflow-x:auto}
+.head-fuel-combined-table{width:100%;min-width:530px}
+.head-fuel-combined-table th,.head-fuel-combined-table td{padding:10px 12px;text-align:left;vertical-align:middle}
+.head-fuel-combined-table .actions-col{text-align:right}
+@media(max-width:760px){.head-fuel-combined-sections{padding:12px;gap:12px}.head-fuel-combined-card{padding:13px}.head-fuel-combined-facts{grid-template-columns:1fr}}
