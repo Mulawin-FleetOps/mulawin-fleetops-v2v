@@ -67,7 +67,7 @@ final class Admin {
     }
     private static function saveDispatcherTrucks(PDO $p, int $id, string $role, array $d, int $actor): void {
         $isDispatcher = roleIsDispatcher($role);
-        if (!$isDispatcher && !array_key_exists('assigned_truck_ids', $d)) return;
+        if (!$isDispatcher && !self::truckAuthorizationReady($p)) return;
         must(self::truckAuthorizationReady($p),
             'Install the dispatcher truck authorization migration before editing dispatcher truck assignments.', 409);
         $provided = $d['assigned_truck_ids'] ?? [];
@@ -261,6 +261,7 @@ final class Admin {
                 if ($id === $u['id']) must($role === 'admin', 'You cannot remove your own Admin role.');
                 $oldUser = one($p, 'SELECT full_name, email, role, shift, active FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
+                must($role !== 'audit' || $oldUser['role'] === 'audit', 'The Audit role is retired for account assignments.', 409);
                 if($role!==$oldUser['role']||$shift!==$oldUser['shift']){
                     core('DispatcherTurnover');
                     DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($oldUser['role'])||roleIsDispatcher($role));
