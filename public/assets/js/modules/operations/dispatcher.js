@@ -32,9 +32,9 @@ const DispatcherUI = {
   options(rows,key,label=key) { return [...new Map((rows||[]).filter(r=>r[key]!=null&&r[key]!=='').map(r=>[String(r[key]),[r[key],r[label]||r[key]]])).values()]; },
   contains(row,keys,text) { return keys.map(k=>row[k]??'').join(' ').toLowerCase().includes((text||'').trim().toLowerCase()); },
   // Search and committed filters live in the URL. Opening details never changes this context.
-  filters(ctx,fields,{searchKey='search',placeholder='Search records…',values=ctx.query}={}) {
+  filters(ctx,fields,{searchKey='search',placeholder='Search records…',values=ctx.query,searchButton=true}={}) {
     const id='ds-filters-'+UI.uuid(),count=fields.filter(f=>String(values[f.name]??f.default??'')!==String(f.default??'')).length;
-    return `<div class="ds-filterbar" data-ds-filters><form class="ds-search-bar" role="search"><label class="visually-hidden" for="${id}-search">Search records</label><div class="ds-search-input"><i class="bi bi-search" aria-hidden="true"></i><input id="${id}-search" class="form-control" name="q" type="search" maxlength="200" placeholder="${UI.esc(placeholder)}" value="${UI.esc(values[searchKey]||'')}"></div><button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Search</button></form><button type="button" class="btn btn-outline-success ds-filter-toggle" aria-expanded="false" aria-controls="${id}"><i class="bi bi-funnel" aria-hidden="true"></i> Filters${count?` <span class="ds-filter-count" aria-label="${count} active filters">${count}</span>`:''}</button><div class="ds-filter-panel" id="${id}" role="dialog" tabindex="-1" aria-label="Filter Records" hidden><div class="ds-filter-heading"><h2>Filter Records</h2><button type="button" class="btn-close" data-filter-close aria-label="Close filters"></button></div><form data-filter-form>${UI.fields(fields.map(f=>({...f,col:12,value:values[f.name]??f.default??''})))}<div class="ds-filter-actions"><button class="btn btn-outline-secondary" type="button" data-filter-clear>Clear Filters</button><button class="btn btn-primary" type="submit">Apply Filters</button></div></form></div></div>`;
+    return `<div class="ds-filterbar" data-ds-filters><form class="ds-search-bar" role="search"><label class="visually-hidden" for="${id}-search">Search records</label><div class="ds-search-input"><i class="bi bi-search" aria-hidden="true"></i><input id="${id}-search" class="form-control" name="q" type="search" maxlength="200" placeholder="${UI.esc(placeholder)}" value="${UI.esc(values[searchKey]||'')}"></div>${searchButton?'<button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Search</button>':''}</form><button type="button" class="btn btn-outline-success ds-filter-toggle" aria-expanded="false" aria-controls="${id}"><i class="bi bi-funnel" aria-hidden="true"></i> Filters${count?` <span class="ds-filter-count" aria-label="${count} active filters">${count}</span>`:''}</button><div class="ds-filter-panel" id="${id}" role="dialog" tabindex="-1" aria-label="Filter Records" hidden><div class="ds-filter-heading"><h2>Filter Records</h2><button type="button" class="btn-close" data-filter-close aria-label="Close filters"></button></div><form data-filter-form>${UI.fields(fields.map(f=>({...f,col:12,value:values[f.name]??f.default??''})))}<div class="ds-filter-actions"><button class="btn btn-outline-secondary" type="button" data-filter-clear>Clear Filters</button><button class="btn btn-primary" type="submit">Apply Filters</button></div></form></div></div>`;
   },
   bindFilters(ctx,fields,{base={},searchKey='search',values=ctx.query}={}) {
     const bar=ctx.el.querySelector('[data-ds-filters]');if(!bar)return;
@@ -224,10 +224,26 @@ const DispatcherUI = {
       '<div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2>'
       +'<p class="record-workspace-count" data-trip-record-count></p></div></div>'
       +'<div class="record-workspace-search">'
-      +this.filters(ctx,fields,{...opts,placeholder:'Search trip, client, route, or truck…'})
+      +this.filters(ctx,fields,{...opts,placeholder:'Search trip, client, route, or truck…',searchButton:false})
       +'</div><div class="record-workspace-category-row record-workspace-view-tabs">'+views+'</div>'
       +'<section aria-label="Trip records" data-trip-records></section>')+'</div>';
     ctx.el.querySelector('.record-workspace-panel')?.classList.add('oh-dispatch-records');
+    // Shared Filter / Sort toolbar: Enter submits search; no redundant Search button.
+    const tripBar=ctx.el.querySelector('.record-workspace-search [data-ds-filters]');
+    if(tripBar){
+      const sort=document.createElement('details');
+      sort.className='ds-trip-sort';
+      sort.innerHTML='<summary class="btn btn-outline-success"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</summary>'
+        +'<div class="ds-trip-sort-options" role="group" aria-label="Sort trip records">'
+        +[['latest','Scheduled: Latest first'],['earliest','Scheduled: Earliest first'],['reference','Trip reference']].map(([value,label])=>
+          '<button type="button" data-trip-sort="'+value+'"'+((q.sort||'latest')===value?' aria-current="true"':'')+'>'+label+'</button>'
+        ).join('')+'</div>';
+      tripBar.querySelector('.ds-filter-panel').before(sort);
+      sort.querySelectorAll('[data-trip-sort]').forEach(button=>button.onclick=()=>{
+        App.go('trips',{...q,sort:button.dataset.tripSort});
+      });
+    }
+
     ctx.el.querySelectorAll('[data-dispatch-trip-view]').forEach(button=>button.onclick=()=>{
       App.go('trips',button.dataset.dispatchTripView==='history'?{tab:'history'}:{});
     });
@@ -236,6 +252,11 @@ const DispatcherUI = {
     if(!Array.isArray(rows)){box.innerHTML='<p role="alert">Trip records unavailable.</p>';return;}
     const search=(q.search||q.q||'').trim().toLowerCase();
     const filtered=rows.filter(t=>(history||t.status!=='Pending Review')&&(history||this.matches(t,q.group))&&(!q.status||t.status===q.status)&&(!q.truck_type||t.truck_type===q.truck_type)&&(!q.client_id||String(t.client_id)===String(q.client_id))&&(!q.from||String(t.scheduled_at).slice(0,10)>=q.from)&&(!q.to||String(t.scheduled_at).slice(0,10)<=q.to)&&[t.trip_ref,t.client,t.pickup_point,t.delivery_point,t.plate_number].join(' ').toLowerCase().includes(search));
+    filtered.sort((a,b)=>{
+      if(q.sort==='reference')return String(a.trip_ref||'').localeCompare(String(b.trip_ref||''),undefined,{numeric:true});
+      const left=String(a.scheduled_at||''),right=String(b.scheduled_at||'');
+      return q.sort==='earliest'?left.localeCompare(right):right.localeCompare(left);
+    });
     let page=0;const pageSize=10;const draw=()=>{
       const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.min(page,pages-1);
       ctx.el.querySelector('[data-trip-record-count]').textContent=filtered.length+' matching record'+(filtered.length===1?'':'s');
