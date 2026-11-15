@@ -243,7 +243,7 @@ App.page('clients', {
       ['Contact','contact_person'],
       ['Phone','contact_number'],
       ['Status','status','badge'],
-      ['Balance','balance','money'],
+      ['Outstanding Balance','balance','money'],
     ],rows,{
       tools:toolbar,
       actions:()=>UI.btn('view','View'),
