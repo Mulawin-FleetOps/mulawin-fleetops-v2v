@@ -1369,3 +1369,22 @@
 @media(prefers-reduced-motion:reduce){
   .fleet-master-detail-drawer .fleet-detail-chevron{transition:none}
 }
+
+
+/* Driver authorization: one card each for Car Carrier, Container, and Wing Van. */
+.driver-auth-section .form-help{margin:0 0 12px;font-size:12px;color:#67806e}
+.driver-auth-layout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.driver-auth-box{min-width:0;min-height:156px;padding:12px;border:1px solid #d9e8df;border-radius:11px;background:#fbfdfb}
+.driver-auth-box h4{display:flex;align-items:center;gap:7px;margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid #e3ede6;font-size:12px;font-weight:750;color:#27553a}
+.driver-auth-box h4 .bi{color:#287b4b}
+.driver-auth-options{display:grid;align-content:start;gap:7px;max-height:220px;overflow-y:auto}
+.driver-auth-option{display:flex;align-items:flex-start;gap:7px;padding:9px 8px;border:1px solid #e1eae4;border-radius:8px;background:#fff;cursor:pointer;min-width:0}
+.driver-auth-option:has(input:checked){border-color:#68ae7e;background:#f0f8f2}
+.driver-auth-option:focus-within{outline:2px solid #318352;outline-offset:1px}
+.driver-auth-option input{flex:none;margin-top:3px;accent-color:#1e7547}
+.driver-auth-option span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.driver-auth-option strong{font-size:11.5px;color:#294b38;overflow-wrap:anywhere}
+.driver-auth-option small,.driver-auth-empty{font-size:10.5px;line-height:1.4;color:#819288;margin:0}
+.driver-auth-count{font-size:12px;color:#3a7750;margin:11px 0 0;font-weight:650}
+@media(max-width:650px){.driver-auth-layout{grid-template-columns:1fr}.driver-auth-box{min-height:0}.driver-auth-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:390px){.driver-auth-options{grid-template-columns:1fr}}
