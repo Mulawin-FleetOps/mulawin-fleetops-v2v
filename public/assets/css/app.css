@@ -2908,3 +2908,36 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
     max-width:100%;
   }
 }
+
+
+/* User & Access Management: concise combined identity and dispatcher assignment cells */
+.head-user-management .head-account-user,
+.head-user-management .head-account-role{
+  display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+  min-width:0;line-height:1.45
+}
+.head-user-management .head-account-user-name,
+.head-user-management .head-account-role-title{
+  color:#244e36;font-weight:700;font-size:12.5px
+}
+.head-user-management .head-account-user-handle{
+  color:#667e6d;font-size:11.5px
+}
+.head-user-management .head-account-user-email{
+  color:#7a8b80;font-size:11px;overflow-wrap:anywhere
+}
+.head-user-management .head-account-assignment{
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  font-size:11px;line-height:1.5
+}
+.head-user-management .head-account-shift{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 8px;border:1px solid #b9dfc3;border-radius:100px;
+  background:#ecf8ef;color:#27764a;font-weight:700;white-space:nowrap
+}
+.head-user-management .head-account-types{
+  color:#637b6b;overflow-wrap:anywhere
+}
+.head-user-management [data-tbody] tr td{
+  vertical-align:middle
+}
