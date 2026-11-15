@@ -98,6 +98,25 @@ const RecordComponents = Object.freeze({
     return true;
   },
 
+  // Move the existing view tabs inside the records card without cloning buttons or handlers.
+  // Call after mountPanel, before attaching view handlers.
+  mountViewTabs(root) {
+    const panel = root.querySelector('.record-workspace-panel');
+    const tabs = root.querySelector('.record-workspace-tabs');
+    if (!panel || !tabs) return false;
+    let row = panel.querySelector('.record-workspace-category-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'record-workspace-category-row';
+      const table = panel.querySelector('.table-wrap, .oh-dispatch-table-wrap, .table-responsive, .data-table');
+      if (table) table.before(row);
+      else panel.append(row);
+    }
+    row.classList.add('record-workspace-view-tabs');
+    row.append(tabs);
+    return true;
+  },
+
   // Reuse the Client Management layout for existing Finance/Billing tab
   // callbacks. Move the actual table nodes so action handlers are preserved.
   executiveTabs(root, tabs, active, title) {
