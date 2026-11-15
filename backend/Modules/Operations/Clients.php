@@ -28,6 +28,7 @@ final class Clients {
                     NULL AS rates,
                     (SELECT COUNT(DISTINCT d.category) FROM documents d WHERE d.entity_type='client' AND d.entity_id=c.id AND d.category IN ('" . implode("','", self::REQUIRED_DOCS) . "')) AS docs_done,
                     (SELECT COUNT(*) FROM trips t WHERE t.client_id=c.id AND t.status NOT IN ('Cancelled','Rejected')) AS trip_count,
+                    (SELECT COUNT(*) FROM trips t WHERE t.client_id=c.id AND t.status IN ('Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule')) AS active_trip_count,
                     (SELECT COALESCE(SUM(b.total_amount - b.amount_paid),0) FROM billings b WHERE b.client_id=c.id AND b.status IN ('Invoiced','Partially Paid')) AS balance
                 FROM clients c ORDER BY FIELD(c.status,'Pending Rate','Active','Incomplete','Inactive'), c.company_name"),
         ]);
@@ -178,7 +179,11 @@ final class Clients {
             'documents' => Files::of($p, 'client', $id),
             'missing' => self::missingDocs($p, $id),
             'trips' => many($p, "SELECT t.id, t.trip_ref, t.status, t.scheduled_at, t.pickup_point, t.delivery_point, t.truck_type FROM trips t WHERE t.client_id=? ORDER BY t.scheduled_at DESC LIMIT 30", [$id]),
-            'billing' => one($p, "SELECT COUNT(*) AS invoices, COALESCE(SUM(total_amount),0) AS billed, COALESCE(SUM(amount_paid),0) AS paid FROM billings WHERE client_id=? AND status IN ('Invoiced','Partially Paid','Paid')", [$id]),
+            'billing' => one($p, "SELECT COUNT(*) AS invoices,
+                COALESCE(SUM(total_amount),0) AS billed,
+                COALESCE(SUM(amount_paid),0) AS paid,
+                COALESCE(SUM(CASE WHEN status IN ('Invoiced','Partially Paid') THEN total_amount-amount_paid ELSE 0 END),0) AS outstanding
+                FROM billings WHERE client_id=? AND status IN ('Invoiced','Partially Paid','Paid')", [$id]),
         ];
     }
 }

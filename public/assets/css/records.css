@@ -1497,3 +1497,12 @@
 .head-fleet-truck-list{white-space:normal;overflow-wrap:anywhere;line-height:1.65}
 @media(max-width:620px){.head-fleet-type-switch{padding:10px 12px}}
 
+
+/* Client monitoring: two-line contact and database-backed active trip count. */
+.client-record-contact{display:flex;flex-direction:column;gap:3px;line-height:1.35;min-width:0}
+.client-record-contact strong{font-weight:600;overflow-wrap:anywhere}
+.client-record-contact span{font-size:11px;color:#6c8575;overflow-wrap:anywhere}
+.client-record-contact span .bi{margin-right:4px}
+.client-record-trip-count{font-weight:700;color:#285c40;font-variant-numeric:tabular-nums}
+.client-profile-overview{display:flex;gap:8px 16px;flex-wrap:wrap;margin-top:10px;color:#53715f;font-size:12px}
+.client-profile-overview span{display:inline-flex;align-items:center;gap:6px}

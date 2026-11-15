@@ -115,8 +115,9 @@ const ClientUI = {
         +'<div class="client-profile-file-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-doc-preview="'+fileId+'" data-doc-mime="'+UI.esc(mime)+'" data-doc-name="'+fileName+'"><i class="bi bi-eye" aria-hidden="true"></i> View</button>'
         +'<a class="btn btn-sm btn-outline-secondary" href="'+UI.docUrl(fileId,false)+'" download><i class="bi bi-download" aria-hidden="true"></i> Download</a></div></div>';
     }).join('');
-    const hasBilling = Number(r.billing?.invoices || 0) > 0 || Number(r.billing?.billed || 0) !== 0 || Number(r.billing?.paid || 0) !== 0;
+    const hasBilling = Number(r.billing?.invoices || 0) > 0;
     const hasTrips = Array.isArray(r.trips) && r.trips.length > 0;
+    const activeRecentTrips = (r.trips || []).filter(t=>['Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched','On Hold - Incident Reported','In Transit','For Reschedule'].includes(t.status)).length;
     const info = [
       ['Registered name',UI.e(c.company_name)],['Trade name',UI.e(c.trade_name)],
       ['TIN',UI.e(c.tin)],['Nature of business',UI.e(c.nature_of_business)],
@@ -128,7 +129,9 @@ const ClientUI = {
     const infoMarkup = info.map(([label,value]) => '<div class="client-profile-info-item"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></div>').join('');
     const html = '<div class="client-profile-clean">'
       +'<div class="client-profile-top"><div class="client-profile-identity"><span class="client-profile-code">'+UI.e(c.client_code)+'</span>'+UI.badge(c.status)+'</div>'
-      +'<h3>'+UI.e(c.company_name)+'</h3></div>'
+      +'<h3>'+UI.e(c.company_name)+'</h3>'
+      +'<div class="client-profile-overview"><span><i class="bi bi-truck" aria-hidden="true"></i> '+activeRecentTrips+' active trip'+(activeRecentTrips===1?'':'s')+' in recent records</span>'
+      +'<span><i class="bi bi-receipt" aria-hidden="true"></i> '+(hasBilling?UI.money(r.billing.outstanding):'No invoiced receivables')+'</span></div></div>'
       +(c.status==='Incomplete'?'<div class="alert alert-warning py-2 small">Missing requirements: '+r.missing.map(UI.esc).join(', ')+'. This client is not eligible for trips yet.</div>':'')
       +(c.status==='Pending Rate'?'<div class="alert alert-info py-2 small">Legacy client status: verify accreditation before activating.</div>':'')
       +'<div class="client-profile-actions">'+acts.join('')+'</div>'
@@ -138,13 +141,15 @@ const ClientUI = {
       +'<div class="client-profile-accreditation"><span class="badge-s '+(r.missing.length?'amber':'green')+'">'+(need-r.missing.length)+' / '+need+' requirements complete</span>'
       +(r.missing.length?'<span class="client-profile-missing">Missing: '+r.missing.map(UI.esc).join(', ')+'</span>':'')+'</div>'
       +'<div class="client-profile-files">'+(docs || '<div class="client-profile-empty">No accreditation files uploaded.</div>')+'</div></section>'
-      +(hasBilling?'<section class="client-profile-section"><h4><i class="bi bi-receipt" aria-hidden="true"></i> Billing summary</h4>'
-        +'<div class="client-profile-info-grid">'+[
+      +'<section class="client-profile-section"><h4><i class="bi bi-receipt" aria-hidden="true"></i> Billing summary</h4>'
+      +(hasBilling?'<div class="client-profile-info-grid">'+[
           ['Invoices',UI.num(r.billing.invoices)],['Billed',UI.money(r.billing.billed)],
-          ['Paid',UI.money(r.billing.paid)],['Balance',UI.money(r.billing.billed-r.billing.paid)]
-        ].map(([label,value])=>'<div class="client-profile-info-item"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'</div></section>':'')
-      +(hasTrips?'<section class="client-profile-section"><h4><i class="bi bi-truck" aria-hidden="true"></i> Recent trips</h4>'
-        +UI.table([['Trip','trip_ref'],['Status','status','badge'],['Type','truck_type'],['Scheduled date and time','scheduled_at','datetime'],['Destination','delivery_point']],r.trips,{plain:true})+'</section>':'')
+          ['Paid',UI.money(r.billing.paid)],['Outstanding balance',UI.money(r.billing.outstanding)]
+        ].map(([label,value])=>'<div class="client-profile-info-item"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'</div>'
+        :'<div class="client-profile-empty">No invoiced receivables have been recorded.</div>')+'</section>'
+      +'<section class="client-profile-section"><h4><i class="bi bi-truck" aria-hidden="true"></i> Recent trips</h4>'
+      +(hasTrips?UI.table([['Trip','trip_ref'],['Status','status','badge'],['Type','truck_type'],['Scheduled date and time','scheduled_at','datetime'],['Destination','delivery_point']],r.trips,{plain:true})
+        :'<div class="client-profile-empty">No trip records available.</div>')+'</section>'
       +'</div>';
     const el = UI.drawer(UI.esc(c.company_name), html, { subtitle: 'Client profile' });
     el.classList.add('client-profile-drawer');
@@ -240,8 +245,9 @@ App.page('clients', {
     const table=UI.table([
       ['Code','client_code'],
       ['Client','company_name',v=>'<b>'+UI.esc(v)+'</b>'],
-      ['Contact','contact_person'],
-      ['Phone','contact_number'],
+      ['Contact','contact_person',(value,c)=>'<div class="client-record-contact"><strong>'+UI.esc(value||'Contact person not provided')+'</strong>'
+        +'<span><i class="bi bi-telephone" aria-hidden="true"></i> '+UI.esc(c.contact_number||'No phone number')+'</span></div>'],
+      ['Active Trips','active_trip_count',value=>'<span class="client-record-trip-count">'+UI.num(value||0)+'</span>'],
       ['Status','status','badge'],
       ['Outstanding Balance','balance','money'],
     ],rows,{
