@@ -807,7 +807,11 @@ const OpsHead = {
     });
     const accountName = data => accountOptions(data).find(a => String(a.id) === String(data.responsible_dispatcher_id))?.full_name || 'Account not selected';
     const total = () => batch().reduce((n, e) => n + (+e.data.quantity || 0), 0);
-    const error = message => { const box = ctx.el.querySelector('[data-plan-error]'); box.textContent = message; box.hidden = !message; };
+    const error = message => {
+      const box = ctx.el.querySelector('[data-plan-error]');
+      if (box) { box.textContent = message; box.hidden = !message; }
+      if (message) UI.toast(message, 'error');
+    };
     const update = () => {
       ctx.el.querySelector('[data-total]').textContent = `Total Required Trucks: ${total()}`;
       ctx.el.querySelector('[data-entry-count]').textContent = `${batch().length} route${batch().length === 1 ? '' : 's'} · ${total()} truck${total() === 1 ? '' : 's'}`;
