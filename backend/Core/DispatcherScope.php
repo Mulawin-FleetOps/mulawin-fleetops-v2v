@@ -30,10 +30,31 @@ final class DispatcherScope {
         must((bool)$pe, 'This personnel record is outside your authorized operational group or has no verified group link.', 403);
         return $pe;
     }
+    /** Truck authorization is independent of trip ownership and scheduled shift.
+     * An account may share authorized trucks with another shift, while vehicle
+     * holds still prevent both from dispatching the same vehicle simultaneously. */
+    public static function truckAuthorizationsReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='dispatcher_truck_authorizations'");
+    }
+    public static function requireTruckAuthorizations(PDO $p): void {
+        must(self::truckAuthorizationsReady($p),
+            'Install the additive dispatcher truck authorization migration before assigning trucks.', 409);
+    }
+    public static function authorizedTruckIds(PDO $p, array $u): array {
+        self::types($u);
+        self::requireTruckAuthorizations($p);
+        return array_map('intval', array_column(many($p,
+            'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? ORDER BY vehicle_id', [(int)$u['id']]), 'vehicle_id'));
+    }
     public static function truck(PDO $p, array $u, int $id): array {
         $types = self::types($u); $marks = implode(',', array_fill(0,count($types),'?'));
         $v = one($p,"SELECT id,plate_number,truck_type,assigned_driver_id,assigned_helper_id,status,active FROM vehicles WHERE id=? AND truck_type IN ($marks)",[$id,...$types]);
         must((bool)$v,'This truck belongs to another operational group.',403);
+        if ((int)($u['id'] ?? 0) > 0 && roleIsDispatcher($u['role'])) {
+            self::requireTruckAuthorizations($p);
+            must((bool)one($p, 'SELECT 1 FROM dispatcher_truck_authorizations WHERE dispatcher_id=? AND vehicle_id=?',
+                [(int)$u['id'], $id]), 'This truck is not authorized for your Dispatcher account.', 403);
+        }
         return $v;
     }
 }
