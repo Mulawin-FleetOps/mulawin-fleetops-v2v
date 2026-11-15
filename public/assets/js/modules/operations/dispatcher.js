@@ -202,14 +202,31 @@ const DispatcherUI = {
       {name:'client_id',label:'Client',type:'select',placeholder:'All clients',options:UI.opts(ctx.data.filterOptions?.clients||[],c=>c.company_name)},
       {name:'from',label:'Schedule From',type:'date'},{name:'to',label:'Schedule To',type:'date'},
     ],opts={base:history?{tab:'history'}:{},values:{...q,search:q.search||q.q||''}};
+    // Dashboard metrics are derived only from this dispatcher's authorized trip data,
+    // never Operations Head's company-wide opsSummary.
+    const authorized=Array.isArray(ctx.data.active)
+      ?ctx.data.active.filter(t=>t.status!=='Pending Review'&&!['Cancelled','Rejected'].includes(t.status)):[];
+    const activeTrips=authorized.filter(t=>t.status!=='Completed');
+    const needsAction=authorized.filter(t=>['Awaiting Resources','Pre-Assigned','Ready for Dispatch','For Reschedule'].includes(t.status)
+      ||(t.status==='Completed'&&+t.awaiting_arrival)
+      ||(t.status==='On Hold - Incident Reported'&&t.incident_status==='Repaired - Cleared to Continue'));
+    const incidentTrips=authorized.filter(t=>t.status==='On Hold - Incident Reported'
+      ||(t.incident_status&& !['None','Resolved','Closed','Repaired - Cleared to Continue'].includes(t.incident_status)));
+    const awaitingArrival=authorized.filter(t=>t.status==='Completed'&&+t.awaiting_arrival);
+    const metrics=RecordComponents.kpis([
+      {label:'Active Trips',value:activeTrips.length},
+      {label:'Needs Action',value:needsAction.length,color:'amber'},
+      {label:'Trips with Incidents',value:incidentTrips.length,color:'red'},
+      {label:'Pending Arrival Inspections',value:awaitingArrival.length,color:'blue'}
+    ]);
     const views=RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],history?'history':'active','data-dispatch-trip-view');
-    ctx.el.innerHTML=RecordComponents.panel(
+    ctx.el.innerHTML='<div class="fleet-trips-workspace dispatcher-trips-workspace">'+metrics+RecordComponents.panel(
       '<div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2>'
       +'<p class="record-workspace-count" data-trip-record-count></p></div></div>'
       +'<div class="record-workspace-search">'
       +this.filters(ctx,fields,{...opts,placeholder:'Search trip, client, route, or truck…'})
       +'</div><div class="record-workspace-category-row record-workspace-view-tabs">'+views+'</div>'
-      +'<section aria-label="Trip records" data-trip-records></section>');
+      +'<section aria-label="Trip records" data-trip-records></section>')+'</div>';
     ctx.el.querySelector('.record-workspace-panel')?.classList.add('oh-dispatch-records');
     ctx.el.querySelectorAll('[data-dispatch-trip-view]').forEach(button=>button.onclick=()=>{
       App.go('trips',button.dataset.dispatchTripView==='history'?{tab:'history'}:{});
