@@ -432,22 +432,6 @@ const HeadTripsUI = {
       ['Issues','_issues',(_,row)=>HeadTripsUI.issue(row)]
     ];
   },
-  /** Route preview is a saved road shape, never a live vehicle tracker. */
-  mountRoutePreview(root, trip) {
-    const box=root.querySelector('[data-head-route-map]');
-    if (!box || !trip?.route_geometry) return;
-    try {
-      UI.routeMap(box,trip,{
-        a:[Number(trip.pickup_lat),Number(trip.pickup_lng)],
-        b:[Number(trip.delivery_lat),Number(trip.delivery_lng)],
-        aLabel:'Pickup: '+trip.pickup_point,
-        bLabel:'Destination: '+trip.delivery_point,
-        geometry:trip.route_geometry
-      });
-    } catch(error) {
-      box.innerHTML='<p class="small text-muted p-3">Saved road route could not be displayed.</p>';
-    }
-  },
   /** Only rows already visible in a monitoring tab are exported. No server writes. */
   exportRows(rows) {
     const cols=[
@@ -466,27 +450,6 @@ const HeadTripsUI = {
     const d=ctx.data||{}, summary=d.summary||{};
     const active=d.active||[],history=d.history||[],incidents=d.incidents||[];
     const count=key=>Number(summary[key]||0);
-    const statusOf=t=>t.status==='Completed'?'Completed':
-      ['Dispatched','In Transit','On Hold - Incident Reported'].includes(t.status)?'On Trip':
-      ['Cancelled','Rejected'].includes(t.status)?'Closed':'Scheduled';
-    const buckets=['Completed','On Trip','Scheduled','Closed'];
-    const all=[...active,...history];
-    const values=buckets.map(label=>all.filter(t=>statusOf(t)===label).length);
-    const total=values.reduce((n,v)=>n+v,0);
-    const route=d.route_preview;
-    const chart=UI.chartHtml({
-      title:'Trip Operations Overview',
-      type:'doughnut',
-      labels:buckets,
-      datasets:[{label:'Trips',data:values}],
-      how:'Company-wide stored trip records. Delays and incidents can overlap these categories.'
-    });
-    const mapPanel=UI.card('Saved Road Route Preview',route
-      ? '<div class="head-route-map" data-head-route-map></div>'
-        +'<div class="head-map-caption"><b>'+UI.esc(route.trip_ref)+'</b> · '
-        +UI.esc(route.pickup_point)+' → '+UI.esc(route.delivery_point)
-        +'<p class="mb-0 small text-muted">Saved road geometry only — not real-time truck tracking.</p></div>'
-      : '<div class="head-route-empty"><i class="bi bi-geo-alt" aria-hidden="true"></i><strong>No saved map route available</strong><span>Routes appear here only when verified road geometry is stored. No GPS location is inferred.</span></div>');
     ctx.el.innerHTML='<div class="head-trip-dashboard">'
       +'<div class="head-trip-intro"><span><i class="bi bi-truck" aria-hidden="true"></i> Company-wide operations overview</span><span class="small text-muted"><i class="bi bi-eye" aria-hidden="true"></i> Read-only · Saved operational records</span></div>'
       +'<div class="head-trip-kpis">'+[
@@ -495,9 +458,7 @@ const HeadTripsUI = {
         ['Completed Today',count('completed_today'),'bi-check-circle','purple'],
         ['Delayed / Problem',count('delayed_problem'),'bi-exclamation-triangle','red']
       ].map(([title,value,icon,tone])=>'<div class="head-kpi '+tone+'"><div class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></div><div><span>'+UI.esc(title)+'</span><strong>'+value+'</strong></div></div>').join('')
-      +'</div><div class="head-trip-overview"><div class="head-trip-chart">'+chart
-      +'<div class="head-chart-total">'+total+' total trip'+(total===1?'':'s')+'</div></div><div class="head-trip-map">'+mapPanel+'</div></div>'
-      +'<div data-head-trip-records></div></div>';
+      +'</div><div data-head-trip-records></div></div>';
     const root=ctx.el.querySelector('[data-head-trip-records]');
     const tabItems=[
       {value:'active',label:'Active & Scheduled ('+active.length+')',rows:active,empty:'No active or scheduled trips.'},
@@ -531,7 +492,6 @@ const HeadTripsUI = {
     };
     select(ctx.query?.tab||'active');
     UI.activate(ctx.el);
-    if(route) HeadTripsUI.mountRoutePreview(ctx.el,route);
     if(Object.keys(d._errors||{}).length) UI.toast('Some monitoring data could not be loaded. Check the server log.','error');
   }
 };
