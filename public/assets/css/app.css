@@ -2245,6 +2245,12 @@ button.docfm-folder:focus-visible {
 .rpm-route-dialog .rpm-route-input-col .form-help{max-width:100%;margin-top:4px;line-height:1.35}
 .rpm-route-dialog .rpm-route-input-col [name="distance_km"]{width:100%;max-width:100%;font-variant-numeric:tabular-nums}
 .rpm-route-dialog .rpm-route-input-col [name="notes"]{width:100%}
+/* Paired pickup and destination inputs; retain separate pin controls. */
+.rpm-route-dialog .rpm-route-input-col .rpm-address-pin-control{min-width:0;width:100%}
+.rpm-route-dialog .rpm-route-input-col .rpm-address-pin-control .form-control{min-width:0;flex:1 1 0}
+.rpm-route-dialog .rpm-route-input-col .rpm-address-pin-btn{flex:0 0 auto;padding-inline:9px}
+.rpm-route-dialog .rpm-route-input-col .rpm-route-summary-left{margin-top:6px}
+
 
 .rpm-route-composer .rpm-route-map-heading{padding:9px 12px}
 .rpm-route-composer .rpm-route-steps{padding:7px 10px}

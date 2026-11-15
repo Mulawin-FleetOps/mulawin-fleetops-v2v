@@ -28,8 +28,8 @@ const RouteUI = {
       </section>` },
       { name: 'client_id', label: 'Client', type: 'select', required: true, col: 6, options: UI.opts(d.clients, c => c.company_name + (c.status !== 'Active' ? ` (${c.status})` : '')), value: d.filterClient || '' },
       { name: 'truck_type', label: 'Truck type', type: 'select', required: true, col: 6, options: UI.list(d.truckTypes), value:d.filterType||'' },
-      { name: 'origin', label: 'Pickup point', required: true, col: 12, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
-      { name: 'destination', label: 'Delivery point', required: true, col: 12, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
+      { name: 'origin', label: 'Pickup point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. TANAUAN, BATANGAS' },
+      { name: 'destination', label: 'Delivery point', required: true, col: 6, attrs: 'maxlength="200"', placeholder: 'e.g. MALVAR, BATANGAS' },
       { type: 'html', col: 12, html: `<section class="rpm-route-map-shell">
         <div class="rpm-route-map-heading"><div><i class="bi bi-map" aria-hidden="true"></i> Route preview</div><span>Live road route · Garage → Pickup → Destination</span></div>
         <div class="rpm-route-steps" aria-label="Driving sequence"><span class="rpm-step-garage"><b>1</b> Garage</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-pickup"><b>2</b> Pickup</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span class="rpm-step-delivery"><b>3</b> Destination</span></div>
