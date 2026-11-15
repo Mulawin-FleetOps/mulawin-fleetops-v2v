@@ -23,16 +23,25 @@ final class DispatcherAttendance {
      * A multi-type dispatcher records attendance for the actual truck group,
      * not an arbitrary primary login role. */
     private static function personnelGroup(PDO $p, array $u, int $id): string {
-        $rows = many($p, "SELECT DISTINCT v.truck_type FROM vehicles v
-            JOIN personnel pe ON pe.id=?
-            WHERE v.active=1 AND ((pe.person_type='Driver' AND v.assigned_driver_id=pe.id)
-                                OR (pe.person_type='Helper' AND v.assigned_helper_id=pe.id))
-            ORDER BY v.truck_type", [$id]);
-        $groups = array_values(array_unique(array_map(fn($v) => dispatcherRoleFor((string)$v['truck_type']), $rows)));
-        must(count($groups) === 1, 'Personnel need one unambiguous regular operational group.', 409);
-        $authorized = DispatcherScope::types($u);
-        must((bool)array_filter($rows, fn($v) => in_array($v['truck_type'], $authorized, true)),
-            'Personnel group is outside this Dispatcher account.', 403);
+        $person=one($p,'SELECT person_type FROM personnel WHERE id=?',[$id]);
+        must((bool)$person,'Personnel record was not found.',404);
+        if($person['person_type']==='Driver'){
+            $rows=many($p,'SELECT DISTINCT v.truck_type FROM driver_truck_authorizations da
+                JOIN vehicles v ON v.id=da.vehicle_id
+                WHERE da.driver_id=? AND v.active=1 ORDER BY v.truck_type',[$id]);
+        }else{
+            $rows=many($p,'SELECT DISTINCT v.truck_type FROM vehicles v
+                WHERE v.active=1 AND v.assigned_helper_id=? ORDER BY v.truck_type',[$id]);
+        }
+        $groups=array_values(array_unique(array_map(fn($v)=>dispatcherRoleFor((string)$v['truck_type']),$rows)));
+        $types=DispatcherScope::types($u);
+        must((bool)array_filter($rows,fn($v)=>in_array($v['truck_type'],$types,true)),
+            'Personnel is outside this Dispatcher account.',403);
+        // A Driver may be authorized for both operational groups but may only
+        // have one active Time In session. Use the currently scoped group.
+        $requested=$u['role'];
+        if(in_array($requested,$groups,true))return $requested;
+        must(count($groups)===1,'Select an authorized operational group before recording attendance.',409);
         return $groups[0];
     }
     public static function blocker(PDO $p, array $u, int $id, ?int $tripId = null, bool $lock = false): ?string {
