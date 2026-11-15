@@ -543,11 +543,11 @@ const FuelAdjustmentUI={
   const diesel=key==='diesel',current=ctx.data.current?.[key],value=current?JSON.parse(current.value_json).value:'',fields=[
    ...(!diesel?[{name:'truck_type',label:'Truck Type',value:key,attrs:'readonly'}]:[]),
    {name:'value',label:diesel?'New Diesel Price (PHP/L)':'Fuel Efficiency (KM/L)',type:'number',required:true,value,step:'0.0001',min:0.0001,attrs:'max="'+(diesel?'1000':'100')+'"'},
-   ...(diesel?[{name:'effective_date',label:'Effective Date',type:'date',required:true,value:UI.today()},{name:'historical_verified',label:'Historical source verified',type:'select',options:[['','Not confirmed'],['1','Verified against source']]}]:[]),
+   ...(diesel?[{name:'effective_date',label:'New Price Starts On',type:'date',required:true,value:UI.today()},{name:'historical_verified',label:'Historical source verified',type:'select',options:[['','Not confirmed'],['1','Verified against source']]}]:[]),
    {name:'reference',label:'Reason / Reference',required:true,type:'textarea',attrs:'maxlength="300"'}
   ];
   let reviewed=null;
-  UI.modal(diesel?'Edit Weekly Diesel Price':'Edit Fuel Efficiency','<div data-fuel-fields>'+UI.fields(fields.map(f=>({...f,col:12})))+'</div><div data-fuel-review hidden></div>',async(d,form)=>{
+  UI.modal(diesel?'Set Diesel Price':'Edit Fuel Efficiency','<div data-fuel-fields>'+UI.fields(fields.map(f=>({...f,col:12})))+(diesel?'<div class="head-fuel-date-hint"><i class="bi bi-info-circle" aria-hidden="true"></i><span>This price starts on the selected date and stays in effect until another saved price becomes effective. Leaving the price unchanged does not require a weekly update.</span></div>':'')+'</div><div data-fuel-review hidden></div>',async(d,form)=>{
    const payload={setting_key:key,value:d.value,reference:d.reference,...(diesel?{effective_date:d.effective_date,historical_verified:d.historical_verified}: {})};
    if(!reviewed||JSON.stringify(payload)!==JSON.stringify(reviewed))throw Error('Review the update before confirming.');
    const result=await App.api('Admin.pricing_save',reviewed);UI.result(result);await ctx.reload();
@@ -558,7 +558,7 @@ const FuelAdjustmentUI={
    reviewButton.onclick=()=>{
     historical();const invalid=[...form.querySelectorAll('input,select,textarea')].find(input=>!input.disabled&&!input.checkValidity());if(invalid){invalid.reportValidity();return;}
     const d=UI.formData(form);reviewed={setting_key:key,value:d.value,reference:d.reference,...(diesel?{effective_date:d.effective_date,historical_verified:d.historical_verified}: {})};
-    review.innerHTML=UI.kv([['Setting',diesel?'Weekly Diesel Price':UI.esc(key)],['New value',UI.esc(d.value)+(diesel?' PHP/L':' KM/L')],...(diesel?[['Effective Date',UI.esc(d.effective_date)]]:[['Applies','Immediately on confirmation (Asia/Manila)']]),['Reason / Reference',UI.esc(d.reference)]]);
+    review.innerHTML=UI.kv([['Setting',diesel?'Weekly Diesel Price':UI.esc(key)],['New value',UI.esc(d.value)+(diesel?' PHP/L':' KM/L')],...(diesel?[['New Price Starts On',UI.esc(d.effective_date)]]:[['Applies','Immediately on confirmation (Asia/Manila)']]),['Reason / Reference',UI.esc(d.reference)]]);
     panel.hidden=true;review.hidden=false;reviewButton.hidden=true;confirm.hidden=false;back.hidden=false;confirm.focus();
    };
    back.onclick=()=>{reviewed=null;panel.hidden=false;review.hidden=true;reviewButton.hidden=false;confirm.hidden=true;back.hidden=true;};
@@ -588,6 +588,11 @@ const FuelAdjustmentUI={
     {value:'history',label:'Configuration History'}
   ];
   const dieselValue=number(diesel);
+  // Future versions are returned separately from the currently effective record.
+  const nextDiesel=(ctx.data.history||[])
+    .filter(row=>row.setting_key==='diesel' && String(row.effective_date||'')>UI.today())
+    .sort((a,b)=>String(a.effective_date).localeCompare(String(b.effective_date)))[0]||null;
+  const nextDieselValue=number(nextDiesel);
   const kpis=[
     {label:'Current Diesel Price',value:dieselValue===null?'Not set':dieselValue,format:dieselValue===null?'':'money',icon:'bi-fuel-pump',color:'green'},
     {label:'Effective Date',value:diesel?UI.date(diesel.effective_date):'Not set',icon:'bi-calendar-check',color:'blue'},
@@ -640,10 +645,12 @@ const FuelAdjustmentUI={
         +'<div class="head-fuel-setting-grid">'
         +'<div class="head-fuel-setting"><span class="head-fuel-setting-label">Current price per liter</span>'
         +'<strong>'+ (dieselValue===null?'Not configured':UI.money(dieselValue))+'</strong><small>Philippine peso per liter</small></div>'
-        +'<div class="head-fuel-setting"><span class="head-fuel-setting-label">Effective date</span>'
-        +'<strong>'+ (diesel?UI.date(diesel.effective_date):'Not configured')+'</strong><small>Current effective price record</small></div></div>'
+        +'<div class="head-fuel-setting"><span class="head-fuel-setting-label">Current price started on</span>'
+        +'<strong>'+ (diesel?UI.date(diesel.effective_date):'Not configured')+'</strong><small>Effective start date of active price</small></div>'
+        +'<div class="head-fuel-setting"><span class="head-fuel-setting-label">Next Scheduled Price</span>'
+        +'<strong>'+ (nextDiesel&&nextDieselValue!==null?UI.money(nextDieselValue):'None scheduled')+'</strong><small>'+(nextDiesel?'Starts '+UI.date(nextDiesel.effective_date):'Current price continues until replaced')+'</small></div></div>'
         +'<div class="head-fuel-policy"><i class="bi bi-info-circle" aria-hidden="true"></i>'
-        +'<p>Diesel price updates normally occur on Tuesdays. The previous effective price remains applicable until the next price takes effect. Historical invoices are not automatically recalculated.</p></div>'
+        +'<p>Set a new diesel price only when it changes. The current price stays in effect until the next saved price becomes effective on its selected date. Future-dated updates do not change today’s price. Historical invoices are not automatically recalculated.</p></div>'
         +'</div></section>';
       root.querySelector('[data-edit-diesel]').onclick=()=>this.edit(ctx,'diesel');
     }else{
