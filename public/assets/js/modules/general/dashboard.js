@@ -14,7 +14,7 @@ const RPMDashboard = {
     purchasing: { title: 'Purchasing Officer Dashboard', detail: 'Parts requests, stock and purchase orders', icon: 'bi-box-seam', links: ['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory'] },
     finance: { title: 'Finance Dashboard', detail: 'Fund releases, payables, budget and expenses', icon: 'bi-cash-stack', links: ['funds', 'finance', 'purchase_orders', 'reports'] },
     billing: { title: 'Billing & Collection Dashboard', detail: 'Billing preparation, receivables and collections', icon: 'bi-receipt', links: ['billing', 'trips', 'clients', 'routes', 'reports'] },
-    audit: { title: 'Audit Dashboard', detail: 'Read-only records, trends and activity review', icon: 'bi-clipboard-data', links: ['reports', 'admin', 'trips', 'maintenance', 'billing', 'finance'] },
+    audit: { title: 'Audit Dashboard', detail: 'Records, trends and activity review', icon: 'bi-clipboard-data', links: ['reports', 'admin', 'trips', 'maintenance', 'billing', 'finance'] },
   },
   navLabels: {
     trips: 'View trips', trucks: 'Fleet records', crew: 'Personnel', clients: 'Client records',
