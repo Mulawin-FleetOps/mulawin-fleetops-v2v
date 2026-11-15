@@ -374,6 +374,16 @@ const HeadTripsUI = {
     if (['For Reschedule', 'On Hold - Incident Reported'].includes(trip.status)) issues.push(trip.status);
     return issues.length ? issues.map(v => UI.badge(v)).join(' ') : '—';
   },
+  // Compact activity entries keep every original field without a wide table in the drawer.
+  activitySection(title, rows, empty, render, expanded = false) {
+    return '<details class="head-trip-activity"'+(expanded && rows.length ? ' open' : '')+'>'
+      + '<summary><span>'+UI.esc(title)+'</span><span class="head-trip-activity-count">'
+      + rows.length+' '+(rows.length===1?'record':'records')+'</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>'
+      + '<div class="head-trip-activity-body">'
+      + (rows.length ? '<ol class="head-trip-activity-list">'+rows.map(render).join('')+'</ol>'
+        : '<p class="head-trip-activity-empty">'+UI.esc(empty)+'</p>')
+      + '</div></details>';
+  },
   async details(id) {
     try {
       const result = await App.api('HeadManagement.trip_details', {trip_id:id});
@@ -384,10 +394,30 @@ const HeadTripsUI = {
       const events = data.events || [];
       const updates = data.updates || [];
       const incidents = data.incidents || [];
-      const detailHtml =
-        '<p class="small text-muted">Monitoring only. Trip changes are handled by the Operations Head and assigned Dispatcher.</p>'
-        + (Number(t.pending_archival) ? '<p class="small text-warning">Dispatch was missed. The permanent status update is pending the Missed-status database migration.</p>' : '')
-        + '<h6>Trip & Route</h6>' + UI.kv([
+      const pill = v => v ? '<span class="head-trip-inline-status">'+UI.esc(String(v))+'</span>' : '—';
+      const note = v => v ? '<p class="head-trip-activity-note">'+UI.esc(String(v))+'</p>' : '';
+      const eventItem = row => '<li class="head-trip-activity-item">'
+        + '<div class="head-trip-activity-item-head"><strong>'+e(row.event_type)+'</strong><time>'+HeadTripsUI.date(row.created_at)+'</time></div>'
+        + '<div class="head-trip-activity-meta"><span>Previous: '+pill(row.from_status)+'</span><span>New: '+pill(row.to_status)+'</span><span>By: '+e(row.actor)+'</span></div>'
+        + note(row.notes)+'</li>';
+      const updateItem = row => '<li class="head-trip-activity-item">'
+        + '<div class="head-trip-activity-item-head"><strong>'+e(row.update_type)+'</strong><time>'+HeadTripsUI.date(row.created_at)+'</time></div>'
+        + '<div class="head-trip-activity-meta"><span>Cause: '+e(row.delay_cause)+'</span><span>By: '+e(row.actor)+'</span></div>'
+        + note(row.note)+'</li>';
+      const incidentItem = row => '<li class="head-trip-activity-item">'
+        + '<div class="head-trip-activity-item-head"><strong>'+e(row.incident_ref)+'</strong><time>'+HeadTripsUI.date(row.incident_at)+'</time></div>'
+        + '<div class="head-trip-activity-meta"><span>Status: '+pill(row.status)+'</span><span>Severity: '+e(row.severity)+'</span></div>'
+        + note(row.problem)+'</li>';
+      const detailHtml = '<div class="head-trip-detail">'
+        + '<div class="head-trip-overview"><div class="head-trip-status-line">'
+        + HeadTripsUI.status(t.status)
+        + '<span class="head-trip-overview-type">'+e(t.truck_type)+'</span></div>'
+        + '<div class="head-trip-route"><strong>'+e(t.pickup_point)+'</strong><i class="bi bi-arrow-right" aria-hidden="true"></i><strong>'+e(t.delivery_point)+'</strong></div>'
+        + '<div class="head-trip-overview-meta"><span><i class="bi bi-calendar3" aria-hidden="true"></i> '+HeadTripsUI.date(t.scheduled_at)+'</span>'
+        + '<span><i class="bi bi-person" aria-hidden="true"></i> '+e(t.dispatcher_name)+'</span></div></div>'
+        + (Number(t.pending_archival) ? '<p class="head-trip-alert">Dispatch was missed. Permanent status update is pending the Missed-status database migration.</p>' : '')
+        + '<p class="head-trip-readonly">Monitoring only. Trip changes are handled by the Operations Head and assigned Dispatcher.</p>'
+        + '<section class="head-trip-detail-card"><h6>Trip & Route</h6>'+UI.kv([
           ['Status',HeadTripsUI.status(t.status)],
           ['Client',e(t.client)],
           ['Pickup',e(t.pickup_point)],
@@ -396,30 +426,25 @@ const HeadTripsUI = {
           ['Scheduled departure',HeadTripsUI.date(t.scheduled_at)],
           ['Actual dispatch',HeadTripsUI.date(t.dispatched_at)],
           ['Completed',HeadTripsUI.date(t.completed_at)]
-        ])
-        + '<h6 class="mt-3">Assigned Resources</h6>' + UI.kv([
+        ])+'</section>'
+        + '<section class="head-trip-detail-card"><h6>Assigned Resources</h6>'+UI.kv([
           ['Truck',e(t.plate_number)],
           ['Driver',e(t.driver_name)],
           ['Second driver',e(t.driver2_name)],
           ['Helper',e(t.helper_name)],
           ['Responsible Dispatcher',e(t.dispatcher_name)],
           ['Dispatcher shift',e(t.dispatcher_shift)]
-        ])
-        + '<h6 class="mt-3">Trip Fund & Completion</h6>' + UI.kv([
+        ])+'</section>'
+        + '<section class="head-trip-detail-card"><h6>Trip Fund & Completion</h6>'+UI.kv([
           ['Fund status',e(t.fund_status)],
           ['Fund amount',t.fund_amount == null ? '—' : UI.money(t.fund_amount)],
           ['Delivery notes',e(t.delivery_notes)]
-        ])
-        + '<h6 class="mt-3">Activity Timeline</h6>'
-        + HeadOversight.panel('Trip events',
-          [['Time','created_at','datetime'],['Event','event_type'],['Previous','from_status'],['New','to_status'],['Performed by','actor'],['Notes','notes']],
-          events,'No trip events recorded.',false)
-        + HeadOversight.panel('Progress & delays',
-          [['Time','created_at','datetime'],['Type','update_type'],['Cause','delay_cause'],['Updated by','actor'],['Notes','note']],
-          updates,'No progress updates recorded.',false)
-        + HeadOversight.panel('Incidents',
-          [['Reference','incident_ref'],['Status','status','badge'],['Severity','severity'],['Date and time','incident_at','datetime'],['Issue','problem']],
-          incidents,'No incidents reported.',false);
+        ])+'</section>'
+        + '<div class="head-trip-activity-heading"><h6>Activity Timeline</h6><span>Recorded history</span></div>'
+        + this.activitySection('Trip events',events,'No trip events recorded.',eventItem,true)
+        + this.activitySection('Progress & delays',updates,'No progress updates recorded.',updateItem,updates.length>0)
+        + this.activitySection('Incidents',incidents,'No incidents reported.',incidentItem,incidents.length>0)
+        + '</div>';
       UI.drawer('Trip ' + e(t.trip_ref), detailHtml, {subtitle:e(t.client)});
     } catch(error) {
       UI.toast(error.message || 'Unable to load trip details.','error');
