@@ -151,7 +151,7 @@ const HeadOversight = {
  * Every table is one RecordComponents.panel / mountPanel, not nested custom cards. */
 const HeadRecords = {
   render(root, config) {
-    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false, groupTrips=false, groupFleetTrucks=false} = config;
+    const {title, categories, selected, columns, rows, empty, onAction, rowClick, exportRows, searchFields=[], filters=[], sortOptions, alwaysShowTools=false, showAllCategories=false, hideFilterSort=false, groupTrips=false, fleetTypes=null} = config;
     const prefix='head-record-'+(++HeadOversight.panelId);
     const filterId=prefix+'-filter',sortId=prefix+'-sort';
     const hasFilters=filters.length>0;
@@ -195,6 +195,20 @@ const HeadRecords = {
     const tableBody=root.querySelector('[data-tbody]'),id=tableBody?.dataset.tbody;
     if (!id) return;
     const tableState=UI._tables[id],original=rows.slice();
+    // The type selector is exclusive to the Trucks tab, beneath the primary
+    // Trucks / Drivers / Helpers / Mechanics navigation.
+    let chosenFleetType=fleetTypes?.selected||null;
+    if(fleetTypes?.items?.length){
+      const categoryRow=root.querySelector('.record-workspace-category-row');
+      const tabs=fleetTypes.items.map(type=>({
+        value:type.value,
+        label:type.label+' ('+type.count+')'
+      }));
+      categoryRow?.insertAdjacentHTML('afterend',
+        '<div class="head-fleet-type-switch" aria-label="Truck categories">'
+        +RecordComponents.categories(tabs,chosenFleetType,'data-head-fleet-type',{showAll:true})
+        +'</div>');
+    }
     const search=root.querySelector('[data-tsearch]');
     const filterInputs=[...root.querySelectorAll('[data-head-record-filter]')];
     let sort='default',filtered=rows.slice(),tripGrouping=null;
@@ -204,7 +218,8 @@ const HeadRecords = {
       return !q||[...columns.map(col=>col[1]),...searchFields].some(key=>String(row[key]??'').toLocaleLowerCase().includes(q));
     };
     const redraw=()=>{
-      filtered=original.filter(row=>filters.every((filter,index)=>
+      filtered=original.filter(row=>(!chosenFleetType || String(row.truck_type)===String(chosenFleetType))
+        && filters.every((filter,index)=>
         !filterInputs[index]?.value || (filter.type==='date'
           ? String(row[filter.key]??'').slice(0,10)===filterInputs[index].value
           : String(row[filter.key]??'')===filterInputs[index].value))).filter(matched);
@@ -223,6 +238,16 @@ const HeadRecords = {
     // UI.activate bound its search listener already; register after it so the
     // scoped filter redraw wins, and it does not mutate other tables.
     search?.addEventListener('input',redraw);
+    root.querySelectorAll('[data-head-fleet-type]').forEach(button=>button.addEventListener('click',()=>{
+      chosenFleetType=button.dataset.headFleetType;
+      root.querySelectorAll('[data-head-fleet-type]').forEach(other=>{
+        const selected=other===button;
+        other.classList.toggle('btn-primary',selected);
+        other.classList.toggle('btn-outline-secondary',!selected);
+        other.setAttribute('aria-pressed',String(selected));
+      });
+      redraw();
+    }));
     RecordComponents.bindDropdowns(root,{
       apply(){redraw();root.querySelector('.record-workspace-filter-trigger')?.click();},
       reset(){filterInputs.forEach(input=>input.value='');redraw();root.querySelector('.record-workspace-filter-trigger')?.click();},
@@ -233,7 +258,7 @@ const HeadRecords = {
       button.addEventListener('click',()=>config.changeCategory?.(button.dataset.headRecordCategory)));
     HeadOversight.finishTable(root);
     if(groupTrips) tripGrouping=RecordComponents.mountTripGrouping(root,id,'client');
-    if(groupFleetTrucks) tripGrouping=RecordComponents.mountTripGrouping(root,id,'truck_type',{showSwitch:false,label:'truck',fallback:'Other Trucks'});
+    if(fleetTypes?.items?.length)redraw();
   }
 };
 
@@ -241,8 +266,8 @@ const HeadRecords = {
 const HeadFleetWorkspace = {
   categories: [
     {id:'trucks', label:'Trucks', key:'vehicles', empty:'No truck records available.',
-      cols:[['Truck / Plate','plate_number'],['Type','truck_type'],['Status','status','badge'],
-        ['Regular Driver','driver_name'],['Regular Helper','helper_name'],['Current Trip','active_trip']]},
+      cols:[['Truck / Plate','plate_number'],['Regular Driver','driver_name'],['Regular Helper','helper_name'],
+        ['Status','status','badge'],['Current Trip','active_trip']]},
     {id:'drivers', label:'Drivers', key:'personnel', personType:'Driver', empty:'No driver records available.',
       cols:[['Driver','full_name'],['Availability','availability','badge'],
         ['Authorized Trucks','authorized_trucks',(value)=>value?'<span class="head-fleet-truck-list">'+UI.esc(value)+'</span>':'—'],['Active','active',value=>Number(value)===1?'Yes':'No']]},
@@ -280,6 +305,17 @@ const HeadFleetWorkspace = {
       +this.metrics(data.fleet_summary)
       +'<div data-head-fleet-table></div></div>';
     const container=ctx.el.querySelector('[data-head-fleet-table]');
+    const truckRecords=tabs.find(tab=>tab.id==='trucks')?.records||[];
+    const standardTruckTypes=['Car Carrier','Container','Wing Van'];
+    const truckTypes=[...standardTruckTypes,...new Set(truckRecords.map(row=>row.truck_type).filter(Boolean)
+      .filter(type=>!standardTruckTypes.includes(type)))];
+    const truckTypeSelector={
+      selected:truckTypes[0],
+      items:truckTypes.map(value=>({
+        value,label:value,
+        count:truckRecords.filter(row=>row.truck_type===value).length
+      }))
+    };
     const select=id=>{
       const category=tabs.find(tab=>tab.id===id)||tabs[0];
       const records=category.records;
@@ -291,12 +327,12 @@ const HeadFleetWorkspace = {
         {value:'0',label:'Inactive'}
       ];
       const filters=category.id==='trucks'
-        ? [filterField('Truck type','truck_type'),filterField('Status','status')]
+        ? [filterField('Status','status')]
         : category.id==='mechanics'
           ? [filterField('Active status','active',activeOptions)]
           : [filterField('Availability','availability'),filterField('Active status','active',activeOptions)];
       const sortOptions=category.id==='trucks'
-        ? [{key:'plate_number',label:'Truck / Plate'},{key:'truck_type',label:'Truck type'},{key:'status',label:'Status'}]
+        ? [{key:'plate_number',label:'Truck / Plate'},{key:'status',label:'Status'}]
         : [{key:'full_name',label:category.id==='mechanics'?'Mechanic name':category.id==='drivers'?'Driver name':'Helper name'}];
       HeadRecords.render(container,{
         title:'Fleet & Personnel Records',
@@ -305,7 +341,7 @@ const HeadFleetWorkspace = {
         columns:category.cols,rows:records,empty:category.empty,
         showAllCategories:true,
         alwaysShowTools:true,
-        groupFleetTrucks:category.id==='trucks',
+        fleetTypes:category.id==='trucks'?truckTypeSelector:null,
         filters,sortOptions,
         changeCategory:select
       });

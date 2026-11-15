@@ -1490,6 +1490,10 @@
 @media(max-width:650px){.driver-auth-layout{grid-template-columns:1fr}.driver-auth-box{min-height:0}.driver-auth-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:390px){.driver-auth-options{grid-template-columns:1fr}}
 
-/* Fleet categories reuse the shared, collapsible record group headers. */
-.head-fleet-workspace .record-client-group-toggle strong{font-size:13px}
+/* Fleet type selector is a compact second-level navigation, not repeated row headers. */
+.head-fleet-type-switch{padding:10px 20px;border-bottom:1px solid #deeadf;background:#f7faf8}
+.head-fleet-type-switch .record-workspace-categories{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.head-fleet-type-switch .record-workspace-categories .btn{min-height:36px;padding:8px 13px;border-radius:8px;font-size:12px;font-weight:650}
 .head-fleet-truck-list{white-space:normal;overflow-wrap:anywhere;line-height:1.65}
+@media(max-width:620px){.head-fleet-type-switch{padding:10px 12px}}
+
