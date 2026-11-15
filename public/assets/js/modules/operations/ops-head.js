@@ -695,7 +695,15 @@ const OpsHead = {
     const clientName = id => clients.find(c => String(c.id) === String(id))?.company_name || 'Choose client';
     const dispatcherOptions = type => !['Car Carrier','Container','Wing Van'].includes(type) ? [] : (ctx.data.dispatcherGroups||[]).filter(g=>g.role===(type==='Car Carrier'?'car_carrier_dispatcher':'container_wingvan_dispatcher')).map(g=>g.shift).map(shift => [`${type === 'Car Carrier' ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher'}:${shift}`, `${type === 'Car Carrier' ? 'Car Carrier' : 'Container / Wing Van'} Dispatcher (${shift})`]);
     const dispatcherName = data => dispatcherOptions(data.truck_type).find(([key]) => key === data.dispatcher_assignment)?.[1] || 'Choose dispatcher';
-    const accountOptions = data => (ctx.data.dispatcherAccounts || []).filter(a => `${a.role}:${a.shift}` === data.dispatcher_assignment);
+    const accountOptions = data => (ctx.data.dispatcherAccounts || []).filter(a => {
+      const plannedShift = String(data.dispatcher_assignment || '').split(':')[1];
+      if (!plannedShift || a.shift !== plannedShift) return false;
+      let types = [];
+      try { types = JSON.parse(a.dispatcher_truck_types || 'null') || []; } catch {}
+      if (!Array.isArray(types) || !types.length) types = a.dispatcher_truck_type
+        ? [a.dispatcher_truck_type] : (a.role === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container','Wing Van']);
+      return types.includes(data.truck_type);
+    });
     const accountName = data => accountOptions(data).find(a => String(a.id) === String(data.responsible_dispatcher_id))?.full_name || 'Account not selected';
     const total = () => batch().reduce((n, e) => n + (+e.data.quantity || 0), 0);
     const error = message => { const box = ctx.el.querySelector('[data-plan-error]'); box.textContent = message; box.hidden = !message; };
