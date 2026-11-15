@@ -65,6 +65,9 @@ const HeadAdminPage = {
       const truckList = wrap.querySelector('[data-truck-list]');
       const truckSearch = wrap.querySelector('[data-truck-search]');
       const truckCount = wrap.querySelector('[data-truck-count]');
+      const truckWarning = wrap.querySelector('[data-truck-warning]');
+      const truckSchemaReady = !!d.dispatcherTruckSchemaReady;
+      const saveButton = wrap.querySelector('button[type=submit]');
       const existingTrucks = new Set((d.dispatcherTrucks || []).filter(x => String(x.dispatcher_id) === String(u.id)).map(x => Number(x.vehicle_id)));
       const selectedTrucks = new Set(existingTrucks);
       const truckChoices = (d.truckOptions || []).filter(v => Number(v.id) > 0);
@@ -111,6 +114,10 @@ const HeadAdminPage = {
         const dispatch = dispatcherRoles.includes(role.value);
         shiftWrapper.style.display = dispatch ? '' : 'none';
         truckSection.hidden = !dispatch;
+        saveButton.disabled = dispatch && !truckSchemaReady;
+        truckWarning.textContent = !truckSchemaReady
+          ? 'Setup required: install and verify database/migrations/2026-11-15_15_dispatcher_truck_authorizations.sql before creating or editing Dispatcher accounts.'
+          : '';
         shiftInput.required = false; // visible radio group owns required-field validation
         if (dispatch) {
           const compatible = new Set(matchingTrucks().map(v => Number(v.id)));
