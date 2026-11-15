@@ -647,7 +647,7 @@ final class Trips {
                 $f = self::deliveryFields($row, false);
                 $client = idField($row, 'client_id');
                 $type = choiceField($row, 'truck_type', TRUCK_TYPES, $isOps);
-                if($isOps){$planning=DispatcherPlanning::assignment($type,$row['dispatcher_assignment']??null);core('DispatcherTurnover');DispatcherTurnover::planningAccount($p,$planning,idField($row,'responsible_dispatcher_id'),false);}
+                if($isOps){$planning=DispatcherPlanning::assignment($type,$row['dispatcher_assignment']??null);$planning['truck_type']=$type;core('DispatcherTurnover');DispatcherTurnover::planningAccount($p,$planning,idField($row,'responsible_dispatcher_id'),false);}
                 if(!$isOps)must($type!==null,'Choose an authorized truck type.');
                 if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.', 403);
                 $c = one($p, 'SELECT company_name, status FROM clients WHERE id=?', [$client]);
