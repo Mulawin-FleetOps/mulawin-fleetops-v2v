@@ -43,7 +43,22 @@ const DispatcherMonitorUI = {
       +'<div id="monitor-sort-panel" class="record-workspace-popover record-workspace-sort-panel" hidden><strong>Sort Visible Trips</strong>'
       +[['default','Default order'],['newest','Newest scheduled'],['oldest','Oldest scheduled'],['client','Client'],['status','Status']].map(([v,l],i)=>'<label class="record-workspace-sort-option"><input type="radio" data-record-sort name="monitor_sort" value="'+v+'" '+(!i?'checked':'')+'> '+l+'</label>').join('')+'</div></div>';
     const originalRows=d.rows||[];
-    const rowHTML=t=>'<tr data-monitor-row data-scheduled="'+UI.esc(t.scheduled_at||'')+'" data-client="'+UI.esc(t.client||'')+'" data-status="'+UI.esc(t.status||'')+'"><td><b>'+UI.esc(t.trip_ref)+'</b><div>'+UI.esc(t.client)+'</div></td><td>'+UI.esc(t.pickup_point)+' → '+UI.esc(t.delivery_point)+'</td><td>'+UI.esc(t.truck_type)+'<div>'+UI.esc(t.plate_number||'Awaiting assignment')+'</div></td><td>'+(history?(t.status==='Completed'&&t.completed_at?OpsHead.datetime(t.completed_at):'Closure date not recorded')+'<div class="cell-sub">Scheduled: '+OpsHead.datetime(t.scheduled_at)+'</div>':OpsHead.datetime(t.scheduled_at))+'</td><td>'+OpsHead.badge(t.status)+'</td><td><button type="button" class="btn btn-sm btn-outline-success" data-monitor-trip="'+(+t.id)+'">View</button></td></tr>';
+    // Match the main Trips table: identity, combined route/truck, date/time, status and action.
+    const formatSchedule=value=>{
+      const formatted=OpsHead.datetime(value);
+      const separator=formatted.lastIndexOf(', ');
+      return '<div class="fleet-trip-dispatch"><strong>'+UI.esc(separator>=0?formatted.slice(0,separator):formatted)
+        +'</strong>'+(separator>=0?'<span><i class="bi bi-clock" aria-hidden="true"></i> '+UI.esc(formatted.slice(separator+2))+'</span>':'')+'</div>';
+    };
+    const rowHTML=t=>'<tr data-monitor-row data-scheduled="'+UI.esc(t.scheduled_at||'')+'" data-client="'+UI.esc(t.client||'')+'" data-status="'+UI.esc(t.status||'')+'">'
+      +'<td><div class="fleet-trip-identity"><strong class="fleet-trip-ref">'+UI.esc(t.trip_ref)+'</strong><span class="fleet-trip-client">'+UI.esc(t.client)+'</span></div></td>'
+      +'<td><div class="fleet-trip-route"><span class="fleet-trip-route-path">'+UI.esc(t.pickup_point||'Pickup not specified')+' <span class="fleet-trip-route-arrow" aria-hidden="true">→</span> '+UI.esc(t.delivery_point||'Destination not specified')+'</span>'
+      +'<span class="fleet-trip-truck"><i class="bi bi-truck" aria-hidden="true"></i> '+UI.esc(t.truck_type||'Truck type pending')+' · '+UI.esc(t.plate_number||'Awaiting assignment')+'</span></div></td>'
+      +'<td>'+(history
+        ?'<div class="fleet-trip-dispatch"><strong>'+UI.esc(t.status==='Completed'&&t.completed_at?OpsHead.datetime(t.completed_at):'Closure date not recorded')+'</strong><span>Scheduled: '+UI.esc(OpsHead.datetime(t.scheduled_at))+'</span></div>'
+        :formatSchedule(t.scheduled_at))+'</td>'
+      +'<td><div class="fleet-trip-status">'+OpsHead.badge(t.status)+'</div></td>'
+      +'<td><button type="button" class="btn btn-sm btn-outline-success" data-monitor-trip="'+(+t.id)+'"><i class="bi bi-eye" aria-hidden="true"></i> View</button></td></tr>';
     const metrics=RecordComponents.kpis([
       {label:'Total Assigned Trips',value:d.summary.total??'—'},
       {label:'Active Trips',value:d.summary.active??'—',color:'green'},
@@ -56,8 +71,8 @@ const DispatcherMonitorUI = {
       +(q.group||q.shift?'<p class="small"><a data-clear-group href="'+UI.esc(href({group:undefined,shift:undefined}))+'">Clear Group</a></p>':'')
       +'<section class="record-workspace-panel oh-dispatch-records"><div class="record-workspace-heading"><div><h2>'+(history?'Trip History Records':'Active Trip Records')+'</h2><p class="record-workspace-count">'+UI.num(d.total)+' matching records</p></div>'
       +'</div><div class="record-workspace-search"><input data-monitor-search aria-label="Search monitored trips" class="form-control" type="search" value="'+UI.esc(q.search||'')+'" placeholder="Search trip, client, route or truck">'+controls+'</div>'
-      +'<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr><th>Trip / Client</th><th>Route</th><th>Type / Truck</th><th>'+(history?'Completion / Closure':'Scheduled Dispatch')+'</th><th>Status</th><th>Action</th></tr></thead><tbody data-monitor-tbody>'
-      +(originalRows.map(rowHTML).join('')||'<tr><td colspan="6" class="table-empty">No trips match these filters.</td></tr>')+'</tbody></table></div>'
+      +'<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr><th>Trip / Client</th><th>Route / Truck</th><th>'+(history?'Completion / Closure':'Scheduled Dispatch')+'</th><th>Status</th><th>Action</th></tr></thead><tbody data-monitor-tbody>'
+      +(originalRows.map(rowHTML).join('')||'<tr><td colspan="5" class="table-empty">No trips match these filters.</td></tr>')+'</tbody></table></div>'
       +'<div class="oh-dispatch-pager">'+UI.recordPager({total:d.total,page:d.page,pages:d.pages,pageSize:d.pageSize||12,previous:'data-monitor-prev',next:'data-monitor-next'})+'</div></section></div>';
     const root=ctx.el.querySelector('.oh-dispatch-workspace');
     root.querySelectorAll('[data-monitor-view]').forEach(button=>button.addEventListener('click',()=>{
