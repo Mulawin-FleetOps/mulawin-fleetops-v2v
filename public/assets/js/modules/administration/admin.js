@@ -43,7 +43,7 @@ const HeadAdminPage = {
         { type: 'html', col: 12, html: '<section class="admin-dispatcher-truck-section" data-dispatcher-trucks hidden><div class="admin-dispatcher-truck-title"><strong><i class="bi bi-truck" aria-hidden="true"></i> Assigned Trucks</strong><span data-truck-count>0 selected</span></div><p class="small text-muted mb-2">Choose the trucks this account can manage. The same truck may be authorized for Day and Night, but existing trip holds still prevent conflicts.</p><input class="form-control form-control-sm mb-2" type="search" data-truck-search placeholder="Search truck number or plate" aria-label="Search available trucks"><div class="admin-dispatcher-truck-list" data-truck-list></div><div class="form-help mt-2" data-truck-warning></div></section>' }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
           intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
           transform: (d, form) => {
-            const selected = [...form.querySelectorAll('[data-truck-choice]:checked')].map(input => Number(input.value));
+            const selected = [...selectedTrucks];
             for (const name of Object.keys(d)) if (name.startsWith('dispatcher_truck_')) delete d[name];
             if (dispatcherRoles.includes(d.role)) {
               if (!selected.length) throw new Error('Select at least one authorized truck for this Dispatcher account.');
@@ -118,7 +118,7 @@ const HeadAdminPage = {
         shiftInput.replaceChildren(new Option('Choose…', ''), ...options.map(s => new Option(s, s)));
         shiftInput.value = options.includes(current) ? current : '';
       };
-      role.addEventListener('change', () => { shiftInput.value = ''; refreshShifts(); });
+      role.addEventListener('change', () => { shiftInput.value = ''; selectedTrucks.clear(); truckSearch.value = ''; refreshShifts(); });
       refreshShifts();
     };
     const tabs = [];
