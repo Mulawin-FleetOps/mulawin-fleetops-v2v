@@ -1098,15 +1098,15 @@
 }
 .oh-dispatch-records .data-table tbody tr:hover td{background:#f8fcf9}
 .oh-dispatch-records .data-table th:nth-child(1),
-.oh-dispatch-records .data-table td:nth-child(1){width:19%}
+.oh-dispatch-records .data-table td:nth-child(1){width:17%}
 .oh-dispatch-records .data-table th:nth-child(2),
-.oh-dispatch-records .data-table td:nth-child(2){width:39%}
+.oh-dispatch-records .data-table td:nth-child(2){width:33%}
 .oh-dispatch-records .data-table th:nth-child(3),
-.oh-dispatch-records .data-table td:nth-child(3){width:18%}
+.oh-dispatch-records .data-table td:nth-child(3){width:17%}
 .oh-dispatch-records .data-table th:nth-child(4),
-.oh-dispatch-records .data-table td:nth-child(4){width:16%}
+.oh-dispatch-records .data-table td:nth-child(4){width:17%}
 .oh-dispatch-records .data-table th:nth-child(5),
-.oh-dispatch-records .data-table td:nth-child(5){width:8%;text-align:center}
+.oh-dispatch-records .data-table td:nth-child(5){width:16%;text-align:center}
 .oh-dispatch-records .fleet-trip-identity,
 .oh-dispatch-records .fleet-trip-route,
 .oh-dispatch-records .fleet-trip-dispatch{
@@ -1135,7 +1135,7 @@
   display:flex;align-items:flex-start;flex-direction:column;gap:6px;
 }
 .oh-dispatch-records .data-table tbody td:last-child .btn{
-  min-width:76px;padding:8px 12px;border-radius:9px;
+  min-width:76px;max-width:100%;padding:8px 12px;border-radius:9px;
   font-size:12px;font-weight:650;white-space:nowrap;
 }
 @media(prefers-reduced-motion:no-preference){
