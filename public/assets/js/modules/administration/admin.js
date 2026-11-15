@@ -33,22 +33,84 @@ const HeadAdminPage = {
         } });
     };
     const userForm = (u = {}) => {
-      const availableRoles = roles.filter(([role]) => roleAvailable(role, u));
+      const availableRoles = roles.filter(([role]) => (role !== 'audit' || (u.id && u.role === 'audit')) && roleAvailable(role, u));
       const wrap = UI.formModal(u.id ? 'Edit ' + UI.esc(u.username) : 'New user account', [
         { name: 'full_name', label: 'Full name', required: true, col: 6, value: u.full_name },
         ...(u.id ? [] : [{ name: 'username', label: 'Username', required: true, col: 6, help: 'Letters, numbers, dot, dash or underscore.' }]),
         { name: 'email', label: 'Email', type: 'email', required: true, col: 6, value: u.email },
         { name: 'role', label: 'Role', type: 'select', options: availableRoles, required: true, col: 6, value: u.role },
-        { name: 'shift', label: 'Shift (dispatchers)', type: 'select', options: UI.list(shifts), col: 6, value: u.shift }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
+        { name: 'shift', label: 'Assigned Shift', type: 'select', options: UI.list(shifts), col: 6, value: u.shift },
+        { type: 'html', col: 12, html: '<section class="admin-dispatcher-truck-section" data-dispatcher-trucks hidden><div class="admin-dispatcher-truck-title"><strong><i class="bi bi-truck" aria-hidden="true"></i> Assigned Trucks</strong><span data-truck-count>0 selected</span></div><p class="small text-muted mb-2">Choose the trucks this account can manage. The same truck may be authorized for Day and Night, but existing trip holds still prevent conflicts.</p><input class="form-control form-control-sm mb-2" type="search" data-truck-search placeholder="Search truck number or plate" aria-label="Search available trucks"><div class="admin-dispatcher-truck-list" data-truck-list></div><div class="form-help mt-2" data-truck-warning></div></section>' }], 'Admin.user_save', { extra: u.id ? { id: u.id } : {},
           intro: u.id ? '' : 'The system generates a one-time temporary password. You will see it once after saving.',
+          transform: (d, form) => {
+            const selected = [...form.querySelectorAll('[data-truck-choice]:checked')].map(input => Number(input.value));
+            for (const name of Object.keys(d)) if (name.startsWith('dispatcher_truck_')) delete d[name];
+            if (dispatcherRoles.includes(d.role)) {
+              if (!selected.length) throw new Error('Select at least one authorized truck for this Dispatcher account.');
+              d.assigned_truck_ids = selected;
+            } else d.assigned_truck_ids = [];
+            return d;
+          },
           after: (r) => { App.route(); if (r.temporary_password) showTempPassword(r); } });
       const role = wrap.querySelector('[name=role]');
       const shiftInput = wrap.querySelector('[name=shift]');
       const shiftWrapper = shiftInput.closest('[class*=col-]');
+      const truckSection = wrap.querySelector('[data-dispatcher-trucks]');
+      const truckList = wrap.querySelector('[data-truck-list]');
+      const truckSearch = wrap.querySelector('[data-truck-search]');
+      const truckCount = wrap.querySelector('[data-truck-count]');
+      const existingTrucks = new Set((d.dispatcherTrucks || []).filter(x => String(x.dispatcher_id) === String(u.id)).map(x => Number(x.vehicle_id)));
+      const selectedTrucks = new Set(existingTrucks);
+      const truckChoices = (d.truckOptions || []).filter(v => Number(v.id) > 0);
+      const matchingTrucks = () => truckChoices.filter(v => role.value === 'car_carrier_dispatcher'
+        ? v.truck_type === 'Car Carrier'
+        : ['Container', 'Wing Van'].includes(v.truck_type));
+      const updateTruckCount = () => {
+        const compatible = new Set(matchingTrucks().map(v => Number(v.id)));
+        truckCount.textContent = [...selectedTrucks].filter(id => compatible.has(id)).length + ' selected';
+      };
+      const renderTrucks = () => {
+        const query = truckSearch.value.toLowerCase().trim();
+        const options = matchingTrucks().filter(v => [v.truck_number,v.plate_number,v.truck_type].some(x => String(x || '').toLowerCase().includes(query)));
+        truckList.replaceChildren();
+        if (!options.length) {
+          const note = document.createElement('p');
+          note.className = 'small text-muted mb-0 p-2';
+          note.textContent = truckChoices.length ? 'No matching trucks for this dispatcher group.' : 'No active trucks found. Add vehicles in the Trucks masterlist first.';
+          truckList.append(note);
+        }
+        options.forEach(v => {
+          const id = 'dispatcher-truck-' + v.id;
+          const item = document.createElement('label');
+          item.className = 'admin-dispatcher-truck-choice';
+          item.setAttribute('for', id);
+          const checkbox = document.createElement('input');
+          checkbox.type='checkbox'; checkbox.name='dispatcher_truck_' + v.id;
+          checkbox.value=String(v.id); checkbox.id=id;
+          checkbox.dataset.truckChoice='1'; checkbox.checked=selectedTrucks.has(Number(v.id));
+          const details = document.createElement('span');
+          details.className = 'admin-dispatcher-truck-info';
+          const title = document.createElement('strong');
+          title.textContent = v.truck_number || v.plate_number;
+          const sub = document.createElement('small');
+          sub.textContent = (v.truck_number && v.plate_number ? v.plate_number + ' · ' : '') + v.truck_type;
+          details.append(title,sub); item.append(checkbox,details);
+          checkbox.onchange = () => { if(checkbox.checked)selectedTrucks.add(Number(v.id)); else selectedTrucks.delete(Number(v.id));updateTruckCount(); };
+          truckList.append(item);
+        });
+        updateTruckCount();
+      };
+      truckSearch.oninput = renderTrucks;
       const refreshShifts = () => {
         const dispatch = dispatcherRoles.includes(role.value);
         shiftWrapper.style.display = dispatch ? '' : 'none';
+        truckSection.hidden = !dispatch;
         shiftInput.required = dispatch;
+        if (dispatch) {
+          const compatible = new Set(matchingTrucks().map(v => Number(v.id)));
+          for (const id of selectedTrucks) if (!compatible.has(id)) selectedTrucks.delete(id);
+          renderTrucks();
+        }
         if (!dispatch) { shiftInput.value = ''; return; }
         const current = shiftInput.value;
         const options = shifts.filter(s => (u.id && role.value === u.role && s === u.shift) ||
