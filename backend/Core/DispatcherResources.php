@@ -15,6 +15,7 @@ final class DispatcherResources {
         $eligible=[];$plan=CrewAttendance::planningShift($t);
         foreach($people as $pe){
             if(DispatcherAttendance::blocker($p,$crewScope,(int)$pe['id'],(int)$t['id'],$lock))continue;
+            if(FleetState::personBlocker($p,(int)$pe['id'],(int)$t['id']))continue;
             $check=CrewAttendance::assignmentCheck($p,(int)$pe['id'],$plan);
             if($check['absent']||(CrewAttendance::mode()===CrewAttendance::MODE_ENFORCE&&$check['issue']))continue;
             $eligible[(int)$pe['id']]=['id'=>(int)$pe['id'],'name'=>$pe['full_name'],'shift_warning'=>$check['issue']];
@@ -69,10 +70,12 @@ final class DispatcherResources {
         if(empty($t['truck_type']))return ['Truck type is not set.'];
         $u=['id'=>0,'role'=>dispatcherRoleFor($t['truck_type'])];$why=[];
         foreach(['driver_id','driver2_id','helper_id'] as $key){if(empty($t[$key]))continue;
+            if($block=FleetState::personBlocker($p,(int)$t[$key],(int)$t['id']))$why[]=$block;
             try{if($block=DispatcherAttendance::blocker($p,$u,(int)$t[$key],(int)$t['id'],$lock))$why[]=$block;}
             catch(BusinessRuleException $e){$why[]='Assigned personnel have no verified link to this operational group.';}
         }
         if(!empty($t['vehicle_id'])){
+            if($block=FleetState::truckBlocker($p,(int)$t['vehicle_id'],(int)$t['id']))$why[]=$block;
             try{
                 DispatcherScope::truck($p,$u,(int)$t['vehicle_id']);
                 foreach(['driver_id','driver2_id'] as $col){
