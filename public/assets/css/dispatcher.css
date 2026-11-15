@@ -301,3 +301,38 @@
   .dispatcher-role .ds-summary-card { transition: none; }
   .dispatcher-role .ds-summary-card:hover { transform: none; }
 }
+
+/* Dispatcher assignment: trip-plan summary and eligible resource selection. */
+.ds-resource-assignment-modal .modal-dialog{max-width:720px}
+.ds-resource-assignment-modal .modal-body{display:grid;gap:14px}
+.ds-resource-assignment-modal .ds-assignment-plan{
+  padding:16px;border:1px solid #dbe8df;border-radius:12px;background:#f7fbf8;
+}
+.ds-resource-assignment-modal .ds-assignment-plan-title{
+  display:flex;align-items:center;gap:8px;margin-bottom:11px;
+  color:#245137;font-size:13px;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dl{margin:0;display:grid;gap:0}
+.ds-resource-assignment-modal .ds-assignment-plan dl>div{
+  display:grid;grid-template-columns:minmax(110px,32%) minmax(0,1fr);
+  gap:12px;padding:9px 0;border-top:1px solid #e1ebe4;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dt{
+  color:#678070;font-size:12px;font-weight:650;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dd{
+  margin:0;min-width:0;color:#2d4938;font-size:12.5px;
+  overflow-wrap:anywhere;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dd>span{
+  display:block;color:#6c8073;font-size:11.5px;margin-top:2px;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .row{row-gap:12px}
+.ds-resource-assignment-modal .alert{margin:0;font-size:12px;line-height:1.6}
+@media(max-width:530px){
+  .ds-resource-assignment-modal .ds-assignment-plan dl>div{grid-template-columns:1fr;gap:3px}
+}
+/* Keep the Dispatcher assignment action legible without enlarging every column. */
+.dispatcher-trips-workspace .oh-dispatch-table-wrap .data-table td:last-child .btn{
+  white-space:normal;min-width:120px;line-height:1.3;
+}
