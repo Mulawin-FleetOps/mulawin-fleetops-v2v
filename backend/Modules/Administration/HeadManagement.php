@@ -57,6 +57,7 @@ final class HeadManagement {
      * still categorizes these records as Missed, without modifying the database.
      */
     private static function pendingMissedSql(): string {
+        Actions::load('Trips');
         return Trips::pendingMissedSql();
     }
 
