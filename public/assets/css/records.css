@@ -904,6 +904,29 @@
 }
 
 
+/* Head Management Trip Monitoring: use the larger Operations Trips tab dimensions.
+   Keep the shared RecordComponents category buttons and their existing handlers. */
+.head-trip-dashboard .record-workspace-category-row {
+  min-height:57px;
+  padding:12px 20px;
+}
+.head-trip-dashboard .record-workspace-categories {
+  gap:8px;
+}
+.head-trip-dashboard .record-workspace-categories > .btn {
+  min-height:37px;
+  padding:8px 13px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.4;
+}
+@media (max-width:700px) {
+  .head-trip-dashboard .record-workspace-category-row {
+    padding:11px 14px;
+  }
+}
+
 /* Fuel & Operating Costs: three equally weighted price status cards. */
 .head-fuel-diesel-content .head-fuel-price-grid{
   grid-template-columns:repeat(3,minmax(0,1fr));
