@@ -44,15 +44,62 @@ final class Admin {
             $data = mergeSections($data, [
                 'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, active, must_change_password, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, shift, full_name'),
                 'fundCategories' => fn() => many($p, 'SELECT * FROM fund_categories ORDER BY sort_order, name'),
+                'dispatcherTrucks' => fn() => self::dispatcherTruckAssignments($p),
+                'truckOptions' => fn() => many($p, "SELECT id, truck_number, plate_number, truck_type FROM vehicles WHERE active=1 AND truck_type IN ('Car Carrier','Container','Wing Van') ORDER BY truck_type, truck_number, plate_number"),
             ]);
             $data['settings'] = Settings::all();
             $dir = dirname(__DIR__, 3) . '/storage/backups';
             $data['backups'] = array_values(array_map(fn($f) => ['name' => basename($f), 'size' => filesize($f), 'date' => date('Y-m-d H:i', filemtime($f))],
                 array_reverse(glob($dir . '/mulawin_backup_*.sql') ?: [])));
         }
-        $data['roles'] = ROLE_LABELS;
+        $data['roles'] = array_diff_key(ROLE_LABELS, ['audit' => true]);
         $data['can'] = ['admin' => hasRole($u, 'admin')];
         return $data;
+    }
+    /** Missing migration fails closed for writes, but does not break user-list reads. */
+    private static function truckAuthorizationReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='dispatcher_truck_authorizations'");
+    }
+    private static function dispatcherTruckAssignments(PDO $p): array {
+        if (!self::truckAuthorizationReady($p)) return [];
+        return many($p, 'SELECT dispatcher_id, vehicle_id FROM dispatcher_truck_authorizations ORDER BY dispatcher_id, vehicle_id');
+    }
+    private static function saveDispatcherTrucks(PDO $p, int $id, string $role, array $d, int $actor): void {
+        $isDispatcher = roleIsDispatcher($role);
+        if (!$isDispatcher && !array_key_exists('assigned_truck_ids', $d)) return;
+        must(self::truckAuthorizationReady($p),
+            'Install the dispatcher truck authorization migration before editing dispatcher truck assignments.', 409);
+        $provided = $d['assigned_truck_ids'] ?? [];
+        must(is_array($provided) && array_is_list($provided), 'Invalid assigned truck list.');
+        must(count($provided) <= 300, 'Too many assigned trucks.');
+        $ids=[];
+        foreach ($provided as $value) {
+            must((is_int($value) || is_string($value)) && preg_match('/^[1-9][0-9]*$/', (string)$value), 'Invalid truck selection.');
+            $ids[] = (int)$value;
+        }
+        must(count($ids) === count(array_unique($ids)), 'Duplicate assigned trucks.');
+        if (!$isDispatcher) must(!$ids, 'Only Dispatcher accounts can have assigned trucks.');
+        if ($isDispatcher) {
+            must((bool)$ids, 'Select at least one authorized truck for the Dispatcher account.');
+            $allowed = $role === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container','Wing Van'];
+            $marks = implode(',', array_fill(0, count($ids), '?'));
+            $typeMarks = implode(',', array_fill(0, count($allowed), '?'));
+            $matches = many($p, "SELECT id FROM vehicles WHERE id IN ($marks) AND active=1 AND truck_type IN ($typeMarks) ORDER BY id FOR UPDATE", [...$ids,...$allowed]);
+            must(count($matches) === count($ids), 'Select only active trucks compatible with the Dispatcher role.', 409);
+        }
+        // Never replace trip-responsibility/turnover ownership here.
+        // Replacing authorization for already assigned vehicles is disallowed if they
+        // are in the dispatcher's outstanding trip responsibilities.
+        $existing = array_map('intval', array_column(many($p,'SELECT vehicle_id FROM dispatcher_truck_authorizations WHERE dispatcher_id=? FOR UPDATE',[$id]),'vehicle_id'));
+        $removed = array_diff($existing, $ids);
+        if ($removed) {
+            $marks = implode(',', array_fill(0, count($removed), '?'));
+            $busy = one($p, "SELECT t.trip_ref FROM trips t JOIN trip_responsibilities r ON r.trip_id=t.id WHERE r.current_dispatcher_id=? AND t.vehicle_id IN ($marks) AND t.status NOT IN ('Cancelled','Rejected') LIMIT 1",[$id,...$removed]);
+            must(!$busy, 'Cannot remove a truck assigned to an existing trip under this dispatcher. Resolve or transfer the trip first.',409);
+        }
+        run($p, 'DELETE FROM dispatcher_truck_authorizations WHERE dispatcher_id=?', [$id]);
+        foreach ($ids as $vid) run($p, 'INSERT INTO dispatcher_truck_authorizations(dispatcher_id,vehicle_id,authorized_by) VALUES(?,?,?)', [$id,$vid,$actor]);
+        audit($p,$actor,'Access','user '.$id,'dispatcher truck authorizations updated', 'Authorized truck count: '.count($ids));
     }
     private static function d(string $v): ?string { return ($v !== '' && DateTimeImmutable::createFromFormat('!Y-m-d', $v)) ? $v : null; }
 
@@ -203,6 +250,7 @@ final class Admin {
         requireRole($u, 'admin');
         $id = optId($d, 'id');
         $role = choiceField($d, 'role', allowedRoles());
+        must($role !== 'audit' || optId($d, 'id') !== null, 'New Audit accounts are no longer available.', 409);
         $shift = roleIsDispatcher($role) ? choiceField($d, 'shift', ['Day', 'Night']) : null;
         $name = field($d, 'full_name', 100);
         $email = self::emailField($d);
@@ -218,6 +266,7 @@ final class Admin {
                 }
                 if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'])) self::assertRoleShiftVacancy($p, $role, $shift, $id);
                 run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=? WHERE id=?', [$name, $email, $role, $shift, $id]);
+                self::saveDispatcherTrucks($p, $id, $role, $d, (int)$u['id']);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
                     ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift']],
                     ['Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift]);
@@ -230,6 +279,7 @@ final class Admin {
             self::assertRoleShiftVacancy($p, $role, $shift);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
                 'full_name' => $name, 'role' => $role, 'shift' => $shift, 'must_change_password' => 1]);
+            self::saveDispatcherTrucks($p, $id, $role, $d, (int)$u['id']);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
                 ['Username' => $username, 'Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Active' => 'Yes']);
             return ['id' => $id, 'temporary_password' => $pw, 'temporary_for' => $username,
