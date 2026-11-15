@@ -302,7 +302,7 @@ const HeadAdminPage = {
           ['After', 'after', v => UI.esc(v === null || v === '' ? '—' : String(v))]],
           changes, { plain: true, limit: 30 })
         : '<p class="small text-muted mt-3">No field-by-field changes recorded for this activity.</p>');
-      const drawer = UI.drawer('Activity details', html, { subtitle: 'Read-only audit record' });
+      const drawer = UI.drawer('Activity details', html, { subtitle: 'Audit record' });
       UI.activate(drawer);
     };
     tabs.push(['log', 'Activity log', () => UI.filterModal(ctx, [{ name: 'from', label: 'Start date', type: 'date', col: 6 }, { name: 'to', label: 'End date', type: 'date', col: 6 },
