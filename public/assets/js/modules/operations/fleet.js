@@ -165,57 +165,87 @@ const FleetUI = {
       catch(error){ return UI.toast(error.message,'error'); }
     }
     const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
-    const trucks=(d.assignmentTrucks||[]).filter(t=>!t.assigned_driver_id||String(t.assigned_driver_id)===String(p.id));
+    const allTrucks=d.assignmentTrucks||[];
+    const already=String(p.authorized_truck_ids||'').split(',').map(Number).filter(Number.isInteger);
+    // Preserve legacy fixed links when upgrading a database that has not yet
+    // displayed the additive authorization backfill.
+    if(driver&&!already.length&&p.fixed_truck_id)already.push(+p.fixed_truck_id);
+    const groups=['Car Carrier','Container','Wing Van'];
+    const authorizedBoxes=driver?'<div class="driver-auth-layout" role="group" aria-label="Authorized specific trucks">'
+      +groups.map(group=>{
+        const candidates=allTrucks.filter(t=>t.truck_type===group);
+        return '<section class="driver-auth-box"><h4><i class="bi bi-truck" aria-hidden="true"></i>'+UI.esc(group)+'</h4>'
+          +'<div class="driver-auth-options">'
+          +(candidates.length?candidates.map(truck=>{
+            const key='auth_truck_'+truck.id,checked=already.includes(+truck.id)?' checked':'';
+            return '<label class="driver-auth-option"><input type="checkbox" name="'+key+'" value="1"'+checked+'>'
+              +'<span><strong>'+UI.esc(truck.plate_number)+'</strong><small>'
+              +UI.esc(truck.truck_number?'Unit '+truck.truck_number:'Authorized vehicle')+'</small></span></label>';
+          }).join(''):'<p class="driver-auth-empty">No active trucks</p>')
+          +'</div></section>';
+      }).join('')
+      +'</div><p class="driver-auth-count" role="status" aria-live="polite" data-authorized-count></p>':'';
     const identity=[
       {name:'person_type',type:'hidden',value:type},
       {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
       {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
       {name:'contact_number',label:'Contact Number',col:4,value:p.contact_number},
       {name:'date_hired',label:'Date Hired',type:'date',col:4,value:p.date_hired},
-      ...(!driver ? [
+      ...(!driver?[
         {name:'license_number',type:'hidden',value:p.license_number},
         {name:'license_expiry',type:'hidden',value:p.license_expiry},
-      ] : []),
+      ]:[]),
     ];
     const licensing=driver?[
       {name:'license_number',label:'License Number',required:true,col:6,value:p.license_number},
       {name:'license_expiry',label:'License Expiry',type:'date',required:true,col:6,value:p.license_expiry},
     ]:[];
-    const assignment=driver?[
-      {name:'fixed_truck_id',label:'Fixed Truck',type:'select',required:true,col:6,value:p.fixed_truck_id,
-        options:trucks.map(t=>[t.id,t.plate_number+' - '+t.truck_type])},
-      {name:'regular_helper_id',label:'Regular Helper',type:'select',col:6,value:p.regular_helper_id,
-        options:(d.assignmentHelpers||[]).map(h=>[h.id,h.full_name])},
-    ]:[];
     const additional=[
       {name:'address',label:'Address',col:12,value:p.address},
       {name:'notes',label:'Notes',type:'textarea',rows:2,col:12,value:p.notes},
     ];
+    const section=FormComponents.section('Driver License','bi-card-checklist',licensing);
+    const authorization='<section class="record-form-section driver-auth-section">'
+      +'<div class="record-form-section-title"><i class="bi bi-truck" aria-hidden="true"></i>'
+      +'<h3>Authorized Trucks</h3></div>'
+      +'<p class="form-help">Choose the specific trucks this driver may operate. '
+      +'Authorization does not reserve a truck; availability is checked during dispatch.</p>'
+      +authorizedBoxes+'</section>';
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
-      ...(driver?[FormComponents.section('License & Assignment','bi-card-checklist',[...licensing,...assignment])]:[]),
+      ...(driver?[section,authorization]:[]),
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
-      intro:'Role: '+type+'. Employee number, contact, date hired, address and notes can be updated here.',
+      intro:'Role: '+type+'. Driver truck authorizations are configured here and actual trip assignments are selected by the Dispatcher.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
       compactSize:driver?'normal':'small',
+      transform:values=>{
+        if(!driver)return values;
+        const keys=Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k));
+        const authorized=keys.filter(k=>+values[k]===1).map(k=>Number(k.slice('auth_truck_'.length)));
+        for(const key of keys)delete values[key];
+        return {...values,authorized_vehicle_ids:JSON.stringify(authorized)};
+      },
       after(){UI.closeDrawer();App.route();},
       onShow(wrap,form){
         if(!driver)return;
-        const pick=form.querySelector('[name=fixed_truck_id]'),
-          helper=form.querySelector('[name=regular_helper_id]');
-        const refresh=()=>{
-          const truck=trucks.find(t=>String(t.id)===pick.value),cc=truck?.truck_type==='Car Carrier';
-          helper.closest('[class*=col-]').hidden=cc;
-          helper.disabled=cc;
-          helper.required=!cc;
-          if(cc)helper.value='';
-          else if(truck?.assigned_helper_id&&!helper.value)helper.value=truck.assigned_helper_id;
+        const inputs=[...form.querySelectorAll('.driver-auth-option input[type=checkbox]')];
+        const count=wrap.querySelector('[data-authorized-count]');
+        const update=()=>{
+          const n=inputs.filter(input=>input.checked).length;
+          if(count)count.textContent=n+' truck'+(n===1?'':'s')+' selected';
         };
-        pick.onchange=refresh;refresh();
+        inputs.forEach(input=>input.addEventListener('change',update));update();
+        form.addEventListener('submit',event=>{
+          if(inputs.some(input=>input.checked))return;
+          event.preventDefault();event.stopImmediatePropagation();
+          const error=wrap.querySelector('.form-error');
+          if(error){error.textContent='Select at least one authorized truck.';error.style.display='block';}
+          inputs[0]?.focus();
+        },true);
       },
     });
   },
