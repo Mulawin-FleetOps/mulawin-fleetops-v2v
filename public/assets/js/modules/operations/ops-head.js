@@ -281,7 +281,7 @@ const OpsHead = {
       title:tab === 'open' ? 'Ongoing Incident Records' : 'Resolved Incident Records',
       addSelector:'.record-workspace-add',
     });
-    workspace.querySelector('.record-workspace-category-row')?.remove();
+    RecordComponents.mountViewTabs(workspace);
     workspace.querySelectorAll('[data-incident-view]').forEach(button => button.addEventListener('click',()=>{
       const next={...query,tab:'incidents',incident:button.dataset.incidentView};
       delete next.incident_type; delete next.job_status;
@@ -428,7 +428,7 @@ const OpsHead = {
       title:tab==='approved'?'Approved Route Records':'Route Request Records',
       addSelector:'.record-workspace-add',
     });
-    ctx.el.querySelector('.record-workspace-category-row')?.remove();
+    RecordComponents.mountViewTabs(ctx.el);
     ctx.el.querySelector('.record-workspace-add')?.addEventListener('click',()=>RouteUI.request(d));
     ctx.el.querySelectorAll('[data-route-view]').forEach(button=>button.addEventListener('click',()=>{
       const next={...ctx.query,tab:button.dataset.routeView};
