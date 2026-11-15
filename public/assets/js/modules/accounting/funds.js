@@ -8,7 +8,7 @@ const FundUI = {
   async details(id) {
     let f;try{f=(await App.api('Funds.details',{fund_id:id})).fund;}catch(error){return UI.toast(error.message,'error');}
     const html=UI.fundProgress(f)+UI.h('Request')+UI.kv([['Reference',UI.e(f.fund_ref)],['Trip',UI.e(f.trip_ref)],['Client',UI.e(f.client)],['Truck',UI.e(f.plate_number)],['Trip status',UI.e(f.trip_status)],['Requested by',UI.e(f.requested_by_name)],['Amount',UI.money(f.amount)],['Status',UI.badge(f.status)],['Rejection reason',UI.e(f.rejected_reason)],['Notes',UI.e(f.notes)]])+UI.h('Breakdown')+UI.table([['Category','category_name'],['Amount','amount','money']],f.lines||[],{plain:true})+UI.h('Release & Liquidation')+UI.kv([['Approved by',UI.e(f.approved_by_name)],['Released by',UI.e(f.released_by_name)],['Voucher',UI.e(f.voucher_number)],['Payment method',UI.e(f.payment_method)],['Reference',UI.e(f.reference_number)],['Released',UI.datetime(f.released_at)],['Liquidation status',UI.e(f.liquidation_status)],['Spent',UI.money(f.liquidated_amount)],['Returned',UI.money(f.returned_amount)],['Liquidation notes',UI.e(f.liquidation_notes)]])+UI.h('Documents')+UI.docs(f.documents||[])+UI.h('Activity')+UI.activity(f.history||[]);
-    const drawer=UI.drawer(UI.esc(f.fund_ref),html,{subtitle:'Read-only fund request'});
+    const drawer=UI.drawer(UI.esc(f.fund_ref),html,{subtitle:'Fund request details'});
     UI.drawerSections(drawer,[['summary','Summary',['Request']],['breakdown','Expense Breakdown',['Breakdown']],['release','Release & Liquidation',['Release & Liquidation']],['docs','Documents',['Documents']],['history','Activity',['Activity']]],{key:'fund-details'});
   },
   async print(id) {
