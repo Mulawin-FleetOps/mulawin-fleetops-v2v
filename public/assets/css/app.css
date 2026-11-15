@@ -2780,10 +2780,20 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 
 /* Dispatcher account assignment – polished responsive selection layout.
    Presentation only: existing form fields and selection logic are untouched. */
-.admin-account-modal .modal-body .row:has(.admin-dispatcher-type-choices) > [class*="col-"]{
+.admin-account-modal .modal-body .row > [class*="col-"]:has(.admin-dispatcher-type-choices),
+.admin-account-modal .modal-body .row > [class*="col-"]:has(.admin-dispatcher-shift-choices){
   flex:0 0 100%;
   width:100%;
   max-width:100%;
+}
+/* Keep Full Name + Username and Email + Role in their original two-column rows. */
+.admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="full_name"]),
+.admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="username"]),
+.admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="email"]),
+.admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="role"]){
+  flex:0 0 auto;
+  width:50%;
+  max-width:50%;
 }
 .admin-account-modal .admin-dispatcher-type-choices{
   display:grid;
@@ -2880,5 +2890,21 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .admin-account-modal .admin-dispatcher-type-option,
   .admin-account-modal .admin-dispatcher-shift-option{
     transition:none;
+  }
+}
+
+/* Preview follows the full-width dispatcher controls rather than spanning a separate column. */
+.admin-account-modal .modal-body .row > .admin-dispatcher-assignment-preview{
+  flex:0 0 calc(100% - 24px);
+  width:calc(100% - 24px);
+  margin:3px 12px 0;
+}
+@media(max-width:575.98px){
+  .admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="full_name"]),
+  .admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="username"]),
+  .admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="email"]),
+  .admin-account-modal .modal-body .row > [class*="col-"]:has(> [name="role"]){
+    width:100%;
+    max-width:100%;
   }
 }
