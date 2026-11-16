@@ -1,0 +1,184 @@
+/* Mulawin Finance/Billing live workspace styling.
+   Visual adaptation of the approved standalone billing-finance wireframe.
+   CSS only: existing PHP backend, RBAC, forms, handlers, tables, routing,
+   profile and shared hover/pin behavior are unchanged. */
+#appShell.accounting-wireframe {
+  --accounting-green:#176e40;
+  --accounting-ink:#193c2a;
+  --accounting-muted:#697f72;
+  --accounting-line:#dbe7dd;
+  --accounting-paper:#fff;
+}
+#appShell.accounting-wireframe .main {
+  min-width:0;background:#f4f8f5;color:var(--accounting-ink);
+}
+#appShell.accounting-wireframe .topbar {
+  background:#fff;border-bottom:1px solid var(--accounting-line);
+  min-height:74px;
+}
+#appShell.accounting-wireframe .topbar .topbar-title,
+#appShell.accounting-wireframe .page-title,
+#appShell.accounting-wireframe h1 {
+  color:#173e29;
+}
+#appShell.accounting-wireframe .sidebar {
+  background:linear-gradient(165deg,#135d36,#10492e) !important;
+  color:#e8f6ec;
+}
+#appShell.accounting-wireframe .sidebar-nav .nav-item-link.active,
+#appShell.accounting-wireframe .sidebar-nav .head-nav-items .nav-item-link.active {
+  background:#dff3e3 !important;color:#135b33 !important;
+  box-shadow:inset 3px 0 #57b777 !important;
+}
+#appShell.accounting-wireframe .sidebar-nav .nav-item-link.active .bi {
+  color:#135b33 !important;
+}
+#appShell.accounting-wireframe .sidebar-nav .head-nav-group:has(.nav-item-link.active)>summary {
+  background:transparent !important;box-shadow:none !important;
+  color:#def0e4 !important;
+}
+#appShell.accounting-wireframe .content,
+#appShell.accounting-wireframe .main-content,
+#appShell.accounting-wireframe .workspace-content {
+  min-width:0;
+}
+#appShell.accounting-wireframe .panel,
+#appShell.accounting-wireframe .stat-card,
+#appShell.accounting-wireframe .kpi-card,
+#appShell.accounting-wireframe .ws-kpi,
+#appShell.accounting-wireframe .metric-card {
+  background:var(--accounting-paper);
+  border:1px solid var(--accounting-line);
+  border-radius:13px;
+  box-shadow:0 2px 9px rgba(20,60,36,.065);
+}
+#appShell.accounting-wireframe .panel {
+  overflow:hidden;margin-bottom:20px;
+}
+#appShell.accounting-wireframe .panel-head {
+  padding:17px 20px;border-bottom:1px solid var(--accounting-line);
+  background:#fff;min-height:55px;display:flex;align-items:center;
+  justify-content:space-between;gap:12px;
+}
+#appShell.accounting-wireframe .panel-title {
+  color:#193c2a;font-size:15px;font-weight:750;margin:0;
+}
+#appShell.accounting-wireframe .panel-body {padding:19px 20px;}
+#appShell.accounting-wireframe .panel-body.flush {padding:0;}
+#appShell.accounting-wireframe .line-tabs {
+  display:flex;gap:5px;flex-wrap:wrap;
+  margin:0 0 18px;border-bottom:1px solid var(--accounting-line);
+  background:transparent;
+}
+#appShell.accounting-wireframe .line-tabs .tab {
+  background:transparent;border:0 !important;
+  border-bottom:2px solid transparent !important;
+  border-radius:0 !important;padding:12px 15px !important;
+  color:#647b6d;font-size:12px;font-weight:700;
+  box-shadow:none !important;
+}
+#appShell.accounting-wireframe .line-tabs .tab:hover {
+  background:#eff7f1;color:#176e40;
+}
+#appShell.accounting-wireframe .line-tabs .tab.active {
+  color:#146a3d !important;border-bottom-color:#177b43 !important;
+  background:transparent !important;
+}
+#appShell.accounting-wireframe table {
+  width:100%;border-collapse:collapse;color:#244330;
+}
+#appShell.accounting-wireframe table thead th,
+#appShell.accounting-wireframe .table thead th {
+  background:#f2f7f3;color:#607569;font-size:10px;
+  text-transform:uppercase;letter-spacing:.055em;
+  font-weight:750;padding:12px 13px;
+  border-bottom:1px solid #e6eee7;
+}
+#appShell.accounting-wireframe table tbody td,
+#appShell.accounting-wireframe .table tbody td {
+  padding:13px;border-bottom:1px solid #e6eee7;
+  vertical-align:middle;
+}
+#appShell.accounting-wireframe table tbody tr:hover td {background:#fbfdfa;}
+#appShell.accounting-wireframe .mo-item {
+  padding:13px 18px;border-bottom:1px solid #e6eee7;
+}
+#appShell.accounting-wireframe .mo-item:hover {background:#f5faf6;}
+#appShell.accounting-wireframe .badge-s.green,
+#appShell.accounting-wireframe .badge-s.blue {
+  background:#e1f3e5;color:#13703a;
+}
+#appShell.accounting-wireframe .badge-s.amber {
+  background:#fff1dd;color:#94651b;
+}
+#appShell.accounting-wireframe .badge-s.red {
+  background:#fde8e7;color:#a43a39;
+}
+#appShell.accounting-wireframe .btn-primary,
+#appShell.accounting-wireframe .btn-success {
+  background:#16743e;border-color:#16743e;
+  color:#fff;border-radius:8px;font-weight:650;
+}
+#appShell.accounting-wireframe .btn-primary:hover,
+#appShell.accounting-wireframe .btn-success:hover {
+  background:#105b30;border-color:#105b30;
+}
+#appShell.accounting-wireframe .btn-outline-primary {
+  color:#1b633a;border-color:#bbd6c3;border-radius:8px;
+}
+#appShell.accounting-wireframe .btn-outline-primary:hover {
+  background:#eef7f0;border-color:#8abe99;color:#125d35;
+}
+#appShell.accounting-wireframe .kpi-tiles,
+#appShell.accounting-wireframe .ws-stats,
+#appShell.accounting-wireframe .mo-stats {
+  gap:13px;margin-bottom:20px;
+}
+#appShell.accounting-wireframe .kpi-tile,
+#appShell.accounting-wireframe .ws-stat,
+#appShell.accounting-wireframe .mo-stat {
+  background:#fff;border:1px solid #dbe7dd;
+  border-radius:13px;padding:18px;
+  box-shadow:0 2px 9px rgba(20,60,36,.06);
+}
+#appShell.accounting-wireframe .kpi-tile .value,
+#appShell.accounting-wireframe .mo-stat strong {
+  color:#193c2a;font-weight:820;
+}
+#appShell.accounting-wireframe .general-filter-bar,
+#appShell.accounting-wireframe .compact-filter-bar {
+  background:#f5faf6;border:1px solid #e1ece3;border-radius:10px;
+}
+#appShell.accounting-wireframe .ws-bar-fill {background:#176e40;}
+/* Form modals are shared components; scope only to account sessions.
+   Do not change visibility or validation of any production form field. */
+body:has(#appShell.accounting-wireframe) .modal-content {
+  border:1px solid #dbe7dd;border-radius:16px;
+  box-shadow:0 24px 85px rgba(0,0,0,.17);
+  overflow:hidden;
+}
+body:has(#appShell.accounting-wireframe) .modal-header {
+  padding:18px 22px;border-bottom:1px solid #dbe7dd;
+}
+body:has(#appShell.accounting-wireframe) .modal-body {padding:21px 22px;}
+body:has(#appShell.accounting-wireframe) .modal-footer {
+  padding:15px 22px;border-top:1px solid #dbe7dd;
+}
+body:has(#appShell.accounting-wireframe) .form-control,
+body:has(#appShell.accounting-wireframe) .form-select {
+  border-color:#cbdccf;border-radius:8px;
+}
+body:has(#appShell.accounting-wireframe) .form-control:focus,
+body:has(#appShell.accounting-wireframe) .form-select:focus {
+  border-color:#1a8249;box-shadow:0 0 0 .2rem rgba(26,130,73,.13);
+}
+@media(max-width:760px) {
+  #appShell.accounting-wireframe .panel-head,
+  #appShell.accounting-wireframe .panel-body {padding:13px;}
+  #appShell.accounting-wireframe .line-tabs .tab {padding:10px 11px !important;}
+  #appShell.accounting-wireframe table tbody td {padding:9px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  #appShell.accounting-wireframe .panel,
+  #appShell.accounting-wireframe .btn {transition:none !important;}
+}
