@@ -1,0 +1,158 @@
+/* Hover / Pin Sidebar — same design language as the approved HTML preview.
+   Desktop only. Unpinned hover overlays content; pin reserves space.
+   Uses the existing authenticated navigation and role-based route checks. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar {
+    --sidebar-w: 260px;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed {
+    --sidebar-w: 76px;
+  }
+  #appShell.hover-pin-sidebar.sb-pinned {
+    --sidebar-w: 260px;
+  }
+  #appShell.hover-pin-sidebar .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w) !important;
+    height: 100vh;
+    z-index: 1030;
+    overflow: visible;
+    transition: width .2s ease, transform .18s ease;
+    box-shadow: 1px 0 2px rgba(4,44,23,.08);
+  }
+  #appShell.hover-pin-sidebar .main {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    margin-left: var(--sidebar-w) !important;
+    transition: margin-left .2s ease;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed.sb-hover-open .sidebar {
+    width: 260px !important;
+    z-index: 1040;
+    box-shadow: 12px 0 34px rgba(11,42,25,.22);
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed.sb-hover-open .main {
+    margin-left: 76px !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav {
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  /* Compact rail — real icons remain visible, text is hidden. */
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-top {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    min-height: 93px; padding: 10px 7px;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-brand {
+    flex: none; justify-content: center; gap: 0; padding: 0;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar .brand-text,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .nav-item-link span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-group > summary span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-chevron,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-foot,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-logout-button span {
+    display: none !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav {
+    padding: 9px 8px 12px;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav > .nav-item-link,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-group > summary {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 46px; padding: 10px 5px;
+    margin: 3px 0; gap: 0;
+    overflow: hidden; border-radius: 8px;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav > .nav-item-link > i,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .head-nav-group > summary > i:first-child {
+    flex: none; width: 22px; font-size: 20px; text-align: center;
+  }
+  /* Hover overlay — restore the full, uncollapsed navigation geometry. */
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-top {
+    display: flex !important; flex-direction: row !important;
+    align-items: center !important; justify-content: space-between;
+    gap: 8px; min-height: 68px; padding: 12px 12px 12px 15px;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-brand {
+    flex: 1 !important; min-width: 0;
+    justify-content: flex-start !important; gap: 10px !important;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar .brand-text,
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .nav-item-link span,
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-group > summary span,
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-chevron,
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-items,
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-logout-button span {
+    display: revert !important;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar .brand-text {display: block !important;min-width:0;}
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .nav-item-link span {
+    display: inline !important; white-space: normal !important;
+    overflow: visible !important; text-overflow: clip !important;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-items {display: block !important;}
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-chevron {display: inline-block !important;}
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav {
+    padding: 10px 9px 20px;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav > .nav-item-link {
+    justify-content: flex-start !important; gap: 11px;
+    width: 100%; min-height: 42px;
+    padding: 9px 12px; margin: 3px 0;
+    border-radius: 9px; text-align: left;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-group > summary {
+    justify-content: flex-start !important; gap: 12px;
+    min-height: 42px; padding: 10px 12px;
+    margin: 0; border-radius: 9px;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .head-nav-group > summary > i:first-child {
+    flex: 0 0 20px; width: 20px; font-size: 17px;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-group > summary:hover,
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-group[open] > summary {
+    background: rgba(255,255,255,.12) !important;
+    color: #fff !important;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .head-nav-group .head-nav-items {
+    padding: 4px 0 3px 12px;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-logout-button {
+    justify-content: flex-start !important; gap: 12px !important;
+    padding: 11px 13px !important;
+  }
+  /* Pin button is the only sidebar width control. */
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse {
+    display: grid; place-items: center;
+    flex: none; width: 32px; height: 32px;
+    border: 0; background: transparent; color: #e8f8ed;
+    border-radius: 8px; padding: 0; cursor: pointer;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:hover,
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:focus-visible {
+    background: rgba(255,255,255,.16) !important; color: #fff;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse .bi {font-size: 19px;}
+  #appShell.hover-pin-sidebar.sb-pinned .sidebar-top #sbCollapse {
+    background: rgba(255,255,255,.15);
+  }
+}
+@media (max-width: 991.98px) {
+  /* Mobile retains the existing modal-style slide-out navigation. */
+  #appShell.hover-pin-sidebar .main { margin-left: 0 !important; }
+  #appShell.hover-pin-sidebar .sidebar {
+    width: min(280px, 88vw) !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-items {display:block;}
+  #appShell.hover-pin-sidebar .sidebar .brand-text {display:block;}
+}
+@media (prefers-reduced-motion: reduce) {
+  #appShell.hover-pin-sidebar .sidebar,
+  #appShell.hover-pin-sidebar .main {transition:none;}
+}
