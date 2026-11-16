@@ -182,3 +182,51 @@ body:has(#appShell.accounting-wireframe) .form-select:focus {
   #appShell.accounting-wireframe .panel,
   #appShell.accounting-wireframe .btn {transition:none !important;}
 }
+
+/* Real kpiTiles() component uses kpi-value/kpi-label/kpi-note, not generic .value. */
+#appShell.accounting-wireframe .kpi-tiles {
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:13px;margin:0 0 20px;
+}
+#appShell.accounting-wireframe .kpi-tile {
+  min-width:0;min-height:115px;display:flex;
+  align-items:flex-start;gap:13px;
+  padding:19px;background:#fff;
+  border:1px solid var(--accounting-line);
+  border-radius:13px;
+  box-shadow:0 2px 9px rgba(20,60,36,.065);
+}
+#appShell.accounting-wireframe .kpi-tile .kpi-icon {
+  width:35px;height:35px;flex:0 0 35px;
+  display:grid;place-items:center;
+  border-radius:10px;background:#eaf5ec;color:#176e40;
+}
+#appShell.accounting-wireframe .kpi-tile .kpi-body {
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+}
+#appShell.accounting-wireframe .kpi-tile .kpi-value {
+  font-size:27px;line-height:1.15;font-weight:820;
+  color:#193c2a;overflow-wrap:anywhere;
+}
+#appShell.accounting-wireframe .kpi-tile .kpi-label {
+  font-size:12px;font-weight:680;color:#647b6d;
+}
+#appShell.accounting-wireframe .kpi-tile .kpi-note {
+  font-size:10px;color:#94a59a;line-height:1.45;
+}
+#appShell.accounting-wireframe .kpi-tile.clickable:hover {
+  background:#f7fcf8;border-color:#a8d0b4;
+}
+#appShell.accounting-wireframe .kpi-tile .kpi-go {color:#40835a;}
+@media(max-width:760px) {
+  #appShell.accounting-wireframe .kpi-tiles {
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+  }
+  #appShell.accounting-wireframe .kpi-tile {
+    padding:13px;gap:7px;min-height:105px;
+  }
+  #appShell.accounting-wireframe .kpi-tile .kpi-value {font-size:21px;}
+}
+@media(max-width:420px){
+  #appShell.accounting-wireframe .kpi-tiles {grid-template-columns:1fr;}
+}
