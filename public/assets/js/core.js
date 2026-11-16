@@ -457,7 +457,10 @@ const App = {
     const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
-    const executiveSidebar = ['admin','operations_head','motorpool','purchasing','finance','billing'].includes(u.role);
+    // Every authenticated role uses the same sidebar shell (Admin, Operations,
+    // both Dispatchers, Motorpool, Purchasing, Finance, Billing and Audit).
+    // The server-provided me.nav still exclusively controls available links.
+    const executiveSidebar = true;
     // The approved demo pin model: compact rail by default, persistent per-role pin.
     // Legacy collapse settings are intentionally not consulted.
     const pinKey = 'fleetops-sidebar-pinned-' + u.role;
