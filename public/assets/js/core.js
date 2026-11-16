@@ -612,60 +612,10 @@ const App = {
     this._executiveSidebarAbort?.abort();
     this._executiveSidebarAbort = new AbortController();
     sb.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sb.classList.contains('open')) { bd.onclick(); document.getElementById('menuBtn')?.focus(); } });
-    // Shared collapsed group flyout for Head Management and Operations Head.
-    // Defer until the Operations-specific shell has finished rebuilding its menu.
-    if (executiveSidebar) queueMicrotask(() => {
-      if (document.getElementById('appSidebar') !== sb) return;
-      document.querySelector('.executive-sidebar-flyout')?.remove();
-      const nav = sb.querySelector('.sidebar-nav');
-      const closeFlyout = () => document.querySelector('.executive-sidebar-flyout')?.remove();
-      const openFlyout = (group, summary) => {
-        closeFlyout();
-        const flyout = document.createElement('div');
-        flyout.className = 'executive-sidebar-flyout';
-        flyout.setAttribute('role', 'navigation');
-        const label = summary.querySelector('span')?.textContent || 'Navigation';
-        flyout.setAttribute('aria-label', label);
-        const heading = document.createElement('div');
-        heading.className = 'executive-sidebar-flyout-heading';
-        heading.textContent = label;
-        const links = document.createElement('div');
-        links.className = 'executive-sidebar-flyout-links';
-        group.querySelectorAll('.head-nav-items a').forEach(link => {
-          const copy = link.cloneNode(true);
-          copy.removeAttribute('id');
-          copy.addEventListener('click', closeFlyout);
-          links.append(copy);
-        });
-        flyout.append(heading,links);
-        document.body.append(flyout);
-        const rect = summary.getBoundingClientRect();
-        const width = flyout.offsetWidth;
-        flyout.style.left = Math.min(rect.right + 9, window.innerWidth - width - 8) + 'px';
-        flyout.style.top = Math.max(8, Math.min(rect.top, window.innerHeight - flyout.offsetHeight - 8)) + 'px';
-      };
-      nav.addEventListener('click', (event) => {
-        const summary = event.target.closest('.head-nav-group > summary');
-        if (summary && document.getElementById('appShell')?.classList.contains('sb-collapsed') && !document.getElementById('appShell')?.classList.contains('sb-hover-open') && window.matchMedia('(min-width: 992px)').matches) {
-          event.preventDefault();
-          const group = summary.parentElement;
-          const existing = document.querySelector('.executive-sidebar-flyout');
-          const same = existing?.getAttribute('aria-label') === (summary.querySelector('span')?.textContent || 'Navigation');
-          if (same) closeFlyout(); else openFlyout(group, summary);
-          summary.setAttribute('aria-expanded', String(!same));
-          return;
-        }
-        if (event.target.closest('a')) closeFlyout();
-      });
-      document.addEventListener('pointerdown', (event) => {
-        if (!document.getElementById('appShell')?.classList.contains('executive-sidebar')) return;
-        if (!event.target.closest('.executive-sidebar-flyout, .head-nav-group > summary')) closeFlyout();
-      }, { signal: this._executiveSidebarAbort?.signal });
-      const escapeFlyout = (event) => { if(event.key === 'Escape') closeFlyout(); };
-      document.addEventListener('keydown', escapeFlyout, { signal: this._executiveSidebarAbort?.signal });
-      window.addEventListener('resize', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
-      window.addEventListener('hashchange', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
-    });
+    // Submenu items belong inside the expanded sidebar, never in a detached
+    // popup while the icon rail is compact. The native details elements keep
+    // their state and remain usable on hover, pin and keyboard focus.
+    document.querySelector('.executive-sidebar-flyout')?.remove();
     document.getElementById('sidebarLogout').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
     document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
