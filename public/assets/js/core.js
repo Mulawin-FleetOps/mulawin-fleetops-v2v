@@ -545,23 +545,47 @@ const App = {
       syncPinButton();
     });
     syncPinButton();
-    // On desktops the sidebar floats over the content on pointer or keyboard
-    // focus. It only shifts the main content when pinned.
-    sb.addEventListener('pointerenter', (event) => {
-      if (event.pointerType === 'touch') return;
-      if (window.matchMedia('(min-width: 992px)').matches && !appShell.classList.contains('sb-pinned'))
+    // Debounce hover intent so quickly crossing the icon rail does not cause
+    // a cascade of width / menu changes. Timers belong to this shell instance.
+    if (this._sidebarHoverTimers) {
+      clearTimeout(this._sidebarHoverTimers.enter);
+      clearTimeout(this._sidebarHoverTimers.leave);
+    }
+    const hoverTimers = this._sidebarHoverTimers = { enter: null, leave: null };
+    const desktopSidebar = () => window.matchMedia('(min-width: 992px)').matches;
+    const enterHover = (immediate = false) => {
+      clearTimeout(hoverTimers.leave);
+      clearTimeout(hoverTimers.enter);
+      if (document.hidden || !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
+      const show = () => {
+        if (this._sidebarHoverTimers !== hoverTimers || document.hidden ||
+            !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
         appShell.classList.add('sb-hover-open');
+      };
+      if (immediate) show();
+      else hoverTimers.enter = setTimeout(show, 95);
+    };
+    const leaveHover = () => {
+      clearTimeout(hoverTimers.enter);
+      clearTimeout(hoverTimers.leave);
+      if (!appShell.classList.contains('sb-pinned')) {
+        hoverTimers.leave = setTimeout(() => {
+          if (this._sidebarHoverTimers === hoverTimers && !appShell.classList.contains('sb-pinned'))
+            appShell.classList.remove('sb-hover-open');
+        }, 110);
+      }
+    };
+    sb.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'touch') enterHover();
     });
-    sb.addEventListener('pointerleave', () => {
-      if (!appShell.classList.contains('sb-pinned')) appShell.classList.remove('sb-hover-open');
-    });
-    sb.addEventListener('focusin', () => {
-      if (window.matchMedia('(min-width: 992px)').matches && !appShell.classList.contains('sb-pinned'))
-        appShell.classList.add('sb-hover-open');
+    sb.addEventListener('pointerleave', leaveHover);
+    sb.addEventListener('focusin', event => {
+      // Keyboard focus must also be able to reveal the sidebar. Pointer focus
+      // is already handled by pointerenter and should not bypass its delay.
+      if (event.target.matches(':focus-visible')) enterHover(true);
     });
     sb.addEventListener('focusout', event => {
-      if (!sb.contains(event.relatedTarget) && !sb.matches(':hover') && !appShell.classList.contains('sb-pinned'))
-        appShell.classList.remove('sb-hover-open');
+      if (!sb.contains(event.relatedTarget) && !sb.matches(':hover')) leaveHover();
     });
     // Hover is transient. Browser tab switching often skips pointerleave,
     // leaving the old overlay open indefinitely. Reset ONLY the hover state
@@ -570,6 +594,8 @@ const App = {
     this._sidebarVisibilityAbort = new AbortController();
     const resetTransientSidebar = () => {
       if (document.getElementById('appShell') !== appShell) return;
+      clearTimeout(hoverTimers.enter);
+      clearTimeout(hoverTimers.leave);
       appShell.classList.remove('sb-hover-open');
       document.querySelector('.executive-sidebar-flyout')?.remove();
     };
