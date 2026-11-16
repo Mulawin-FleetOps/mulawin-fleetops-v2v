@@ -539,7 +539,7 @@ const App = {
       appShell.classList.toggle('sb-pinned', next);
       appShell.classList.toggle('sb-collapsed', !next);
       // The pinned state reserves space; the unpinned state overlays on hover.
-      appShell.classList.toggle('sb-hover-open', !next && sb.matches(':hover'));
+      appShell.classList.toggle('sb-hover-open', !next && sb.matches(':hover') && !document.hidden);
       try { localStorage.setItem(pinKey, next ? '1' : '0'); } catch { /* storage unavailable */ }
       document.querySelector('.executive-sidebar-flyout')?.remove();
       syncPinButton();
@@ -562,6 +562,27 @@ const App = {
     sb.addEventListener('focusout', event => {
       if (!sb.contains(event.relatedTarget) && !sb.matches(':hover') && !appShell.classList.contains('sb-pinned'))
         appShell.classList.remove('sb-hover-open');
+    });
+    // Hover is transient. Browser tab switching often skips pointerleave,
+    // leaving the old overlay open indefinitely. Reset ONLY the hover state
+    // when this tab is hidden; never change the user's persisted pin setting.
+    this._sidebarVisibilityAbort?.abort();
+    this._sidebarVisibilityAbort = new AbortController();
+    const resetTransientSidebar = () => {
+      if (document.getElementById('appShell') !== appShell) return;
+      appShell.classList.remove('sb-hover-open');
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) resetTransientSidebar();
+    }, { signal: this._sidebarVisibilityAbort.signal });
+    window.addEventListener('pagehide', resetTransientSidebar, {
+      signal: this._sidebarVisibilityAbort.signal
+    });
+    // When the page is revisited, do not reopen from a stale :hover or focus
+    // state. A fresh pointer entry or keyboard focus is required.
+    window.addEventListener('pageshow', resetTransientSidebar, {
+      signal: this._sidebarVisibilityAbort.signal
     });
     this._executiveSidebarAbort?.abort();
     this._executiveSidebarAbort = new AbortController();
