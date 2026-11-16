@@ -417,34 +417,85 @@ const App = {
           items:remaining.map(wsLink).join('')
         });
       } else if (u.role === 'finance' || u.role === 'billing') {
-        // Admin-style executive sidebar using existing server-authorized pages.
-        // Keep ALL workspace links, including non-department record links.
-        const items = ws.groups.flatMap(g => g.items);
-        const shown = new Set();
-        const take = ids => ids.map(id => items.find(n => n.id === id))
-          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
-        const isFinance = u.role === 'finance';
-        nav = take([isFinance ? 'finance_overview' : 'billing_overview']).map(wsLink).join('');
-        const groups = isFinance ? [
-          { title:'Fund Operations', icon:'bi-cash-coin', ids:['funds','purchase_orders'] },
-          { title:'Financial Management', icon:'bi-wallet2', ids:['finance','finance_budgets'] }
-        ] : [
-          { title:'Billing Operations', icon:'bi-receipt', ids:['billing','billing_collections'] },
-          { title:'Accounts & Receivables', icon:'bi-cash-stack', ids:['billing_receivables'] },
-          { title:'Records & Reports', icon:'bi-journal-text', ids:['reports'] }
-        ];
-        nav += groups.map(group => {
-          const entries = take(group.ids);
-          return entries.length ? UI.sidebarGroup({
-            title:group.title, icon:group.icon,
-            items:entries.map(wsLink).join('')
-          }) : '';
-        }).join('');
-        const remaining = items.filter(n => !shown.has(n.id));
-        if (remaining.length) nav += UI.sidebarGroup({
-          title:'Other Authorized Pages', icon:'bi-grid-3x3-gap',
-          items:remaining.map(wsLink).join('')
+        // The user's approved Finance/Billing sidebar is a CURATED menu.
+        // Each destination is an existing authorized page or a small utility
+        // dialog linking only to existing authorized pages. Do not invent
+        // page IDs, demo records or backend permissions.
+        const permitted = new Set((me.routes || me.nav).map(item => item.id));
+        const permittedTarget = spec => permitted.has(String(spec).split('?')[0]);
+        const direct = (label, icon, target) => {
+          if (!permittedTarget(target)) return '';
+          const page = target.split('?')[0];
+          return '<a class="nav-item-link" href="#' + UI.esc(target)
+            + '" data-nav="' + UI.esc(page) + '" data-sidebar-target="' + UI.esc(target)
+            + '" title="' + UI.esc(label) + '"><i class="bi ' + UI.esc(icon)
+            + '" aria-hidden="true"></i><span>' + UI.esc(label) + '</span></a>';
+        };
+        const tool = (label, icon, action, candidates) => {
+          if (!candidates.some(permittedTarget)) return '';
+          return '<button type="button" class="nav-item-link" data-sidebar-tool="'
+            + UI.esc(action) + '" title="' + UI.esc(label)
+            + '"><i class="bi ' + UI.esc(icon)
+            + '" aria-hidden="true"></i><span>' + UI.esc(label) + '</span></button>';
+        };
+        const group = (title, icon, items) => UI.sidebarGroup({
+          title, icon, items:items.filter(Boolean).join('')
         });
+        if (u.role === 'billing') {
+          nav = group('Dashboard','bi-grid-1x2',[
+            direct('Dashboard','bi-grid-1x2','billing_overview')
+          ])
+          + group('Billing & Collections','bi-receipt',[
+            direct('Invoices & billing','bi-receipt','billing'),
+            tool('Receivables & Collections','bi-cash-stack','billing-accounts',
+              ['billing_receivables','billing_collections'])
+          ])
+          + group('Trip & Rate References','bi-truck',[
+            direct('Completed trips','bi-truck','trips?tab=history&status=Completed'),
+            direct('Approved route pricing','bi-signpost-2','routes')
+          ])
+          + group('Documents & Reports','bi-file-earmark-text',[
+            direct('Required trip documents','bi-file-earmark-text','documents'),
+            direct('Billing reports','bi-bar-chart-line','reports')
+          ])
+          + group('Reference','bi-diagram-3',[
+            tool('Workflow map','bi-diagram-3','workflow-billing',
+              ['billing_overview','billing','billing_collections','billing_receivables'])
+          ])
+          + group('Other','bi-file-earmark-richtext',[
+            tool('Forms & Printouts','bi-file-earmark-richtext','forms-billing',
+              ['billing','trips','documents'])
+          ]);
+        } else {
+          nav = group('Dashboard','bi-grid-1x2',[
+            direct('Dashboard','bi-grid-1x2','finance_overview')
+          ])
+          + group('Trip Funds','bi-wallet2',[
+            direct('Trip fund release','bi-wallet2','funds?tab=release'),
+            direct('Fund liquidation','bi-coin','funds?tab=liquidate')
+          ])
+          + group('Purchasing Payments','bi-cart-check',[
+            tool('PO approvals & payments','bi-file-earmark-text','po-finance',
+              ['purchase_orders','finance'])
+          ])
+          + group('Budgets & Expenses','bi-piggy-bank',[
+            direct('Budgets & expenses','bi-wallet2','finance_budgets'),
+            direct('Expenses & liquidation','bi-coin','finance?tab=expenses')
+          ])
+          + group('Collections','bi-receipt',[
+            direct('Collections summary','bi-receipt','billing_collections')
+          ])
+          + group('Reports & Reference','bi-bar-chart-line',[
+            direct('Finance Reports','bi-bar-chart-line','reports'),
+            direct('Trip documents','bi-file-earmark-text','documents'),
+            tool('Workflow map','bi-diagram-3','workflow-finance',
+              ['finance_overview','funds','purchase_orders','finance','finance_budgets'])
+          ])
+          + group('Other','bi-file-earmark-richtext',[
+            tool('Forms & Printouts','bi-file-earmark-richtext','forms-finance',
+              ['funds','purchase_orders','finance','documents'])
+          ]);
+        }
       } else {
         nav = ws.groups.map((g,i)=>UI.sidebarGroup({
           title:g.title,
@@ -617,6 +668,68 @@ const App = {
     // popup while the icon rail is compact. The native details elements keep
     // their state and remain usable on hover, pin and keyboard focus.
     document.querySelector('.executive-sidebar-flyout')?.remove();
+    sb.querySelectorAll('[data-sidebar-tool]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.sidebarTool;
+        const destinations = {
+          'billing-accounts': [
+            ['Receivables','billing_receivables','bi-hourglass-split'],
+            ['Collections','billing_collections','bi-cash-stack']
+          ],
+          'po-finance': [
+            ['PO approvals','purchase_orders?tab=approval','bi-check2-square'],
+            ['PO payments','finance?tab=po','bi-wallet2']
+          ],
+          'workflow-billing': [
+            ['Billing overview','billing_overview','bi-grid-1x2'],
+            ['Completed trips','trips?tab=history&status=Completed','bi-truck'],
+            ['Invoice processing','billing','bi-receipt'],
+            ['Collections','billing_collections','bi-cash-stack'],
+            ['Receivables','billing_receivables','bi-hourglass-split']
+          ],
+          'workflow-finance': [
+            ['Finance overview','finance_overview','bi-grid-1x2'],
+            ['Fund approvals & release','funds?tab=release','bi-wallet2'],
+            ['Fund liquidation','funds?tab=liquidate','bi-coin'],
+            ['Purchase order approvals','purchase_orders?tab=approval','bi-cart-check'],
+            ['Payments','finance?tab=po','bi-wallet2'],
+            ['Budgets & expenses','finance_budgets','bi-piggy-bank']
+          ],
+          'forms-billing': [
+            ['Invoice forms & printouts','billing','bi-receipt'],
+            ['Trip records & printouts','trips?tab=history','bi-truck'],
+            ['Uploaded documents','documents','bi-file-earmark-text']
+          ],
+          'forms-finance': [
+            ['Fund documents & vouchers','funds','bi-wallet2'],
+            ['Purchase order printouts','purchase_orders','bi-cart-check'],
+            ['Payment records & vouchers','finance?tab=vouchers','bi-file-earmark-text'],
+            ['Uploaded documents','documents','bi-folder2-open']
+          ]
+        };
+        const choices = (destinations[action] || []).filter(([,spec]) => UI.canGo(spec));
+        if (!choices.length) return;
+        const title = button.textContent.trim();
+        const body = '<div class="d-grid gap-2">'
+          + choices.map(([label,spec,icon]) =>
+            '<button type="button" class="btn btn-outline-success text-start" data-workspace-destination="'
+            + UI.esc(spec) + '"><i class="bi ' + UI.esc(icon)
+            + ' me-2" aria-hidden="true"></i>' + UI.esc(label) + '</button>'
+          ).join('') + '</div>';
+        UI.modal(UI.esc(title), body, null, {
+          size:'modal-sm',
+          onShow: wrap => {
+            wrap.querySelectorAll('[data-workspace-destination]').forEach(link => {
+              link.addEventListener('click', () => {
+                const spec = link.dataset.workspaceDestination;
+                wrap.addEventListener('hidden.bs.modal', () => UI.goTo(spec), {once:true});
+                bootstrap.Modal.getInstance(wrap)?.hide();
+              });
+            });
+          }
+        });
+      });
+    });
     document.getElementById('sidebarLogout').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
     document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
@@ -766,8 +879,13 @@ const App = {
         : a.dataset.opsSection
         ? a.dataset.opsSection === (query.view === 'approvals' ? 'approvals' : query.new || query.batch ? 'planning' : query.tab === 'incidents' ? 'incidents' : 'management')
         : (!a.dataset.tripSection || a.dataset.tripSection === tripSection));
-      a.classList.toggle('active', active);
-      if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      const targetSpec = a.dataset.sidebarTarget;
+      const targetQuery = targetSpec ? UI.goParts(targetSpec).query : {};
+      const targetMatches = Object.entries(targetQuery)
+        .every(([key, value]) => String(query[key] ?? '') === String(value));
+      const selected = active && targetMatches;
+      a.classList.toggle('active', selected);
+      if (selected) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     // Expand the supporting-tools group only when the current route is inside it.
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
