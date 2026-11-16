@@ -4,6 +4,42 @@
    Backend: backend/Modules/Operations/Fleet.php */
 'use strict';
 const FleetUI = {
+  // Shared presentation for Truck, Driver and Helper detail drawers.
+  // Move existing DOM nodes (never clone them), retaining all action and table handlers.
+  decorateDetailDrawer(drawer) {
+    drawer.classList.add('fleet-master-detail-drawer');
+    const body=drawer.querySelector('.offcanvas-body');
+    if(!body)return;
+    const actions=body.querySelector('.drawer-actions');
+    if(actions)actions.classList.add('fleet-detail-actions');
+    const status=body.firstElementChild;
+    if(status && status!==actions && status.classList.contains('mb-2') ||
+       status && status!==actions && status.classList.contains('d-flex')){
+      status.classList.add('fleet-detail-status');
+    }
+    const headings=[...body.querySelectorAll(':scope > .drawer-h')];
+    const icons=['bi-info-circle','bi-file-earmark-check','bi-clock-history','bi-wrench-adjustable','bi-list-check'];
+    headings.forEach((heading,index)=>{
+      const title=heading.querySelector('span')?.textContent?.trim()||'Details';
+      const section=document.createElement('details');
+      section.className='fleet-detail-section';
+      section.open=index===0;
+      const label=document.createElement('summary');
+      const icon=document.createElement('i');
+      icon.className='bi '+(icons[index]||'bi-folder2-open');
+      icon.setAttribute('aria-hidden','true');
+      const name=document.createElement('strong');name.textContent=title;
+      const chevron=document.createElement('i');chevron.className='bi bi-chevron-down fleet-detail-chevron';
+      chevron.setAttribute('aria-hidden','true');
+      label.append(icon,name,chevron);
+      const content=document.createElement('div');content.className='fleet-detail-section-body';
+      let next=heading.nextSibling;
+      while(next && !(next.nodeType===1&&next.classList.contains('drawer-h'))){
+        const moving=next;next=next.nextSibling;content.append(moving);
+      }
+      section.append(label,content);heading.replaceWith(section);
+    });
+  },
   // Checklist #13/#14: prominent type tabs; no change to server-side filters.
   masterlistTypeTabs(page, param, options, current) {
     return `<div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="${page === 'trucks' ? 'Truck types' : 'Personnel types'}">
@@ -55,14 +91,15 @@ const FleetUI = {
     ];
     const groups = [
       FormComponents.section('Truck Information', 'bi-truck', truckInfo),
-      FormComponents.section('Fixed Crew Assignment', 'bi-people', fixedCrew),
+      // Retain legacy truck assignment values without showing duplicate editable controls.
+      UI.fields(fixedCrew.map(field=>({name:field.name,type:'hidden',value:field.value}))),
       FormComponents.collapsible('Registration & Insurance', 'Vehicle documents, insurance and notes', 'bi-file-earmark-text', documents),
     ];
     return FormComponents.modal(
       v.id ? 'Edit Truck ' + UI.esc(v.plate_number) : 'Add Truck',
       groups, 'Fleet.truck_save', {
         extra: v.id ? { id: v.id } : {},
-        intro: 'OR/CR and insurance files can be attached later in Truck Details → Documents.',
+        intro: 'Truck authorizations are now managed in Drivers & Helpers. OR/CR and insurance files can be attached from Truck Details → Documents.',
         submit: v.id ? 'Save Changes' : 'Save Truck',
         after: v.id ? () => FleetUI.truckDetails(v.id, d) : undefined,
       }
@@ -84,17 +121,18 @@ const FleetUI = {
     const html = `<div class="d-flex gap-2 align-items-center mb-2">${UI.badge(v.status)}${+v.active ? '' : ' <span class="badge-s red">Inactive</span>'}${v.status_reason ? `<span class="small text-muted">${UI.esc(v.status_reason)}</span>` : ''}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
       ${UI.h('Truck')}${UI.kv([['Plate / unit', `<b>${UI.esc(v.plate_number)}</b>${v.truck_number ? ' #' + UI.esc(v.truck_number) : ''}`], [UI.role('operations_head')?'Truck Type':'Type', UI.e(v.truck_type)], ['Make / model', UI.esc([v.make_brand, v.model].filter(Boolean).join(' ') || '—')],
-        ['Chassis / engine', UI.esc([v.chassis_number, v.engine_number].filter(Boolean).join(' / ') || '—')], ['Regular driver', UI.e(v.driver_name)], ['Regular helper', UI.e(v.helper_name)],
+        ['Chassis / engine', UI.esc([v.chassis_number, v.engine_number].filter(Boolean).join(' / ') || '—')], ['Authorized Drivers', UI.e(v.authorized_driver_names||v.driver_name)], ['Regular Helper (preferred)', UI.e(v.helper_name)],
         ['Notes', UI.e(v.notes)]])}
       ${r.openJob ? `<div class="next-step warn"><i class="bi bi-wrench-adjustable"></i> Under corrective maintenance: <a href="#maintenance?open=${r.openJob.id}">${UI.esc(r.openJob.job_ref)}</a> (${UI.esc(r.openJob.status === 'Completed' ? 'repair done, waiting for verification' : r.openJob.status)}). The truck cannot be assigned until the repair is verified.</div>` : ''}
       ${UI.h('Vehicle documents')}${UI.kv([['MV file no.', UI.e(v.mv_file_number)], ['OR / CR no.', UI.esc([v.or_number, v.cr_number].filter(Boolean).join(' / ') || '—')],
         ['Registration expiry', UI.date(v.registration_expiry)], ['Insurance', UI.esc([v.insurance_provider, v.insurance_policy_number].filter(Boolean).join(' · ') || '—')], ['Insurance expiry', UI.date(v.insurance_expiry)]])}
       <div class="mt-2">${UI.docs(r.documents, 'No OR/CR or insurance files attached yet.')}</div>
-      ${UI.h('Trips (latest 50)')}${UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Client', 'client'], ['Driver', 'driver_name'], ['Route', 'delivery_point']], r.trips, { plain: true, empty: 'No trips yet.' })}
-      ${UI.h('Maintenance history')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date'], ['Cost', 'cost', 'money']], r.maintenance,
-        { plain: true, empty: 'No maintenance records.', rowClick: (m) => { UI.closeDrawer(); App.go('maintenance', { open: m.id }); } })}
+      ${UI.h('Trips (latest 50)')}${(r.trips||[]).length ? UI.table([['Trip', 'trip_ref'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Client', 'client'], ['Driver', 'driver_name'], ['Route', 'delivery_point']], r.trips, { plain: true, empty: 'No trips yet.' }) : '<div class="fleet-detail-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>No trip history yet</strong><span>Trips assigned to this truck will appear here.</span></div>'}
+      ${UI.h('Maintenance history')}${(r.maintenance||[]).length ? UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date'], ['Cost', 'cost', 'money']], r.maintenance,
+        { plain: true, empty: 'No maintenance records.', rowClick: (m) => { UI.closeDrawer(); App.go('maintenance', { open: m.id }); } }) : '<div class="fleet-detail-empty"><i class="bi bi-tools" aria-hidden="true"></i><strong>No maintenance history</strong><span>Repair records will appear here when available.</span></div>'}
       ${UI.h('Status history')}<ul class="timeline">${r.statusLog.map(l => `<li><span class="when">${UI.datetime(l.created_at)} · ${UI.esc(l.actor || 'System')}</span><br>${UI.esc(l.from_status || 'new')} → <b>${UI.esc(l.to_status)}</b>${l.reason ? ' · ' + UI.esc(l.reason) : ''}</li>`).join('') || '<li>No changes yet.</li>'}</ul>`;
     const el = UI.drawer('Truck ' + UI.esc(v.plate_number), html, { subtitle: UI.esc(v.truck_type) });
+    this.decorateDetailDrawer(el);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') FleetUI.truckForm(v, d);
@@ -128,56 +166,236 @@ const FleetUI = {
       catch(error){ return UI.toast(error.message,'error'); }
     }
     const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
-    const trucks=(d.assignmentTrucks||[]).filter(t=>!t.assigned_driver_id||String(t.assigned_driver_id)===String(p.id));
-    const identity=[
+    const allTrucks=d.assignmentTrucks||[];
+    const already=String(p.authorized_truck_ids||'').split(',').map(Number).filter(id=>Number.isInteger(id)&&id>0);
+    // Preserve legacy fixed links when upgrading a database that has not yet
+    // displayed the additive authorization backfill.
+    if(driver&&!already.length&&p.fixed_truck_id)already.push(+p.fixed_truck_id);
+    const groups=['Car Carrier','Container','Wing Van'];
+    const selectedTrucks=new Set(already);
+    const truckOptions=allTrucks.filter(truck=>groups.includes(truck.truck_type));
+    // All active trucks are searchable; existing authorizations are locked.
+    const truckCategories=['All',...groups];
+    const regularTruck=allTrucks.find(truck=>already.includes(+truck.id));
+    const existingHelperId=already.length===1?Number(regularTruck?.assigned_helper_id||0):0;
+    const availableHelpers=(d.assignmentHelpers||[]).filter(helper=>
+      !helper.assigned_vehicle_id||Number(helper.id)===existingHelperId);
+
+    const authorizedBoxes=driver?'<div class="driver-auth-selector" data-driver-truck-selector>'
+      +'<label class="driver-auth-search-label" for="driver-truck-search">Find a truck</label>'
+      +'<div class="driver-auth-search-field"><i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input id="driver-truck-search" type="search" class="form-control form-control-sm" '
+      +'placeholder="Search truck plate or unit number..." autocomplete="off" data-driver-truck-search></div>'
+      +'<div class="driver-auth-filters" role="group" aria-label="Filter trucks by category">'
+      +truckCategories.map((group,index)=>'<button type="button" class="driver-auth-filter'+(index===0?' is-active':'')+'"'
+        +' data-driver-truck-filter="'+UI.esc(group)+'" aria-pressed="'+(index===0?'true':'false')+'">'
+        +UI.esc(group)+'</button>').join('')+'</div>'
+      +'<div class="driver-auth-list" role="group" aria-label="Truck selection">'
+      +truckOptions.map(truck=>{
+        const selected=selectedTrucks.has(+truck.id);
+        const owners=String(truck.authorized_driver_ids||'').split(',').filter(Boolean);
+        const otherDriver=owners.some(id=>String(id)!==String(p.id||''))
+          ||(!!truck.assigned_driver_id&&String(truck.assigned_driver_id)!==String(p.id||''));
+        const unavailable=!selected&&otherDriver;
+        const locked=selected||unavailable;
+        const plate=String(truck.plate_number||'');
+        const unit=String(truck.truck_number||'');
+        return '<label class="driver-auth-option'+(locked?' is-locked':'')+'"'
+          +' data-driver-truck-option data-truck-type="'+UI.esc(truck.truck_type)+'"'
+          +' data-truck-search="'+UI.esc((plate+' '+unit+' '+truck.truck_type).toLowerCase())+'">'
+          +'<input type="checkbox" name="auth_truck_'+Number(truck.id)+'" value="1"'
+          +(selected?' checked data-locked-truck="1"':'')
+          +(locked?' disabled':'')+'>'
+          +'<span class="driver-auth-option-info"><strong>'+UI.esc(plate)+'</strong>'
+          +'<small>'+UI.esc(truck.truck_type)+(unit?' · Unit '+UI.esc(unit):'')+'</small></span>'
+          +'<span class="driver-auth-option-status'+(unavailable?' is-unavailable':selected?' is-selected':' is-available')+'">'
+          +(selected?'Assigned · Locked':unavailable?'Assigned':'Available')+'</span></label>';
+      }).join('')
+      +'<p class="driver-auth-empty" data-driver-truck-empty hidden>No matching trucks found.</p>'
+      +'</div><div class="driver-auth-footer"><span data-driver-truck-results></span>'
+      +'<span class="driver-auth-count" role="status" aria-live="polite" data-authorized-count></span></div>'
+      +'</div>':'';    const identity=[
       {name:'person_type',type:'hidden',value:type},
       {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
       {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
       {name:'contact_number',label:'Contact Number',col:4,value:p.contact_number},
-      {name:'date_hired',label:'Start Date',type:'date',col:4,value:p.date_hired},
-      ...(!driver ? [
+      {name:'date_hired',label:'Date Hired',type:'date',col:4,value:p.date_hired},
+      ...(!driver?[
         {name:'license_number',type:'hidden',value:p.license_number},
         {name:'license_expiry',type:'hidden',value:p.license_expiry},
-      ] : []),
+      ]:[]),
     ];
     const licensing=driver?[
       {name:'license_number',label:'License Number',required:true,col:6,value:p.license_number},
       {name:'license_expiry',label:'License Expiry',type:'date',required:true,col:6,value:p.license_expiry},
     ]:[];
-    const assignment=driver?[
-      {name:'fixed_truck_id',label:'Fixed Truck',type:'select',required:true,col:6,value:p.fixed_truck_id,
-        options:trucks.map(t=>[t.id,t.plate_number+' - '+t.truck_type])},
-      {name:'regular_helper_id',label:'Regular Helper',type:'select',col:6,value:p.regular_helper_id,
-        options:(d.assignmentHelpers||[]).map(h=>[h.id,h.full_name])},
-    ]:[];
     const additional=[
       {name:'address',label:'Address',col:12,value:p.address},
       {name:'notes',label:'Notes',type:'textarea',rows:2,col:12,value:p.notes},
     ];
+    const section=FormComponents.section('Driver License','bi-card-checklist',licensing);
+    const authorization='<section class="record-form-section driver-auth-section">'
+      +'<div class="record-form-section-title"><i class="bi bi-truck" aria-hidden="true"></i>'
+      +'<h3>Authorized Trucks</h3></div>'
+      +'<p class="form-help">Search by plate or unit, then select one available truck. Saved selections stay locked. '
+      +'Truck authorization does not reserve a trip; dispatch availability is checked separately.</p>'
+      +authorizedBoxes+'</section>';
+    const helperSection='<section class="record-form-section driver-auth-section">'
+      +'<div class="record-form-section-title"><i class="bi bi-people" aria-hidden="true"></i><h3>Regular Helper</h3></div>'
+      +'<p class="form-help">Select one available regular helper. Existing pairings remain locked; trip-level crew assignments are separate.</p>'
+      +'<div class="driver-auth-selector" data-driver-helper-selector>'
+      +'<label class="driver-auth-search-label" for="driver-helper-search">Find a helper</label>'
+      +'<div class="driver-auth-search-field"><i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input id="driver-helper-search" type="search" class="form-control form-control-sm" '
+      +'placeholder="Search helper name or employee number..." autocomplete="off" data-driver-helper-search></div>'
+      +'<div class="driver-auth-list" role="group" aria-label="Regular helper selection">'
+      +(d.assignmentHelpers||[]).map(helper=>{
+        const selected=Number(helper.id)===existingHelperId;
+        const assigned=!!helper.assigned_vehicle_id&&!selected;
+        const name=String(helper.full_name||'');
+        const employee=String(helper.employee_no||'');
+        return '<label class="driver-auth-option'+(selected||assigned?' is-locked':'')+'"'
+          +' data-driver-helper-option data-helper-search="'+UI.esc((name+' '+employee).toLowerCase())+'">'
+          +'<input type="checkbox" name="regular_helper_choice_'+Number(helper.id)+'" value="1"'
+          +(selected?' checked':'')+(selected||assigned?' disabled':'')+'>'
+          +'<span class="driver-auth-option-info"><strong>'+UI.esc(name)+'</strong><small>'
+          +UI.esc(employee?'Employee '+employee:'Helper')+'</small></span>'
+          +'<span class="driver-auth-option-status '+(selected?'is-selected':assigned?'is-unavailable':'is-available')+'">'
+          +(selected?'Assigned · Locked':assigned?'Assigned':'Available')+'</span></label>';
+      }).join('')
+      +'<p class="driver-auth-empty" data-driver-helper-empty hidden>No matching helpers found.</p>'
+      +'</div><div class="driver-auth-footer"><span data-driver-helper-results></span>'
+      +'<span class="driver-auth-count" role="status" data-driver-helper-count></span></div></div></section>';
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
-      ...(driver?[FormComponents.section('License & Assignment','bi-card-checklist',[...licensing,...assignment])]:[]),
-      FormComponents.collapsible('Additional Information','Address and notes','bi-file-earmark-text',additional),
+      ...(driver?[section,authorization,helperSection]:[]),
+      FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
+      intro:'Role: '+type+'. One truck can be authorized to one driver. Existing authorizations are locked; dispatch assignments are managed separately.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
       compactSize:driver?'normal':'small',
+      transform:(values,form)=>{
+        if(!driver)return values;
+        const authorized=[...form.querySelectorAll('.driver-auth-option input:checked')]
+          .map(input=>Number(input.name.slice('auth_truck_'.length)));
+        for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
+        const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked');
+        const regularHelper=selectedHelper?Number(selectedHelper.name.slice('regular_helper_choice_'.length)):null;
+        for(const key of Object.keys(values).filter(k=>/^regular_helper_choice_\d+$/.test(k)))delete values[key];
+        return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||''};
+      },
       after(){UI.closeDrawer();App.route();},
       onShow(wrap,form){
         if(!driver)return;
-        const pick=form.querySelector('[name=fixed_truck_id]'),
-          helper=form.querySelector('[name=regular_helper_id]');
-        const refresh=()=>{
-          const truck=trucks.find(t=>String(t.id)===pick.value),cc=truck?.truck_type==='Car Carrier';
-          helper.closest('[class*=col-]').hidden=cc;
-          helper.disabled=cc;
-          helper.required=!cc;
-          if(cc)helper.value='';
-          else if(truck?.assigned_helper_id&&!helper.value)helper.value=truck.assigned_helper_id;
+        const selector=form.querySelector('[data-driver-truck-selector]');
+        const inputs=[...selector.querySelectorAll('.driver-auth-option input[type=checkbox]')];
+        const options=[...selector.querySelectorAll('[data-driver-truck-option]')];
+        const count=selector.querySelector('[data-authorized-count]');
+        const resultCount=selector.querySelector('[data-driver-truck-results]');
+        const empty=selector.querySelector('[data-driver-truck-empty]');
+        const search=selector.querySelector('[data-driver-truck-search]');
+        const filters=[...selector.querySelectorAll('[data-driver-truck-filter]')];
+        let category='All';
+        const update=()=>{
+          const selected=inputs.filter(input=>input.checked);
+          if(count)count.textContent=selected.length
+            ? selected.some(input=>!already.includes(Number(input.name.slice('auth_truck_'.length))))
+              ? '1 truck selected · save to authorize'
+              : selected.length+' authorized truck'+(selected.length===1?'':'s')+' · locked'
+            : 'No truck selected';
+          if(selected.length){
+            inputs.forEach(input=>{
+              input.disabled=true;
+              if(input.checked){
+                input.dataset.lockedTruck='1';
+                const option=input.closest('.driver-auth-option');
+                option?.classList.add('is-locked');
+                const status=option?.querySelector('.driver-auth-option-status');
+                if(status){
+                  status.className='driver-auth-option-status is-selected';
+                  status.textContent=already.includes(Number(input.name.slice('auth_truck_'.length)))
+                    ?'Assigned · Locked':'Selected · Locked';
+                }
+              }
+            });
+          }
         };
-        pick.onchange=refresh;refresh();
+        const filterOptions=()=>{
+          const term=search.value.trim().toLowerCase();
+          let visible=0;
+          options.forEach(option=>{
+            const matches=(category==='All'||option.dataset.truckType===category)
+              &&(!term||(option.dataset.truckSearch||'').includes(term));
+            option.hidden=!matches;
+            if(matches)visible++;
+          });
+          if(empty)empty.hidden=visible>0;
+          if(resultCount)resultCount.textContent='Showing '+visible+' of '+options.length+' trucks';
+        };
+        filters.forEach(button=>button.addEventListener('click',()=>{
+          category=button.dataset.driverTruckFilter;
+          filters.forEach(other=>{
+            const active=other===button;
+            other.classList.toggle('is-active',active);
+            other.setAttribute('aria-pressed',String(active));
+          });
+          filterOptions();
+        }));
+        search.addEventListener('input',filterOptions);
+        inputs.forEach(input=>input.addEventListener('change',()=>{
+          if(input.checked)update();
+        }));
+        update();
+        filterOptions();
+        const helperSelector=form.querySelector('[data-driver-helper-selector]');
+        const helperInputs=[...helperSelector.querySelectorAll('input[type=checkbox]')];
+        const helperOptions=[...helperSelector.querySelectorAll('[data-driver-helper-option]')];
+        const helperSearch=helperSelector.querySelector('[data-driver-helper-search]');
+        const helperCount=helperSelector.querySelector('[data-driver-helper-count]');
+        const helperResults=helperSelector.querySelector('[data-driver-helper-results]');
+        const helperEmpty=helperSelector.querySelector('[data-driver-helper-empty]');
+        const refreshHelpers=()=>{
+          const term=helperSearch.value.trim().toLowerCase();
+          let visible=0;
+          helperOptions.forEach(option=>{
+            option.hidden=!!term&&!(option.dataset.helperSearch||'').includes(term);
+            if(!option.hidden)visible++;
+          });
+          helperEmpty.hidden=visible>0;
+          helperResults.textContent='Showing '+visible+' of '+helperOptions.length+' helpers';
+        };
+        const lockHelpers=()=>{
+          const selected=helperInputs.filter(input=>input.checked);
+          helperCount.textContent=selected.length
+            ? (existingHelperId?'1 regular helper · locked':'1 helper selected · save to pair')
+            : 'No regular helper selected';
+          if(!selected.length)return;
+          helperInputs.forEach(input=>{
+            input.disabled=true;
+            const option=input.closest('.driver-auth-option');
+            option?.classList.add('is-locked');
+            if(input.checked){
+              const status=option?.querySelector('.driver-auth-option-status');
+              if(status){status.className='driver-auth-option-status is-selected';
+                status.textContent=existingHelperId?'Assigned · Locked':'Selected · Locked';}
+            }
+          });
+        };
+        helperInputs.forEach(input=>input.addEventListener('change',()=>{
+          if(input.checked)lockHelpers();
+        }));
+        helperSearch.addEventListener('input',refreshHelpers);
+        lockHelpers();refreshHelpers();
+        form.addEventListener('submit',event=>{
+          if(inputs.some(input=>input.checked))return;
+          event.preventDefault();event.stopImmediatePropagation();
+          const error=wrap.querySelector('.form-error');
+          if(error){error.textContent='Select at least one authorized truck.';error.style.display='block';}
+          inputs[0]?.focus();
+        },true);
       },
     });
   },
@@ -190,9 +408,10 @@ const FleetUI = {
     const html = `<div class="mb-2">${UI.badge(p.availability)} ${+p.active ? '' : '<span class="badge-s red">Inactive</span>'} ${p.unavailable_reason ? `<span class="small text-muted">${UI.esc(p.unavailable_reason)}</span>` : ''}</div>
       ${acts.length ? `<div class="drawer-actions">${acts.join('')}</div>` : ''}
       ${UI.h(UI.role('operations_head')?'Overview':'Details')}${UI.kv([[UI.role('operations_head')?'Role':'Type', UI.e(p.person_type)], ['Employee no.', UI.e(p.employee_no)], ['Contact', UI.e(p.contact_number)], ['Address', UI.e(p.address)],
-        ["License", UI.esc([p.license_number, p.license_expiry ? 'expires ' + UI.date(p.license_expiry) : ''].filter(Boolean).join(' · ') || '—')], ['Date hired', UI.date(p.date_hired)], ['Notes', UI.e(p.notes)]])}
-      ${UI.h('Trip history')}${UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' })}`;
+        ["License", UI.esc([p.license_number, p.license_expiry ? 'expires ' + UI.date(p.license_expiry) : ''].filter(Boolean).join(' · ') || '—')], ['Date hired', UI.date(p.date_hired)], ...(p.person_type==='Driver'?[['Authorized Trucks', UI.e(p.authorized_truck_names||'None selected')]]:[]), ['Notes', UI.e(p.notes)]])}
+      ${UI.h('Trip history')}${(r.trips||[]).length ? UI.table([['Trip', 'trip_ref'], ['As', 'role_on_trip'], ['Status', 'status', 'badge'], ['Schedule', 'scheduled_at', 'datetime'], ['Truck', 'plate_number'], ['Client', 'client'], ['To', 'delivery_point']], r.trips, { empty: 'No trips yet.' }) : '<div class="fleet-detail-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>No trip history yet</strong><span>Trips assigned to this person will appear here.</span></div>'}`;
     const el = UI.drawer(UI.esc(p.full_name), html, { subtitle: UI.esc(p.person_type) });
+    this.decorateDetailDrawer(el);
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') FleetUI.crewForm(p,d);

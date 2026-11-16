@@ -171,14 +171,14 @@ final class Funds {
                     ['Status' => $f['status']], ['Status' => 'Ready for Release']);
                 Notify::roles($p, ['finance'], 'Fund release', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') PHP ' . number_format((float)$f['amount'], 2) . ' is Ready for Release.', 'funds', 'fund-release-' . $f['id']);
                 Notify::user($p, (int)$f['requested_by'], 'Fund approved', $f['fund_ref'] . ' was approved and is waiting for Finance release.', 'funds');
-                return ['message' => 'Approved. The request is Ready for Release and now appears to Finance.'];
+                return ['message' => 'Fund request approved. It is now ready for release by Finance.'];
             }
             run($p, "UPDATE fund_requests SET status='Rejected', rejected_reason=? WHERE id=?", [$reason, $id]);
             auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $id, 'fund request rejected', $f['fund_ref'] . ': ' . $reason,
                 ['Status' => $f['status'], 'Rejection reason' => $f['rejected_reason']],
                 ['Status' => 'Rejected', 'Rejection reason' => $reason]);
             Notify::user($p, (int)$f['requested_by'], 'Fund rejected', $f['fund_ref'] . ' was rejected: ' . $reason . '. Please revise and resubmit.', 'funds', Notify::key('fund-revise-' . $f['id']));
-            return ['message' => 'Rejected. The dispatcher can revise and resubmit it.'];
+            return ['message' => 'Fund request rejected. The dispatcher may revise and resubmit the request.'];
         });
     }
 
@@ -213,7 +213,7 @@ final class Funds {
             Notify::roles($p, ['operations_head'], 'Fund released', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') was released.', 'funds');
             Notify::resolve($p, 'fund-release-' . $f['id']);
             $v = one($p, 'SELECT voucher_number FROM disbursements WHERE id=?', [$disb])['voucher_number'];
-            return ['message' => "Release confirmed (voucher $v). Fund status: Released."];
+            return ['message' => "Funds released successfully under voucher $v."];
         });
     }
 

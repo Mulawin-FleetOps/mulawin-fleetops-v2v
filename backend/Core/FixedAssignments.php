@@ -37,7 +37,10 @@ final class FixedAssignments {
         must(!$target['assigned_driver_id'] || (int)$target['assigned_driver_id'] === $driverId, 'That Truck already has another fixed Driver. Release its permanent pairing first.', 409);
         if ($target['truck_type'] !== 'Car Carrier') must($helperId !== null, 'Select a Regular Helper for this Truck.');
         else must($helperId === null, 'Car Carrier keeps its existing two-driver workflow; a regular Helper is not used.');
-        if (count($links) === 1 && (int)$target['assigned_driver_id'] === $driverId && (int)$target['assigned_helper_id'] === (int)$helperId) return;
+        if (count($links) === 1 && (int)$target['assigned_driver_id'] === $driverId && (int)$target['assigned_helper_id'] === (int)$helperId) {
+            run($p,'INSERT IGNORE INTO driver_truck_authorizations(driver_id,vehicle_id,authorized_by) VALUES(?,?,?)',[$driverId,$vehicleId,$u['id']]);
+            return;
+        }
         $new = array_merge($target, ['assigned_driver_id' => $driverId, 'assigned_helper_id' => $helperId]);
         // Validate the move after excluding this driver's previous links; these are released in the same transaction.
         foreach ($links as $link) {
@@ -51,6 +54,9 @@ final class FixedAssignments {
         }
         self::validateTruck($p, $vehicleId, $new, $target);
         run($p, 'UPDATE vehicles SET assigned_driver_id=?,assigned_helper_id=? WHERE id=?', [$driverId, $helperId, $vehicleId]);
+        // Compatibility for existing authenticated fixed-assignment workflows:
+        // a historical fixed pairing also grants specific vehicle authorization.
+        run($p,'INSERT IGNORE INTO driver_truck_authorizations(driver_id,vehicle_id,authorized_by) VALUES(?,?,?)',[$driverId,$vehicleId,$u['id']]);
         auditWithChanges($p, $u['id'], 'Fleet', 'vehicle '.$vehicleId, 'fixed assignment saved', 'Permanent Driver/Helper assignment',
             ['Regular driver' => $target['assigned_driver_id'], 'Regular helper' => $target['assigned_helper_id']], ['Regular driver' => $driverId, 'Regular helper' => $helperId]);
     }

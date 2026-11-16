@@ -20,6 +20,7 @@ const TripUI = {
       case 'Dispatched': case 'In Transit': return [3, false];
       case 'On Hold - Incident Reported': return [3, true];
       case 'Completed': return +t.awaiting_arrival ? [4, false] : [5, false];
+      case 'Missed': return [0, true];
       default: return [0, true];
     }
   },
@@ -62,6 +63,7 @@ const TripUI = {
         if (t.incident_status === 'Repaired - Cleared to Continue') return 'Motorpool recorded Fit to Continue. Dispatcher resumes the trip.';
         return 'Mechanic is repairing the truck on site.';
       case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Truck is repaired. Dispatcher reschedules the trip.' : 'Truck is being repaired (major damage). Then the dispatcher reschedules.';
+      case 'Missed': return 'Scheduled dispatch missed. No resources were assigned before departure.';
       case 'Completed':
         if (+t.awaiting_arrival) return 'Delivered. The truck is returning: the dispatcher does the arrival checklist when it is back.' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
         return 'Completed' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
@@ -71,7 +73,7 @@ const TripUI = {
   needsMe(t) {
     const r = App.me.user.role;
     if (r === 'operations_head') return t.status === 'Pending Review' || t.fund_status === 'Pending Approval' || t.status === 'Awaiting Resources';
-    if (UI.isDispatcher() && t.dispatcher_role === r) {
+    if (UI.isDispatcher() && Number(t.responsible_dispatcher_id) === Number(App.me.user.id)) {
       return (t.status === 'Pre-Assigned') || (t.status === 'Ready for Dispatch' && (t.fund_status === 'Released' || (!t.fund_status && +t.attempt_number > 1)))
         || t.fund_status === 'Rejected' || (t.status === 'On Hold - Incident Reported' && t.incident_status === 'Repaired - Cleared to Continue')
         || (t.status === 'For Reschedule' && t.truck_status === 'Assigned') || (t.status === 'Completed' && +t.awaiting_arrival);
@@ -96,8 +98,13 @@ const TripUI = {
   // ------------------------------------------------------------------ forms
   truckTypeOptions() {
     const r = App.me.user.role;
-    if (r === 'car_carrier_dispatcher') return ['Car Carrier'];
-    if (r === 'container_wingvan_dispatcher') return ['Container', 'Wing Van'];
+    if (UI.isDispatcher()) {
+      let types = [];
+      try { types = JSON.parse(App.me.user.dispatcher_truck_types || 'null') || []; } catch {}
+      if (Array.isArray(types) && types.length) return types;
+      if (App.me.user.dispatcher_truck_type) return [App.me.user.dispatcher_truck_type];
+      return r === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container','Wing Van'];
+    }
     return App.me.truckTypes;
   },
   deliveryFields(t = {}, opts = {}) {
@@ -146,10 +153,7 @@ const TripUI = {
     const typeSel = form.querySelector('[name=truck_type]');
     const show = () => {
       const type = typeSel.value;
-      const toggle = (name, on) => { const el = form.querySelector(`[name=${name}]`); if (el) el.closest('[class*=col-]').style.display = on ? '' : 'none'; };
-      toggle('units_planned', !type || type === 'Car Carrier');
-      ['container_number', 'container_size', 'seal_number'].forEach(n => toggle(n, !type || type === 'Container'));
-      toggle('shipment_number', !type || type !== 'Car Carrier');
+      // Cargo fields live in expandable shared sections; do not hide any category.
       // Assignment stays server-side. Show only actionable client-rate errors here.
       const notice = wrap.querySelector('[data-rate-warning]');
       const client = form.querySelector('[name=client_id]');
@@ -168,14 +172,22 @@ const TripUI = {
     show();
   },
 
-  review() { UI.toast('Trip approvals are retired. Historical requests are read-only.', 'info'); },
+  review() { UI.toast('Trip approvals are retired. Historical requests remain available in Trip History.', 'info'); },
   edit(t) {
     if (UI.role('operations_head')) {
-      UI.modal('Edit trip ' + UI.esc(t.trip_ref), TripUI.datalists() + UI.fields(TripUI.deliveryFields(t, { needsKm: true }).filter(f => f.name !== 'truck_type')),
+      UI.modal('Edit trip ' + UI.esc(t.trip_ref), (()=>{
+        const all=TripUI.deliveryFields(t,{needsKm:true}).filter(f=>f.name!=='truck_type');
+        const cargoNames=['booking_reference','consignee','delivery_details','units_planned',
+          'container_number','container_size','seal_number','shipment_number'];
+        return TripUI.datalists()
+          +UI.fields(all.filter(field=>!cargoNames.includes(field.name)))
+          +FormComponents.cargoGroups(all.filter(field=>cargoNames.includes(field.name)),t.truck_type);
+      })(),
         async (d, form) => { form._distance?.clean(d); const r = await App.api('Trips.edit', { ...d, trip_id: t.id }); UI.result(r); TripUI.open(t.id); App.route(); },
         { onShow: (w, f) => {
           const dist = UI.distanceWidget(f, { mapBox: w.querySelector('[data-mapbox]'), initial: t, routePick: { clientId: t.client_id, truckType: t.truck_type } });
           w.addEventListener('shown.bs.modal', () => dist.map && dist.map.invalidateSize());
+          // All cargo sections remain available; the matching section opens by default.
           w.querySelector('[data-rate-warning]')?.remove(); } });
     } else {
       UI.formModal('Trip details ' + UI.esc(t.trip_ref), [
@@ -339,7 +351,7 @@ const TripUI = {
   async open(id) {
     let r;
     try { r = await App.api('Trips.details', { trip_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
-    const t = r.trip, me = App.me.user, mine = UI.isDispatcher() && t.dispatcher_role === me.role, ops = UI.role('operations_head');
+    const t = r.trip, me = App.me.user, mine = UI.isDispatcher() && Number(t.responsible_dispatcher_id) === Number(me.id), ops = UI.role('operations_head');
     const [st, warn] = TripUI.stage(t);
     const btn = (act, label, cls = 'outline-primary', icon = '', disabled = false) => `<button class="btn btn-sm btn-${cls}" data-tact="${act}" ${disabled ? 'disabled' : ''}>${icon ? `<i class="bi ${icon}"></i> ` : ''}${UI.esc(label)}</button>`;
     const acts = [];
@@ -428,7 +440,7 @@ const TripUI = {
         ...crew.map(([l, v]) => [l, UI.e(v) + (v ? attBadge(l) : '')]), t.helper_substitution_reason ? ['Helper replacement reason', UI.esc(t.helper_substitution_reason)] : null, missingRow, attRow, ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ...(t.dispatcher_shift ? [['Planning dispatcher shift', UI.e(t.dispatcher_shift)]] : []), ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
         t.truck_type === 'Car Carrier' ? ['Units', UI.e(t.units_planned) + (t.units_delivered ? ' planned · ' + t.units_delivered + ' delivered' : '')] : ['Container / seal / shipment', [t.container_number, t.container_size, t.seal_number, t.shipment_number].filter(Boolean).map(UI.esc).join(' · ') || '—'],
-        ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Cancel / reject reason', UI.esc(t.cancel_reason)] : null])}
+        ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Closure reason', UI.esc(t.cancel_reason)] : null])}
       <div class="route-map" data-routemap></div>
       ${UI.h('Fund request', fund ? `<button class="btn btn-sm btn-link p-0" data-tact="printfund">Print request form</button>` : '')}
       ${fund ? UI.fundProgress(fund) + UI.kv([['Reference', UI.esc(fund.fund_ref)], ['Status', UI.badge(fund.status)], ['Amount', UI.money(fund.amount)], ['Breakdown', fund.lines.map(l => UI.esc(l.category_name) + ' ' + UI.money(l.amount)).join('<br>')],
@@ -513,7 +525,7 @@ App.page('trips', {
     const filterFields = [
       { name: 'from', label: 'Schedule from', type: 'date', col: 6 }, { name: 'to', label: 'Schedule to', type: 'date', col: 6 },
       { name: 'q', label: 'Search (trip no., place, waybill, booking)', col: 12 },
-      { name: 'status', label: 'Status', type: 'select', options: UI.list(['Completed', 'Cancelled', 'Rejected']), col: 6 },
+      { name: 'status', label: 'Status', type: 'select', options: UI.list(['Completed', 'Cancelled', 'Rejected', 'Missed']), col: 6 },
       { name: 'truck_type', label: 'Truck type', type: 'select', options: UI.list(App.me.truckTypes), col: 6 },
       { name: 'client_id', label: 'Client', type: 'select', options: UI.opts(d.filterOptions.clients, c => c.company_name), col: 6 },
       { name: 'vehicle_id', label: 'Truck', type: 'select', options: UI.opts(d.filterOptions.trucks, v => v.plate_number), col: 6 },

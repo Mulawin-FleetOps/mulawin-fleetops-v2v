@@ -21,8 +21,8 @@ core('DispatcherAttendance');
 core('FixedAssignments');
 
 final class Fleet {
-    private const EDIT = ['admin', 'operations_head'];
-    private const STATUS = ['admin', 'operations_head', 'motorpool'];
+    private const EDIT = ['operations_head'];
+    private const STATUS = ['operations_head', 'motorpool'];
 
     // =================================================================
     // READ
@@ -62,7 +62,13 @@ final class Fleet {
         $data = readSections([
             'crew' => fn() => many($p, "SELECT pe.*, DATEDIFF(pe.license_expiry, CURRENT_DATE()) AS license_days,
                     t.id AS trip_id, t.trip_ref, t.status AS trip_status, v2.plate_number AS trip_plate,
-                    (SELECT GROUP_CONCAT(v.plate_number SEPARATOR ', ') FROM vehicles v WHERE v.active=1 AND (v.assigned_driver_id=pe.id OR v.assigned_helper_id=pe.id)) AS regular_truck,
+                    (CASE WHEN pe.person_type='Driver'
+                        THEN (SELECT GROUP_CONCAT(av.plate_number ORDER BY av.plate_number SEPARATOR ', ')
+                              FROM driver_truck_authorizations da JOIN vehicles av ON av.id=da.vehicle_id
+                              WHERE da.driver_id=pe.id AND av.active=1)
+                        ELSE (SELECT GROUP_CONCAT(v.plate_number SEPARATOR ', ') FROM vehicles v
+                              WHERE v.active=1 AND v.assigned_helper_id=pe.id) END) AS regular_truck,
+                    (SELECT GROUP_CONCAT(dta.vehicle_id ORDER BY dta.vehicle_id SEPARATOR ',') FROM driver_truck_authorizations dta WHERE dta.driver_id=pe.id) AS authorized_truck_ids,
                     (SELECT MIN(vf.id) FROM vehicles vf WHERE vf.active=1 AND vf.assigned_driver_id=pe.id) AS fixed_truck_id,
                     (SELECT vf.assigned_helper_id FROM vehicles vf WHERE vf.active=1 AND vf.assigned_driver_id=pe.id ORDER BY vf.id LIMIT 1) AS regular_helper_id,
                     (SELECT ph.full_name FROM vehicles vf JOIN personnel ph ON ph.id=vf.assigned_helper_id WHERE vf.active=1 AND vf.assigned_driver_id=pe.id ORDER BY vf.id LIMIT 1) AS regular_helper_name,
@@ -80,8 +86,10 @@ final class Fleet {
             $shift = CrewAttendance::shiftFor();
             $data['attendanceContext'] = $shift;
             $data = mergeSections($data, [
-                'assignmentTrucks' => fn() => many($p, 'SELECT id,plate_number,truck_type,assigned_driver_id,assigned_helper_id FROM vehicles WHERE active=1 ORDER BY plate_number'),
-                'assignmentHelpers' => fn() => many($p, "SELECT id,full_name FROM personnel WHERE active=1 AND person_type='Helper' ORDER BY full_name"),
+                'assignmentTrucks' => fn() => many($p, 'SELECT v.id,v.plate_number,v.truck_number,v.truck_type,v.assigned_driver_id,v.assigned_helper_id, (SELECT GROUP_CONCAT(DISTINCT a.driver_id ORDER BY a.driver_id) FROM driver_truck_authorizations a WHERE a.vehicle_id=v.id) AS authorized_driver_ids FROM vehicles v WHERE v.active=1 ORDER BY v.plate_number'),
+                'assignmentHelpers' => fn() => many($p, "SELECT pe.id,pe.full_name,pe.employee_no,
+                    (SELECT MIN(v.id) FROM vehicles v WHERE v.active=1 AND v.assigned_helper_id=pe.id) AS assigned_vehicle_id
+                    FROM personnel pe WHERE pe.active=1 AND pe.person_type='Helper' ORDER BY pe.full_name"),
             ]);
             $data = mergeSections($data, [
                 'attendance' => fn() => many($p, "SELECT personnel_id, IF(time_out IS NULL, 'Timed In', 'Timed Out') AS status FROM dispatcher_attendance_sessions s WHERE id=(SELECT MAX(x.id) FROM dispatcher_attendance_sessions x WHERE x.personnel_id=s.personnel_id)", []),
@@ -93,7 +101,7 @@ final class Fleet {
     /** Read-only operational projection; no unverified shared personnel pool. */
     private static function dispatcherAvailability(array $u): array {
         $p = db(); core('CrewAttendance');
-        $types = $u['role'] === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container', 'Wing Van'];
+        $types = DispatcherScope::types($u);
         $marks = implode(',', array_fill(0, count($types), '?'));
         $shift = CrewAttendance::shiftFor();
         [$tripScope,$tripArgs]=DispatcherScope::tripSql($u);
@@ -106,7 +114,9 @@ final class Fleet {
                 LEFT JOIN trips t ON t.id=a.trip_id $tripScope LEFT JOIN personnel d ON d.id=v.assigned_driver_id LEFT JOIN personnel h ON h.id=v.assigned_helper_id
                 WHERE v.active=1 AND v.truck_type IN ($marks) ORDER BY v.plate_number", [...$tripArgs,...$types]),
             'personnel' => function() use($p,$u,$shift,$tripScope,$tripArgs){[$personScope,$personArgs]=DispatcherScope::personnelSql($u);return many($p, "SELECT pe.id, pe.full_name, pe.person_type, pe.availability, pe.duty_shift, pe.license_expiry,
-                (SELECT GROUP_CONCAT(vr.plate_number ORDER BY vr.plate_number SEPARATOR ', ') FROM vehicles vr WHERE vr.active=1 AND ((pe.person_type='Driver' AND vr.assigned_driver_id=pe.id) OR (pe.person_type='Helper' AND vr.assigned_helper_id=pe.id))) AS regular_truck,
+                (CASE WHEN pe.person_type='Driver' THEN
+                    (SELECT GROUP_CONCAT(av.plate_number ORDER BY av.plate_number SEPARATOR ', ') FROM driver_truck_authorizations da JOIN vehicles av ON av.id=da.vehicle_id WHERE da.driver_id=pe.id AND av.active=1)
+                    ELSE (SELECT GROUP_CONCAT(vr.plate_number ORDER BY vr.plate_number SEPARATOR ', ') FROM vehicles vr WHERE vr.active=1 AND vr.assigned_helper_id=pe.id) END) AS regular_truck,
                 t.trip_ref, v.plate_number, (SELECT IF(s.time_out IS NULL,'Timed In','Timed Out') FROM dispatcher_attendance_sessions s WHERE s.personnel_id=pe.id ORDER BY s.id DESC LIMIT 1) AS attendance_status
                 FROM personnel pe LEFT JOIN trip_assignments a ON a.resource_type='person' AND a.resource_id=pe.id
                 LEFT JOIN trips t ON t.id=a.trip_id $tripScope LEFT JOIN vehicles v ON v.id=t.vehicle_id
@@ -116,12 +126,30 @@ final class Fleet {
         $data['attendanceContext'] = $shift;
         $allowed=array_map('intval',array_column($data['personnel']??[],'id'));
         foreach($data['trucks']??[] as $index=>$truck)foreach(['driver','helper'] as $role){$key='assigned_'.$role.'_id';if(!empty($truck[$key])&&!in_array((int)$truck[$key],$allowed,true)){$data['trucks'][$index][$key]=null;$data['trucks'][$index][$role.'_name']=null;}}
-        foreach($data['trucks']??[] as $index=>$truck){$why=FleetState::truckBlocker($p,(int)$truck['id']);
+        foreach($data['trucks']??[] as $index=>$truck){
+            $why=FleetState::truckBlocker($p,(int)$truck['id']);
             if($why&&str_contains($why,' is already on '))$why=$truck['plate_number'].' is held by another active trip.';
-            $driver=$data['trucks'][$index]['assigned_driver_id'];
-            if(!$why&&!$driver)$why='No verified regular driver is linked.';
-            if(!$why){try{$why=DispatcherAttendance::blocker($p,$u,(int)$driver);}catch(BusinessRuleException $e){$why='Regular driver operational scope needs verification.';}}
-            $data['trucks'][$index]['assignment_reason']=$why;$data['trucks'][$index]['assignment_available']=$why===null;
+            $drivers=many($p,"SELECT da.driver_id,pe.full_name
+                FROM driver_truck_authorizations da JOIN personnel pe ON pe.id=da.driver_id
+                WHERE da.vehicle_id=? AND pe.active=1 AND pe.person_type='Driver'
+                ORDER BY pe.full_name",[$truck['id']]);
+            $data['trucks'][$index]['authorized_driver_names']=implode(', ',array_column($drivers,'full_name'));
+            if(!$why){
+                if(!$drivers)$why='No authorized Driver is linked to this Truck.';
+                else{
+                    $scope=DispatcherScope::forTruckType($u,(string)$truck['truck_type']);
+                    $matched=false;
+                    foreach($drivers as $driver){
+                        if(!in_array((int)$driver['driver_id'],$allowed,true))continue;
+                        try{
+                            if(!DispatcherAttendance::blocker($p,$scope,(int)$driver['driver_id'])){$matched=true;break;}
+                        }catch(BusinessRuleException $e){/* Not eligible for this operational shift. */}
+                    }
+                    if(!$matched)$why='No authorized Driver with an open, eligible Time In session.';
+                }
+            }
+            $data['trucks'][$index]['assignment_reason']=$why;
+            $data['trucks'][$index]['assignment_available']=$why===null;
         }
         return $data;
     }
@@ -214,12 +242,12 @@ final class Fleet {
                 run($p, "UPDATE vehicles SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
                 auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck updated', $row['plate_number'],
                     self::auditTruckFields($p, $old), self::auditTruckFields($p, $row));
-                return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' updated.'];
+                return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' was updated successfully.'];
             }
             $id = insert($p, 'vehicles', $row + ['status' => 'Available']);
             auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck added', $row['plate_number'] . ' (' . $row['truck_type'] . ')',
                 [], self::auditTruckFields($p, $row));
-            return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' added to the masterlist.'];
+            return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' was added to the fleet masterlist.'];
         });
     }
 
@@ -288,7 +316,12 @@ final class Fleet {
         must(Access::canOpen($u, 'trucks'), 'Not allowed.', 403);
         $id = idField($d, 'id'); $p = db();
         if(roleIsDispatcher($u['role'])){DispatcherScope::truck($p,$u,$id);$data=self::dispatcherAvailability($u);return ['truck'=>array_values(array_filter($data['trucks'],fn($r)=>(int)$r['id']===$id))[0]??null];}
-        $v = one($p, 'SELECT v.*, d.full_name AS driver_name, h.full_name AS helper_name FROM vehicles v LEFT JOIN personnel d ON d.id=v.assigned_driver_id LEFT JOIN personnel h ON h.id=v.assigned_helper_id WHERE v.id=?', [$id]);
+        $v = one($p, "SELECT v.*, d.full_name AS driver_name, h.full_name AS helper_name,
+            (SELECT GROUP_CONCAT(p.full_name ORDER BY p.full_name SEPARATOR ', ')
+             FROM driver_truck_authorizations da JOIN personnel p ON p.id=da.driver_id
+             WHERE da.vehicle_id=v.id AND p.active=1) AS authorized_driver_names
+            FROM vehicles v LEFT JOIN personnel d ON d.id=v.assigned_driver_id
+            LEFT JOIN personnel h ON h.id=v.assigned_helper_id WHERE v.id=?", [$id]);
         must((bool)$v, 'Truck not found.', 404);
         return [
             'truck' => $v,
@@ -306,6 +339,105 @@ final class Fleet {
     }
 
     // ---------------------------------------------------------------- drivers and helpers
+    /** Update the precise vehicles a Driver is authorized to operate.
+     * Existing active trip assignments cannot lose their authorization mid-trip. */
+    private static function saveDriverTruckAuthorizations(PDO $p, array $u, int $driverId, $raw): void {
+        must(is_string($raw) && strlen($raw)<=12000, 'Invalid authorized truck selection.');
+        $selected=json_decode($raw,true);
+        must(is_array($selected) && array_is_list($selected), 'Invalid authorized truck selection.');
+        must(count($selected)>0 && count($selected)<=500, 'Select a truck. Existing assignments cannot be changed here.');
+        $ids=[];
+        foreach($selected as $value){
+            must((is_int($value) || (is_string($value) && ctype_digit($value))) && (int)$value>0, 'Invalid truck ID.');
+            $ids[]=(int)$value;
+        }
+        $ids=array_values(array_unique($ids));
+        must((bool)one($p,"SELECT id FROM personnel WHERE id=? AND person_type='Driver' AND active=1",[$driverId]),
+            'Choose an active Driver.',409);
+        $marks=implode(',',array_fill(0,count($ids),'?'));
+        $vehicles=many($p,"SELECT id FROM vehicles WHERE active=1 AND id IN ($marks) ORDER BY id FOR UPDATE",$ids);
+        must(count($vehicles)===count($ids),'An authorized truck is missing or inactive. Refresh the form.',409);
+        $held=many($p,"SELECT DISTINCT t.vehicle_id FROM trip_assignments ta
+            JOIN trips t ON t.id=ta.trip_id
+            WHERE ta.resource_type='person' AND ta.resource_id=? AND
+                (t.driver_id=? OR t.driver2_id=?) AND t.vehicle_id IS NOT NULL",[$driverId,$driverId,$driverId]);
+        foreach($held as $trip)must(in_array((int)$trip['vehicle_id'],$ids,true),
+            'Cannot revoke a truck authorization while the Driver is assigned to an active trip.',409);
+        // The edit modal only offers unassigned trucks. Recheck under vehicle
+        // row locks to prevent stale or forged selections from claiming another
+        // driver's truck. Preserve any existing legacy overlaps unchanged.
+        $existingIds=array_map('intval',array_column(many($p,
+            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? FOR UPDATE',[$driverId]),'vehicle_id'));
+        // One-to-one authorization: never silently remove legacy multi-truck
+        // associations; freeze them until an explicit reassignment workflow exists.
+        if($existingIds){
+            sort($existingIds);
+            $requested=$ids;
+            sort($requested);
+            must($requested===$existingIds,
+                'Existing truck authorization is locked. Contact an administrator for reassignment.',409);
+        }else{
+            must(count($ids)===1,'Select exactly one available truck for this Driver.',409);
+            $otherOwner=one($p,'SELECT driver_id FROM driver_truck_authorizations WHERE vehicle_id=? LIMIT 1',[$ids[0]]);
+            must(!$otherOwner,'This truck is already assigned to another Driver.',409);
+        }
+        $newIds=array_values(array_diff($ids,$existingIds));
+        foreach($vehicles as $vehicle){
+            $vehicleId=(int)$vehicle['id'];
+            if(!in_array($vehicleId,$newIds,true))continue;
+            $owner=one($p,'SELECT driver_id FROM driver_truck_authorizations WHERE vehicle_id=? AND driver_id<>? LIMIT 1',
+                [$vehicleId,$driverId]);
+            must(!$owner,'This truck is already authorized to another Driver. Refresh the form.',409);
+            $fixed=one($p,'SELECT assigned_driver_id FROM vehicles WHERE id=?',[$vehicleId]);
+            must(empty($fixed['assigned_driver_id'])||(int)$fixed['assigned_driver_id']===$driverId,
+                'This truck already has another fixed Driver. Refresh the form.',409);
+        }
+        $previous=array_map('intval',array_column(many($p,
+            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? FOR UPDATE',[$driverId]),'vehicle_id'));
+        $remove=array_diff($previous,$ids);
+        $add=array_diff($ids,$previous);
+        foreach($remove as $vehicleId)run($p,
+            'DELETE FROM driver_truck_authorizations WHERE driver_id=? AND vehicle_id=?',
+            [$driverId,$vehicleId]);
+        foreach($add as $vehicleId)run($p,
+            'INSERT INTO driver_truck_authorizations(driver_id,vehicle_id,authorized_by) VALUES(?,?,?)',
+            [$driverId,$vehicleId,$u['id']]);
+        if($remove || $add) auditWithChanges($p,$u['id'],'Fleet','personnel '.$driverId,'authorized trucks updated',
+            'Driver-specific truck permissions', ['Truck IDs'=>implode(',',$previous)],['Truck IDs'=>implode(',',$ids)]);
+    }
+
+
+    /** Attach one regular helper to the driver's authorized truck, without altering trip assignments. */
+    private static function saveDriverRegularHelper(PDO $p, array $u, int $driverId, $raw): void {
+        $helperId=$raw===null||$raw===''?null:(ctype_digit((string)$raw)?(int)$raw:0);
+        must($helperId===null||$helperId>0,'Invalid regular helper.',422);
+        $truckIds=array_map('intval',array_column(many($p,
+            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? ORDER BY vehicle_id',[$driverId]),'vehicle_id'));
+        must(count($truckIds)===1||$helperId===null,
+            'Cannot pair a regular helper while this driver has multiple legacy trucks.',409);
+        if(count($truckIds)!==1)return;
+        $truckId=$truckIds[0];
+        $truck=one($p,'SELECT id,assigned_helper_id FROM vehicles WHERE id=? AND active=1 FOR UPDATE',[$truckId]);
+        must((bool)$truck,'Authorized truck is unavailable. Refresh the form.',409);
+        $current=(int)($truck['assigned_helper_id']??0);
+        if($current){
+            must($helperId===$current,'Regular helper is locked. Contact an administrator for reassignment.',409);
+            return;
+        }
+        if($helperId===null)return; // A driver can be saved before an unassigned helper becomes available.
+        $helper=one($p,"SELECT id FROM personnel WHERE id=? AND person_type='Helper' AND active=1 FOR UPDATE",[$helperId]);
+        must((bool)$helper,'Selected helper is unavailable. Refresh the form.',409);
+        $claimed=one($p,'SELECT id FROM vehicles WHERE active=1 AND assigned_helper_id=? AND id<>? LIMIT 1',
+            [$helperId,$truckId]);
+        must(!$claimed,'This helper is already assigned to another truck.',409);
+        run($p,'UPDATE vehicles SET assigned_helper_id=? WHERE id=? AND assigned_helper_id IS NULL',[$helperId,$truckId]);
+        $saved=one($p,'SELECT assigned_helper_id FROM vehicles WHERE id=?',[$truckId]);
+        must((int)($saved['assigned_helper_id']??0)===$helperId,
+            'Helper was assigned while saving. Refresh the form.',409);
+        auditWithChanges($p,$u['id'],'Fleet','vehicle '.$truckId,'regular helper assigned',
+            'Driver regular crew pairing',['Helper'=>'Unassigned'],['Helper ID'=>$helperId]);
+    }
+
     private static function crewSave(array $u, array $d): array {
         requireRole($u, ...self::EDIT);
         $id = optId($d, 'id');
@@ -336,19 +468,31 @@ final class Fleet {
                 if ($old['person_type'] !== $row['person_type']) {
                     must(!one($p, "SELECT 1 FROM trip_assignments WHERE resource_type='person' AND resource_id=?", [$id]), 'Driver/helper type cannot change while on an active trip.', 409);
                     must(!one($p, 'SELECT id FROM vehicles WHERE assigned_driver_id=? OR assigned_helper_id=?', [$id, $id]), 'Remove this person as the regular driver/helper of a truck first.', 409);
+                    if ($old['person_type']==='Driver' && $row['person_type']==='Helper')
+                        run($p,'DELETE FROM driver_truck_authorizations WHERE driver_id=?',[$id]);
                 }
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE personnel SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
-                if ($row['person_type'] === 'Driver' && array_key_exists('fixed_truck_id', $d)) FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
+                if ($row['person_type'] === 'Driver' && array_key_exists('authorized_vehicle_ids', $d))
+                    self::saveDriverTruckAuthorizations($p,$u,$id,$d['authorized_vehicle_ids']);
+                if ($row['person_type'] === 'Driver' && array_key_exists('regular_helper_id', $d))
+                    self::saveDriverRegularHelper($p,$u,$id,$d['regular_helper_id']);
+                elseif ($row['person_type'] === 'Driver' && array_key_exists('fixed_truck_id', $d))
+                    FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
                 auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper updated', $row['full_name'],
                     self::auditCrewFields($old), self::auditCrewFields($row));
-                return ['id' => $id, 'message' => $row['full_name'] . ' updated.'];
+                return ['id' => $id, 'message' => $row['full_name'] . ' was updated successfully.'];
             }
             $id = insert($p, 'personnel', $row);
-            if ($row['person_type'] === 'Driver' && hasRole($u, 'operations_head')) FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
+            if ($row['person_type'] === 'Driver' && array_key_exists('authorized_vehicle_ids',$d))
+                self::saveDriverTruckAuthorizations($p,$u,$id,$d['authorized_vehicle_ids']);
+            if ($row['person_type'] === 'Driver' && array_key_exists('regular_helper_id',$d))
+                self::saveDriverRegularHelper($p,$u,$id,$d['regular_helper_id']);
+            elseif ($row['person_type'] === 'Driver' && hasRole($u,'operations_head'))
+                FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
             auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper added', $row['full_name'] . ' (' . $row['person_type'] . ')',
                 [], self::auditCrewFields($row));
-            return ['id' => $id, 'message' => $row['full_name'] . ' added to the masterlist.'];
+            return ['id' => $id, 'message' => $row['full_name'] . ' was added to the personnel masterlist.'];
         });
     }
 
@@ -407,6 +551,10 @@ final class Fleet {
         must((bool)$pe, 'Person not found.', 404);
         $pair = one($p, 'SELECT id AS fixed_truck_id,assigned_helper_id AS regular_helper_id FROM vehicles WHERE active=1 AND assigned_driver_id=? ORDER BY id LIMIT 1', [$id]);
         $pe += $pair ?: ['fixed_truck_id'=>null,'regular_helper_id'=>null];
+        $authorized = many($p,'SELECT da.vehicle_id,v.plate_number FROM driver_truck_authorizations da
+            JOIN vehicles v ON v.id=da.vehicle_id WHERE da.driver_id=? ORDER BY v.plate_number',[$id]);
+        $pe['authorized_truck_ids'] = implode(',',array_column($authorized,'vehicle_id'));
+        $pe['authorized_truck_names'] = implode(', ',array_column($authorized,'plate_number'));
         return [
             'person' => $pe,
             'trips' => many($p, "SELECT t.id, t.trip_ref, t.status, t.scheduled_at, t.pickup_point, t.delivery_point, v.plate_number, c.company_name AS client,

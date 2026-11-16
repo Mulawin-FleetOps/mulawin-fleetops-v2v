@@ -30,7 +30,7 @@ const AuditUI = {
         : '<p class="small text-muted mt-3">No field-by-field changes were recorded for this event.</p>')
       + `<div class="d-flex flex-wrap gap-2 mt-3">${src ? '<button type="button" class="btn btn-sm btn-outline-primary" data-src><i class="bi bi-box-arrow-up-right"></i> Open source record</button>' : ''}
         ${UI.canGo('audit_history') ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-hist><i class="bi bi-clock-history"></i> Full history of this record</button>' : ''}</div>`;
-    const el = UI.drawer('Audit event', html, { subtitle: 'Read-only record' });
+    const el = UI.drawer('Audit event', html, { subtitle: 'Audit record' });
     el.querySelector('[data-src]')?.addEventListener('click', () => { UI.closeDrawer(); UI.goTo(src); });
     el.querySelector('[data-hist]')?.addEventListener('click', () => { UI.closeDrawer(); App.go('audit_history', { record: e.record_ref, from: d.range.from, to: d.range.to }); });
   },
@@ -58,7 +58,7 @@ const AuditUI = {
 // ---------------------------------------------------------------- Audit Overview (Audit landing page)
 App.page('audit_overview', {
   title: 'Audit Overview',
-  subtitle: 'Recorded system activity: who did what, when, on which record (read only).',
+  subtitle: 'Recorded system activity: who did what, when, and on which record.',
   render(ctx) {
     const d = ctx.data, ev = d.events || [], t = d.totals || {};
     const count = (type) => ev.filter(e => e.type === type).length;

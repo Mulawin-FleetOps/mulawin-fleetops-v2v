@@ -5,24 +5,56 @@ declare(strict_types=1);
 final class DispatcherScope {
     public static function types(array $u): array {
         must(roleIsDispatcher($u['role']), 'Only dispatchers can use this operation.', 403);
-        return $u['role'] === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container', 'Wing Van'];
+        $configured = $u['dispatcher_truck_types'] ?? null;
+        if (is_string($configured) && $configured !== '') {
+            $values = json_decode($configured, true);
+            if (is_array($values)) {
+                $types = array_values(array_unique(array_filter($values, fn($t) => is_string($t) && in_array($t, TRUCK_TYPES, true))));
+                if ($types) return $types;
+            }
+        }
+        $roleTypes = $u['role'] === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container', 'Wing Van'];
+        $selected = $u['dispatcher_truck_type'] ?? null;
+        return $selected !== null && in_array($selected, $roleTypes, true) ? [$selected] : $roleTypes;
+    }
+    /** Use the trip's historical operational group for attendance and fixed crew rules,
+     * while retaining the same authenticated Dispatcher identity. */
+    public static function forTruckType(array $u, string $truckType): array {
+        must(in_array($truckType, self::types($u), true),
+            'This Dispatcher is not assigned to that truck type.', 403);
+        $scoped = $u;
+        $scoped['role'] = dispatcherRoleFor($truckType);
+        $scoped['dispatcher_truck_type'] = $truckType;
+        $scoped['dispatcher_truck_types'] = json_encode([$truckType], JSON_THROW_ON_ERROR);
+        return $scoped;
     }
     public static function tripSql(array $u, string $alias = 't'): array {
         $types = self::types($u); $marks = implode(',', array_fill(0, count($types), '?'));
-        return [" AND $alias.dispatcher_role=? AND $alias.truck_type IN ($marks) AND EXISTS(SELECT 1 FROM trip_responsibilities resp WHERE resp.trip_id=$alias.id AND resp.current_dispatcher_id=?)", [$u['role'], ...$types, $u['id']]];
+        return [" AND $alias.truck_type IN ($marks) AND EXISTS(SELECT 1 FROM trip_responsibilities resp WHERE resp.trip_id=$alias.id AND resp.current_dispatcher_id=?)", [...$types, $u['id']]];
     }
     public static function permitsTrip(array $u, array $t): bool {
         $types = self::types($u);
-        return ($t['dispatcher_role'] ?? null) === $u['role'] && in_array($t['truck_type'] ?? null, $types, true)
+        return in_array($t['truck_type'] ?? null, $types, true)
             && (int)($t['responsible_dispatcher_id'] ?? $t['current_dispatcher_id'] ?? 0) === (int)$u['id'] && (int)$u['id']>0;
     }
-    /** No shared/unmapped pool: a person needs an exclusive, existing regular link to this group. */
+    /** Drivers are scoped by explicit vehicle authorization; Helpers keep their
+     * existing exclusive regular operational-group links. */
     public static function personnelSql(array $u, string $alias = 'pe'): array {
-        $types = self::types($u); $marks = implode(',', array_fill(0, count($types), '?'));
-        $link = "(({$alias}.person_type='Driver' AND sv.assigned_driver_id=$alias.id) OR ({$alias}.person_type='Helper' AND sv.assigned_helper_id=$alias.id))";
-        return [" AND $alias.person_type IN (" . ($u['role'] === 'car_carrier_dispatcher' ? "'Driver'" : "'Driver','Helper'") . ")
-            AND EXISTS (SELECT 1 FROM vehicles sv WHERE sv.active=1 AND $link AND sv.truck_type IN ($marks))
-            AND NOT EXISTS (SELECT 1 FROM vehicles sv WHERE sv.active=1 AND $link AND sv.truck_type NOT IN ($marks))", [...$types, ...$types]];
+        $types=self::types($u);
+        $marks=implode(',',array_fill(0,count($types),'?'));
+        $driver="({$alias}.person_type='Driver' AND EXISTS (
+            SELECT 1 FROM driver_truck_authorizations da
+            JOIN vehicles av ON av.id=da.vehicle_id
+            WHERE da.driver_id={$alias}.id AND av.active=1 AND av.truck_type IN ($marks)
+        ))";
+        if(count($types)===1 && $types[0]==='Car Carrier')
+            return [" AND $driver",$types];
+        $helper="({$alias}.person_type='Helper' AND EXISTS (
+            SELECT 1 FROM vehicles sv WHERE sv.active=1 AND sv.assigned_helper_id={$alias}.id AND sv.truck_type IN ($marks)
+        ) AND NOT EXISTS (
+            SELECT 1 FROM vehicles sv WHERE sv.active=1 AND sv.assigned_helper_id={$alias}.id AND sv.truck_type NOT IN ($marks)
+        ))";
+        return [" AND ($driver OR $helper)",[...$types,...$types,...$types]];
     }
     public static function person(PDO $p, array $u, int $id, bool $lock = false): array {
         [$scope,$args] = self::personnelSql($u);

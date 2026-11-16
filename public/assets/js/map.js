@@ -256,6 +256,19 @@ UI.routeMap = (box, t, opts = null) => {
   } else {
     L.polyline([o.a, o.b], { color: '#1f2328', weight: 2, dashArray: '6 6' }).addTo(map);
   }
+  // Optional verified company garage-to-pickup leg. Never draw a fake
+  // connection when road geometry is unavailable.
+  if(o.garagePreview?.garage && Array.isArray(o.garagePreview.garage)
+      && o.garagePreview.garage.every(Number.isFinite)){
+    const gp=o.garagePreview,pts=gp.geometry?UI.Map.decode(gp.geometry):[];
+    L.marker(gp.garage,{icon:UI.Map.icon('garage')}).addTo(map)
+      .bindTooltip('Verified company garage');
+    bounds=bounds.extend(L.latLng(gp.garage));
+    if(pts.length>1){
+      const leg=L.polyline(pts,{color:'#187d85',weight:5,opacity:.92}).addTo(map);
+      bounds=bounds.extend(leg.getBounds());
+    }
+  }
   map.fitBounds(bounds.pad(0.2)); setTimeout(() => map.invalidateSize(), 300);
 };
 
@@ -268,9 +281,10 @@ UI.distanceFieldDefs = (opts = {}) => {
   return [
     ...(opts.withRoutePick ? [{ name: 'client_route_id', label: 'Approved client route (optional)', type: 'select', col: 12, options: [], value: opts.routeId || '',
       placeholder: 'None: pin the points on the map', help: 'Approved routes of the chosen client and truck type. Billing still uses the client rate per km.' }] : []),
-    ...(cfg.routing ? [{ name: 'route_option', label: 'Route option', type: 'select', col: opts.optionCol || 8, placeholder: false,
-      value: opts.option || cfg.defaultRouteOption || 'recommended', options: Object.entries(cfg.routeOptions || {}),
-      help: 'Used for the road distance. The company still has to confirm the toll-road policy.' }] : []),
+    // Keep route_option for server-side distance validation and previously saved
+    // route choices, but do not expose the technical routing-policy selector.
+    ...(cfg.routing ? [{ name: 'route_option', type: 'hidden',
+      value: opts.option || cfg.defaultRouteOption || 'recommended' }] : []),
     { type: 'html', name: 'km_info', col: 12, html: '<div class="small" data-kminfo></div>' },
     { name: 'distance_override_reason', label: 'Reason for changing the computed km', required: true, col: 12, value: opts.reason || '', attrs: 'maxlength="300"' },
   ];
@@ -278,7 +292,7 @@ UI.distanceFieldDefs = (opts = {}) => {
 
 /**
  * Road distance widget (Checklist #5): map pins -> road km from OUR server (Maps.route), route
- * option, "use the computed km", required reason when the km is changed, 15% warning, manual km
+ * choice (stored automatically), "use the computed km", required reason when the km is changed, 15% warning, manual km
  * when the service is not available, and (trips) the choice of an approved client route.
  * The server decides again on save; this only helps the person fill in the form.
  *
@@ -374,7 +388,7 @@ UI.distanceWidget = (form, opts = {}) => {
       ${ini.route_option && (cfg.routeOptions || {})[ini.route_option] ? ' · ' + UI.esc(cfg.routeOptions[ini.route_option]) : ''}${useBtn(st.kind === 'route' ? 'Use the route km' : 'Use the computed km')}`);
     wireUse();
   } else if (ini.pickup_lat && ini.delivery_lat) {
-    say(cfg.routing ? '<span class="text-muted">The saved km was typed (Manual). Move a pin or change the route option to compute the road distance.</span>' : noService);
+    say(cfg.routing ? '<span class="text-muted">The saved km was typed (Manual). Move a pin to compute the road distance.</span>' : noService);
   } else if (!cfg.routing) say(noService);
 
   // ----- approved client route (Trip Management) -----

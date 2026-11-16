@@ -20,6 +20,52 @@ const FormComponents = Object.freeze({
       + '</details>';
   },
 
+  cargoGroups(fields, truckType, options = {}) {
+    // Shared Add/Edit Trip cargo layout. Show only general fields and the
+    // relevant truck category. Keep other existing values in hidden inputs so
+    // editing unrelated details never silently clears historical data.
+    const groups = [
+      ['General Shipment Information','Booking, consignee and delivery instructions','bi-clipboard-check',
+        ['booking_reference','consignee','delivery_details']],
+      ['Car Carrier Details','Cargo units','bi-car-front',['units_planned']],
+      ['Container Details','Container and seal identification','bi-box-seam',
+        ['container_number','container_size','seal_number']],
+      ['Wing Van / Other Shipment Details','Shipment reference','bi-truck',
+        ['shipment_number']]
+    ];
+    const preferred=truckType==='Car Carrier'?1:truckType==='Container'?2:3;
+    if(options.compact){
+      // Review & Create already provides a per-trip disclosure. Avoid nested
+      // accordions: display the shared relevant inputs in one compact grid.
+      const visibleNames=[...groups[0][3],...groups[preferred][3]];
+      const visible=visibleNames.map(name=>fields.find(field=>field.name===name)).filter(Boolean);
+      const hidden=fields.filter(field=>!visibleNames.includes(field.name));
+      const typeTitle=truckType==='Car Carrier'?'Car Carrier':truckType==='Container'?'Container':'Wing Van';
+      return '<section class="trip-cargo-groups trip-cargo-groups-compact" aria-label="Cargo and Shipment Details">'
+        +'<div class="trip-cargo-compact-heading"><i class="bi bi-box-seam" aria-hidden="true"></i>'
+        +'<strong>Cargo &amp; Shipment Details</strong><span>'+UI.esc(typeTitle)+'</span></div>'
+        +'<div class="trip-cargo-compact-fields">'+UI.fields(visible)+'</div>'
+        +hidden.map(field=>'<input type="hidden" name="'+UI.esc(field.name)+'" value="'+UI.esc(field.value??'')+'">').join('')
+        +'</section>';
+    }
+    return '<section class="trip-cargo-groups'+(options.compact?' trip-cargo-groups-compact':'')+'" aria-label="Cargo and Shipment Details">'
+      +'<div class="record-form-section-title"><i class="bi bi-box-seam" aria-hidden="true"></i>'
+      +'<h3>Cargo &amp; Shipment Details</h3></div>'
+      +'<p class="form-help">Only the shipment fields relevant to this truck type are shown.</p>'
+      +groups.map(([title,description,icon,names],index)=>{
+        if(index!==0&&index!==preferred)return '';
+        const selected=names.map(name=>fields.find(field=>field.name===name)).filter(Boolean);
+        if(!selected.length)return '';
+        const existing=selected.some(field=>field.value!==null&&field.value!==undefined&&String(field.value).trim()!=='');
+        return FormComponents.collapsible(title,description,icon,selected,
+          !options.compact&&(index===0||existing||index===preferred));
+      }).join('')
+      +fields.filter(field=>!groups[0][3].includes(field.name)&&
+          !groups[preferred][3].includes(field.name))
+        .map(field=>'<input type="hidden" name="'+UI.esc(field.name)+'" value="'+UI.esc(field.value??'')+'">').join('')
+      +'</section>';
+  },
+
   // Upload requirements use the existing multipart API and modal guards.
   fileModal(title, groups, action, opts = {}) {
     const html = '<div class="record-form record-form-compact record-form-files">'

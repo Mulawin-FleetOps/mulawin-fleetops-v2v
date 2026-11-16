@@ -2,7 +2,7 @@
 'use strict';
 const OpsHead = {
   is: () => UI.role('operations_head'),
-  closed: ['Completed', 'Cancelled', 'Rejected'],
+  closed: ['Completed', 'Cancelled', 'Rejected', 'Missed'],
   groups: {
     pending: ['Pending Review'], awaiting: ['Awaiting Resources'], preparing: ['Pre-Assigned', 'Ready for Dispatch'],
     attention: ['Awaiting Resources','On Hold - Incident Reported','For Reschedule'], road: ['Dispatched', 'In Transit'], problems: ['On Hold - Incident Reported', 'For Reschedule'],
@@ -16,7 +16,7 @@ const OpsHead = {
   link(page, query = {}) { return '#' + page + (Object.keys(query).length ? '?' + new URLSearchParams(query) : ''); },
   panel(title, html, action = '') { return `<section class="oh-panel"><div class="oh-panel-head"><h2>${UI.operationsLabel(title)}</h2>${action}</div><div class="oh-panel-body">${html}</div></section>`; },
   metrics(items) { return `<div class="oh-metrics">${items.map(([label, count, href]) => `<${href ? 'a' : 'div'} class="oh-metric" ${href ? `href="${UI.esc(href)}"` : ''}><span>${UI.esc(UI.operationsLabel(label))}</span><strong>${count == null ? 'Unavailable' : UI.num(count)}</strong>${href ? '<i class="bi bi-arrow-up-right" aria-hidden="true"></i>' : ''}</${href ? 'a' : 'div'}>`).join('')}</div>`; },
-  badge(status) { const color=/Rejected|On Hold|Under Repair/.test(status||'')?'red':UI.badgeColor(status);return status?`<span class="badge-s ${color}">${UI.esc(status)}</span>`:UI.badge(status); },
+  badge(status) { const color=/Rejected|Missed|On Hold|Under Repair/.test(status||'')?'red':UI.badgeColor(status);return status?`<span class="badge-s ${color}">${UI.esc(status)}</span>`:UI.badge(status); },
   bindTrips(el) { el.querySelectorAll('[data-oh-trip]').forEach(b => b.onclick = () => TripUI.open(b.dataset.ohTrip)); },
   search(el, draw, label = 'Search records', fields = []) {
     el.innerHTML = `<form class="oh-record-search" role="search"><div class="oh-record-toolbar"><label class="oh-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" name="search" type="search" aria-label="${UI.esc(label)}" placeholder="${UI.esc(label)}"></label><button type="submit" class="btn btn-primary">Search</button><button type="button" class="btn btn-outline-success" data-record-filters aria-expanded="false">Filters</button></div><div class="oh-record-filter-panel" hidden>${UI.fields(fields.length?fields:[{name:'match',label:'Search within records',placeholder:'Type a matching value'}])}<div class="oh-filter-actions"><button type="button" class="btn btn-primary" data-record-apply>Apply Filters</button><button type="button" class="btn btn-outline-secondary" data-record-clear>Clear Filters</button></div></div></form><div data-list></div>`;
@@ -123,12 +123,15 @@ const OpsHead = {
       + '</div></div>'
       + (d.can.create ? '<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg"></i> Add Trip</button>' : '');
     const columns = [
-      ['Trip / Client','trip_ref',(value,t) => '<b>' + UI.esc(value) + '</b><div class="cell-sub">' + UI.esc(t.client) + '</div>'],
-      ['Route / Truck','pickup_point',(value,t) => UI.esc(t.pickup_point || '') + ' → ' + UI.esc(t.delivery_point || '') + '<div class="cell-sub">' + UI.esc(t.plate_number || 'Awaiting assignment') + '</div>'],
-      [history?'Closure / Schedule':'Scheduled Dispatch','scheduled_at',(value,t) => history
-        ? (t.completed_at ? this.datetime(t.completed_at) : 'Closure date not recorded') + '<div class="cell-sub">Scheduled: ' + this.datetime(value) + '</div>'
-        : this.datetime(value)],
-      ['Status','status',(value,t) => OpsHead.badge(value) + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '')],
+      ['Trip / Client','trip_ref',(value,t) => '<div class="fleet-trip-identity"><strong class="fleet-trip-ref">' + UI.esc(value) + '</strong><span class="fleet-trip-client">' + UI.esc(t.client || 'Client not specified') + '</span></div>'],
+      ['Route / Truck','pickup_point',(value,t) => '<div class="fleet-trip-route"><span class="fleet-trip-route-path">' + UI.esc(t.pickup_point || 'Pickup not specified') + ' <span class="fleet-trip-route-arrow" aria-hidden="true">→</span> ' + UI.esc(t.delivery_point || 'Destination not specified') + '</span><span class="fleet-trip-truck"><i class="bi bi-truck" aria-hidden="true"></i> ' + UI.esc(t.plate_number || 'Awaiting assignment') + '</span></div>'],
+      [history?'Closure / Schedule':'Scheduled Dispatch','scheduled_at',(value,t) => {
+        if(history) return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(t.completed_at ? this.datetime(t.completed_at) : t.status === 'Missed' ? 'Missed dispatch' : 'Closure date not recorded') + '</strong><span>Scheduled: ' + UI.esc(this.datetime(value)) + '</span></div>';
+        const formatted=this.datetime(value);
+        const separator=formatted.lastIndexOf(', ');
+        return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(separator>=0 ? formatted.slice(0,separator) : formatted) + '</strong>' + (separator>=0 ? '<span><i class="bi bi-clock" aria-hidden="true"></i> ' + UI.esc(formatted.slice(separator+2)) + '</span>' : '') + '</div>';
+      }],
+      ['Status','status',(value,t) => '<div class="fleet-trip-status">' + OpsHead.badge(value) + (+t.pending_archival ? '<div class="badge-s amber">Pending archival</div>' : '') + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '') + '</div>'],
     ];
     const table = UI.table(columns,rows,{
       tools:toolbar,
@@ -147,12 +150,20 @@ const OpsHead = {
         {label:'Pending Arrival Inspections',value:d.opsSummary?.arrival ?? 0,color:'blue'},
       ])
       + RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],tab,'data-trip-view')
-      + (history ? '<p class="record-workspace-help"><a href="#trips?tab=history&legacy=1">Historical Trip Requests (read-only)</a></p>' : '')
+      + (history ? '<p class="record-workspace-help"><a href="#trips?tab=history&legacy=1">Historical Trip Requests</a></p>' : '')
       + (q.group && !history ? '<p class="record-workspace-help">Monitoring group: <b>' + UI.esc(q.group) + '</b> · <a href="#trips?tab=active">Clear group</a></p>' : '')
       + RecordComponents.panel(table) + '</div>';
     UI.activate(ctx.el);
     RecordComponents.mountPanel(ctx.el,{title:history?'Trip History Records':'Active Trip Records',addSelector:'.record-workspace-add'});
-    ctx.el.querySelector('.record-workspace-category-row')?.remove();
+    // Keep the trip views inside the record card, matching Route & Contract
+    // Records. Reparent the existing tab buttons so their handlers and state
+    // remain unchanged, and reuse the shared category-row presentation.
+    const tripCategoryRow = ctx.el.querySelector('.record-workspace-category-row');
+    const tripViews = ctx.el.querySelector('.record-workspace-tabs');
+    if (tripCategoryRow && tripViews) {
+      tripCategoryRow.append(tripViews);
+      tripCategoryRow.classList.add('fleet-trips-view-row');
+    } else tripCategoryRow?.remove();
     ctx.el.querySelector('.record-workspace-add')?.addEventListener('click',()=>this.openTripPlanner(ctx));
     ctx.el.querySelectorAll('[data-trip-view]').forEach(button=>button.addEventListener('click',()=>{
       App.go('trips',{tab:button.dataset.tripView});
@@ -160,6 +171,7 @@ const OpsHead = {
     const tbody=ctx.el.querySelector('[data-tbody]');
     const state=tbody?UI._tables[tbody.dataset.tbody]:null;
     const initial=state?state.rows.slice():[];
+    const tripGrouping=RecordComponents.mountTripGrouping(ctx.el,tbody?.dataset.tbody,'client');
     RecordComponents.bindDropdowns(ctx.el,{
       apply(panel){
         const next={...q,tab};
@@ -185,7 +197,8 @@ const OpsHead = {
           ordered.sort((a,b)=>key==='newest'?timestamp(b)-timestamp(a):timestamp(a)-timestamp(b));
         } else if(key==='client'||key==='status')ordered.sort((a,b)=>
           String(a[key]||'').localeCompare(String(b[key]||''),undefined,{numeric:true}));
-        state.rows=ordered;state.page=0;UI.drawTable(tbody.dataset.tbody);
+        if(tripGrouping) tripGrouping.setRows(ordered);
+        else {state.rows=ordered;state.page=0;UI.drawTable(tbody.dataset.tbody);}
       },
     },{filter:'trip-filter-panel',sort:'trip-sort-panel'});
     if (legacyOpenPlanner) this.openTripPlanner(ctx);
@@ -270,7 +283,7 @@ const OpsHead = {
       title:tab === 'open' ? 'Ongoing Incident Records' : 'Resolved Incident Records',
       addSelector:'.record-workspace-add',
     });
-    workspace.querySelector('.record-workspace-category-row')?.remove();
+    RecordComponents.mountViewTabs(workspace);
     workspace.querySelectorAll('[data-incident-view]').forEach(button => button.addEventListener('click',()=>{
       const next={...query,tab:'incidents',incident:button.dataset.incidentView};
       delete next.incident_type; delete next.job_status;
@@ -377,16 +390,20 @@ const OpsHead = {
       </div>`
       +(d.can?.request?'<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Request New Route</button>':'');
     const columns=[
-      ['Client','client'],
-      ['Route','origin_label',(value,r)=>UI.esc(r.origin_label)+' → '+UI.esc(r.destination_label)],
-      ['Truck Type','truck_type'],
+      ['Client','client',value=>'<strong class="oh-route-client">'+UI.e(value)+'</strong>'],
+      ['Route','origin_label',(value,r)=>'<div class="oh-route-journey">'
+        +'<div class="oh-route-place"><span class="oh-route-point origin" aria-hidden="true"></span><span>'+UI.e(r.origin_label)+'</span></div>'
+        +'<div class="oh-route-connector" aria-hidden="true"></div>'
+        +'<div class="oh-route-place"><span class="oh-route-point destination" aria-hidden="true"></span><span>'+UI.e(r.destination_label)+'</span></div>'
+        +'</div>'],
+      ['Truck Type','truck_type',value=>'<span class="oh-route-truck">'+UI.e(value)+'</span>'],
       ...(tab==='approved'?[
-        ['Distance (km)','distance_km','num'],
-        ['Approved Rate','rate_amount',(value,r)=>RouteUI.rateText(r.rate_type,value,r.minimum_charge)],
+        ['Distance (km)','distance_km',value=>'<span class="oh-route-distance">'+UI.num(value,2)+'</span>'],
+        ['Approved Rate','rate_amount',(value,r)=>'<strong class="oh-route-rate">'+RouteUI.rateText(r.rate_type,value,r.minimum_charge)+'</strong>'],
       ]:[
         ['Request Date','requested_at',value=>OpsHead.datetime(value)],
       ]),
-      ['Status','status',(value,r)=>OpsHead.badge(value)+(r.pending_rate_id&&value==='Approved'?'<div class="small">Rate revision pending</div>':'')],
+      ['Status','status',(value,r)=>'<span class="oh-route-status">'+OpsHead.badge(value)+'</span>'+(r.pending_rate_id&&value==='Approved'?'<div class="small">Rate revision pending</div>':'')],
     ];
     const table=UI.table(columns,rows,{
       tools:toolbar,showAllColumns:true,
@@ -395,7 +412,7 @@ const OpsHead = {
       rowClick:r=>RouteUI.open(r.id,d),
       empty:tab==='approved'?'No approved routes match your search or filters.':'No route requests match your search or filters.',
     });
-    ctx.el.innerHTML='<div class="fleet-routes-workspace">'
+    ctx.el.innerHTML='<div class="fleet-routes-workspace oh-client-routes-workspace">'
       +RecordComponents.kpis([
         {label:'Approved Routes',value:approved.length,color:'green'},
         {label:'Route Requests',value:requests.length},
@@ -413,7 +430,7 @@ const OpsHead = {
       title:tab==='approved'?'Approved Route Records':'Route Request Records',
       addSelector:'.record-workspace-add',
     });
-    ctx.el.querySelector('.record-workspace-category-row')?.remove();
+    RecordComponents.mountViewTabs(ctx.el);
     ctx.el.querySelector('.record-workspace-add')?.addEventListener('click',()=>RouteUI.request(d));
     ctx.el.querySelectorAll('[data-route-view]').forEach(button=>button.addEventListener('click',()=>{
       const next={...ctx.query,tab:button.dataset.routeView};
@@ -463,42 +480,125 @@ const OpsHead = {
       const buttons = [...h.querySelectorAll('button')]; buttons.forEach(b => fragment.prepend(b));
       sections.set(label, fragment); h.remove();
     });
-    const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
-    const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
-    const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
-    const approved = !!t.approved_at;
-    const dispatched = !!t.dispatched_at;
+    const ins = (r.inspections || []).find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
+    const arr = (r.inspections || []).find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
+    const fund = (r.funds || []).find(f => +f.attempt_number === +t.attempt_number);
     const prepared = !!ins?.completed_at && !+ins.has_not_ok;
-    const progress = t.status === 'Completed' ? 5 : dispatched ? 4 : prepared ? 3 : t.vehicle_id ? 2 : approved ? 1 : 0;
+    const crewAssigned = !!(t.vehicle_id && t.driver_id && (t.truck_type === 'Car Carrier' ? t.driver2_id : t.helper_id));
     const kv = UI.kv;
     const text = UI.e;
-    body.innerHTML = this.panel('Trip Summary', kv([['Client', text(t.client)], ['Approved Route', text(t.client_route_ref || (t.client_route_id ? 'Linked route' : 'No approved route linked'))], ['Route', `${UI.esc(t.pickup_point)} → ${UI.esc(t.delivery_point)}`], ['Truck', text(t.plate_number)], ['Driver / Helper', [t.driver_name, t.driver2_name, t.helper_name].filter(Boolean).map(UI.esc).join(' · ') || '—'], ['Schedule', this.datetime(t.scheduled_at)]])) +
-      this.panel('Progress', UI.tripProgress(t, r) + `<p class="small mb-0">Official status: ${OpsHead.badge(t.status)}</p><p class="small text-muted">${UI.esc(TripUI.next(t))}</p>`) +
-      this.panel('Readiness', kv([[t.intake_source === 'Dispatcher' ? 'Historical Request State' : 'Trip Creation', t.intake_source === 'Dispatcher' ? OpsHead.badge(t.status) : 'Created by Operations Head'], ['Truck & Personnel', t.status === 'Completed' ? 'See recorded Truck and personnel below' : t.vehicle_id && t.driver_id && (t.truck_type === 'Car Carrier' ? t.driver2_id : t.helper_id) ? 'Assigned' : 'Incomplete / awaiting resources'], ['Trip Fund', fund ? OpsHead.badge(fund.status) : (+t.attempt_number > 1 ? 'No new request (optional for redispatch)' : 'Not requested')], ['Pre-Dispatch Checklist', ins ? (prepared ? 'Completed' : 'NOT OK / incomplete') : 'Not completed'], ['Dispatch', dispatched ? this.datetime(t.dispatched_at) : 'Not dispatched'], ['Arrival Checklist', t.status === 'Completed' ? (+t.awaiting_arrival ? (arr ? 'Recorded; clearance pending' : 'Pending') : arr ? 'Recorded' : 'Not recorded') : 'Not yet applicable']])) + '<div data-trip-sections></div>';
+    const next = TripUI.next(t);
+    // A single at-a-glance area replaces repeated Overview, Readiness and Status panels.
+    const summaryCard = (label, value, note, icon) => '<div class="oh-trip-quick-card">'
+      + '<span class="oh-trip-quick-label"><i class="bi ' + icon + '" aria-hidden="true"></i> ' + label + '</span>'
+      + '<strong>' + value + '</strong>'
+      + (note ? '<span class="oh-trip-quick-note">' + note + '</span>' : '') + '</div>';
+    const routeSummary = UI.esc(t.pickup_point || 'Pickup not specified') + ' <span aria-hidden="true">→</span> ' + UI.esc(t.delivery_point || 'Destination not specified');
+    const scheduleSummary = UI.esc(this.datetime(t.scheduled_at));
+    const crewSummary = t.plate_number ? text(t.plate_number) : 'Awaiting assignment';
+    const readySummary = (fund ? 'Fund: ' + UI.esc(fund.status) : 'Fund: Not requested')
+      + ' · ' + (prepared ? 'Checklist completed' : 'Checklist pending');
+    body.innerHTML = '<div class="oh-trip-quick-grid">'
+      + summaryCard('Route', routeSummary, text(t.client_route_ref || 'Approved route'), 'bi-signpost-split')
+      + summaryCard('Scheduled Dispatch', scheduleSummary, '', 'bi-calendar-event')
+      + summaryCard('Truck & Personnel', crewSummary, crewAssigned ? 'Crew assigned' : 'Crew awaiting assignment', 'bi-truck')
+      + summaryCard('Dispatch Readiness', readySummary, '', 'bi-clipboard-check')
+      + '</div>'
+      + '<section class="oh-trip-progress-card"><div class="oh-trip-progress-heading"><h3>Trip Progress</h3></div>'
+      + UI.tripProgress(t, r)
+      + '<div class="oh-trip-next-step"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i><div><strong>Next step</strong><p>'
+      + UI.esc(next) + '</p></div></div></section>'
+      + '<div class="oh-trip-groups" data-trip-sections></div>';
     const content = body.querySelector('[data-trip-sections]');
-    const append = (title, html, open = false) => {
-      const details = document.createElement('details'); details.className = 'oh-detail-section'; details.open = open;
-      const summary = document.createElement('summary'); summary.textContent = title; details.append(summary);
-      const inner = document.createElement('div'); inner.className = 'oh-detail-body';
-      if (typeof html === 'string') inner.innerHTML = html; else if (html) inner.append(html);
-      details.append(inner); content.append(details); return details;
+    const append = (title, description, icon, open = false) => {
+      const details = document.createElement('details');
+      details.className = 'oh-detail-section oh-trip-group';
+      details.open = open;
+      const summary = document.createElement('summary');
+      summary.innerHTML = '<i class="bi ' + icon + '" aria-hidden="true"></i><span class="oh-trip-group-title">'
+        + UI.esc(title) + '<small>' + UI.esc(description) + '</small></span>'
+        + '<i class="bi bi-chevron-down oh-trip-group-chevron" aria-hidden="true"></i>';
+      details.append(summary);
+      const inner = document.createElement('div');inner.className = 'oh-detail-body';
+      details.append(inner);content.append(details);
+      return {details,inner};
     };
-    append('Overview', kv([['Reference', text(t.trip_ref)], ['Client', text(t.client)], ['Truck Type', text(t.truck_type)], ['Requested By', text(t.created_by_name)], ['Created', this.datetime(t.created_at)], ['Official Status', OpsHead.badge(t.status)], t.cancel_reason ? ['Cancellation / Rejection Reason', text(t.cancel_reason)] : null]), true);
-    const route = append('Route & Schedule', kv([['Approved Route', text(t.client_route_ref)], ['Pickup', text(t.pickup_point)], ['Delivery', text(t.delivery_point)], ['Dispatch Schedule', this.datetime(t.scheduled_at)], ['Billable Distance', UI.num(t.distance_km, 2) + ' km'], ['Distance Source', text(t.distance_source)], ['Computed Distance', t.distance_computed_km ? UI.num(t.distance_computed_km, 2) + ' km' : '—'], ['Override Reason', text(t.distance_override_reason)], ['Checklist Opens', this.datetime(t.time_gates?.checklist_opens_at)], ['Dispatch Opens', this.datetime(t.time_gates?.dispatch_opens_at)]]));
+    const addBlock = (parent, title, value) => {
+      if(!value)return;
+      const group = document.createElement('section');
+      group.className = 'oh-trip-subsection';
+      const heading=document.createElement('h4');heading.textContent=title;group.append(heading);
+      if(typeof value === 'string')group.insertAdjacentHTML('beforeend',value);
+      else group.append(value);
+      parent.append(group);
+    };
+    const tripSummary = append('Trip Summary', 'Route, schedule, shipment and request details', 'bi-journal-text', true);
+    addBlock(tripSummary.inner,'Trip Information',kv([['Reference',text(t.trip_ref)],['Client',text(t.client)],
+      ['Truck Type',text(t.truck_type)],['Requested By',text(t.created_by_name)],
+      ['Created',this.datetime(t.created_at)],
+      t.cancel_reason?['Cancellation / Rejection Reason',text(t.cancel_reason)]:null]));
+    addBlock(tripSummary.inner,'Route & Schedule',kv([
+      ['Approved Route',text(t.client_route_ref)],['Pickup',text(t.pickup_point)],['Delivery',text(t.delivery_point)],
+      ['Dispatch Schedule',this.datetime(t.scheduled_at)],['Billable Distance',UI.num(t.distance_km,2)+' km'],
+      ['Distance Source',text(t.distance_source)],
+      ['Computed Distance',t.distance_computed_km?UI.num(t.distance_computed_km,2)+' km':'—'],
+      ['Override Reason',text(t.distance_override_reason)],
+      ['Checklist Opens',this.datetime(t.time_gates?.checklist_opens_at)],
+      ['Dispatch Opens',this.datetime(t.time_gates?.dispatch_opens_at)]
+    ]));
     const savedMap = sections.get('Trip')?.querySelector?.('[data-routemap]');
-    if (savedMap) { route.querySelector('.oh-detail-body').append(savedMap); route.addEventListener('toggle', () => window.dispatchEvent(new Event('resize'))); }
-    append('Shipment & Delivery', kv([['Instructions', text(t.delivery_details)], ['Booking Reference', text(t.booking_reference)], ['Consignee', text(t.consignee)], ...(t.truck_type === 'Car Carrier' ? [['Cargo Units', text(t.units_planned)]] : [['Shipment Number', text(t.shipment_number)]]), ...(t.truck_type === 'Container' ? [['Container Number', text(t.container_number)], ['Container Size', text(t.container_size)], ['Seal Number', text(t.seal_number)]] : [])]));
-    append('Truck & Personnel', kv([['Truck', text(t.plate_number)], ['Vehicle Status', OpsHead.badge(t.truck_status)], ['Driver', text(t.driver_name)], ['Second Driver', text(t.driver2_name)], ['Helper', text(t.helper_name)], ['Dispatcher', text(t.dispatcher_name)], ['Team', text(UI.label(t.dispatcher_role))], ...(t.dispatcher_shift ? [['Planning Dispatcher Shift', text(t.dispatcher_shift)]] : []), ['Attendance Mode', text(t.crew_attendance?.mode)], ['Attendance Shift', text(t.crew_attendance?.dispatch_shift)]]) + (t.crew_attendance?.crew || []).map(c => `<p class="small">${UI.esc(c.role)} · ${UI.esc(c.full_name || c.name || '')}: ${UI.esc(c.issue || 'Present')}${c.problem ? ' · ' + UI.esc(c.problem) : ''}${c.outside_scheduled_shift ? ' · Outside scheduled shift' : ''}</p>`).join('') + (t.crew_attendance?.missing || []).map(x => `<p class="text-danger small">${UI.esc(x)}</p>`).join(''));
-    const funds = append('Trip Funds & Fuel', sections.get('Fund request'));
-    funds.querySelector('.oh-detail-body').insertAdjacentHTML('beforeend', kv([['Estimated Fuel Cost', t.fuel_estimate ? UI.money(t.fuel_estimate) : '—']]));
-    if (fund) { const b = document.createElement('button'); b.className = 'btn btn-sm btn-outline-success'; b.textContent = 'View Fund'; b.onclick = () => this.openFund(fund.id); funds.querySelector('.oh-detail-body').append(b); }
-    append('Pre-Dispatch Checklist', [...sections].find(([key]) => key.startsWith('Pre-dispatch checklist'))?.[1]);
-    append('Dispatch & Progress', sections.get('Updates and delays'));
-    const incidents = append('Incidents & Repairs', sections.get('Incidents') || '<p>No incidents recorded.</p>'); incidents.dataset.incidentSection = '';
-    const completion = append('Completion & Arrival', sections.get('Completion') || '<p>Trip is not completed.</p>');
-    if (sections.get('Arrival checklist')) completion.querySelector('.oh-detail-body').append(sections.get('Arrival checklist'));
-    append('Documents', sections.get('Documents'));
-    append('Activity Timeline', sections.get('History'));
+    if(savedMap){
+      tripSummary.inner.append(savedMap);
+      tripSummary.details.addEventListener('toggle',()=>window.dispatchEvent(new Event('resize')));
+    }
+    addBlock(tripSummary.inner,'Shipment & Delivery',kv([
+      ['Instructions',text(t.delivery_details)],['Booking Reference',text(t.booking_reference)],
+      ['Consignee',text(t.consignee)],
+      ...(t.truck_type==='Car Carrier'?[['Cargo Units',text(t.units_planned)]]:[['Shipment Number',text(t.shipment_number)]]),
+      ...(t.truck_type==='Container'?[['Container Number',text(t.container_number)],
+        ['Container Size',text(t.container_size)],['Seal Number',text(t.seal_number)]]:[])
+    ]));
+    const assignment=append('Resource Assignment','Truck, driver, helper, dispatcher and attendance','bi-people');
+    addBlock(assignment.inner,'Assigned Resources',kv([
+      ['Truck',text(t.plate_number)],['Vehicle Status',OpsHead.badge(t.truck_status)],
+      ['Driver',text(t.driver_name)],['Second Driver',text(t.driver2_name)],
+      ['Helper',text(t.helper_name)],['Dispatcher',text(t.dispatcher_name)],
+      ['Team',text(UI.label(t.dispatcher_role))],
+      ...(t.dispatcher_shift?[['Planning Dispatcher Shift',text(t.dispatcher_shift)]]:[]),
+      ['Attendance Mode',text(t.crew_attendance?.mode)],
+      ['Attendance Shift',text(t.crew_attendance?.dispatch_shift)]
+    ])+(t.crew_attendance?.crew||[]).map(c=>'<p class="small">'+UI.esc(c.role)+' · '
+      +UI.esc(c.full_name||c.name||'')+': '+UI.esc(c.issue||'Present')
+      +(c.problem?' · '+UI.esc(c.problem):'')
+      +(c.outside_scheduled_shift?' · Outside scheduled shift':'')+'</p>').join('')
+      +(t.crew_attendance?.missing||[]).map(x=>'<p class="text-danger small">'+UI.esc(x)+'</p>').join(''));
+    const readiness=append('Dispatch Readiness','Trip funds, fuel estimate and pre-dispatch checklist','bi-clipboard-check');
+    addBlock(readiness.inner,'Readiness Checks',kv([
+      [t.intake_source==='Dispatcher'?'Historical Request State':'Trip Creation',
+        t.intake_source==='Dispatcher'?OpsHead.badge(t.status):'Created by Operations Head'],
+      ['Truck & Personnel',t.status==='Completed'?'See recorded assignment':crewAssigned?'Assigned':'Incomplete / awaiting resources'],
+      ['Trip Fund',fund?OpsHead.badge(fund.status):(+t.attempt_number>1?'No new request (optional for redispatch)':'Not requested')],
+      ['Pre-Dispatch Checklist',ins?(prepared?'Completed':'NOT OK / incomplete'):'Not completed']
+    ]));
+    addBlock(readiness.inner,'Trip Funds & Fuel',sections.get('Fund request'));
+    addBlock(readiness.inner,'Estimated Fuel Cost',kv([['Estimated Fuel Cost',t.fuel_estimate?UI.money(t.fuel_estimate):'—']]));
+    if(fund){const button=document.createElement('button');button.className='btn btn-sm btn-outline-success';
+      button.textContent='View Fund';button.onclick=()=>this.openFund(fund.id);readiness.inner.append(button);}
+    addBlock(readiness.inner,'Pre-Dispatch Checklist',[...sections].find(([key])=>key.startsWith('Pre-dispatch checklist'))?.[1]);
+    const dispatch=append('Dispatch & Completion','Dispatch updates, completion and arrival inspection','bi-flag');
+    addBlock(dispatch.inner,'Dispatch Status',kv([
+      ['Dispatch',t.dispatched_at?this.datetime(t.dispatched_at):'Not dispatched'],
+      ['Arrival Checklist',t.status==='Completed'?(+t.awaiting_arrival?(arr?'Recorded; clearance pending':'Pending'):arr?'Recorded':'Not recorded'):'Not yet applicable']
+    ]));
+    addBlock(dispatch.inner,'Updates & Delays',sections.get('Updates and delays'));
+    addBlock(dispatch.inner,'Completion',sections.get('Completion')||'<p>Trip is not completed.</p>');
+    addBlock(dispatch.inner,'Arrival Inspection',sections.get('Arrival checklist'));
+    const support=append('Supporting Records','Incidents, documents and audit history','bi-folder2-open');
+    const incidentContent=sections.get('Incidents')||'<p>No incidents recorded.</p>';
+    addBlock(support.inner,'Incidents & Repairs',incidentContent);
+    if(incidentContent!==null)support.details.dataset.incidentSection='';
+    addBlock(support.inner,'Documents',sections.get('Documents'));
+    addBlock(support.inner,'Activity Timeline',sections.get('History'));
     if (originalActions) body.prepend(originalActions);
     // Move one existing authorized action to a fixed footer; moving preserves its listener.
     const primary = originalActions?.querySelector('button:not([disabled])');
@@ -554,14 +654,14 @@ const OpsHead = {
            <label class="record-workspace-sort-option"><input type="radio" name="crew_sort" value="default" data-record-sort checked> Default order</label>
            <label class="record-workspace-sort-option"><input type="radio" name="crew_sort" value="name" data-record-sort> Name (A–Z)</label>
            <label class="record-workspace-sort-option"><input type="radio" name="crew_sort" value="availability" data-record-sort> Availability</label>
-           <label class="record-workspace-sort-option"><input type="radio" name="crew_sort" value="truck" data-record-sort> Fixed truck</label>
+           <label class="record-workspace-sort-option"><input type="radio" name="crew_sort" value="truck" data-record-sort> Authorized / regular trucks</label>
          </div>
        </div>
        ${d.can?.edit ? '<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add ' + type + '</button>' : ''}`;
     const columns = [
       ['Name', 'full_name', (value, person) => '<b>' + UI.esc(value) + '</b>' + (!+person.active ? ' <span class="badge-s red">Inactive</span>' : '')],
-      ['Fixed Truck', 'regular_truck'],
-      ...(type === 'Driver' ? [['Regular Helper', 'regular_helper_name']] : []),
+      [type === 'Driver' ? 'Authorized Trucks' : 'Regular Truck', 'regular_truck'],
+
       ['Attendance Readiness', 'id', (value, person) => !Array.isArray(d.attendance)
         ? 'Unavailable' : OpsHead.badge(d.attendance.find(entry => +entry.personnel_id === +person.id)?.status || 'Not Yet Marked')],
       ['Availability', 'availability', 'badge'],
@@ -587,7 +687,7 @@ const OpsHead = {
       + '</div>';
     UI.activate(ctx.el);
     RecordComponents.mountPanel(ctx.el,{title: type + ' Records',addSelector:'.record-workspace-add'});
-    ctx.el.querySelector('.record-workspace-category-row')?.remove();
+    RecordComponents.mountViewTabs(ctx.el);
     ctx.el.querySelectorAll('[data-crew-type]').forEach(button => button.addEventListener('click',() => {
       const next = {...ctx.query,person_type:button.dataset.crewType};
       delete next.availability;delete next.license;delete next.inactive;
@@ -635,7 +735,7 @@ const OpsHead = {
     wrap.innerHTML = '<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">'
       + '<div class="modal-content">'
       + '<div class="modal-header"><div><h5 class="modal-title" id="oh-trip-planner-title">Add Trip</h5>'
-      + '<p class="small text-muted mb-0">Plan trips, assign a Dispatcher, then review and create.</p></div>'
+      + '<p class="small text-muted mb-0">Select a client route, schedule, and dispatcher.</p></div>'
       + '<button type="button" class="btn-close" data-plan-close aria-label="Close trip planner"></button></div>'
       + '<div class="modal-body" tabindex="-1"></div></div></div>';
     document.body.append(wrap);
@@ -682,18 +782,48 @@ const OpsHead = {
     const clients = ctx.data.clients || [];
     const clientName = id => clients.find(c => String(c.id) === String(id))?.company_name || 'Choose client';
     const dispatcherOptions = type => !['Car Carrier','Container','Wing Van'].includes(type) ? [] : (ctx.data.dispatcherGroups||[]).filter(g=>g.role===(type==='Car Carrier'?'car_carrier_dispatcher':'container_wingvan_dispatcher')).map(g=>g.shift).map(shift => [`${type === 'Car Carrier' ? 'car_carrier_dispatcher' : 'container_wingvan_dispatcher'}:${shift}`, `${type === 'Car Carrier' ? 'Car Carrier' : 'Container / Wing Van'} Dispatcher (${shift})`]);
+    const shiftForScheduledTime = scheduledAt => {
+      const time=String(scheduledAt||'').split('T')[1];
+      if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time||''))return '';
+      const hour=Number(time.slice(0,2));
+      const configured=ctx.data.dispatcherShiftHours||{};
+      const day=Number(configured.day),night=Number(configured.night);
+      const startDay=Number.isInteger(day)&&day>=0&&day<=23?day:6;
+      const startNight=Number.isInteger(night)&&night>=0&&night<=23?night:18;
+      const d=startDay===startNight?6:startDay,n=startDay===startNight?18:startNight;
+      return (d<n?(hour>=d&&hour<n):(hour>=d||hour<n))?'Day':'Night';
+    };
+    const scheduledDispatcherAssignment = data => {
+      const shift=shiftForScheduledTime(data.scheduled_at);
+      return dispatcherOptions(data.truck_type).find(([key])=>key.endsWith(':'+shift))?.[0]||'';
+    };
     const dispatcherName = data => dispatcherOptions(data.truck_type).find(([key]) => key === data.dispatcher_assignment)?.[1] || 'Choose dispatcher';
-    const accountOptions = data => (ctx.data.dispatcherAccounts || []).filter(a => `${a.role}:${a.shift}` === data.dispatcher_assignment);
+    const accountOptions = data => (ctx.data.dispatcherAccounts || []).filter(a => {
+      const plannedShift = String(data.dispatcher_assignment || '').split(':')[1];
+      if (!plannedShift || a.shift !== plannedShift) return false;
+      let types = [];
+      try { types = JSON.parse(a.dispatcher_truck_types || 'null') || []; } catch {}
+      if (!Array.isArray(types) || !types.length) types = a.dispatcher_truck_type
+        ? [a.dispatcher_truck_type] : (a.role === 'car_carrier_dispatcher' ? ['Car Carrier'] : ['Container','Wing Van']);
+      return types.includes(data.truck_type);
+    });
     const accountName = data => accountOptions(data).find(a => String(a.id) === String(data.responsible_dispatcher_id))?.full_name || 'Account not selected';
     const total = () => batch().reduce((n, e) => n + (+e.data.quantity || 0), 0);
-    const error = message => { const box = ctx.el.querySelector('[data-plan-error]'); box.textContent = message; box.hidden = !message; };
+    const error = message => {
+      const box = ctx.el.querySelector('[data-plan-error]');
+      if (box) { box.textContent = message; box.hidden = !message; }
+      if (message) UI.toast(message, 'error');
+    };
     const update = () => {
       ctx.el.querySelector('[data-total]').textContent = `Total Required Trucks: ${total()}`;
-      ctx.el.querySelector('[data-entry-count]').textContent = `Trip Entries: ${batch().length}`;
+      ctx.el.querySelector('[data-entry-count]').textContent = `${batch().length} route${batch().length === 1 ? '' : 's'} · ${total()} truck${total() === 1 ? '' : 's'}`;
+      ctx.el.querySelector('[data-planned-routes]').hidden = !batch().length;
       ctx.el.querySelector('[data-add]').disabled = (!editingId&&total()>=20)||busy||!current();
+      const reviewNow = ctx.el.querySelector('[data-add-review]');
+      if (reviewNow) reviewNow.disabled = (!editingId&&total()>=20)||busy||!current();
       ctx.el.querySelector('[data-review-batch]').disabled=!batch().length||busy||!!editingId;
       const queue=ctx.el.querySelector('[data-batch-list]');
-      queue.innerHTML=batch().map(e=>`<article class="oh-batch-entry"><b>${UI.esc(clientName(e.data.client_id))}</b><div>${UI.esc(e.data.truck_type)} · ${+e.data.quantity} truck(s)</div><div>${UI.esc(e.route?.origin_label||'')} → ${UI.esc(e.route?.destination_label||'')}</div><div>${this.datetime(e.data.scheduled_at)}</div><div class="oh-batch-actions"><button type="button" class="btn btn-sm btn-outline-success" data-edit-batch="${e.id}">Edit</button><button type="button" class="btn btn-sm btn-outline-danger" data-remove-batch="${e.id}">Remove</button></div></article>`).join('')||'<p class="small text-muted">No trip entries yet. Complete the form and add an entry to your planning batch.</p>';
+      queue.innerHTML=batch().map(e=>`<article class="oh-batch-entry"><b>${UI.esc(clientName(e.data.client_id))}</b><div>${UI.esc(e.data.truck_type)} · ${+e.data.quantity} truck(s)</div><div>${UI.esc(e.route?.origin_label||'')} → ${UI.esc(e.route?.destination_label||'')}</div><div>${this.datetime(e.data.scheduled_at)}</div><div class="oh-batch-actions"><button type="button" class="btn btn-sm btn-outline-success" data-edit-batch="${e.id}">Edit</button><button type="button" class="btn btn-sm btn-outline-danger" data-remove-batch="${e.id}">Remove</button></div></article>`).join('');
       queue.querySelectorAll('[data-edit-batch]').forEach(button=>button.onclick=async()=>{if(editingId===button.dataset.editBatch)return;if(dirty(current())&&current()?.id!==button.dataset.editBatch&&!await UI.confirmProceed('Edit batch entry','Discard the unsaved entry in the form?','Edit entry'))return;if(editingId&&editingBackup)Object.assign(current(),editingBackup);entries=entries.filter(e=>e.queued!==false);editingId=button.dataset.editBatch;const entry=current();editingBackup=JSON.parse(JSON.stringify({data:entry.data,route:entry.route,routes:entry.routes}));renderPlanning();});
       queue.querySelectorAll('[data-remove-batch]').forEach(button=>button.onclick=()=>{const entry=entries.find(e=>e.id===button.dataset.removeBatch);entry.seq++;entries=entries.filter(e=>e!==entry);if(editingId===entry.id){editingId=null;editingBackup=null;}if(!current())add();else renderPlanning();});
       entries.forEach((e, i) => {
@@ -708,26 +838,45 @@ const OpsHead = {
     };
     const renderPlanning = () => {
       if(!current()&&total()<20)entries.push({id:UI.uuid(),queued:false,data:{quantity:1},routes:[],loading:false,seq:0});
-      ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section>${this.panel('Planning Batch','<div class="oh-planning-total"><p data-entry-count></p><strong data-total></strong></div><div data-batch-list></div><button type="button" class="btn btn-primary w-100" data-review-batch>Review Batch</button>')}</div><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trips per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add>${editingId?'Save Entry':'Add to Planning Batch'}</button></div></div>`;
+      document.querySelector('.oh-trip-planner-modal')?.classList.remove('oh-trip-review-mode');
+      ctx.el.innerHTML = `<div class="oh-planner oh-planning-workbench oh-simple-planner">${stages(1)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><div class="oh-planning-columns"><section class="oh-planning-editor"><form id="oh-trip-planning-form" data-planning novalidate><div data-entries></div>${!current()?'<p>The batch has reached the existing 20-trip limit. Edit or review its entries.</p>':''}</form></section></div><section class="oh-planned-routes" data-planned-routes ${batch().length?'':'hidden'} aria-label="Added routes"><div class="oh-planned-routes-head"><span><i class="bi bi-check2-circle" aria-hidden="true"></i> Added Routes</span><small data-entry-count></small></div><strong class="visually-hidden" data-total></strong><div data-batch-list></div></section><button type="button" data-review-batch hidden aria-hidden="true" tabindex="-1">Review queued routes</button><div class="oh-form-footer oh-trip-planner-actions"><small class="oh-trip-plan-limit">Maximum 20 trucks per batch</small><button type="button" class="btn btn-outline-secondary" data-clear>Clear Entry</button><button type="submit" form="oh-trip-planning-form" class="btn btn-outline-primary" data-add>${editingId?'Save Entry':'Add Another Route'}</button><button type="submit" form="oh-trip-planning-form" class="btn btn-primary" data-add-review>${editingId?'Save & Review':'Review & Create'}</button></div></div>`;
       const list = ctx.el.querySelector('[data-entries]');
       entries.filter(e=>e===current()).forEach((e, i) => {
         const card = document.createElement('details'); card.className = 'oh-entry'; card.dataset.entry = e.id; card.open = e.expanded !== false;
         card.ontoggle = () => e.expanded = card.open;
-        card.innerHTML = `<summary><b data-entry-label>Trip Entry ${i + 1}</b><span data-entry-summary></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-entry-body">${i ? '<button type="button" class="btn btn-sm btn-outline-danger oh-remove" data-remove>Remove Entry</button>' : ''}<div class="oh-form-grid">${UI.fields([
-          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 6, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]) },
-          { name: 'truck_type', label: 'Truck Type', type: 'select', required: true, col: 6, value: e.data.truck_type, options: UI.list(TripUI.truckTypeOptions()) },
+        card.innerHTML = `<summary><b data-entry-label>Trip Details</b><span data-entry-summary></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-entry-body">${i ? '<button type="button" class="btn btn-sm btn-outline-danger oh-remove" data-remove>Remove Entry</button>' : ''}<div class="oh-form-grid">${UI.fields([
+          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 12, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]) },
+          { type: 'html', col: 12, html: '<input type="hidden" name="truck_type" value="'+UI.esc(e.data.truck_type||'')+'">' },
           { name: 'client_route_id', label: 'Approved Route', type: 'select', required: true, col: 12, options: [], value: '' },
           { name: 'scheduled_at', label: 'Scheduled Date & Time', type: 'datetime', required: true, col: 12, value: e.data.scheduled_at, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"` },
           { type: 'html', col: 6, html: `<label class="form-label" for="qty-${e.id}">Number of Required Trucks</label><div class="oh-stepper"><button type="button" class="btn btn-outline-secondary" data-minus aria-label="Decrease number of required trucks">−</button><input id="qty-${e.id}" name="quantity" type="number" class="form-control" min="1" max="20" step="1" required value="${e.data.quantity}"><button type="button" class="btn btn-outline-secondary" data-plus aria-label="Increase number of required trucks">+</button></div>` },
-          { name: 'dispatcher_assignment', label: 'Assign Dispatcher', type: 'select', required: true, col: 6, placeholder: 'Choose dispatcher...', options: dispatcherOptions(e.data.truck_type), value: e.data.dispatcher_assignment, attrs: `aria-describedby="dispatcher-error-${e.id}"` },
-          { name: 'responsible_dispatcher_id', label: 'Responsible Dispatcher Account', type: 'select', required: true, col: 6, options: accountOptions(e.data).map(a => [a.id,a.full_name]), value: e.data.responsible_dispatcher_id },
-          { name: 'delivery_details', label: 'Delivery Instructions', type: 'textarea', rows: 3, col: 12, value: e.data.delivery_details, attrs: 'maxlength="500"' },
+          { name: 'dispatcher_assignment', label: 'Dispatcher Shift', type: 'select', required: true, col: 6, placeholder: 'Choose shift...', options: dispatcherOptions(e.data.truck_type).map(([value]) => [value, value.split(':').slice(1).join(':')]), value: e.data.dispatcher_assignment, attrs: `aria-describedby="dispatcher-error-${e.id}"` },
+          { name: 'responsible_dispatcher_id', label: 'Responsible Dispatcher', type: 'select', required: true, col: 12, options: accountOptions(e.data).map(a => [a.id,a.full_name]), value: e.data.responsible_dispatcher_id },
+          { name: 'delivery_details', label: 'Delivery Instructions', type: 'textarea', rows: 2, col: 12, value: e.data.delivery_details, attrs: 'maxlength="500"' },
         ])}</div><p class="small text-muted mb-0" data-route-state role="status"></p></div>`;
         list.append(card);
         card.open=true;card.querySelector('[data-entry-label]').textContent=editingId?'Edit Trip Entry':'Create Trip Entry';
         const grid=card.querySelector('.oh-form-grid'),fields=[...grid.querySelector('.row').children];
         grid.replaceChildren();
-        [['1','Client & Route',fields.slice(0,3)],['2','Schedule & Requirements',fields.slice(3,5)],['3','Dispatcher Assignment',fields.slice(5)]].forEach(([number,title,columns])=>{const section=document.createElement('section');section.className='oh-numbered-section';section.innerHTML=`<h3><span aria-hidden="true">${number}</span>${title}</h3><div class="row g-2"></div>`;section.querySelector('.row').append(...columns);grid.append(section);});
+        // One compact form replaces the three tall numbered cards. Preserve
+        // original input elements and names so existing handlers/validation work.
+        const main = document.createElement('section');
+        main.className = 'oh-compact-trip-fields';
+        main.innerHTML = '<div class="row g-2"></div>';
+        main.querySelector('.row').append(...fields.slice(0,7));
+        grid.append(main);
+        const instructions = document.createElement('details');
+        instructions.className = 'oh-compact-instructions';
+        instructions.open = !!String(e.data.delivery_details || '').trim();
+        instructions.innerHTML = '<summary><i class="bi bi-file-text" aria-hidden="true"></i> Additional Instructions (optional)<i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="row g-2"></div>';
+        instructions.querySelector('.row').append(fields[7]);
+        // Keep the accessible textarea label, but avoid repeating the
+        // disclosure's title inside the expanded content.
+        const instructionsLabel = instructions.querySelector('label');
+        if (instructionsLabel) instructionsLabel.classList.add('visually-hidden');
+        const instructionsInput = instructions.querySelector('[name=delivery_details]');
+        if (instructionsInput) instructionsInput.placeholder = 'Pickup instructions, special handling, or other details…';
+        grid.append(instructions);
         // UI.fields uses generic IDs. Each independent card receives unique accessible IDs.
         card.querySelectorAll('[name]').forEach(input => {
           const oldId = input.id; input.id = `${e.id}-${input.name}`;
@@ -735,62 +884,218 @@ const OpsHead = {
           input.oninput = input.onchange = () => { e.data[input.name] = input.value; update(); };
         });
         const pick = card.querySelector('[name=client_route_id]'), note = card.querySelector('[data-route-state]');
+        // Keep the approved route select as the form's source of truth and
+        // preserve the existing validation/API payload. A searchable, two-line
+        // picker is only a presentation layer over its existing change handler.
+        pick.classList.add('oh-route-native-select');
+        const routePicker = document.createElement('div');
+        routePicker.className = 'oh-approved-route-picker';
+        routePicker.innerHTML = '<button type="button" class="oh-route-picker-toggle" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose approved route"><span class="oh-route-picker-selected"><span>Choose an approved route</span></span><i class="bi bi-chevron-down" aria-hidden="true"></i></button>'
+          + '<div class="oh-route-picker-popover" hidden><div class="oh-route-picker-search"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control" placeholder="Search route ID or truck type" aria-label="Search approved routes"></div><div class="oh-route-picker-options" role="listbox" aria-label="Approved routes"></div></div>';
+        pick.insertAdjacentElement('afterend', routePicker);
+        const routeToggle = routePicker.querySelector('.oh-route-picker-toggle');
+        const routePopup = routePicker.querySelector('.oh-route-picker-popover');
+        const routeSearch = routePicker.querySelector('input[type=search]');
+        const routeOptions = routePicker.querySelector('.oh-route-picker-options');
+        const closeRoutePicker = () => {
+          routePopup.hidden = true;
+          routeToggle.setAttribute('aria-expanded', 'false');
+          routePicker.classList.remove('is-open');
+        };
+        const renderRouteOptions = () => {
+          const term = routeSearch.value.toLocaleLowerCase().trim();
+          const routes = e.routes.filter(r =>
+            [r.route_ref,r.truck_type,r.origin_label,r.destination_label].some(value => String(value || '').toLocaleLowerCase().includes(term)));
+          routeOptions.replaceChildren();
+          if (!routes.length) {
+            const empty = document.createElement('p');
+            empty.className = 'oh-route-picker-empty';
+            empty.textContent = e.loading ? 'Loading approved routes…' : e.routes.length ? 'No matching approved routes.' : 'No approved routes available.';
+            routeOptions.append(empty);
+            return;
+          }
+          routes.forEach(r => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'oh-route-picker-option';
+            option.setAttribute('role', 'option');
+            option.setAttribute('aria-selected', String(String(r.id) === String(pick.value)));
+            option.innerHTML = '<span class="oh-route-picker-option-text"><strong>' + UI.esc(r.route_ref)
+              + '</strong><small><i class="bi bi-truck" aria-hidden="true"></i>' + UI.esc(r.truck_type || 'Truck type unavailable')
+              + '</small></span><i class="bi bi-check2 oh-route-picker-check" aria-hidden="true"></i>';
+            option.onclick = () => {
+              pick.value = String(r.id);
+              pick.dispatchEvent(new Event('change', { bubbles:true }));
+              closeRoutePicker();
+              routeToggle.focus();
+            };
+            routeOptions.append(option);
+          });
+        };
+        const refreshRoutePicker = () => {
+          const selected = e.routes.find(r => String(r.id) === String(pick.value));
+          routeToggle.querySelector('.oh-route-picker-selected').innerHTML = selected
+            ? '<strong>' + UI.esc(selected.route_ref) + '</strong><small><i class="bi bi-truck" aria-hidden="true"></i>' + UI.esc(selected.truck_type || 'Truck type unavailable') + '</small>'
+            : '<span>' + UI.esc(e.loading ? 'Loading approved routes…' : !e.data.client_id ? 'Choose a client first' : 'Choose an approved route') + '</span>';
+          routeToggle.disabled = pick.disabled;
+          if (routeToggle.disabled) closeRoutePicker();
+          if (!routePopup.hidden) renderRouteOptions();
+        };
+        routeToggle.onclick = () => {
+          if (routeToggle.disabled) return;
+          if (!routePopup.hidden) { closeRoutePicker(); return; }
+          routeSearch.value = '';
+          renderRouteOptions();
+          routePopup.hidden = false;
+          routePicker.classList.add('is-open');
+          routeToggle.setAttribute('aria-expanded', 'true');
+          routeSearch.focus();
+        };
+        routeSearch.oninput = renderRouteOptions;
+        routeSearch.onkeydown = event => {
+          if (event.key === 'Escape') { closeRoutePicker(); routeToggle.focus(); }
+          if (event.key === 'ArrowDown') { event.preventDefault(); routeOptions.querySelector('button')?.focus(); }
+        };
+        routeOptions.onkeydown = event => {
+          const options = [...routeOptions.querySelectorAll('button')];
+          const index = options.indexOf(document.activeElement);
+          if (event.key === 'Escape') { closeRoutePicker(); routeToggle.focus(); }
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            (options[index + (event.key === 'ArrowDown' ? 1 : -1)] || (event.key === 'ArrowDown' ? options[0] : routeSearch))?.focus();
+          }
+        };
+        ctx.el.addEventListener('pointerdown', event => {
+          if (!routePicker.contains(event.target)) closeRoutePicker();
+        });
+        const routeLabel = card.querySelector('label[for="' + pick.id + '"]');
+        if (routeLabel) routeLabel.addEventListener('click', event => {
+          event.preventDefault();
+          routeToggle.click();
+        });
+        const truckField = card.querySelector('[name=truck_type]');
         const dispatcher = card.querySelector('[name=dispatcher_assignment]');
-        dispatcher.insertAdjacentHTML('afterend',`<div id="dispatcher-error-${e.id}" class="invalid-feedback" data-dispatcher-error hidden>Choose a compatible dispatcher group and shift.</div>`);
+        dispatcher.insertAdjacentHTML('afterend',`<div id="dispatcher-error-${e.id}" class="invalid-feedback" data-dispatcher-error hidden>Select an available shift for the selected route.</div><div class="oh-dispatcher-team-note" data-dispatcher-team role="status"></div>`);
         const dispatcherError = card.querySelector('[data-dispatcher-error]');
-        card.querySelector('.oh-stepper').parentElement.className='col-md-6';
+        const quantityField = card.querySelector('.oh-stepper').parentElement;
+        quantityField.className = 'col-md-6 oh-planner-quantity-field';
+        dispatcher.closest('.col-md-6')?.classList.add('oh-planner-dispatcher-field');
         const schedule=card.querySelector('[name=scheduled_at]'),scheduleField=schedule.parentElement;
         scheduleField.querySelector('label').remove();schedule.type='hidden';
         scheduleField.insertAdjacentHTML('beforeend',`<div class="row g-2"><div class="col-md-6"><label class="form-label req" for="date-${e.id}">Scheduled Dispatch Date</label><input id="date-${e.id}" type="date" class="form-control" required data-schedule-date min="${UI.nowManila().slice(0,10)}" max="${UI.nowManila(365*1440).slice(0,10)}" value="${UI.esc((e.data.scheduled_at||'').split('T')[0])}"></div><div class="col-md-6"><label class="form-label req" for="time-${e.id}">Scheduled Dispatch Time</label><input id="time-${e.id}" type="time" class="form-control" required data-schedule-time value="${UI.esc((e.data.scheduled_at||'').split('T')[1]||'')}"></div></div>`);
-        [card.querySelector('[data-schedule-date]'),card.querySelector('[data-schedule-time]')].forEach(input=>input.oninput=input.onchange=()=>{schedule.value=card.querySelector('[data-schedule-date]').value&&card.querySelector('[data-schedule-time]').value?card.querySelector('[data-schedule-date]').value+'T'+card.querySelector('[data-schedule-time]').value:'';e.data.scheduled_at=schedule.value;update();});
+        [card.querySelector('[data-schedule-date]'),card.querySelector('[data-schedule-time]')].forEach(input=>input.oninput=input.onchange=()=>{
+          schedule.value=card.querySelector('[data-schedule-date]').value&&card.querySelector('[data-schedule-time]').value
+            ?card.querySelector('[data-schedule-date]').value+'T'+card.querySelector('[data-schedule-time]').value:'';
+          e.data.scheduled_at=schedule.value;
+          fillDispatchers();
+          update();
+        });
         card.querySelector('label[for="'+card.querySelector('[name=quantity]').id+'"]').textContent='Required Trucks';
-        card.querySelector('label[for="'+dispatcher.id+'"]').textContent='Dispatcher Group / Shift';card.querySelector('label[for="'+card.querySelector('[name=delivery_details]').id+'"]').textContent='Additional Instructions (optional)';
+        card.querySelector('label[for="'+dispatcher.id+'"]').textContent='Dispatcher Shift';card.querySelector('label[for="'+card.querySelector('[name=delivery_details]').id+'"]').textContent='Additional Instructions (optional)';
         const account = card.querySelector('[name=responsible_dispatcher_id]');
-        account.insertAdjacentHTML('afterend','<div class="small text-muted" data-account-state role="status"></div>');
+        account.parentElement?.classList.add('oh-planner-account-field');
+        account.insertAdjacentHTML('afterend','<div class="small text-muted oh-planner-account-hint" data-account-state role="status"></div>');
         const fillAccounts = () => {
           const options = accountOptions(e.data);
           if(!options.some(a => String(a.id) === String(e.data.responsible_dispatcher_id)))e.data.responsible_dispatcher_id = '';
           account.replaceChildren(new Option('Choose responsible account...', ''), ...options.map(a => new Option(a.full_name, a.id)));
           account.value = e.data.responsible_dispatcher_id || '';
           account.disabled = !options.length;
-          card.querySelector('[data-account-state]').textContent = !e.data.dispatcher_assignment ? 'Choose the Dispatcher group and shift first.' : !options.length ? 'No active Dispatcher account exists for this group and shift. Ask Admin to configure an authorized account before planning this trip.' : 'Select the account explicitly. Responsibility is saved together with each trip.';
+          card.querySelector('[data-account-state]').textContent = !e.data.dispatcher_assignment ? 'Select a scheduled dispatch date and time to determine the shift.' : !options.length ? 'No active dispatcher account is available for this group and shift. Contact Admin.' : 'Select the dispatcher responsible for this trip.';
         };
         const fillDispatchers = () => {
           const options = dispatcherOptions(e.data.truck_type);
-          if(!options.some(([value]) => value === e.data.dispatcher_assignment))e.data.dispatcher_assignment = '';
-          dispatcher.innerHTML = '<option value="">Choose dispatcher...</option>' + options.map(([value,label]) => `<option value="${value}">${UI.esc(label)}</option>`).join('');
+          const automaticallySelected = scheduledDispatcherAssignment(e.data);
+          if(e.data.dispatcher_assignment!==automaticallySelected){
+            e.data.dispatcher_assignment=automaticallySelected;
+            e.data.responsible_dispatcher_id='';
+          }
+          dispatcher.innerHTML = '<option value="">'+(e.data.scheduled_at?'No matching shift available':'Select dispatch time first')+'</option>'
+            + options.map(([value]) => `<option value="${UI.esc(value)}">${UI.esc(value.split(':').slice(1).join(':'))}</option>`).join('');
           dispatcher.value = e.data.dispatcher_assignment || '';
-          dispatcher.disabled = !options.length;
+          dispatcher.disabled = true;
+          dispatcher.title = 'Automatically selected from the scheduled dispatch time';
+          const team = card.querySelector('[data-dispatcher-team]');
+          if (team) team.textContent = !e.data.truck_type ? 'Dispatcher team follows the approved route.'
+            : 'Team: ' + (e.data.truck_type === 'Car Carrier' ? 'Car Carrier' : 'Container / Wing Van')
+              + ' · Shift automatically set from scheduled dispatch time';
           dispatcher.classList.remove('is-invalid');dispatcher.removeAttribute('aria-invalid');dispatcherError.hidden = true;dispatcherError.style.display='';
           fillAccounts();
         };
-        dispatcher.onchange = dispatcher.oninput = () => { e.data.dispatcher_assignment = dispatcher.value;dispatcher.classList.remove('is-invalid');dispatcher.removeAttribute('aria-invalid');dispatcherError.hidden = true;dispatcherError.style.display='';fillAccounts();update(); };
+        // Shift is read-only: changing the scheduled dispatch time updates it.
         fillDispatchers();
         const fillRoutes = () => {
-          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.route_ref + ' · ' + r.origin_label + ' → ' + r.destination_label)}</option>`).join('');
-          pick.value = e.data.client_route_id || ''; pick.disabled = e.loading || !e.data.client_id || !e.data.truck_type;
-          card.querySelector('[data-approved-rate]').textContent=e.route?.rate_type?'Approved billing rate: '+RouteUI.rateText(e.route.rate_type,e.route.rate_amount,e.route.minimum_charge):'';
+          pick.innerHTML = '<option value="">Choose an approved route</option>' + e.routes.map(r => `<option value="${+r.id}">${UI.esc(r.route_ref)} — ${UI.esc(r.truck_type || 'Truck type unavailable')}</option>`).join('');
+          pick.value = e.data.client_route_id || ''; pick.disabled = e.loading || !e.data.client_id;
+          refreshRoutePicker();
+          const routeInfo = card.querySelector('[data-approved-rate]');
+          const selected = e.route;
+          routeInfo.hidden = !selected;
+          if (selected) {
+            routeInfo.innerHTML =
+              '<div class="oh-trip-route-card oh-trip-route-card-journey">'
+              +'<div class="oh-trip-route-card-label"><i class="bi bi-signpost-split" aria-hidden="true"></i> ROUTE</div>'
+              +'<div class="oh-trip-route-path">'
+              +'<div class="oh-trip-route-stop"><span class="oh-trip-route-stop-marker start" aria-hidden="true"></span><div><small>PICKUP</small><strong>'+UI.esc(selected.origin_label || 'Pickup not specified')+'</strong></div></div>'
+              +'<div class="oh-trip-route-rail" aria-hidden="true"></div>'
+              +'<div class="oh-trip-route-stop"><span class="oh-trip-route-stop-marker finish" aria-hidden="true"></span><div><small>DESTINATION</small><strong>'+UI.esc(selected.destination_label || 'Destination not specified')+'</strong></div></div>'
+              +'</div></div>'
+              +'<div class="oh-trip-route-card oh-trip-route-card-distance">'
+              +'<div class="oh-trip-route-card-label"><i class="bi bi-map" aria-hidden="true"></i> DISTANCE</div>'
+              +'<div class="oh-trip-route-card-value">'+UI.num(selected.distance_km,2)+'<small>km</small></div></div>'
+              +'<div class="oh-trip-route-card oh-trip-route-card-truck">'
+              +'<div class="oh-trip-route-card-label"><i class="bi bi-truck" aria-hidden="true"></i> TRUCK TYPE</div>'
+              +'<div class="oh-trip-route-card-value oh-trip-route-truck-name">'+UI.esc(selected.truck_type || '—')+'</div>'
+              +'<small class="oh-trip-route-auto">Auto-selected</small></div>';
+          } else routeInfo.replaceChildren();
         };
-        const loadRoutes = async () => {
-          const seq = ++e.seq; e.routes = []; e.data.client_route_id = ''; e.route = null;
-          if (!e.data.client_id || !e.data.truck_type) { e.loading = false; e.routeMessage = 'Choose a client and truck type.'; e.refresh(); return; }
+        const loadRoutes = async (resetSelection = false) => {
+          const seq = ++e.seq;
+          const priorRouteId = resetSelection ? '' : String(e.data.client_route_id || '');
+          if (resetSelection) {
+            e.data.client_route_id = ''; e.route = null; e.data.truck_type = '';
+            e.data.dispatcher_assignment = ''; e.data.responsible_dispatcher_id = '';
+            truckField.value = ''; fillDispatchers();
+          }
+          e.routes = [];
+          if (!e.data.client_id) { e.loading = false; e.routeMessage = 'Choose a client first.'; e.refresh(); return; }
           e.loading = true; e.routeMessage = 'Loading approved routes…'; e.refresh();
           try {
-            const r = await App.api('Routes.selectable', { client_id: e.data.client_id, truck_type: e.data.truck_type });
+            const response = await App.api('Routes.selectable', { client_id: e.data.client_id });
             if (seq !== e.seq) return;
-            e.routes = r.routes || []; e.routeMessage = e.routes.length ? '' : 'No Approved Route Available. There is no approved route for the selected client and truck type. Please request a new route through the Client Routes menu before creating this trip.';
-          } catch (ex) { if (seq === e.seq) e.routeMessage = ex.message + ' Change the client or truck type to retry.'; }
-          finally { if (seq === e.seq) { e.loading = false; e.refresh(); } }
+            e.routes = response.routes || [];
+            e.route = e.routes.find(route => String(route.id) === priorRouteId) || null;
+            e.data.client_route_id = e.route ? String(e.route.id) : '';
+            e.data.truck_type = e.route?.truck_type || '';
+            truckField.value = e.data.truck_type;
+            if (!e.route) { e.data.dispatcher_assignment = ''; e.data.responsible_dispatcher_id = ''; }
+            fillDispatchers();
+            e.routeMessage = e.routes.length ? '' : 'No approved routes are available for this client. Request a route through Client Routes before creating a trip.';
+          } catch (ex) { if (seq === e.seq) e.routeMessage = ex.message + ' Change the client to retry.'; }
+          finally { if (seq === e.seq) { e.loading = false; e.refresh();update(); } }
         };
-        ['client_id', 'truck_type'].forEach(n => card.querySelector(`[name=${n}]`).onchange = event => { e.data[n] = event.target.value;if(n==='truck_type')fillDispatchers(); loadRoutes(); update(); });
-        pick.onchange = () => { e.data.client_route_id = pick.value; e.route = e.routes.find(r => String(r.id) === pick.value);e.refresh(); };
+        card.querySelector('[name=client_id]').onchange = event => {
+          e.data.client_id = event.target.value;
+          loadRoutes(true); update();
+        };
+        pick.onchange = () => {
+          e.data.client_route_id = pick.value;
+          e.route = e.routes.find(r => String(r.id) === pick.value) || null;
+          e.data.truck_type = e.route?.truck_type || '';
+          truckField.value = e.data.truck_type;
+          e.data.dispatcher_assignment = '';
+          e.data.responsible_dispatcher_id = '';
+          fillDispatchers(); e.refresh(); update();
+        };
         card.querySelector('[data-minus]').onclick = () => { e.data.quantity = Math.max(1, (+e.data.quantity || 1) - 1); card.querySelector('[name=quantity]').value = e.data.quantity; update(); };
         card.querySelector('[data-plus]').onclick = () => { if (total() >= 20) return error('Maximum combined quantity is 20 trips.'); e.data.quantity = (+e.data.quantity || 1) + 1; card.querySelector('[name=quantity]').value = e.data.quantity; update(); };
         card.querySelector('[data-remove]')?.addEventListener('click', () => { e.seq++; entries = entries.filter(x => x !== e); renderPlanning(); });
         e.refresh = () => { fillRoutes(); note.textContent = e.routeMessage || ''; };
-        note.insertAdjacentHTML('afterend','<p class="small" data-approved-rate></p>');
-        card.querySelector('.oh-numbered-section').append(note,card.querySelector('[data-approved-rate]'));
+        note.insertAdjacentHTML('afterend','<div class="oh-trip-route-summary" data-approved-rate aria-live="polite" hidden></div>');
+        pick.parentElement.append(note,card.querySelector('[data-approved-rate]'));
         e.refresh();
+        // Restore an existing entry's selectable routes when returning from Review.
+        if(e.data.client_id && !e.routes.length && !e.loading)loadRoutes();
       });
       ctx.el.querySelector('[data-clear]').onclick = async () => {
         if (dirty(current())&&!await UI.confirmProceed('Clear Entry','Discard the current unsaved entry?','Clear Entry'))return;
@@ -800,15 +1105,23 @@ const OpsHead = {
       };
       ctx.el.querySelector('form').onsubmit = event => {
         event.preventDefault(); error('');
+        const reviewImmediately = event.submitter?.hasAttribute('data-add-review') || false;
         if (entries.some(e => e.loading)) return error('Wait for approved routes to finish loading.');
         const entry=current();if(!entry)return;
         if (total()+(entry.queued===false?+entry.data.quantity:0)>20 || !Number.isInteger(+entry.data.quantity) || +entry.data.quantity < 1) return error('Use whole quantities of at least 1, with at most 20 trips combined.');
         const schedule=ctx.el.querySelector('[name=scheduled_at]');
         if(schedule.value&&(schedule.value<schedule.min||schedule.value>schedule.max))return error('Use an allowed schedule.');
         const invalid = [...ctx.el.querySelectorAll('input,select,textarea')].find(input => !['dispatcher_assignment','responsible_dispatcher_id'].includes(input.name) && !input.disabled && !input.checkValidity());
-        if (invalid) { invalid.closest('details').open = true; invalid.reportValidity(); return; }
+        if (invalid) {
+          invalid.closest('details').open = true;
+          if (invalid.name === 'client_route_id') {
+            ctx.el.querySelector('.oh-route-picker-toggle')?.focus();
+            return error('Choose an approved route for this trip.');
+          }
+          invalid.reportValidity(); return;
+        }
         const missingDispatcher = [entry].find(e => !dispatcherOptions(e.data.truck_type).some(([value]) => value === e.data.dispatcher_assignment));
-        if(missingDispatcher){const card=ctx.el.querySelector(`[data-entry="${missingDispatcher.id}"]`), select=card.querySelector('[name=dispatcher_assignment]'), feedback=card.querySelector('[data-dispatcher-error]');card.open=true;select.classList.add('is-invalid');select.setAttribute('aria-invalid','true');feedback.hidden=false;feedback.style.display='block';select.focus();return error('Choose a compatible dispatcher group and shift for every trip entry.');}
+        if(missingDispatcher){const card=ctx.el.querySelector(`[data-entry="${missingDispatcher.id}"]`), select=card.querySelector('[name=dispatcher_assignment]'), feedback=card.querySelector('[data-dispatcher-error]');card.open=true;select.classList.add('is-invalid');select.setAttribute('aria-invalid','true');feedback.hidden=false;feedback.style.display='block';select.focus();return error('Choose an available dispatcher shift for every trip entry.');}
         if(!accountOptions(entry.data).length)return error('No active Dispatcher account exists for the selected group and shift. Ask Admin to configure an authorized account.');
         if(!accountOptions(entry.data).some(a=>String(a.id)===String(entry.data.responsible_dispatcher_id)))return error('Choose a responsible Dispatcher account explicitly before adding this entry.');
         for (const e of [entry]) {
@@ -818,6 +1131,9 @@ const OpsHead = {
           if (c?.rate_types != null && !c.rate_types.split('|').includes(e.data.truck_type)) return error(`${c.company_name} has no existing billing rate for ${e.data.truck_type}. Billing must set it before trip creation.`);
         }
         entry.queued=true;editingId=null;editingBackup=null;add();
+        // Single-request path reuses the batch review, conflict checks, and
+        // idempotent submission logic instead of introducing a second API flow.
+        if (reviewImmediately) ctx.el.querySelector('[data-review-batch]')?.click();
       };
       ctx.el.querySelector('[data-review-batch]').onclick=()=>{
         if(!batch().length||busy)return;
@@ -825,7 +1141,8 @@ const OpsHead = {
         // Preserve row identity and overrides when returning to planning; drop only removed rows.
         drafts = batch().flatMap(e => Array.from({ length: +e.data.quantity }, (_, index) => {
           const old = drafts.find(x => x.entry === e.id && x.index === index);
-          const supported = ['booking_reference', 'consignee', ...(e.data.truck_type === 'Car Carrier' ? ['units_planned'] : ['shipment_number']), ...(e.data.truck_type === 'Container' ? ['container_number', 'container_size', 'seal_number'] : [])];
+          const supported = ['booking_reference','consignee','delivery_details','units_planned',
+            'shipment_number','container_number','container_size','seal_number'];
           const overrides = Object.fromEntries(Object.entries(old?.overrides || {}).filter(([name]) => supported.includes(name)));
           return { key: old?.key || UI.uuid(), entry: e.id, index, overrides, data: { ...e.data, quantity: undefined,
             pickup_point: e.route.origin_label, delivery_point: e.route.destination_label, distance_km: e.route.distance_km,
@@ -835,19 +1152,36 @@ const OpsHead = {
       update();
     };
     const renderReview = () => {
-      ctx.el.innerHTML = `<div class="oh-planner">${stages(2)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><form data-review-form><div class="oh-review-head"><h2>Review &amp; Create</h2><b>${drafts.length} Individual Trips</b></div><div class="table-responsive"><table class="data-table"><thead><tr><th>Client / Route</th><th>Truck Type</th><th>Required Trucks</th><th>Scheduled Dispatch</th><th>Assigned Dispatcher</th></tr></thead><tbody>${batch().map(e=>`<tr><td>${UI.esc(clientName(e.data.client_id))}<div>${UI.esc(e.route?.origin_label)} → ${UI.esc(e.route?.destination_label)}</div></td><td>${UI.esc(e.data.truck_type)}</td><td>${+e.data.quantity}</td><td>${this.datetime(e.data.scheduled_at)}</td><td>${UI.esc(dispatcherName(e.data))}</td></tr>`).join('')}</tbody></table></div><div data-review-entries></div><p data-submission-note role="status">Create the reviewed trips for the selected Dispatcher group/shift. The Dispatcher will manually select each Truck and its fixed Driver after creation. Individual shipment details remain editable below.</p><div class="oh-form-footer oh-trip-planner-actions"><button type="button" class="btn btn-outline-secondary" data-back ${attempted ? 'disabled' : ''}>Back to Planning</button>${attempted && !uncertain ? '<button type="button" class="btn btn-outline-secondary" data-start-another>Start Another Plan</button>' : ''}<button type="submit" class="btn btn-primary" data-confirm>Create Trips</button></div></form></div>`;
+      document.querySelector('.oh-trip-planner-modal')?.classList.add('oh-trip-review-mode');
+      ctx.el.innerHTML = `<div class="oh-planner">${stages(2)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><form data-review-form><div class="oh-review-head"><h2>Review &amp; Create</h2><b>${drafts.length} Individual Trips</b></div><section class="oh-review-summary" aria-label="Trip summary"><div class="oh-review-summary-heading"><i class="bi bi-clipboard-check" aria-hidden="true"></i><strong>Trip Summary</strong><span>${batch().length} route${batch().length===1?'':'s'} · ${drafts.length} planned trip${drafts.length===1?'':'s'}</span></div>${batch().map(e=>`<div class="oh-review-summary-route"><div class="oh-review-route-main"><strong>${UI.esc(clientName(e.data.client_id))}</strong><span>${UI.esc(e.route?.origin_label||'')} → ${UI.esc(e.route?.destination_label||'')}</span></div><div class="oh-review-route-facts"><span><i class="bi bi-truck" aria-hidden="true"></i>${UI.esc(e.data.truck_type)}</span><span><i class="bi bi-stack" aria-hidden="true"></i>${+e.data.quantity} truck${+e.data.quantity===1?'':'s'}</span><span><i class="bi bi-calendar-event" aria-hidden="true"></i>${this.datetime(e.data.scheduled_at)}</span><span><i class="bi bi-person-badge" aria-hidden="true"></i>${UI.esc(dispatcherName(e.data))} · ${UI.esc(accountName(e.data))}</span></div>${e.data.delivery_details?'<p class="oh-review-route-instructions"><i class="bi bi-file-text" aria-hidden="true"></i>'+UI.esc(e.data.delivery_details)+'</p>':''}</div>`).join('')}</section><section class="oh-review-trip-list" aria-label="Individual trip details"><div class="oh-review-trip-list-head"><div><h3>Individual Trip Details</h3><p>Optional booking and cargo details for each planned truck.</p></div><span>${drafts.length} trips</span></div><div data-review-entries></div></section><p class="oh-review-submit-note" data-submission-note role="status">The dispatcher assigns the actual trucks and drivers after creation. Review the details, then select Create Trips.</p><div class="oh-form-footer oh-trip-planner-actions"><button type="button" class="btn btn-outline-secondary" data-back ${attempted ? 'disabled' : ''}>Back to Planning</button>${attempted && !uncertain ? '<button type="button" class="btn btn-outline-secondary" data-start-another>Start Another Plan</button>' : ''}<button type="submit" class="btn btn-primary" data-confirm>Create Trips</button></div></form></div>`;
       const list = ctx.el.querySelector('[data-review-entries]');
       batch().forEach((e, i) => {
-        const section = document.createElement('section'); section.className = 'oh-panel';
-        section.innerHTML = `<div class="oh-panel-head"><h3>Planning Entry ${i + 1} · ${e.data.quantity} Required Truck(s)</h3></div><div class="oh-panel-body"><p><b>${UI.esc(clientName(e.data.client_id))} · ${UI.esc(e.data.truck_type)}</b><br>${UI.esc(e.route.origin_label)} → ${UI.esc(e.route.destination_label)}<br>${this.datetime(e.data.scheduled_at)}<br><span data-review-dispatcher>${UI.esc(dispatcherName(e.data))} / ${UI.esc(accountName(e.data))}</span><br>${UI.esc(e.data.delivery_details || 'No delivery instructions.')}</p><div data-drafts></div></div>`;
+        const section = document.createElement('section'); section.className = 'oh-review-route-group';
+        section.innerHTML = `<div class="oh-review-route-group-head"><strong>${UI.esc(clientName(e.data.client_id))}</strong><span>${UI.esc(e.data.truck_type)} · ${+e.data.quantity} planned trip${+e.data.quantity===1?'':'s'}</span></div><div class="oh-review-drafts" data-drafts></div>`;
         list.append(section);
         drafts.filter(x => x.entry === e.id).forEach(x => {
-          const row = document.createElement('details'); row.className = 'oh-draft'; row.open = !x.result?.trip_id;
-          const fields = [ ['booking_reference', 'Booking Reference', 150], ['consignee', 'Consignee / Brand', 120],
-            ...(e.data.truck_type === 'Car Carrier' ? [['units_planned', 'Cargo Units', 100]] : [['shipment_number', 'Shipment Number', 60]]),
-            ...(e.data.truck_type === 'Container' ? [['container_number', 'Container Number', 60], ['container_size', 'Container Size', 20], ['seal_number', 'Seal Number', 60]] : []),
+          const row = document.createElement('details'); row.className = 'oh-draft oh-review-trip-row'; row.open = !!x.result && !x.result.trip_id;
+          // Use the same cargo groups as Edit Trip; every optional field can be
+          // expanded regardless of truck type without clearing existing data.
+          const specs=[
+            ['booking_reference','Booking Reference',150],
+            ['consignee','Consignee / Brand',120],
+            ['delivery_details','Delivery Instructions',500],
+            ['units_planned','Cargo Units',100],
+            ['container_number','Container Number',60],
+            ['container_size','Container Size',20],
+            ['seal_number','Seal Number',60],
+            ['shipment_number','Shipment Number',60]
           ];
-          row.innerHTML = `<summary>Draft Trip ${drafts.indexOf(x) + 1} <span data-row-result>${x.result ? UI.esc(x.result.result) + ' · ' + UI.esc(x.result.trip_ref || x.result.message || '') : 'Awaiting confirmation'}</span></summary><div class="oh-form-grid">${UI.fields(fields.map(([name, label, max]) => ({ name, label, col: 6, type: name === 'units_planned' ? 'number' : 'text', min: 1, attrs: name === 'units_planned' ? 'max="100" step="1"' : `maxlength="${max}"`, value: x.overrides[name] || '' })))}</div>${x.result?.trip_id ? `<button type="button" class="btn btn-link" data-oh-trip="${+x.result.trip_id}">View ${UI.esc(x.result.trip_ref)} · ${UI.esc(x.result.trip_status)}</button>` : ''}`;
+          const cargoFields=specs.map(([name,label,max])=>({
+            name,label,col:name==='delivery_details'?12:6,
+            type:name==='delivery_details'?'textarea':name==='units_planned'?'number':'text',
+            rows:name==='delivery_details'?2:undefined,
+            min:name==='units_planned'?1:undefined,
+            attrs:name==='units_planned'?'max="100" step="1"':`maxlength="${max}"`,
+            value:Object.hasOwn(x.overrides,name)?x.overrides[name]:(x.data[name]||'')
+          }));
+          row.innerHTML = `<summary><span class="oh-review-trip-identity"><i class="bi bi-truck" aria-hidden="true"></i><strong>Trip ${drafts.indexOf(x) + 1}</strong></span><span class="oh-review-trip-status" data-row-result>${x.result ? UI.esc(x.result.result) + ' · ' + UI.esc(x.result.trip_ref || x.result.message || '') : (Object.values(x.overrides || {}).some(Boolean) ? 'Details added' : 'Optional details')}</span><i class="bi bi-chevron-down oh-review-trip-chevron" aria-hidden="true"></i></summary><div class="oh-review-trip-fields">${FormComponents.cargoGroups(cargoFields,e.data.truck_type,{compact:true})}${x.result?.trip_id ? `<button type="button" class="btn btn-link" data-oh-trip="${+x.result.trip_id}">View ${UI.esc(x.result.trip_ref)} · ${UI.esc(x.result.trip_status)}</button>` : ''}</div>`;
           section.querySelector('[data-drafts]').append(row);
           row.querySelectorAll('[name]').forEach(input => { const old = input.id; input.id = `${x.key}-${input.name}`; row.querySelectorAll('label').forEach(l => { if (l.htmlFor === old) l.htmlFor = input.id; }); input.disabled = !!x.result?.trip_id || uncertain; input.oninput = () => x.overrides[input.name] = input.value; });
         });
@@ -872,8 +1206,24 @@ const OpsHead = {
           const response = await App.api('Trips.create_batch', { rows: pending.map(x => ({ ...x.data, ...x.overrides, request_key: x.key, row_no: drafts.indexOf(x) + 1 })) });
           if (!Array.isArray(response.results) || pending.some(x => !response.results.some(r => r.request_key === x.key))) throw new Error('Incomplete submission response. Retry to retrieve the results safely.');
           response.results.forEach(r => { const x = drafts.find(x => x.key === r.request_key); if (x) x.result = r; });
-          uncertain = false; remember(); renderReview();
-          ctx.el.querySelector('[data-submission-note]').textContent = response.message || 'Submission results are shown for each trip.';
+          uncertain = false;
+          // All planned rows succeeded: close the planner instead of leaving
+          // the completed review form open until the user clicks X.
+          if(drafts.every(x=>x.result?.trip_id)){
+            try { sessionStorage.removeItem(recoveryKey); } catch { /* Optional recovery storage. */ }
+            const plannerModal=ctx.el.closest('.oh-trip-planner-modal');
+            if(plannerModal){
+              bootstrap.Modal.getInstance(plannerModal)?.hide();
+            }
+            UI.toast(response.message||'Trips created successfully.','success');
+            App.route();
+          }else{
+            // Partial submissions remain visible for retry with the original
+            // idempotency keys. Never close on an uncertain or failed result.
+            remember();
+            renderReview();
+            ctx.el.querySelector('[data-submission-note]').textContent = response.message || 'Submission results are shown for each trip.';
+          }
         } catch (ex) {
           // A validated 400 is the existing batch endpoint's preflight refusal: no new rows were created.
           // Network/5xx outcomes stay locked until a retry reconciles the original keys.
@@ -909,10 +1259,25 @@ const OpsHead = {
     const sections = [ ['Overview', [item('dashboard', 'Dashboard', 'bi-grid-1x2')]], ['Trip Operations', [item('trips', 'Trips', 'bi-signpost-split', { tab: 'active' }, 'management'), item('dispatcher-monitoring', 'Dispatch Monitoring', 'bi-person-workspace'), item('funds', 'Fund Approvals', 'bi-cash-coin')]], ['Masterlists', [item('trucks', 'Trucks', 'bi-truck'), item('crew', 'Drivers & Helpers', 'bi-person-badge'), item('clients', 'Clients', 'bi-building'), item('routes', 'Client Routes', 'bi-signpost-2')]], ['Monitoring & Records', [item('trips', 'Incidents & Repairs', 'bi-wrench-adjustable', { tab: 'incidents' }, 'incidents'), item('reports', 'Reports', 'bi-bar-chart-line'), item('documents', 'Documents', 'bi-folder2-open')]] ];
     // Former extras were Mechanics and Corrective Maintenance, both read-only for this role.
     // Operational coordination remains under Trips > Incidents. Backend access policy is unchanged.
-    document.querySelector('.sidebar-nav').innerHTML = sections.map(([label, links]) => `<div class="nav-section">${label}</div>${links.join('')}`).join('');
-    const toggle = document.createElement('button'); toggle.className = 'icon-btn oh-collapse-nav'; toggle.type = 'button'; toggle.setAttribute('aria-label', 'Collapse navigation'); toggle.setAttribute('aria-expanded', 'true'); toggle.innerHTML = '<i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>';
-    toggle.onclick = () => { const collapsed = document.body.classList.toggle('oh-nav-collapsed'); toggle.setAttribute('aria-expanded', String(!collapsed)); toggle.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation'); };
-    document.querySelector('.topbar').prepend(toggle);
+    // This role-specific shell runs AFTER App.shell: render the same native
+    // collapsible groups instead of overwriting them with static headings.
+    // Retain the Operations Head deep links and data-ops-section selectors.
+    const groupIcons = {
+      'Overview': 'bi-grid-1x2',
+      'Trip Operations': 'bi-signpost-split',
+      'Masterlists': 'bi-truck',
+      'Monitoring & Records': 'bi-clipboard-data'
+    };
+    document.querySelector('.sidebar-nav').innerHTML = sections.map(([label, links]) => {
+      const entries = links.filter(Boolean);
+      if (!entries.length) return '';
+      return '<details class="head-nav-group ops-head-nav-group" data-sidebar-group="'+UI.esc(label)+'">'
+        +'<summary><i class="bi '+groupIcons[label]+'" aria-hidden="true"></i><span>'+UI.esc(label)+'</span>'
+        +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
+        +'<div class="head-nav-items">'+entries.join('')+'</div></details>';
+    }).join('');
+    // Collapse and flyout behavior is owned by the shared executive sidebar
+    // controller in core.js; do not restore the old hide-entire-sidebar toggle.
   };
   const drawer = UI.drawer;
   UI.drawer = (...args) => {

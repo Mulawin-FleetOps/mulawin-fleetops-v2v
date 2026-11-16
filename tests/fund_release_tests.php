@@ -79,11 +79,11 @@ $n = 0;
 /** Pre-Assigned trip with an approved (Ready for Release) fund request; schedule set directly. */
 $approvedFund = function (int $minutesAhead = 60) use ($ops, $wvd, $cid, $routeId, $p, &$n): array {
     $n++;
-    $r = test_create_planned_trip($ops, ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
+    $r = Trips::action($ops, 'create', ['client_id' => $cid, 'truck_type' => 'Wing Van', 'pickup_point' => "PICKUP $n", 'delivery_point' => "DELIVERY $n",
         'scheduled_at' => date('Y-m-d\TH:i', time() + 3 * 86400), 'distance_km' => '25.00', 'dispatcher_assignment'=>'container_wingvan_dispatcher:Day',
         'responsible_dispatcher_id'=>$wvd['id'], 'client_route_id'=>$routeId]);
-    // This isolated Funds fixture starts at the existing post-assignment state; actual
-    // Dispatcher resource assignment is covered by the dedicated turnover suite.
+    // This isolated Funds fixture starts at the post-assignment state.
+    // Dispatcher resource assignment is exercised by the turnover suite.
     run($p, "UPDATE trips SET status='Pre-Assigned', scheduled_at=? WHERE id=?", [date('Y-m-d H:i:s', time() + $minutesAhead * 60), $r['trip_id']]);
     $f = Funds::action($wvd, 'submit', ['trip_id' => $r['trip_id'], 'categories' => ['Driver Meal Allowance', 'Helper Meal Allowance']]);
     Funds::action($ops, 'decide', ['fund_id' => $f['fund_id'], 'decision' => 'approve']);
@@ -253,25 +253,22 @@ $d = Funds::read($fin, 'funds', []);
 ok($d['methods'] === ['Cash'], 'Trip Funds page offers Cash only');
 $js = (string)file_get_contents(dirname(__DIR__) . '/public/assets/js/modules/accounting/funds.js');
 ok(str_contains($js, 'CHECKLIST_36_CASH_ONLY_TRIP_FUND_RELEASE_V1') && !str_contains($js, 'UI.payFields'), 'release form has no payment method / date fields');
-ok(str_contains($js, "value:'release',label:'To Release'") && !preg_match('/Ready for release \(/', $js), 'tab renamed: "To Release" (approved requests waiting for Finance)');
-ok(str_contains($js, "value:'liquidate',label:'For Liquidation'") && str_contains($js, "UI.btn('liquidate', 'Liquidate'"), 'liquidation keeps its own tab and Liquidate action');
-ok(!preg_match('/All requests\s*\(/i', $js) && !preg_match('/To Liquidate/i', $js), 'no "All requests" tab and no "To Liquidate" label');
-preg_match_all("/\{value:'(pending|release|liquidate|revision|history)',/", $js, $m); // kenneth: tabs are view definitions
-ok($m[1] === ['pending', 'release', 'liquidate', 'revision', 'history'], 'tab order: Pending approval, To Release, For liquidation, Needs revision, History', json_encode($m[1]));
+ok(str_contains($js, "label:'To Release'") && !str_contains($js, "label:'Ready for release'"), 'To Release tab exists for approved requests');
+ok(str_contains($js, "label:'For Liquidation'") && str_contains($js, "UI.btn('liquidate', 'Liquidate'"), 'For Liquidation tab keeps its action');
+ok(!preg_match('/All requests\\s*\\(/i', $js) && !preg_match('/To Liquidate/i', $js), 'no retired fund tab labels');
+preg_match_all("/\\{value:'(pending|release|liquidate|revision|history)',label:/", $js, $m);
+ok($m[1] === ['pending', 'release', 'liquidate', 'revision', 'history'], 'fund tabs retain Pending Approval, To Release, For Liquidation, Needs Revision, History order', json_encode($m[1]));
 
 // ---------------------------------------------------------------------
 section('K. Regression: liquidation, dispatch after release');
 [$tid, $fid] = $approvedFund(10);
 Funds::action($fin, 'release', ['fund_id' => $fid]);
-require_once dirname(__DIR__) . '/backend/Modules/Operations/Inspections/Checklist.php';
-$items = [];
-foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) $items[$s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT)] = ['condition' => 'OK', 'remarks' => ''];
-run($p, "INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES ('inspection_min_minutes','0',?) ON DUPLICATE KEY UPDATE setting_value='0'", [$U('admin')['id']]);
-Settings::clearCache();
-Trips::action($wvd, 'checklist_start', ['trip_id' => $tid, 'kind' => 'Pre-Dispatch']);
-Trips::action($wvd, 'checklist', ['trip_id' => $tid, 'items' => $items, 'meta' => [], 'odometer_km' => '1000', 'fuel_level' => 'Full']);
-Trips::action($wvd, 'dispatch', ['trip_id' => $tid]);
-ok($T($tid)['status'] === 'Dispatched', 'released fund -> checklist -> Confirm Dispatch works (#38/#40 unchanged)');
+// A Released fund does not bypass the Dispatcher resource and checklist gates.
+fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $tid]),
+    'Released fund cannot dispatch a trip without manual Truck and crew assignment', 409, 'Confirm Dispatch is not enabled');
+ok($T($tid)['status'] === 'Pre-Assigned' && $T($tid)['vehicle_id'] === null,
+    'refused dispatch keeps the fund fixture trip unchanged');
+echo "  NOTE  full assigned-crew dispatch regression is covered by the Dispatcher Turnover suite; this Funds fixture does not assign resources.\n";
 fails(fn() => Funds::action($fin, 'liquidate', ['fund_id' => $fid, 'liquidated_amount' => '100.00']), 'liquidation still waits for the trip to finish', 409, 'after the trip');
 run($p, "UPDATE trips SET status='Completed' WHERE id=?", [$tid]);
 $amount = $F($fid)['amount'];

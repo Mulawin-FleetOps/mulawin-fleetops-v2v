@@ -301,3 +301,120 @@
   .dispatcher-role .ds-summary-card { transition: none; }
   .dispatcher-role .ds-summary-card:hover { transform: none; }
 }
+
+/* Dispatcher assignment: trip-plan summary and eligible resource selection. */
+.ds-resource-assignment-modal .modal-dialog{max-width:720px}
+.ds-resource-assignment-modal .modal-body{display:grid;gap:14px}
+.ds-resource-assignment-modal .ds-assignment-plan{
+  padding:16px;border:1px solid #dbe8df;border-radius:12px;background:#f7fbf8;
+}
+.ds-resource-assignment-modal .ds-assignment-plan-title{
+  display:flex;align-items:center;gap:8px;margin-bottom:11px;
+  color:#245137;font-size:13px;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dl{margin:0;display:grid;gap:0}
+.ds-resource-assignment-modal .ds-assignment-plan dl>div{
+  display:grid;grid-template-columns:minmax(110px,32%) minmax(0,1fr);
+  gap:12px;padding:9px 0;border-top:1px solid #e1ebe4;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dt{
+  color:#678070;font-size:12px;font-weight:650;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dd{
+  margin:0;min-width:0;color:#2d4938;font-size:12.5px;
+  overflow-wrap:anywhere;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dd>span{
+  display:block;color:#6c8073;font-size:11.5px;margin-top:2px;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .row{row-gap:12px}
+.ds-resource-assignment-modal .alert{margin:0;font-size:12px;line-height:1.6}
+@media(max-width:530px){
+  .ds-resource-assignment-modal .ds-assignment-plan dl>div{grid-template-columns:1fr;gap:3px}
+}
+/* Keep the Dispatcher assignment action legible without enlarging every column. */
+.dispatcher-trips-workspace .oh-dispatch-table-wrap .data-table td:last-child .btn{
+  white-space:normal;min-width:120px;line-height:1.3;
+}
+
+
+/* Driver-first assignment: compact planned trip and a guided resource summary. */
+.ds-resource-assignment-modal .modal-dialog{max-width:760px}
+.ds-resource-assignment-modal .modal-title{font-size:16px;font-weight:700;color:#214b34}
+.ds-resource-assignment-modal .modal-body{gap:12px;padding:18px 20px}
+.ds-resource-assignment-modal .ds-assignment-plan{padding:14px 16px}
+.ds-resource-assignment-modal .ds-assignment-plan-title{margin-bottom:9px;flex-wrap:wrap}
+.ds-resource-assignment-modal .ds-assignment-type{
+  margin-left:auto;padding:4px 10px;border-radius:20px;color:#246145;
+  background:#e5f4e9;font-size:11px;font-weight:650;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dl>div{padding:7px 0}
+.ds-resource-assignment-modal .ds-assignment-route{
+  border-top:1px solid #e1ebe4;margin-top:4px;padding-top:10px;
+}
+.ds-resource-assignment-modal .ds-assignment-route summary{
+  display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none;
+  color:#246145;font-weight:650;font-size:12px;
+}
+.ds-resource-assignment-modal .ds-assignment-route summary::-webkit-details-marker{display:none}
+.ds-resource-assignment-modal .ds-assignment-route summary i{font-size:10px}
+.ds-resource-assignment-modal .ds-assignment-route[open] summary i{transform:rotate(180deg)}
+.ds-resource-assignment-modal .ds-assignment-route p{
+  margin:8px 0 0;font-size:12px;line-height:1.5;overflow-wrap:anywhere;
+}
+.ds-resource-assignment-modal .ds-assignment-hint{
+  display:flex;align-items:flex-start;gap:8px;margin:0;color:#536c5c;
+  font-size:12px;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-hint i{color:#39795a}
+.ds-resource-assignment-modal .ds-assignment-selection{
+  display:grid;gap:13px;padding:15px;border:1px solid #dbe8df;
+  border-radius:12px;background:#fff;
+}
+.ds-resource-assignment-modal .ds-assignment-selection h3{
+  display:flex;align-items:center;gap:8px;margin:0;color:#214b34;
+  font-size:14px;font-weight:700;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .row{row-gap:10px}
+.ds-resource-assignment-modal .ds-assignment-fields .form-label{
+  margin-bottom:5px;color:#385846;font-weight:650;font-size:12px;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .form-select{
+  min-height:39px;background-color:#fff;font-size:13px;
+}
+.ds-resource-assignment-modal .ds-assignment-change-helper{justify-self:start}
+.ds-resource-assignment-modal .ds-assignment-preview{
+  display:flex;align-items:center;gap:10px;min-height:69px;padding:14px;
+  border:1px dashed #cddbd1;border-radius:10px;background:#f8fbf9;
+  font-size:12px;color:#637868;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-preview>i{font-size:24px}
+.ds-resource-assignment-modal .ds-assignment-preview:has(dl){display:block}
+.ds-resource-assignment-modal .ds-assignment-preview.is-ready{
+  border-style:solid;border-color:#b6d8c2;background:#f2faf4;
+}
+.ds-resource-assignment-modal .ds-assignment-preview strong{
+  display:flex;align-items:center;gap:8px;color:#1f6840;font-size:12px;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dl{
+  display:grid;gap:8px;margin:10px 0 0;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dl>div{
+  display:grid;grid-template-columns:105px minmax(0,1fr);gap:10px;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dt{
+  color:#617768;font-weight:550;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dd{
+  margin:0;color:#234c34;font-weight:650;overflow-wrap:anywhere;
+}
+.ds-resource-assignment-modal .modal-footer{padding:12px 20px}
+.ds-resource-assignment-modal .modal-footer button[type=submit]{min-width:145px}
+.ds-resource-assignment-modal .modal-footer button[type=submit]:disabled{opacity:.55}
+@media(max-width:530px){
+  .ds-resource-assignment-modal .modal-body{padding:13px}
+  .ds-resource-assignment-modal .ds-assignment-selection{padding:12px}
+  .ds-resource-assignment-modal .ds-assignment-plan{padding:12px}
+  .ds-resource-assignment-modal .ds-assignment-preview dl>div{grid-template-columns:90px minmax(0,1fr)}
+  .ds-resource-assignment-modal .ds-assignment-type{margin-left:0}
+}

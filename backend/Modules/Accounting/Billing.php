@@ -285,7 +285,7 @@ final class Billing {
             Notify::resolve($p, 'billing-adj-' . $cid);
             auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $b['id'], 'billing adjustment request withdrawn', $b['trip_ref'] . ': ' . $c['request_type'] . ' ' . self::label($c),
                 ['Request status' => 'Pending Approval'], ['Request status' => 'Withdrawn']);
-            return ['message' => 'Request withdrawn.'];
+            return ['message' => 'The request was withdrawn successfully.'];
         });
     }
 
@@ -308,7 +308,7 @@ final class Billing {
                 auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $b['id'], 'billing adjustment rejected', $b['trip_ref'] . ": $what: $notes",
                     ['Request status' => 'Pending Approval'], ['Request status' => 'Rejected', 'Billing total' => $b['total_amount']]);
                 Notify::user($p, (int)$c['added_by'], 'Billing approval', $b['trip_ref'] . ": Admin rejected the $what: $notes", 'billing');
-                return ['message' => 'Request rejected. The billing total is unchanged.'];
+                return ['message' => 'The request was rejected. The billing total remains unchanged.'];
             }
 
             self::editable($b);
@@ -344,7 +344,7 @@ final class Billing {
             auditWithChanges($p, $u['id'], 'Billing', 'billing ' . $id, 'supporting documents verified', $b['trip_ref'],
                 ['Supporting documents' => $b['docs_verified_at'] ? 'Verified' : 'Not verified'],
                 ['Supporting documents' => 'Verified']);
-            return ['message' => 'Documents verified. The billing can now be finalized.'];
+            return ['message' => 'Billing documents verified successfully. The invoice can now be finalized.'];
         });
     }
 

@@ -12,6 +12,16 @@
 'use strict';
 
 const UI = {};
+/** One expandable sidebar component for all authorized role menus. */
+UI.sidebarGroup = ({title,icon='bi-grid-3x3-gap',items='',key='',variant=''}) => {
+  if (!items) return '';
+  const name=UI.esc(title);
+  return '<details class="head-nav-group'+(variant?' '+UI.esc(variant):'')+'" data-sidebar-group="'+UI.esc(key||title)+'">'
+    +'<summary><i class="bi '+UI.esc(icon)+'" aria-hidden="true"></i><span>'+name+'</span>'
+    +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
+    +'<div class="head-nav-items">'+items+'</div></details>';
+};
+
 const App = {
   pages: {}, me: null, csrf: '', current: null, timer: null,
 
@@ -268,8 +278,86 @@ const App = {
     const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : n.id === 'funds' && ['car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role) ? 'My Trip Funds' : nameOf(n.id) || n.label)}</span></a>`;
     const operationsRole = ['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role);
     const tripLink = (label, icon, query) => `<a href="#trips?${query}" class="nav-item-link" data-nav="trips" data-trip-section="${query}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`;
-    let nav = `<div class="nav-section">My workspace</div>${operationsRole ? primary.filter(n => n.id === 'dashboard').map(link).join('') + '<div class="nav-section">Operations</div>' + tripLink('New Trip', 'bi-plus-circle', 'new=1') + tripLink('Active Trips', 'bi-signpost-split', 'tab=active') + tripLink('Trip History', 'bi-clock-history', 'tab=history') + tripLink('Incidents', 'bi-exclamation-triangle', 'tab=incidents') + primary.filter(n => !['dashboard', 'trips'].includes(n.id)).map(link).join('') : primary.map(link).join('')}`;
-    if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
+    let nav;
+    if (u.role === 'admin') {
+      // The server sends the authoritative executive menu in business-flow
+      // order. Preserve its labels and sections instead of re-sorting it into
+      // the old Admin shortcuts + More tools groups.
+      const sectionIcons = {
+        'Operations Oversight': 'bi-activity',
+        'Client & Commercial': 'bi-buildings',
+        'Financial Oversight': 'bi-graph-up-arrow',
+        'Management Control': 'bi-shield-check',
+      };
+      const menuGroups=[];
+      const ungrouped=[];
+      for (const item of allowed) {
+        // A dashboard is a direct destination, not a collapsible "General" category.
+        if(!item.section || item.section==='General'){
+          ungrouped.push(item);
+          continue;
+        }
+        let group=menuGroups.find(g=>g.title===item.section);
+        if(!group){group={title:item.section,items:[]};menuGroups.push(group);}
+        group.items.push(item);
+      }
+      const adminLink=item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.label)+'</span></a>';
+      nav=ungrouped.map(adminLink).join('')
+        +menuGroups.map(group=>UI.sidebarGroup({
+          title:group.title,
+          icon:sectionIcons[group.title]||'bi-folder2',
+          items:group.items.map(adminLink).join('')
+        })).join('');
+    } else if (u.role === 'operations_head') {
+      // Collapsible, role-specific sidebar: render only entries authorized by
+      // the server-provided navigation, preserving every existing route target.
+      const groups = [
+        {name:'Overview',icon:'bi-grid-1x2',ids:['dashboard']},
+        {name:'Trip Operations',icon:'bi-signpost-split',ids:['trips','dispatcher-monitoring','funds']},
+        {name:'Masterlists',icon:'bi-truck',ids:['trucks','crew','routes','mechanics']},
+        {name:'Monitoring & Records',icon:'bi-clipboard-data',ids:['maintenance','reports','documents']}
+      ];
+      const used = new Set();
+      const labels = {
+        'dispatcher-monitoring':'Dispatch Monitoring',
+        'funds':'Fund Approvals',
+        'trucks':'Trucks',
+        'crew':'Drivers & Helpers',
+        'routes':'Client Routes',
+        'maintenance':'Incidents & Repairs'
+      };
+      const renderGroup = group => {
+        const entries=group.ids.map(id=>allowed.find(item=>item.id===id))
+          .filter(item=>item && !used.has(item.id));
+        if(!entries.length)return '';
+        entries.forEach(item=>used.add(item.id));
+        return UI.sidebarGroup({
+          title:group.name,icon:group.icon,variant:'ops-head-nav-group',
+          items:entries.map(item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'">'
+            +'<i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(labels[item.id]||item.label)+'</span></a>').join('')
+        });
+      };
+      nav=groups.map(renderGroup).join('');
+      const remaining=allowed.filter(item=>!used.has(item.id));
+      if(remaining.length)nav+=renderGroup({name:'Other Tools',icon:'bi-grid-3x3-gap',ids:remaining.map(item=>item.id)});
+    } else {
+      // Dispatcher retains the existing deep links, but uses the same accessible
+      // groups as Admin/Operations Head. Other roles continue through wsNav.
+      if (operationsRole) {
+        const overview=primary.filter(n=>n.id==='dashboard').map(link).join('');
+        const tripItems=tripLink('New Trip','bi-plus-circle','new=1')
+          +tripLink('Active Trips','bi-signpost-split','tab=active')
+          +tripLink('Trip History','bi-clock-history','tab=history')
+          +tripLink('Incidents','bi-exclamation-triangle','tab=incidents')
+          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('');
+        nav=UI.sidebarGroup({title:'Overview',icon:'bi-grid-1x2',items:overview})
+          +UI.sidebarGroup({title:'Trip Operations',icon:'bi-signpost-split',items:tripItems})
+          +UI.sidebarGroup({title:'Reference & Records',icon:'bi-folder2-open',items:extra.map(link).join('')});
+      } else {
+        nav=UI.sidebarGroup({title:'My Workspace',icon:'bi-grid-1x2',items:primary.map(link).join('')})
+          +UI.sidebarGroup({title:'More Tools',icon:'bi-grid-3x3-gap',items:extra.map(link).join('')});
+      }
+    }
     // WS_SHELL_V1: Maintenance and Accounting roles (Motorpool, Purchasing, Finance, Billing, Audit) get one grouped
     // workspace menu with the profile at the bottom. Links come only from me.nav (server-side permissions); nothing is added.
     const ws = UI.wsNav(u.role);
@@ -281,20 +369,26 @@ const App = {
                 <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>`;
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
-      nav = ws.groups.map(g => `<div class="nav-group"><div class="nav-section">${UI.esc(g.title)}</div>${g.items.map(wsLink).join('')}</div>`).join('');
+      nav = ws.groups.map((g,i)=>UI.sidebarGroup({
+        title:g.title,
+        icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
+        items:g.items.map(wsLink).join('')
+      })).join('');
     }
     // UI CORRECTION: account controls stay in the top bar for every role; the workspace sidebar is navigation only.
     const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
+    const executiveSidebar = ['admin','operations_head'].includes(u.role);
+    const collapseKey = executiveSidebar ? 'executive-sidebar-collapsed-' + u.role : 'ws-sidebar-collapsed';
     let collapsed = false;
-    try { collapsed = !!ws && localStorage.getItem('ws-sidebar-collapsed') === '1'; } catch { /* storage unavailable */ }
+    try { collapsed = (!!ws || executiveSidebar) && localStorage.getItem(collapseKey) === '1'; } catch { /* storage unavailable */ }
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
-          ${ws ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${collapsed ? 'Expand' : 'Collapse'} the menu" title="${collapsed ? 'Expand' : 'Collapse'} the menu" aria-pressed="${collapsed}"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
-            <button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>` : ''}</div>
+          ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${collapsed ? 'Expand' : 'Collapse'} the menu" title="${collapsed ? 'Expand' : 'Collapse'} the menu" aria-pressed="${collapsed}"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
+            ${ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : ''}` : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
         ${sideFoot}
       </aside>
@@ -322,11 +416,11 @@ const App = {
         <main class="content" id="pageContent"></main>
       </div>
     </div><div id="printArea"></div>`;
-    // RPM STICKY PAGE NAV V1 START: keep the page heading visible and offer an accessible way back.
+    // Maintain the shared back-to-top control without making page titles sticky.
     if (this._rpmScrollNavigation) window.removeEventListener('scroll', this._rpmScrollNavigation);
     this._rpmScrollNavigation = () => {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
-      document.querySelector('#pageContent .page-head')?.classList.toggle('rpm-page-head-scrolled', y > 90);
+      // Page heading stays in document flow; only the Back to top control changes.
       const topButton = document.getElementById('rpmBackToTop');
       if (topButton) { topButton.hidden = y <= 90; topButton.setAttribute('aria-label', 'Back to top'); }
     };
@@ -338,7 +432,7 @@ const App = {
       window.scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
     });
     this._rpmScrollNavigation();
-    // RPM STICKY PAGE NAV V1 END
+    // Shared page navigation setup complete.
     const sb = document.getElementById('appSidebar'), bd = document.getElementById('sidebarBackdrop');
     document.getElementById('menuBtn').onclick = () => { sb.classList.add('open'); bd.classList.add('show'); };
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
@@ -346,9 +440,82 @@ const App = {
     document.getElementById('sbCollapse')?.addEventListener('click', (e) => {
       const shell = document.getElementById('appShell'), on = shell.classList.toggle('sb-collapsed'), b = e.currentTarget;
       b.setAttribute('aria-pressed', String(on)); b.title = (on ? 'Expand' : 'Collapse') + ' the menu'; b.setAttribute('aria-label', b.title);
-      try { localStorage.setItem('ws-sidebar-collapsed', on ? '1' : '0'); } catch { /* storage unavailable */ }
+      try { localStorage.setItem(collapseKey, on ? '1' : '0'); } catch { /* storage unavailable */ }
+      if (executiveSidebar) document.querySelector('.executive-sidebar-flyout')?.remove();
     });
+    // In compact workspace mode a group icon expands the sidebar before opening
+    // its links; do not create duplicate flyouts or change route permissions.
+    if (ws) sb.querySelector('.sidebar-nav')?.addEventListener('click', event => {
+      const summary=event.target.closest('.head-nav-group > summary');
+      const shell=document.getElementById('appShell');
+      if (!summary||!shell?.classList.contains('sb-collapsed')
+          ||!window.matchMedia('(min-width: 992px)').matches)return;
+      shell.classList.remove('sb-collapsed');
+      const button=document.getElementById('sbCollapse');
+      if(button){
+        button.setAttribute('aria-pressed','false');
+        button.title='Collapse the menu';
+        button.setAttribute('aria-label',button.title);
+      }
+      try{localStorage.setItem(collapseKey,'0')}catch{}
+    });
+    this._executiveSidebarAbort?.abort();
+    this._executiveSidebarAbort = new AbortController();
     sb.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sb.classList.contains('open')) { bd.onclick(); document.getElementById('menuBtn')?.focus(); } });
+    // Shared collapsed group flyout for Head Management and Operations Head.
+    // Defer until the Operations-specific shell has finished rebuilding its menu.
+    if (executiveSidebar) queueMicrotask(() => {
+      if (document.getElementById('appSidebar') !== sb) return;
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+      const nav = sb.querySelector('.sidebar-nav');
+      const closeFlyout = () => document.querySelector('.executive-sidebar-flyout')?.remove();
+      const openFlyout = (group, summary) => {
+        closeFlyout();
+        const flyout = document.createElement('div');
+        flyout.className = 'executive-sidebar-flyout';
+        flyout.setAttribute('role', 'navigation');
+        const label = summary.querySelector('span')?.textContent || 'Navigation';
+        flyout.setAttribute('aria-label', label);
+        const heading = document.createElement('div');
+        heading.className = 'executive-sidebar-flyout-heading';
+        heading.textContent = label;
+        const links = document.createElement('div');
+        links.className = 'executive-sidebar-flyout-links';
+        group.querySelectorAll('.head-nav-items a').forEach(link => {
+          const copy = link.cloneNode(true);
+          copy.removeAttribute('id');
+          copy.addEventListener('click', closeFlyout);
+          links.append(copy);
+        });
+        flyout.append(heading,links);
+        document.body.append(flyout);
+        const rect = summary.getBoundingClientRect();
+        const width = flyout.offsetWidth;
+        flyout.style.left = Math.min(rect.right + 9, window.innerWidth - width - 8) + 'px';
+        flyout.style.top = Math.max(8, Math.min(rect.top, window.innerHeight - flyout.offsetHeight - 8)) + 'px';
+      };
+      nav.addEventListener('click', (event) => {
+        const summary = event.target.closest('.head-nav-group > summary');
+        if (summary && document.getElementById('appShell')?.classList.contains('sb-collapsed') && window.matchMedia('(min-width: 992px)').matches) {
+          event.preventDefault();
+          const group = summary.parentElement;
+          const existing = document.querySelector('.executive-sidebar-flyout');
+          const same = existing?.getAttribute('aria-label') === (summary.querySelector('span')?.textContent || 'Navigation');
+          if (same) closeFlyout(); else openFlyout(group, summary);
+          summary.setAttribute('aria-expanded', String(!same));
+          return;
+        }
+        if (event.target.closest('a')) closeFlyout();
+      });
+      document.addEventListener('pointerdown', (event) => {
+        if (!document.getElementById('appShell')?.classList.contains('executive-sidebar')) return;
+        if (!event.target.closest('.executive-sidebar-flyout, .head-nav-group > summary')) closeFlyout();
+      }, { signal: this._executiveSidebarAbort?.signal });
+      const escapeFlyout = (event) => { if(event.key === 'Escape') closeFlyout(); };
+      document.addEventListener('keydown', escapeFlyout, { signal: this._executiveSidebarAbort?.signal });
+      window.addEventListener('resize', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
+      window.addEventListener('hashchange', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
+    });
     document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
     document.getElementById('chgPw').onclick = () => this.passwordScreen();
     document.getElementById('chgEmail').onclick = () => this.emailScreen();
@@ -398,7 +565,7 @@ const App = {
   // ---------------------------------------------------------------- router (#page?x=y)
   /** Landing page per role. The server's me.nav decides what exists; this only picks the first page to show. */
   homePage() {
-    const landing = { motorpool: 'maintenance_overview', purchasing: 'purchasing_overview', finance: 'finance_overview', billing: 'billing_overview', audit: 'audit_overview', admin: 'admin_overview' }[this.me?.user?.role] || 'dashboard';
+    const landing = { motorpool: 'maintenance_overview', purchasing: 'purchasing_overview', finance: 'finance_overview', billing: 'billing_overview', audit: 'audit_overview' }[this.me?.user?.role] || 'dashboard';
     const nav = this.me?.nav || [];
     return nav.some(n => n.id === landing) ? landing : (nav[0]?.id || 'dashboard');
   },
@@ -424,7 +591,7 @@ const App = {
     if (UI.WS_PAGES.has(page)) ['open', 'new', 'report'].forEach(k => { if (query[k] !== undefined) { once[k] = query[k]; delete query[k]; } });
     const canon = '#' + page + (Object.keys(query).length ? '?' + new URLSearchParams(query) : '');
     if (Object.keys(once).length) history.replaceState(null, '', canon);
-    const entry = this.me.nav.find(n => n.id === page);
+    const entry = (this.me.routes || this.me.nav).find(n => n.id === page);
     const nav = entry ? {...entry,label:UI.operationsLabel(entry.label)} : null;
     // FLEETOPS_ACCESS_ANALYTICS_V1: render an explicit denial without requesting restricted page data.
     // The server independently enforces Access::canOpen() and returns HTTP 403 for forbidden data.
@@ -466,6 +633,11 @@ const App = {
     // Expand the supporting-tools group only when the current route is inside it.
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
     if (secondary) document.getElementById('sidebarMore').open = true;
+    // Native details keep manual expand/collapse behavior. On direct links or
+    // page changes, reveal the section containing the active Head page.
+    const headGroup = [...document.querySelectorAll('.head-nav-group')]
+      .find(group => [...group.querySelectorAll('[data-nav]')].some(link => link.dataset.nav === page));
+    if (headGroup) headGroup.open = true;
     document.getElementById('appSidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('show');
     if (this._rpmScrollNavigation) requestAnimationFrame(this._rpmScrollNavigation);
     const wsItem = UI.wsNavItem(page);   // WS_SHELL_V1: workspace group + short label, same as the menu
@@ -583,6 +755,7 @@ UI.WS_GROUPS = [
 ];
 /** Grouped menu for the role, or null when the role keeps the standard menu. */
 UI.wsNav = (role) => {
+  if (role === 'admin' || role === 'operations_head') return null; // Keep the approved executive and Operations sidebars.
   const menu = UI.WS_MENUS[role]; if (!menu || !App.me) return null;
   const allowed = (App.me.nav || []).filter(n => n.id !== 'notifications');
   const byId = Object.fromEntries(allowed.map(n => [n.id, n]));
@@ -796,18 +969,38 @@ UI.fmt = (type, v, row) => {
   }
 };
 
-/** Toast message (bottom right). type: '' (success), 'error', 'warn', 'info'. */
+/** Shared visible notifications, including validation errors inside modals. */
 UI.toast = (msg, type = '') => {
   if (!msg) return;
-  const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
-  const el = document.createElement('div'); el.className = 'app-toast ' + type; el.setAttribute('role', type === 'error' ? 'alert' : 'status');
-  el.innerHTML = `<i class="bi ${icon}"></i><span></span><button type="button" class="toast-x" aria-label="Close">&times;</button>`;
-  el.querySelector('span').textContent = msg;
-  el.querySelector('.toast-x').onclick = () => el.remove();
-  document.getElementById('toastZone').append(el); setTimeout(() => el.remove(), type ? 9000 : 5000);
+  const zone = document.getElementById('toastZone');
+  if (!zone) return;
+  // Normalize notification whitespace without modifying status names,
+  // identifiers, or validation decisions supplied by other modules.
+  const message = String(msg).replace(/\s+/g, ' ').trim();
+  if (!message) return;
+  // Avoid piling up repeated validation errors on consecutive submissions.
+  const duplicate = [...zone.querySelectorAll('.app-toast')].find(el =>
+    el.dataset.kind === type && el.querySelector('span')?.textContent === message);
+  if (duplicate) return;
+  const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', warning:'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
+  const el = document.createElement('div');
+  el.className = 'app-toast ' + (type === 'warning' ? 'warn' : type);
+  el.dataset.kind = type;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span></span><button type="button" class="toast-x" aria-label="Dismiss notification">&times;</button>`;
+  el.querySelector('span').textContent = message;
+  let timer;
+  const dismiss = () => { clearTimeout(timer); el.remove(); };
+  el.querySelector('.toast-x').onclick = dismiss;
+  zone.prepend(el);
+  while (zone.children.length > 3) zone.lastElementChild.remove();
+  timer = setTimeout(dismiss, type === 'error' ? 14000 : type ? 10000 : 5000);
 };
 /** Shows the result of a backend action (message + warning). */
-UI.result = (r) => { UI.toast(r.message || 'Saved.'); if (r.warning) UI.toast(r.warning, 'warn'); };
+UI.result = (r) => {
+  UI.toast(r.message || 'Changes saved successfully.');
+  if (r.warning) UI.toast(r.warning, 'warn');
+};
 
 /** Company logo (redrawn from the reference forms). */
 UI.logoTag = (cls = '') => `<img src="assets/img/logo.svg" alt="RPM" class="${cls}">`;
@@ -822,11 +1015,36 @@ UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
  * Metric strip: one bordered panel divided into segments (label, value, note).
  * items: [{label, value, note, color: green|blue|amber|red, go: 'page?x=y', format: 'money'}]
  */
-UI.statusStrip = (items) => `<div class="metric-strip">${(items || []).map(c => { const go = c.go && UI.canGo(c.go);
-  return `<div class="metric ${c.color || ''} ${go ? 'clickable' : ''}" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
-    <div class="metric-label">${c.color ? '<span class="dot"></span>' : ''}${UI.esc(UI.operationsLabel(c.label))}</div>
+// Presentation-only icon mapping. Counts, data sources, and navigation are unchanged.
+UI.metricVisual = (card) => {
+  const label = String(card.label || '').toLowerCase();
+  const rules = [
+    [/incident|delay|overdue|problem|rejected|critical|failed|unavailable/, 'bi-exclamation-triangle', 'red'],
+    [/complete|finished|resolved|approved|collected|paid|success/, 'bi-check-circle', 'purple'],
+    [/schedule|pending|awaiting|prepar|review|due/, 'bi-calendar-check', 'blue'],
+    [/truck|vehicle|fleet|trip|dispatch|route|delivery/, 'bi-truck', 'green'],
+    [/fuel|diesel|liter|consumption/, 'bi-fuel-pump', 'blue'],
+    [/driver|helper|personnel|mechanic|employee|staff|user/, 'bi-people', 'purple'],
+    [/client|customer|contract/, 'bi-buildings', 'blue'],
+    [/maintenance|repair|job order/, 'bi-tools', 'amber'],
+    [/inventory|stock|parts|purchase|warehouse/, 'bi-box-seam', 'amber'],
+    [/billing|invoice|receipt|collection/, 'bi-receipt', 'purple'],
+    [/fund|expense|cost|budget|amount|payment|finance|revenue|rate/, 'bi-wallet2', 'green'],
+    [/document|report|record/, 'bi-file-earmark-text', 'blue']
+  ];
+  const matched = rules.find(([pattern]) => pattern.test(label));
+  const icon = /^bi-[a-z0-9-]+$/.test(String(card.icon || '')) ? card.icon : (matched?.[1] || 'bi-bar-chart-line');
+  const color = ['green','blue','amber','red','purple'].includes(card.color) ? card.color : (matched?.[2] || 'green');
+  return {icon,color};
+};
+UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
+  const go = c.go && UI.canGo(c.go);
+  const visual = UI.metricVisual(c);
+  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
+    <span class="metric-icon metric-icon-${visual.color}" aria-hidden="true"><i class="bi ${visual.icon}"></i></span>
+    <div class="metric-content"><div class="metric-label">${UI.esc(UI.operationsLabel(c.label))}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
-    ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div>`; }).join('')}</div>`;
+    ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div></div>`; }).join('')}</div>`;
 /**
  * STAGE_A_WORKSPACE_UI — KPI tiles for the role workspaces (Motorpool, Purchasing).
  * items: [{label, value, note, icon: 'bi-...', tone: amber|blue|green|red|gray, go: 'page?x=y'}]
@@ -840,12 +1058,12 @@ UI.kpiTiles = (items, cls = '') => `<div class="kpi-tiles${cls ? ' ' + UI.esc(cl
 /** Back link to a workspace page; empty when the user cannot open that page. */
 UI.crumb = (page, label) => UI.canGo(page) ? `<nav class="ws-crumb" aria-label="Back"><button type="button" class="ws-crumb-link" data-go="${UI.esc(page)}"><i class="bi bi-arrow-left"></i> ${UI.esc(label)}</button></nav>` : '';
 /** Dashboard / report cards use the same metric strip. */
-UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
+UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, icon: c.icon, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
 UI.goParts = (spec) => {
   const [main, mem] = String(spec || '').split('#'); const [page, qs] = main.split('?');
   return { page, query: Object.fromEntries(new URLSearchParams(qs || '')), tabs: [...new URLSearchParams(mem || '')] };
 };
-UI.canGo = (spec) => !!spec && !!App.me && (App.me.nav || []).some(n => n.id === UI.goParts(spec).page);
+UI.canGo = (spec) => !!spec && !!App.me && (App.me.routes || App.me.nav || []).some(n => n.id === UI.goParts(spec).page);
 UI.goTo = (spec) => {
   const g = UI.goParts(spec);
   g.tabs.forEach(([k, v]) => sessionStorage.setItem('tab:' + g.page + (k === '_' ? '' : ':' + k), v));
@@ -1291,7 +1509,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
       err.textContent = invalid.validity.valueMissing || (invalid.type === 'checkbox' && !invalid.checked)
         ? 'Complete the required field: ' + fieldLabel
         : 'Please enter a valid value for: ' + fieldLabel;
-      err.style.display = 'block'; invalid.focus(); return;
+      err.style.display = 'block'; UI.toast(err.textContent, 'error'); invalid.focus(); return;
     }
     // Validate first, ask user inside the app, then execute the save/API request.
     // Existing explicit confirm-action modals opt out to avoid double prompts.
@@ -1307,7 +1525,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
     }
     const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
     try { await onSubmit(UI.formData(form), form, wrap); saveCompleted = true; m.hide(); }
-    catch (x) { err.textContent = x.message; err.style.display = 'block'; }
+    catch (x) { err.textContent = x.message; err.style.display = 'block'; UI.toast(x.message, 'error'); }
     finally { btn.disabled = false; btn.innerHTML = label; }
   };
    // Checklist #18: in-app discard dialog; never call window.confirm.
@@ -1315,46 +1533,24 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
    let initialValues = null;
    let saveCompleted = false;
    let allowDiscard = false;
-   const showDiscardDialog = () => {
-     if (wrap.querySelector('[data-unsaved-dialog]')) return;
-     const dialog = document.createElement('div');
-     dialog.className = 'unsaved-dialog-layer';
-     dialog.dataset.unsavedDialog = '1';
-     dialog.style.cssText = 'position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.42);';
-     dialog.innerHTML = `<section role="alertdialog" aria-modal="true" aria-labelledby="unsavedTitle"
-       aria-describedby="unsavedMessage" class="bg-white shadow-lg rounded-3 border p-4"
-       style="width:min(100%,430px);max-height:90%;overflow:auto">
-       <h5 id="unsavedTitle" class="mb-2"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Unsaved changes</h5>
-       <p id="unsavedMessage" class="text-muted mb-3">You have unsaved changes. Discard them and close this form?</p>
-       <div class="d-flex justify-content-end gap-2 flex-wrap">
-         <button type="button" class="btn btn-sm btn-outline-secondary" data-unsaved-keep>Keep editing</button>
-         <button type="button" class="btn btn-sm btn-danger" data-unsaved-discard>Discard changes</button>
-       </div>
-     </section>`;
-     // Keep Escape and backdrop clicks from closing the parent while asking.
-     const escGuard = (e) => {
-       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); dialog.querySelector('[data-unsaved-keep]').click(); }
-     };
-     dialog.addEventListener('keydown', escGuard, true);
-     const closeDialog = () => { dialog.remove(); };
-     dialog.querySelector('[data-unsaved-keep]').onclick = () => {
-       closeDialog();
-       form.querySelector('input:not([type=hidden]),select,textarea')?.focus();
-     };
-     dialog.querySelector('[data-unsaved-discard]').onclick = () => {
-       allowDiscard = true;
-       closeDialog();
-       m.hide();
-     };
-     wrap.append(dialog);
-     dialog.querySelector('[data-unsaved-keep]').focus();
-   };
+   let discardPending = false;
    wrap.addEventListener('hide.bs.modal', (event) => {
-     if (confirmPending) { event.preventDefault(); return; }
+     if (confirmPending || discardPending) { event.preventDefault(); return; }
      if (allowDiscard || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
      if (UI.modalEditSnapshot(form) === initialValues) return;
      event.preventDefault();
-     showDiscardDialog();
+     discardPending = true;
+     // Reuse the high-z-index confirmation layer, which stays above Leaflet
+     // maps and their map controls, instead of stacking an absolute child
+     // under the map. Approving the discard must actually close the modal.
+     UI.askWithinModal(wrap, 'Unsaved changes',
+       'You have unsaved changes. Discard them and close this form?',
+       'Discard changes').then(accepted => {
+       discardPending = false;
+       if (!accepted) return;
+       allowDiscard = true;
+       m.hide();
+     }).catch(() => { discardPending = false; });
    });
    wrap.addEventListener('hidden.bs.modal', () => wrap.remove());
    m.show();
@@ -1381,12 +1577,14 @@ UI.confirm = (title, text, onYes, opts = {}) => UI.modal(UI.esc(title), `<p clas
  * Tabs: tabs = [[key, label(html), htmlFn]]. Remembers the last tab of each page.
  * opts.key = separate memory when a page has more than one tab group; opts.pills = small pills.
  */
+/** Hide display-only record counts in navigation labels; preserve counts in KPIs and tables. */
+UI.tabLabel = label => String(label ?? '').replace(/\s*\(\d[\d,]*\)\s*$/, '').trim();
 UI.tabs = (root, tabs, active, opts = {}) => {
   if (!tabs.length) return;
   const id = 'tabs' + Math.random().toString(36).slice(2, 6);
   const mem = 'tab:' + (App.current?.page || 'record') + (opts.key ? ':' + opts.key : '');
   active = active || tabs[0][0];
-  root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
+  root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${UI.tabLabel(l)}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
   const body = document.getElementById(id + 'body');
   const retained = new Map();
   const buttons = [...document.querySelectorAll(`#${id} > [data-tab]`)];
@@ -1819,7 +2017,7 @@ UI.tripProgress = (trip, data = {}) => {
   const exceptional=['Cancelled','Rejected','On Hold - Incident Reported','For Reschedule'].includes(trip.status);
   const milestones=[
     {label:'Created',at:trip.created_at,state:trip.created_at?'complete':'pending'},
-    {label:'Resources assigned',state:trip.vehicle_id&&trip.driver_id?'complete':'pending',note:'Current recorded assignment; see history for previous attempts.'},
+    {label:'Resource assignment',state:trip.vehicle_id&&trip.driver_id?'complete':'pending',note:trip.vehicle_id&&trip.driver_id?'Assigned resources are recorded; previous attempts remain in history.':null},
     {label:'Pre-dispatch · attempt '+attempt,at:pre?.completed_at,state:pre?(Number(pre.has_not_ok)?'exception':'complete'):'pending'},
     {label:'Dispatched',at:trip.dispatched_at,state:trip.dispatched_at?'complete':'pending'},
     {label:'Completed',at:trip.completed_at,state:trip.completed_at?'complete':'pending'},

@@ -18,13 +18,26 @@ final class DispatcherWorkflowTest extends TestCase {
         self::assertTrue(DispatcherAttendance::isCurrent($s,['date'=>'2026-11-11','shift'=>'Night']));
         self::assertTrue(DispatcherAttendance::isCurrent($s,['date'=>'2026-11-10','shift'=>'Day']));
     }
-    private function options():array {return ['drivers'=>[['id'=>1,'name'=>'Fixture Driver','vehicle_id'=>10,'plate_number'=>'TEST','regular_helper_id'=>3,'shift_warning'=>null]],'helpers'=>[['id'=>3]],'second_drivers'=>[['id'=>1],['id'=>2]]];}
+    private function options():array {return ['drivers'=>[['id'=>1,'name'=>'Fixture Driver','vehicle_id'=>10,'plate_number'=>'TEST','regular_helper_id'=>3,'shift_warning'=>null],['id'=>2,'name'=>'Fixture Second Driver','vehicle_id'=>10,'plate_number'=>'TEST','regular_helper_id'=>3,'shift_warning'=>null]],'helpers'=>[['id'=>3]],'second_drivers'=>[['id'=>1],['id'=>2]]];}
     public function testReplacementUsesSelectedDriversPermanentTruckWithoutChangingItsRegularHelper():void {
         $options=$this->options();$options['helpers']=[['id'=>4]];$r=DispatcherResources::choose($options,['truck_type'=>'Container'],['driver_id'=>1,'vehicle_id'=>10,'helper_id'=>4,'helper_substitution_reason'=>'Regular helper absent']);
         self::assertSame(10,$r['vehicle_id']);self::assertSame(4,$r['helper_id']);self::assertSame(3,$options['drivers'][0]['regular_helper_id']);
     }
-    public function testForgedTruckCannotOverrideThePermanentPair():void {
+    public function testForgedTruckCannotOverrideTheAuthorizedDriverTruckPair():void {
         $this->expectException(BusinessRuleException::class);DispatcherResources::choose($this->options(),['truck_type'=>'Wing Van'],['driver_id'=>1,'vehicle_id'=>11,'helper_id'=>3]);
+    }
+    public function testDriverCanBeAuthorizedForMultipleSpecificTrucks():void {
+        $options=$this->options();
+        $options['drivers'][]=['id'=>1,'name'=>'Fixture Driver','vehicle_id'=>11,'plate_number'=>'SECOND','regular_helper_id'=>3,'shift_warning'=>null];
+        $result=DispatcherResources::choose($options,['truck_type'=>'Container'],['driver_id'=>1,'vehicle_id'=>11,'helper_id'=>3]);
+        self::assertSame(11,$result['vehicle_id']);
+        self::assertSame(1,$result['driver_id']);
+    }
+    public function testSecondCarCarrierDriverMustBeAuthorizedForSelectedTruck():void {
+        $options=$this->options();
+        $options['drivers'][1]['vehicle_id']=11;
+        $this->expectException(BusinessRuleException::class);
+        DispatcherResources::choose($options,['truck_type'=>'Car Carrier'],['driver_id'=>1,'vehicle_id'=>10,'driver2_id'=>2]);
     }
     public function testUnauthorizedOrNotTimedInHelperCannotBeChosen():void {
         $this->expectException(BusinessRuleException::class);DispatcherResources::choose($this->options(),['truck_type'=>'Container'],['driver_id'=>1,'vehicle_id'=>10,'helper_id'=>999]);

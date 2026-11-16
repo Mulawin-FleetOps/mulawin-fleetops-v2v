@@ -465,3 +465,872 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
     font-size: 12px;
   }
 }
+
+
+/* Operations Head client routes: spacious journey table. */
+.oh-client-routes-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.oh-client-routes-workspace .record-workspace-panel .data-table{width:100%;min-width:1130px;table-layout:fixed}
+.oh-client-routes-workspace .record-workspace-panel .data-table th,
+.oh-client-routes-workspace .record-workspace-panel .data-table td{padding:15px 14px;vertical-align:middle;line-height:1.5}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(1){width:13%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(2){width:37%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(3){width:11%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(4){width:9%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(5){width:11%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(6){width:11%}
+.oh-client-routes-workspace .record-workspace-panel .data-table th:nth-child(7){width:8%}
+.oh-client-routes-workspace .record-workspace-panel .data-table tbody tr:hover td{background:#f7fbf8}
+.oh-client-routes-workspace .oh-route-client{display:block;font-weight:750;color:#26543a;font-size:12.5px;overflow-wrap:anywhere}
+.oh-client-routes-workspace .oh-route-journey{display:flex;flex-direction:column;gap:4px;max-width:100%;min-width:0}
+.oh-client-routes-workspace .oh-route-place{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.55;color:#375943;overflow-wrap:anywhere;min-width:0}
+.oh-client-routes-workspace .oh-route-place>span:last-child{min-width:0;overflow-wrap:anywhere}
+.oh-client-routes-workspace .oh-route-point{width:9px;height:9px;flex:0 0 9px;margin-top:5px;border:2px solid #2c8752;border-radius:50%;background:#fff}
+.oh-client-routes-workspace .oh-route-point.destination{background:#2c8752}
+.oh-client-routes-workspace .oh-route-connector{height:8px;border-left:1px dashed #a7d0b2;margin-left:4px}
+.oh-client-routes-workspace .oh-route-truck{display:inline-block;font-weight:600;color:#446450}
+.oh-client-routes-workspace .oh-route-distance{font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.oh-client-routes-workspace .oh-route-rate{font-weight:750;color:#17673e;font-variant-numeric:tabular-nums;white-space:nowrap}
+.oh-client-routes-workspace .oh-route-status{white-space:nowrap}
+.oh-client-routes-workspace .record-workspace-panel .row-actions{display:flex;justify-content:flex-end}
+.oh-client-routes-workspace .record-workspace-panel .row-actions .btn{white-space:nowrap}
+@media(max-width:850px){
+  .oh-client-routes-workspace .record-workspace-panel .data-table{min-width:1100px}
+  .oh-client-routes-workspace .record-workspace-panel .data-table th,
+  .oh-client-routes-workspace .record-workspace-panel .data-table td{padding:12px 11px}
+}
+
+
+/* Simplified single-column Operations Head trip planner */
+.oh-trip-planner-modal .oh-simple-planner{max-width:750px;margin:0 auto}
+.oh-trip-planner-modal .oh-simple-planner .oh-planning-columns{display:block;grid-template-columns:minmax(0,1fr);width:100%}
+.oh-trip-planner-modal .oh-simple-planner .oh-planning-editor{width:100%;max-width:none;min-width:0}
+.oh-trip-planner-modal .oh-simple-planner .oh-entry{width:100%;max-width:none}
+.oh-trip-planner-modal .oh-simple-planner .oh-entry-body{padding:3px 0 4px}
+.oh-trip-planner-modal .oh-simple-planner .oh-numbered-section{border:1px solid #e0eae2;border-radius:11px;background:#fff;padding:15px 17px}
+.oh-trip-planner-modal .oh-simple-planner .oh-numbered-section+.oh-numbered-section{margin-top:11px}
+.oh-trip-planner-modal .oh-simple-planner .oh-numbered-section h3{font-size:13px;font-weight:750;margin-bottom:12px;color:#215f3c}
+.oh-trip-planner-modal .oh-simple-planner .oh-form-grid .row{--bs-gutter-x:14px;--bs-gutter-y:10px}
+.oh-trip-planner-modal .oh-simple-planner [name=truck_type]{display:none}
+.oh-trip-planner-modal .oh-simple-planner [data-approved-rate]{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#f0f8f2;color:#276f44;font-size:12px;line-height:1.6}
+.oh-trip-planner-modal .oh-simple-planner [data-route-state]:empty{display:none}
+.oh-trip-planner-modal .oh-simple-planner [data-route-state]:not(:empty){margin-top:8px}
+.oh-trip-planner-modal .oh-simple-batch{margin-top:12px;border:1px solid #dbe8df;border-radius:11px;background:#fff;overflow:visible}
+.oh-trip-planner-modal .oh-simple-batch>summary{display:flex;align-items:center;gap:10px;cursor:pointer;padding:13px 16px;list-style:none;color:#275b3c;font-size:12.5px}
+.oh-trip-planner-modal .oh-simple-batch>summary::-webkit-details-marker{display:none}
+.oh-trip-planner-modal .oh-simple-batch>summary>i:first-child{color:#2f8151;font-size:16px}
+.oh-trip-planner-modal .oh-simple-batch>summary>strong{font-size:13px}
+.oh-trip-planner-modal .oh-simple-batch>summary [data-entry-count]{margin-left:auto;font-size:11px;color:#718b78}
+.oh-trip-planner-modal .oh-simple-batch>summary>i:last-child{font-size:11px;transition:transform .16s}
+.oh-trip-planner-modal .oh-simple-batch[open]>summary>i:last-child{transform:rotate(180deg)}
+.oh-trip-planner-modal .oh-simple-batch>summary:focus-visible{outline:2px solid #2c8650;outline-offset:-3px}
+.oh-trip-planner-modal .oh-simple-batch-body{padding:0 15px 15px;border-top:1px solid #e6eee8}
+.oh-trip-planner-modal .oh-simple-batch-body .oh-planning-total{margin:12px 0}
+.oh-trip-planner-modal .oh-simple-batch-body .oh-batch-entry{margin-bottom:9px}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{margin-top:12px}
+@media(max-width:575px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-numbered-section{padding:12px}
+  .oh-trip-planner-modal .oh-simple-batch>summary{padding:12px}
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{flex-wrap:wrap}
+}
+
+
+/* Compact trip creation v2: modal and inline inputs */
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-dialog{
+  width:calc(100% - 24px);max-width:700px;margin-left:auto;margin-right:auto
+}
+.oh-trip-planner-modal.oh-trip-review-mode .modal-dialog{
+  width:calc(100% - 24px);max-width:1080px;margin-left:auto;margin-right:auto
+}
+.oh-trip-planner-modal .modal-content{max-height:min(90vh,760px)}
+.oh-trip-planner-modal .modal-header{padding:12px 18px}
+.oh-trip-planner-modal .modal-body{padding:10px 18px 0}
+.oh-trip-planner-modal .oh-simple-planner .oh-planning-stages{margin-bottom:9px;padding:5px 0 8px}
+.oh-trip-planner-modal .oh-simple-planner .oh-entry-body{padding:0}
+.oh-trip-planner-modal .oh-simple-planner .oh-form-grid{display:block}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-trip-fields{
+  border:0;background:transparent;padding:0;margin:0
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-trip-fields>.row{--bs-gutter-x:12px;--bs-gutter-y:9px}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-trip-fields>.row>div{min-width:0}
+.oh-trip-planner-modal .oh-simple-planner .form-label{font-size:11.5px;margin-bottom:4px;font-weight:650}
+.oh-trip-planner-modal .oh-simple-planner .form-control,
+.oh-trip-planner-modal .oh-simple-planner .form-select{min-height:35px;font-size:12px;padding:7px 10px}
+.oh-trip-planner-modal .oh-simple-planner .oh-stepper{max-width:170px}
+.oh-trip-planner-modal .oh-simple-planner [data-approved-rate]{
+  margin:7px 0 0;padding:7px 10px;background:#f3f8f4;
+  border:1px solid #e0ede4;border-radius:7px;color:#64806d;
+  font-size:11px;line-height:1.5;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-simple-planner [data-approved-rate].has-route{color:#2a6944}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions{
+  margin:10px 0 0;border:1px solid #e1ebe4;border-radius:8px;background:#fbfdfb
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary{
+  display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;
+  padding:10px 12px;font-size:11.5px;font-weight:650;color:#3e614b
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary::-webkit-details-marker{display:none}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary>i:last-child{margin-left:auto;transition:transform .15s}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions[open]>summary>i:last-child{transform:rotate(180deg)}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary:focus-visible{outline:2px solid #2b8853;outline-offset:-2px}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>.row{margin:0;padding:0 12px 12px}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions textarea{min-height:52px}
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch{margin-top:10px}
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch:not([open]) .oh-simple-batch-body{display:none}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{
+  gap:7px;padding:10px 0;margin-top:9px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions .btn{font-size:11.5px;padding:7px 11px}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-plan-limit{font-size:10px}
+@media(max-width:575px){
+  .oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-dialog,
+  .oh-trip-planner-modal.oh-trip-review-mode .modal-dialog{
+    width:calc(100% - 12px);max-width:calc(100% - 12px)
+  }
+  .oh-trip-planner-modal .modal-body{padding:10px 12px 0}
+  .oh-trip-planner-modal .oh-simple-planner .oh-compact-trip-fields>.row{--bs-gutter-x:9px}
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{flex-wrap:wrap}
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-plan-limit{flex-basis:100%}
+}
+
+
+/* Selected approved route: three responsive information cards. */
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+  display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.15fr);
+  align-items:stretch;gap:9px;margin:9px 0 0;padding:0;border:0;background:transparent;
+  color:inherit;font-size:inherit
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[hidden]{display:none!important}
+.oh-trip-planner-modal .oh-trip-route-card{
+  display:flex;flex-direction:column;min-width:0;min-height:112px;
+  padding:12px;border:1px solid #dce9e0;border-radius:10px;background:#f5faf6
+}
+.oh-trip-planner-modal .oh-trip-route-card-label{
+  display:flex;align-items:center;gap:6px;color:#668570;font-size:9.5px;
+  font-weight:800;letter-spacing:.055em;margin-bottom:9px;white-space:nowrap
+}
+.oh-trip-planner-modal .oh-trip-route-card-label i{font-size:13px;color:#22784b}
+.oh-trip-planner-modal .oh-trip-route-location{
+  display:flex;align-items:flex-start;gap:7px;color:#27523a;font-size:11px;
+  line-height:1.45;font-weight:650;min-width:0
+}
+.oh-trip-planner-modal .oh-trip-route-location span{min-width:0;overflow-wrap:anywhere}
+.oh-trip-planner-modal .oh-trip-route-location i{flex:none;margin-top:2px;font-size:10px;color:#2f8553}
+.oh-trip-planner-modal .oh-trip-route-arrow{padding:2px 0 2px 2px;color:#96b6a0;font-size:12px}
+.oh-trip-planner-modal .oh-trip-route-card-distance .oh-trip-route-card-value,
+.oh-trip-planner-modal .oh-trip-route-card-truck .oh-trip-route-card-value{
+  margin:auto 0;color:#1f6240;font-weight:800;line-height:1.25;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-trip-route-card-distance .oh-trip-route-card-value{
+  font-size:23px;font-variant-numeric:tabular-nums;white-space:nowrap
+}
+.oh-trip-planner-modal .oh-trip-route-card-value small{
+  display:block;margin-top:3px;color:#718d79;font-weight:500;font-size:11px
+}
+.oh-trip-planner-modal .oh-trip-route-card-truck .oh-trip-route-truck-name{font-size:14px}
+.oh-trip-planner-modal .oh-trip-route-auto{font-size:10px;color:#77917e;margin-top:5px}
+@media(max-width:590px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .oh-trip-planner-modal .oh-trip-route-card-journey{grid-column:1/-1;min-height:auto}
+  .oh-trip-planner-modal .oh-trip-route-card{padding:11px;min-height:90px}
+}
+
+
+/* Add Trip visual polish: route snapshot and concise controls. */
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-content{
+  border:1px solid #d3e5d8;border-radius:16px;
+  box-shadow:0 24px 70px rgba(17,55,31,.18)
+}
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-header{
+  background:#fff;border-bottom:1px solid #e2ece5;padding:15px 20px
+}
+.oh-trip-planner-modal:not(.oh-trip-review-mode) .modal-body{background:#fbfdfb}
+.oh-trip-planner-modal .oh-simple-planner .form-control,
+.oh-trip-planner-modal .oh-simple-planner .form-select{
+  background-color:#fff;border:1px solid #cfded3;box-shadow:none;
+  border-radius:9px;transition:border-color .15s,box-shadow .15s
+}
+.oh-trip-planner-modal .oh-simple-planner .form-control:focus,
+.oh-trip-planner-modal .oh-simple-planner .form-select:focus{
+  border-color:#37875a;box-shadow:0 0 0 3px rgba(39,121,72,.11)
+}
+.oh-trip-planner-modal .oh-simple-planner .form-control:disabled,
+.oh-trip-planner-modal .oh-simple-planner .form-select:disabled{
+  background:#f1f5f2;color:#819386;border-color:#dfe7e1
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+  grid-template-columns:minmax(0,2.1fr) minmax(0,1fr) minmax(0,1fr);
+  gap:8px;margin:10px 0 3px
+}
+.oh-trip-planner-modal .oh-trip-route-card{
+  min-height:128px;padding:14px;
+  border:1px solid #dce9df;border-radius:12px;
+  background:linear-gradient(145deg,#f2f9f4 0%,#fff 100%)
+}
+.oh-trip-planner-modal .oh-trip-route-card-journey{
+  border-color:#cfe4d6;background:linear-gradient(115deg,#ecf7ef 0%,#fcfffd 100%)
+}
+.oh-trip-planner-modal .oh-trip-route-card-label{
+  margin-bottom:10px;color:#4d7660;font-size:9.5px;letter-spacing:.08em
+}
+.oh-trip-planner-modal .oh-trip-route-path{display:flex;flex-direction:column}
+.oh-trip-planner-modal .oh-trip-route-stop{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.oh-trip-planner-modal .oh-trip-route-stop>div{display:flex;flex-direction:column;min-width:0;gap:3px}
+.oh-trip-planner-modal .oh-trip-route-stop small{
+  font-size:9px;font-weight:800;color:#7b9783;letter-spacing:.055em;line-height:1.2
+}
+.oh-trip-planner-modal .oh-trip-route-stop strong{
+  font-size:11px;font-weight:700;line-height:1.42;
+  color:#26563b;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-trip-route-stop-marker{
+  flex:0 0 11px;width:11px;height:11px;margin-top:3px;
+  border:2px solid #2b8753;border-radius:50%;background:#fff
+}
+.oh-trip-planner-modal .oh-trip-route-stop-marker.finish{
+  border-color:#1f7144;background:#1f7144;
+  box-shadow:inset 0 0 0 2px #e3f2e8
+}
+.oh-trip-planner-modal .oh-trip-route-rail{
+  width:0;height:12px;border-left:1.5px dashed #a3ccb0;margin:3px 0 3px 5px
+}
+.oh-trip-planner-modal .oh-trip-route-card-distance .oh-trip-route-card-value{
+  font-size:25px;letter-spacing:-.035em
+}
+.oh-trip-planner-modal .oh-trip-route-card-truck .oh-trip-route-truck-name{
+  font-size:15px;line-height:1.35;font-weight:750
+}
+.oh-trip-planner-modal .oh-trip-route-auto{
+  display:inline-flex;align-self:flex-start;color:#377b51;
+  background:#e7f4eb;border-radius:5px;padding:3px 6px;
+  font-weight:650;font-size:9px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-stepper{
+  max-width:170px;border-radius:9px;overflow:hidden
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-stepper .btn{
+  border-color:#ceded3;background:#fff;color:#2e6d48
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch{
+  background:#fff;border-color:#dae8de;border-radius:10px;
+  box-shadow:0 1px 3px rgba(27,78,46,.025)
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary:hover,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary:hover{
+  background:#f5faf6;border-radius:10px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary{
+  color:#2e6444
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{
+  background:#fbfdfb;border-top:1px solid #dfeae2
+}
+@media(max-width:590px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-route-summary[data-approved-rate]{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .oh-trip-planner-modal .oh-trip-route-card-journey{grid-column:1/-1}
+  .oh-trip-planner-modal .oh-trip-route-card{min-height:90px;padding:12px}
+}
+
+
+/* Compact Trip Planner: polished scheduling and actions */
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-trip-fields>.row{
+  --bs-gutter-x:14px;--bs-gutter-y:12px
+}
+.oh-trip-planner-modal .oh-simple-planner [data-schedule-date],
+.oh-trip-planner-modal .oh-simple-planner [data-schedule-time]{
+  height:40px;min-height:40px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-quantity-field,
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-dispatcher-field{
+  display:flex;flex-direction:column;justify-content:flex-start
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-quantity-field .oh-stepper{
+  display:inline-flex;align-items:stretch;align-self:flex-start;width:180px;
+  max-width:100%;height:40px;overflow:hidden;border:1px solid #cadfd1;
+  border-radius:9px;background:#fff
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-quantity-field .oh-stepper>button{
+  width:42px;flex:0 0 42px;border:0;border-radius:0!important;
+  background:#f3f9f5;color:#1f7144;font-weight:800;font-size:15px;
+  transition:background .15s ease
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-quantity-field .oh-stepper>button:hover{
+  background:#e3f2e8
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-quantity-field .oh-stepper>button:focus-visible{
+  outline:2px solid #2b8853;outline-offset:-2px;z-index:1
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-quantity-field .oh-stepper>input{
+  width:70px;flex:1;min-width:0;height:38px;min-height:38px;
+  border:0!important;border-left:1px solid #dce9df!important;
+  border-right:1px solid #dce9df!important;border-radius:0!important;
+  background:#fff;box-shadow:none!important;font-size:13px;
+  font-weight:750;color:#265d3d;text-align:center;padding:0 4px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-dispatcher-field .form-select{
+  height:40px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-account-field .form-select{
+  height:40px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-account-hint{
+  display:flex;gap:6px;align-items:flex-start;margin-top:7px;
+  color:#788c7f;font-size:10.5px;line-height:1.45
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-planner-account-hint:not(:empty):before{
+  content:"";flex:0 0 5px;width:5px;height:5px;
+  border-radius:50%;background:#9bbba6;margin-top:5px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch{
+  margin-top:12px;border:1px solid #d7e6dc;border-radius:11px;
+  box-shadow:0 2px 7px rgba(27,78,46,.025)
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary{
+  min-height:45px;padding:11px 14px;gap:10px;font-size:12px;
+  color:#315a40
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>summary>i:first-child,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary>i:first-child{
+  display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;
+  border-radius:7px;background:#edf7f0;color:#23754b;font-size:13px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions[open]>summary,
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch[open]>summary{
+  border-bottom:1px solid #e3eee6
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions>.row{
+  padding:12px 14px 14px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-compact-instructions textarea{
+  min-height:68px;resize:vertical
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-simple-batch>summary [data-entry-count]{
+  color:#587962;font-size:10.5px;
+  background:#edf6ef;border-radius:6px;padding:4px 7px;margin-left:auto
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{
+  position:sticky;bottom:0;z-index:8;
+  display:flex;align-items:center;justify-content:flex-end;
+  flex-wrap:wrap;gap:8px;padding:12px 0 14px;margin-top:12px;
+  background:#fbfdfb;border-top:1px solid #dbe8df;
+  box-shadow:0 -5px 11px rgba(27,78,46,.025)
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions .btn{
+  min-height:38px;border-radius:8px;font-size:11.5px;
+  font-weight:700;padding:8px 13px
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions [data-add-review]{
+  background:#1e7545;border-color:#1e7545;color:#fff;
+  box-shadow:0 2px 5px rgba(27,105,58,.12)
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions [data-add-review]:hover{
+  background:#155f35;border-color:#155f35
+}
+@media(max-width:575px){
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions{
+    gap:6px
+  }
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions .oh-trip-plan-limit{
+    flex-basis:100%
+  }
+  .oh-trip-planner-modal .oh-simple-planner .oh-trip-planner-actions .btn{
+    flex:1 1 auto
+  }
+}
+
+/* Route-derived dispatcher team note */
+.oh-trip-planner-modal .oh-simple-planner .oh-dispatcher-team-note{font-size:10.5px;line-height:1.35;color:#5f856d;margin-top:6px;min-height:14px}
+.oh-trip-planner-modal .oh-simple-planner .oh-dispatcher-team-note:empty{display:none}
+
+
+/* Add Trip: unobtrusive queued route summary, only after routes have been added. */
+.oh-trip-planner-modal .oh-planned-routes[hidden]{display:none!important}
+.oh-trip-planner-modal .oh-simple-planner .oh-planned-routes{
+  margin-top:12px;padding:10px 12px 6px;
+  border:1px solid #d8e7dc;border-radius:10px;
+  background:#fcfefc
+}
+.oh-trip-planner-modal .oh-planned-routes-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:3px 2px 9px;border-bottom:1px solid #e3ece5
+}
+.oh-trip-planner-modal .oh-planned-routes-head>span{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:12px;font-weight:750;color:#275d3c
+}
+.oh-trip-planner-modal .oh-planned-routes-head>span>i{color:#278552;font-size:14px}
+.oh-trip-planner-modal .oh-planned-routes-head>small{
+  color:#537b60;font-size:10.5px;white-space:nowrap
+}
+.oh-trip-planner-modal .oh-planned-routes .oh-batch-entry{
+  margin:8px 0 0;padding:9px 10px;background:#fff;
+  border:1px solid #e1ebe4;border-radius:8px
+}
+.oh-trip-planner-modal .oh-planned-routes .oh-batch-entry:last-child{margin-bottom:4px}
+.oh-trip-planner-modal .oh-planned-routes .oh-batch-actions{
+  display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap
+}
+.oh-trip-planner-modal .oh-planned-routes .oh-batch-actions .btn{
+  font-size:10.5px;padding:4px 9px
+}
+
+
+/* Searchable approved route selector: route reference first, truck type second. */
+.oh-trip-planner-modal .oh-route-native-select{
+  position:absolute!important;width:1px!important;height:1px!important;
+  padding:0!important;margin:0!important;border:0!important;
+  opacity:0!important;pointer-events:none!important;
+  clip-path:inset(50%);overflow:hidden
+}
+.oh-trip-planner-modal .oh-approved-route-picker{position:relative;min-width:0}
+.oh-trip-planner-modal .oh-route-picker-toggle{
+  width:100%;min-height:48px;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:7px 13px;border:1px solid #cbded0;border-radius:9px;
+  color:#254d35;background:#fff;text-align:left;
+  transition:border-color .15s ease,box-shadow .15s ease
+}
+.oh-trip-planner-modal .oh-route-picker-toggle:focus-visible,
+.oh-trip-planner-modal .oh-approved-route-picker.is-open .oh-route-picker-toggle{
+  outline:none;border-color:#2b8650;box-shadow:0 0 0 3px rgba(29,119,66,.12)
+}
+.oh-trip-planner-modal .oh-route-picker-toggle:disabled{
+  cursor:not-allowed;color:#829488;background:#f3f6f4
+}
+.oh-trip-planner-modal .oh-route-picker-toggle>i{flex:none;color:#375946;font-size:14px}
+.oh-trip-planner-modal .oh-route-picker-selected{display:flex;flex-direction:column;gap:2px;min-width:0}
+.oh-trip-planner-modal .oh-route-picker-selected strong{
+  font-size:12px;line-height:1.3;color:#215b39;white-space:normal;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-route-picker-selected small{
+  display:flex;align-items:center;gap:6px;color:#678575;font-size:10.5px
+}
+.oh-trip-planner-modal .oh-route-picker-selected small i{color:#298254}
+.oh-trip-planner-modal .oh-route-picker-popover{
+  position:absolute;z-index:90;left:0;right:0;top:calc(100% + 5px);
+  padding:8px;border:1px solid #d2e2d6;border-radius:11px;background:#fff;
+  box-shadow:0 15px 32px rgba(18,66,38,.17)
+}
+.oh-trip-planner-modal .oh-route-picker-popover[hidden]{display:none!important}
+.oh-trip-planner-modal .oh-route-picker-search{display:flex;align-items:center;position:relative}
+.oh-trip-planner-modal .oh-route-picker-search>i{
+  position:absolute;left:11px;color:#698576;font-size:13px;pointer-events:none
+}
+.oh-trip-planner-modal .oh-simple-planner .oh-route-picker-search input{
+  padding:8px 11px 8px 32px;min-height:35px;font-size:11.5px
+}
+.oh-trip-planner-modal .oh-route-picker-options{
+  display:flex;flex-direction:column;gap:3px;max-height:216px;overflow:auto;
+  padding:5px 0 0
+}
+.oh-trip-planner-modal .oh-route-picker-option{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;width:100%;padding:9px 11px;border:0;border-radius:8px;
+  background:transparent;color:#29573b;text-align:left
+}
+.oh-trip-planner-modal .oh-route-picker-option:hover,
+.oh-trip-planner-modal .oh-route-picker-option:focus-visible{
+  outline:none;background:#eef7f0
+}
+.oh-trip-planner-modal .oh-route-picker-option[aria-selected=true]{
+  background:#e5f4e8
+}
+.oh-trip-planner-modal .oh-route-picker-option-text{
+  display:flex;flex-direction:column;gap:4px;min-width:0
+}
+.oh-trip-planner-modal .oh-route-picker-option-text strong{
+  font-size:12px;font-weight:750;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-route-picker-option-text small{
+  display:flex;align-items:center;gap:6px;
+  font-size:10.5px;color:#718b7b
+}
+.oh-trip-planner-modal .oh-route-picker-option-text small>i{color:#398a5b}
+.oh-trip-planner-modal .oh-route-picker-check{
+  flex:none;color:#21834b;font-size:16px;visibility:hidden
+}
+.oh-trip-planner-modal .oh-route-picker-option[aria-selected=true] .oh-route-picker-check{
+  visibility:visible
+}
+.oh-trip-planner-modal .oh-route-picker-empty{
+  margin:0;padding:13px 11px;color:#718a7b;font-size:11.5px
+}
+
+
+/* Compact Add Trip review: summary and individual rows */
+.oh-trip-planner-modal.oh-trip-review-mode .oh-review-head{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:10px;margin:4px 0 13px
+}
+.oh-trip-planner-modal.oh-trip-review-mode .oh-review-head h2{
+  color:#234f35;font-size:18px;font-weight:750
+}
+.oh-trip-planner-modal.oh-trip-review-mode .oh-review-head>b{
+  padding:6px 10px;border-radius:7px;background:#e9f5ed;
+  color:#31724a;font-size:11px
+}
+.oh-trip-planner-modal .oh-review-summary{
+  background:linear-gradient(115deg,#f3faf5,#fff);
+  border:1px solid #d6e7da;border-radius:12px;overflow:hidden
+}
+.oh-trip-planner-modal .oh-review-summary-heading{
+  display:flex;align-items:center;gap:9px;padding:12px 16px;
+  border-bottom:1px solid #e0ece3;color:#285d3e
+}
+.oh-trip-planner-modal .oh-review-summary-heading>i{font-size:16px;color:#2c8554}
+.oh-trip-planner-modal .oh-review-summary-heading strong{font-size:13px}
+.oh-trip-planner-modal .oh-review-summary-heading>span{
+  margin-left:auto;color:#5f826a;font-size:11px;font-weight:600
+}
+.oh-trip-planner-modal .oh-review-summary-route{padding:13px 16px}
+.oh-trip-planner-modal .oh-review-summary-route+.oh-review-summary-route{border-top:1px solid #e0ece3}
+.oh-trip-planner-modal .oh-review-route-main{
+  display:flex;flex-direction:column;gap:4px;margin-bottom:10px;
+  color:#2a5038
+}
+.oh-trip-planner-modal .oh-review-route-main>strong{font-size:12.5px;font-weight:750}
+.oh-trip-planner-modal .oh-review-route-main>span{
+  font-size:11.5px;line-height:1.45;color:#5b7462;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-review-route-facts{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px
+}
+.oh-trip-planner-modal .oh-review-route-facts>span{
+  display:flex;align-items:center;gap:7px;min-width:0;
+  font-size:11px;font-weight:600;color:#315d42;overflow-wrap:anywhere
+}
+.oh-trip-planner-modal .oh-review-route-facts>span>i{
+  flex:none;font-size:13px;color:#418961
+}
+.oh-trip-planner-modal .oh-review-route-instructions{
+  display:flex;gap:7px;margin:10px 0 0;color:#587462;
+  font-size:11px;line-height:1.45
+}
+.oh-trip-planner-modal .oh-review-trip-list{margin-top:17px}
+.oh-trip-planner-modal .oh-review-trip-list-head{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:9px
+}
+.oh-trip-planner-modal .oh-review-trip-list-head h3{
+  font-size:14px;font-weight:750;color:#27583a;margin:0 0 4px
+}
+.oh-trip-planner-modal .oh-review-trip-list-head p{
+  font-size:11px;color:#718779;margin:0
+}
+.oh-trip-planner-modal .oh-review-trip-list-head>span{
+  white-space:nowrap;font-size:11px;color:#4f7b5d;background:#edf7ef;
+  border-radius:7px;padding:6px 9px
+}
+.oh-trip-planner-modal .oh-review-route-group{
+  margin:0 0 12px;padding:9px;border:1px solid #dfe9e1;
+  border-radius:11px;background:#fcfefc
+}
+.oh-trip-planner-modal .oh-review-route-group-head{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px;padding:4px 6px 11px
+}
+.oh-trip-planner-modal .oh-review-route-group-head strong{
+  color:#315a40;font-size:11.5px
+}
+.oh-trip-planner-modal .oh-review-route-group-head span{
+  color:#718677;font-size:10.5px
+}
+.oh-trip-planner-modal .oh-review-trip-row{
+  padding:0;margin:0 0 7px;border:1px solid #dfe9e1;
+  border-radius:9px;background:#fff;overflow:hidden
+}
+.oh-trip-planner-modal .oh-review-trip-row:last-child{margin-bottom:0}
+.oh-trip-planner-modal .oh-review-trip-row>summary{
+  min-height:43px;display:flex;align-items:center;gap:12px;cursor:pointer;
+  list-style:none;padding:10px 12px
+}
+.oh-trip-planner-modal .oh-review-trip-row>summary::-webkit-details-marker{display:none}
+.oh-trip-planner-modal .oh-review-trip-row>summary:hover{background:#f3faf5}
+.oh-trip-planner-modal .oh-review-trip-row[open]>summary{
+  background:#f5faf6;border-bottom:1px solid #e2ede5
+}
+.oh-trip-planner-modal .oh-review-trip-identity{display:flex;align-items:center;gap:9px}
+.oh-trip-planner-modal .oh-review-trip-identity i{font-size:14px;color:#438c5b}
+.oh-trip-planner-modal .oh-review-trip-identity strong{
+  font-size:12px;color:#2a593c
+}
+.oh-trip-planner-modal .oh-review-trip-status{
+  margin-left:auto;font-size:11px;font-weight:500;color:#698374
+}
+.oh-trip-planner-modal .oh-review-trip-chevron{font-size:11px;color:#61896d}
+.oh-trip-planner-modal .oh-review-trip-row[open] .oh-review-trip-chevron{transform:rotate(180deg)}
+.oh-trip-planner-modal .oh-review-trip-fields{padding:10px}
+/* Compact cargo review uses the existing shared accordion, scoped only to Add Trip. */
+.oh-trip-planner-modal /* Review & Create: compact single-level cargo fields within each Trip disclosure. */
+.oh-trip-planner-modal .trip-cargo-groups-compact{display:block;min-width:0}
+.oh-trip-planner-modal .trip-cargo-compact-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;color:#28543a;font-size:12px}
+.oh-trip-planner-modal .trip-cargo-compact-heading>i{color:#23794c;font-size:14px}
+.oh-trip-planner-modal .trip-cargo-compact-heading>span{margin-left:auto;font-size:10px;font-weight:650;color:#62806d;background:#eef7f0;padding:3px 8px;border-radius:999px}
+.oh-trip-planner-modal .trip-cargo-compact-fields{min-width:0}
+.oh-trip-planner-modal .trip-cargo-compact-fields>.row{--bs-gutter-x:10px;--bs-gutter-y:7px}
+.oh-trip-planner-modal .trip-cargo-compact-fields .form-label{margin-bottom:3px}
+.oh-trip-planner-modal .trip-cargo-compact-fields .form-control{min-height:35px;padding:6px 9px}
+.oh-trip-planner-modal .trip-cargo-compact-fields textarea.form-control{min-height:42px;resize:vertical}
+@media(max-width:575px){
+  .oh-trip-planner-modal .trip-cargo-compact-fields .row>[class*="col-"]{width:100%;flex:0 0 100%}
+  .oh-trip-planner-modal .trip-cargo-compact-heading>span{margin-left:0}
+}
+
+.oh-trip-planner-modal .oh-review-trip-fields .row{
+  --bs-gutter-x:12px;--bs-gutter-y:9px
+}
+.oh-trip-planner-modal .oh-review-trip-fields .form-label{
+  font-size:11px;font-weight:650;color:#47634d;margin-bottom:4px
+}
+.oh-trip-planner-modal .oh-review-trip-fields .form-control{
+  border-color:#d0dfd3;border-radius:8px;min-height:38px;
+  font-size:12px
+}
+.oh-trip-planner-modal .oh-review-submit-note{
+  margin:12px 2px 6px;font-size:11px;color:#6c8071;line-height:1.5
+}
+@media(max-width:850px){
+  .oh-trip-planner-modal .oh-review-route-facts{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+}
+@media(max-width:540px){
+  .oh-trip-planner-modal .oh-review-summary-heading,
+  .oh-trip-planner-modal .oh-review-summary-route{padding:11px}
+  .oh-trip-planner-modal .oh-review-route-facts{grid-template-columns:1fr}
+  .oh-trip-planner-modal .oh-review-trip-list-head{flex-wrap:wrap}
+}
+
+
+/* Trip Details v2: summary-first drawer with five focused groups. */
+.oh-trip-drawer .offcanvas-body{
+  padding:18px 20px 24px;
+  background:#f8fbf9;
+}
+.oh-trip-drawer .oh-trip-quick-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:14px;
+}
+.oh-trip-drawer .oh-trip-quick-card{
+  display:flex;flex-direction:column;justify-content:flex-start;
+  gap:6px;min-width:0;padding:15px;
+  border:1px solid #dce8df;border-radius:12px;background:#fff;
+}
+.oh-trip-drawer .oh-trip-quick-label{
+  display:flex;align-items:center;gap:7px;
+  color:#668071;font-size:11.5px;font-weight:650;
+}
+.oh-trip-drawer .oh-trip-quick-label .bi{color:#328052;font-size:14px}
+.oh-trip-drawer .oh-trip-quick-card strong{
+  font-size:12.5px;line-height:1.55;font-weight:700;
+  color:#254632;overflow-wrap:anywhere;
+}
+.oh-trip-drawer .oh-trip-quick-note{
+  font-size:11px;color:#809285;line-height:1.45;
+}
+.oh-trip-drawer .oh-trip-progress-card{
+  margin-bottom:14px;padding:16px;
+  border:1px solid #d5e7d9;border-radius:12px;background:#fff;
+}
+.oh-trip-drawer .oh-trip-progress-heading h3{
+  margin:0 0 13px;color:#244e36;font-size:14px;font-weight:750;
+}
+.oh-trip-drawer .oh-trip-next-step{
+  display:flex;gap:10px;align-items:flex-start;
+  margin-top:14px;padding:12px 13px;
+  background:#edf7f0;border:1px solid #d6eadd;
+  border-radius:10px;color:#24583a;
+}
+.oh-trip-drawer .oh-trip-next-step>.bi{
+  flex:none;margin-top:1px;font-size:17px;color:#27814c;
+}
+.oh-trip-drawer .oh-trip-next-step strong{display:block;font-size:12px;font-weight:750}
+.oh-trip-drawer .oh-trip-next-step p{
+  margin:3px 0 0;font-size:12px;line-height:1.55;color:#496e55;
+}
+.oh-trip-drawer .oh-trip-groups{display:grid;gap:10px}
+.oh-trip-drawer .oh-trip-group{
+  margin:0;border:1px solid #dce8df;border-radius:11px;
+  background:#fff;overflow:hidden;
+}
+.oh-trip-drawer .oh-trip-group>summary{
+  display:flex;align-items:center;gap:12px;
+  padding:15px 16px;cursor:pointer;list-style:none;
+  color:#24513a;font-weight:700;font-size:13px;
+}
+.oh-trip-drawer .oh-trip-group>summary::-webkit-details-marker{display:none}
+.oh-trip-drawer .oh-trip-group>summary:hover{background:#f5faf6}
+.oh-trip-drawer .oh-trip-group[open]>summary{
+  background:#f5faf7;border-bottom:1px solid #e1ebe4;
+}
+.oh-trip-drawer .oh-trip-group>summary>.bi:first-child{
+  display:grid;place-items:center;flex:none;
+  width:34px;height:34px;border-radius:9px;
+  background:#e8f4ec;color:#26774a;font-size:16px;
+}
+.oh-trip-drawer .oh-trip-group-title{
+  display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;
+}
+.oh-trip-drawer .oh-trip-group-title small{
+  color:#7c9081;font-size:11px;font-weight:450;line-height:1.4;
+}
+.oh-trip-drawer .oh-trip-group-chevron{
+  margin-left:auto;color:#739181;
+  transition:transform .18s ease;
+}
+.oh-trip-drawer .oh-trip-group[open] .oh-trip-group-chevron{transform:rotate(180deg)}
+.oh-trip-drawer .oh-trip-group>.oh-detail-body{
+  padding:8px 17px 16px;overflow-wrap:anywhere;
+}
+.oh-trip-drawer .oh-trip-subsection+.oh-trip-subsection{
+  border-top:1px solid #e5eee7;margin-top:17px;padding-top:15px;
+}
+.oh-trip-drawer .oh-trip-subsection h4{
+  color:#43654e;font-size:12px;font-weight:750;
+  margin:8px 0 12px;
+}
+.oh-trip-drawer .oh-trip-subsection .kv{max-width:100%}
+.oh-trip-drawer .drawer-actions{
+  display:flex;gap:8px;flex-wrap:wrap;
+  padding:10px 12px;margin-bottom:14px;
+  border:1px solid #dce9df;border-radius:11px;background:#fff;
+}
+.oh-trip-drawer .oh-drawer-footer{
+  background:#f9fcfa;
+}
+@media(max-width:600px){
+  .oh-trip-drawer .offcanvas-body{padding:12px}
+  .oh-trip-drawer .oh-trip-quick-grid{grid-template-columns:1fr}
+  .oh-trip-drawer .oh-trip-quick-card{padding:13px}
+  .oh-trip-drawer .oh-trip-progress-card{padding:12px}
+  .oh-trip-drawer .oh-trip-group>summary{padding:12px}
+  .oh-trip-drawer .oh-trip-group>.oh-detail-body{padding:7px 12px 14px}
+}
+@media(prefers-reduced-motion:reduce){
+  .oh-trip-drawer .oh-trip-group-chevron{transition:none}
+}
+
+
+/* Trip Progress: compact six-stage tracker inside Operations Head detail drawer only.
+   Milestone status, recorded dates and exception states still originate from UI.tripProgress. */
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow{
+  margin:0;
+  min-width:0;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-status{
+  display:none; /* Official status already appears prominently in the drawer header. */
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow ol{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(94px,1fr));
+  gap:7px;
+  margin:0;
+  padding:3px 2px 7px;
+  overflow-x:auto;
+  scrollbar-width:thin;
+  scroll-snap-type:x proximity;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:7px;
+  min-width:0;
+  min-height:115px;
+  padding:12px 10px;
+  border:1px solid #e1e9e3;
+  border-top:3px solid #dce6df;
+  border-radius:10px;
+  background:#f8faf8;
+  box-shadow:none;
+  scroll-snap-align:start;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li>div{
+  min-width:0;
+  width:100%;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li b{
+  display:block;
+  font-size:11px;
+  font-weight:750;
+  line-height:1.4;
+  color:#45614f;
+  overflow-wrap:normal;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li small{
+  margin-top:5px;
+  color:#819084;
+  font-size:10px;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow li div>span{
+  display:none; /* Verbose milestone notes remain available in history; next step is shown below. */
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-dot{
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:27px;
+  height:27px;
+  border-radius:50%;
+  border:1px solid #d8e3db;
+  background:#ecf1ed;
+  color:#819487;
+  font-size:14px;
+  line-height:1;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-complete{
+  border-top-color:#329258;
+  background:#f2f9f4;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-complete .ui-workflow-dot{
+  background:#dff2e5;
+  border-color:#bce0c6;
+  color:#18713b;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-current{
+  outline:0;
+  border-color:#e3bb79;
+  border-top-color:#cb8c27;
+  background:#fff9ee;
+  box-shadow:0 0 0 1px rgba(197,131,28,.12);
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-current .ui-workflow-dot{
+  background:#fff0ce;
+  border-color:#ecc784;
+  color:#9b640d;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-current b{
+  color:#855918;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-exception{
+  border-color:#edc6c0;
+  border-top-color:#d4614b;
+  background:#fff7f5;
+}
+.oh-trip-drawer .oh-trip-progress-card .ui-workflow-exception .ui-workflow-dot{
+  border-color:#ebc7c0;background:#fbe6e0;color:#a94734;
+}
+.oh-trip-drawer .oh-trip-progress-card .oh-trip-next-step{
+  margin-top:10px;
+}
+@media(max-width:600px){
+  .oh-trip-drawer .oh-trip-progress-card .ui-workflow ol{
+    grid-template-columns:repeat(6,minmax(108px,1fr));
+  }
+  .oh-trip-drawer .oh-trip-progress-card .ui-workflow li{
+    min-height:105px;
+    padding:10px 9px;
+  }
+}

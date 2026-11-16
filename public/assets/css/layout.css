@@ -396,7 +396,7 @@ textarea.form-control { min-height: 64px; }
 
 
 
-.content { padding: 22px 24px 48px; width: 100%; max-width: 1480px; }
+.content { padding: 22px 24px 48px; width: 100%; max-width: none; }
 
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 
@@ -450,7 +450,9 @@ textarea.form-control { min-height: 64px; }
 
 /* toasts */
 
-.toast-zone { position: fixed; right: 20px; top: calc(var(--topbar-h) + 12px); z-index: 2000; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
+.toast-zone { position: fixed; top: 20px; right: 20px; z-index: 2100; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(420px, calc(100vw - 32px)); max-width: calc(100vw - 32px); pointer-events: none; }
+.toast-zone .app-toast { pointer-events: auto; width: 100%; }
+.toast-zone .app-toast.error { border-left-width: 5px; font-weight: 600; }
 
 .app-toast { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px 11px 14px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--green); border-radius: var(--r-lg); box-shadow: var(--shadow-md); font-size: var(--fs-md); color: var(--text); animation: toast-in .16s ease-out; }
 
@@ -602,7 +604,7 @@ a:hover { color: var(--rpm-brand-strong); }
 
 ::selection { background: #cdeecf; }
 
-.content { max-width: 1500px; min-width: 0; padding: 18px clamp(14px, 2vw, 28px) 40px; }
+.content { max-width: none; width: 100%; min-width: 0; padding: 18px clamp(14px, 2vw, 28px) 40px; }
 
 .page-head { gap: 10px 16px; margin-bottom: 14px; }
 
@@ -740,173 +742,259 @@ a:hover { color: var(--rpm-brand-strong); }
 
 @media (max-width: 575.98px) { .sidebar .nav-item-link { min-height: 42px; } }
 
+/* Head Management: compact, keyboard-accessible collapsible navigation groups. */
+.head-nav-group { margin: 5px 0; }
+.head-nav-group > summary {
+  display: flex; align-items: center; gap: 11px; min-height: 43px;
+  padding: 9px 10px; border-radius: var(--r); list-style: none;
+  cursor: pointer; color: #e6f1e8; font-size: 12px; font-weight: 650;
+  letter-spacing: .025em;
+}
+.head-nav-group > summary::-webkit-details-marker { display: none; }
+.head-nav-group > summary > .bi:first-child { font-size: 16px; width: 18px; text-align: center; }
+.head-nav-group > summary:hover,
+.head-nav-group[open] > summary { background: rgba(255,255,255,.09); color: #fff; }
+.head-nav-group > summary:focus-visible { outline: 2px solid #d5efb8; outline-offset: 2px; }
+.head-nav-chevron { margin-left: auto; font-size: 12px; transition: transform .17s ease; }
+.head-nav-group[open] .head-nav-chevron { transform: rotate(180deg); }
+.head-nav-items { padding: 3px 0 5px 9px; }
+.head-nav-items .nav-item-link { font-size: 12.5px; }
+.head-nav-items .nav-item-link.active::before { left: -9px; }
+@media (max-width: 575.98px) {
+  .head-nav-group > summary { min-height: 45px; }
+  .head-nav-items .nav-item-link { min-height: 42px; }
+}
+
 /* RPM SIDEBAR WORKSPACE V1 END */
 
 
 
-/* RPM STICKY PAGE NAV V2 START */
-
-/* The topbar already sticks at 0; the page title follows directly below it. */
-
+#pageContent .page-head > .rpm-back-to-top[hidden] { display:none; }
+#pageContent .page-head > .rpm-back-to-top:not([hidden]) { display:inline-flex; align-items:center; justify-content:center; }
+/* Page titles remain in normal flow. The global topbar alone is sticky,
+   preventing headers from floating over KPI cards or tables on scroll. */
 #pageContent .page-head {
-
-  position: sticky;
-
-  top: var(--topbar-h);
-
-  z-index: 1005;
-
-  background: rgba(250, 253, 250, .97);
-
-  border: 1px solid transparent;
-
-  border-radius: 10px;
-
-  padding: 8px 10px;
-
-  margin: -8px -10px 12px;
-
-  min-width: 0;
-
-  transition: box-shadow .15s ease, background .15s ease;
-
-}
-
-#pageContent .page-head.rpm-page-head-scrolled {
-
-  background: rgba(250, 253, 250, .99);
-
-  border-color: #dae9dd;
-
-  box-shadow: 0 3px 12px rgba(16, 82, 43, .075);
-
-}
-
-#pageContent .page-head.rpm-page-head-scrolled .page-subtitle { display: none; }
-
-#pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 17px; }
-
-#pageContent .page-head .page-head-text { flex: 1 1 190px; min-width: 0; }
-
-#pageContent .page-head .page-actions { align-items: center; min-width: 0; }
-
-#pageContent .page-head .page-actions .btn { max-width: 100%; }
-
-.rpm-back-to-top {
-
   position: static;
-
-  flex: 0 0 auto;
-
-  min-width: 62px;
-
-  height: 34px;
-
-  padding: 0 10px;
-
-  display: inline-flex;
-
+  display: flex;
   align-items: center;
-
-  justify-content: center;
-
-  gap: 6px;
-
-  border-radius: 8px;
-
-  border: 1px solid #b7ddbf;
-
-  color: #155b30;
-
-  background: #fff;
-
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 0;
+  margin: 0 0 18px;
+  background: transparent;
+  border: 0;
   box-shadow: none;
-
-  font: inherit;
-
+}
+#pageContent .page-head .page-head-text { flex: 1 1 190px; min-width: 0; }
+#pageContent .page-head .page-actions { align-items: center; min-width: 0; }
+#pageContent .page-head .page-actions .btn { max-width: 100%; }
+.rpm-back-to-top {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1000;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #b7ddbf;
+  border-radius: 8px;
+  color: #155b30;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(16,60,34,.12);
   font-size: 12px;
-
   font-weight: 650;
-
-  white-space: nowrap;
-
   cursor: pointer;
-
 }
-
-@media (max-width: 575.98px) {
-
-  .topbar-actions { gap: 3px; }
-
-  .rpm-back-to-top { min-width: 34px; width: 34px; height: 34px; padding: 0; }
-
-  .rpm-back-to-top span { display: none; }
-
-}
-
 .rpm-back-to-top:hover { background: #eaf7ed; border-color: #65ad78; }
-
 .rpm-back-to-top:focus-visible { outline: 2px solid #218b48; outline-offset: 2px; }
+@media(max-width:767.98px) {
+  #pageContent .page-head { margin-bottom: 14px; }
+  .rpm-back-to-top { right: 14px; bottom: 14px; }
+}
+@media print { .rpm-back-to-top { display: none !important; } }
 
-@media (max-width: 767.98px) {
 
-  #pageContent .page-head { padding: 7px 8px; margin: -7px -8px 10px; }
 
-  #pageContent .page-head.rpm-page-head-scrolled .page-title { font-size: 15px; }
 
-  #pageContent .page-head.rpm-page-head-scrolled .page-actions .btn { font-size: 11px; }
+/* HEAD TRIP MONITORING V2: existing UI components in an executive two-column layout. */
+.head-trip-dashboard { display: grid; gap: 18px; }
+.head-trip-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.head-kpi { display:flex; align-items:center; gap:13px; padding:17px 16px; border:1px solid #e0e9e3; border-radius: 12px; background:#fff; min-width:0; box-shadow:0 2px 8px rgba(23,71,43,.04); }
+.head-kpi-icon { width:46px; height:46px; display:grid; place-items:center; flex:0 0 46px; border-radius:50%; background:#e9f3ec; color:#17743c; font-size:21px; }
+.head-kpi.blue .head-kpi-icon { color:#1466ae; background:#e7f2fc; }
+.head-kpi.purple .head-kpi-icon { color:#744caf; background:#f2eafb; }
+.head-kpi.red .head-kpi-icon { color:#c53730; background:#fcecea; }
+.head-kpi > div:last-child { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.head-kpi span { color:#4b6253; font-size:12px; font-weight:600; }
+.head-kpi strong { color:#173c27; font-size:29px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.head-trip-overview { display:grid; grid-template-columns: 1fr 1.08fr; gap:14px; }
+.head-trip-overview > div { min-width:0; }
+.head-trip-overview .panel { height:100%; border:1px solid #e0e9e3; border-radius:12px; overflow:hidden; background:#fff; }
+.head-trip-overview .chart-box { height:205px; }
+.head-trip-overview .panel-body { min-height:210px; }
+.head-trip-chart { position:relative; }
+.head-chart-total { position:absolute; bottom:10px; right:14px; font-size:12px; color:#607667; }
+.head-route-map { height:205px; width:100%; border-radius:7px; overflow:hidden; }
+.head-map-caption { padding:8px 12px 10px; font-size:12px; color:#315641; }
+.head-route-empty { min-height:240px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:10px; padding:24px; color:#66786c; }
+.head-route-empty > .bi { font-size:32px; color:#84ae92; }
+.head-route-empty strong { color:#355d43; font-size:13px; }
+.head-route-empty span { max-width:335px; font-size:12px; line-height:1.5; }
+@media(max-width:1300px) { .head-trip-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:990px) { .head-trip-overview { grid-template-columns:1fr; } }
+@media(max-width:600px) { .head-trip-kpis { grid-template-columns:1fr; } }
+/* HEAD TRIP MONITORING V2 END */
 
+/* Head Management monitoring tables: compact page-scoped search and popover filters. */
+.head-monitor-panel .head-monitor-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.head-monitor-panel .head-monitor-heading h2 { color:#23553a; }
+.head-monitor-tools { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-bottom:12px; position:relative; }
+.head-monitor-search { flex:1 1 260px; width:auto; min-width:160px; max-width:520px; height:38px; background:#fff; }
+.head-monitor-tools > .btn { min-height:38px; white-space:nowrap; }
+.head-monitor-tools .record-workspace-popovers { position:relative; flex:0 0 0; }
+.head-monitor-tools .record-workspace-popover { z-index:30; min-width:280px; max-width:min(360px,calc(100vw - 44px)); }
+.head-monitor-tools .record-workspace-popover label { display:flex; flex-direction:column; gap:5px; font-size:12px; margin:10px 0; color:#476551; }
+.head-monitor-tools .record-workspace-popover .form-select { width:100%; background-color:#fff; }
+.head-monitor-results { font-size:12px; color:#617768; margin:0 0 9px; }
+.head-monitor-panel [data-head-panel-table] .panel { margin-bottom:0; }
+@media(max-width:600px) {
+  .head-monitor-search { max-width:none; flex:1 1 100%; }
+  .head-monitor-tools .record-workspace-popovers { position:static; }
+  .head-monitor-tools .record-workspace-popover { left:0; right:0; width:100%; max-width:none; }
 }
 
-@media print {
-
-  #pageContent .page-head { position: static; background: transparent; border: 0; box-shadow: none; }
-
-  .rpm-back-to-top { display: none !important; }
-
+/* Head Management tables follow the existing Active Trip Records workspace.
+   Scoped to Head Management; no shared UI or departmental tables are changed. */
+.head-monitor-panel { overflow:visible; border:1px solid #dce8df; border-radius:13px; box-shadow:0 3px 12px rgba(21,70,43,.035); background:#fff; }
+.head-monitor-header { padding:18px 20px 9px; display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+.head-monitor-header h2 { font-size:16px; font-weight:700; color:#23432f; }
+.head-monitor-subcount { color:#647b6b; font-size:12px; }
+.head-monitor-panel .head-monitor-tools { padding:10px 20px 15px; margin:0; display:flex; align-items:center; gap:11px; position:relative; }
+.head-monitor-panel .head-search-box { flex:1 1 340px; min-width:150px; max-width:none; position:relative; }
+.head-monitor-panel .head-search-box > .bi { position:absolute; left:13px; top:50%; transform:translateY(-50%); pointer-events:none; color:#778e7d; }
+.head-monitor-panel .head-monitor-search { padding-left:38px; flex:auto; width:100%; max-width:none; min-width:0; height:44px; background:#fff; border:1px solid #c9dacf; border-radius:8px; }
+.head-monitor-panel .head-monitor-tools > .btn { min-height:43px; border-radius:8px; padding:0 14px; }
+.head-monitor-panel [data-head-export] { margin-left:0; }
+.head-monitor-panel .record-workspace-popovers { flex:0 0 0; position:relative; }
+.head-monitor-panel .record-workspace-popover { min-width:270px; }
+.head-monitor-panel .head-monitor-table { border-top:1px solid #e1e9e3; }
+.head-monitor-panel .head-monitor-table > .panel { border:0; border-radius:0; box-shadow:none; margin:0; background:transparent; }
+.head-monitor-panel .head-monitor-table > .panel > .panel-body { padding:0; }
+.head-monitor-panel .head-monitor-table .table-tools { display:none !important; }
+.head-monitor-panel .head-monitor-table .table-wrap { overflow-x:auto; min-height:165px; }
+.head-monitor-panel .head-monitor-table .data-table { width:100%; margin:0; }
+.head-monitor-panel .head-monitor-table .data-table thead th { background:#f0f2f4; color:#253449; font-size:12px; font-weight:650; border-bottom:1px solid #dfe7e1; }
+.head-monitor-panel .head-monitor-table .table-empty { min-height:150px; display:flex; align-items:center; justify-content:center; padding:30px 14px; text-align:center; }
+.head-monitor-panel .head-monitor-table .table-pager { border-top:1px solid #dfe7e1; padding:12px 18px; min-height:58px; }
+.head-monitor-panel .head-monitor-table .actions-col { white-space:nowrap; }
+@media(max-width:700px) {
+  .head-monitor-panel .head-monitor-header { padding:15px 14px 8px; }
+  .head-monitor-panel .head-monitor-tools { padding:10px 14px 14px; flex-wrap:wrap; gap:8px; }
+  .head-monitor-panel .head-search-box { flex-basis:100%; }
+  .head-monitor-panel .head-monitor-tools > .btn { flex:1 1 auto; }
+  .head-monitor-panel .record-workspace-popovers { position:static; }
+  .head-monitor-panel .record-workspace-popover { left:0; right:0; max-width:none; width:100%; }
+  .head-monitor-panel .head-monitor-table .table-pager { flex-wrap:wrap; gap:8px; }
 }
 
-/* RPM STICKY PAGE NAV V2 END */
-/* RPM TOP BUTTON IN PAGE HEADER V3 START */
-/* Final action lives at the right edge of the sticky page-title bar, not the global topbar. */
-#pageContent .page-head { align-items: center; column-gap: 10px; row-gap: 7px; }
-#pageContent .page-head .page-head-text { min-width: 0; flex: 1 1 190px; }
-#pageContent .page-head .page-actions { flex: 0 1 auto; justify-content: flex-end; }
-#pageContent .page-head > .rpm-back-to-top { margin-left: auto; align-self: center; flex: 0 0 auto; }
-@media (max-width: 575.98px) {
-  #pageContent .page-head { flex-wrap: wrap; }
-  #pageContent .page-head > .rpm-back-to-top { min-width: 34px; }
+/* HEAD FLEET TABBED WORKSPACE — limited to Head Management oversight. */
+.head-fleet-workspace { display:grid; gap:18px; }
+.head-fleet-kpi { font:inherit; text-align:left; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+.head-fleet-kpi:hover,.head-fleet-kpi:focus-visible { border-color:#95c5a4; box-shadow:0 3px 12px rgba(25,95,50,.11); }
+.head-fleet-kpi:focus-visible { outline:2px solid #247a43; outline-offset:2px; }
+.head-fleet-kpi > .head-kpi-icon { display:grid; place-items:center; }
+.head-fleet-kpi-value { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.head-fleet-kpi-value > span { font-size:12px; line-height:1.4; color:#4b6253; font-weight:600; }
+.head-fleet-kpi-value > strong { font-size:29px; line-height:1.2; color:#173c27; font-weight:750; font-variant-numeric:tabular-nums; }
+.head-fleet-records-heading { padding:20px 20px 8px; }
+.head-fleet-records-heading h2 { margin:0; font-size:17px; font-weight:700; color:#23432f; }
+.head-fleet-records-heading p { margin:5px 0 0; color:#647b6b; font-size:12px; }
+.head-fleet-tabs { display:flex; gap:6px; padding:8px 20px 12px; border-bottom:1px solid #dfe7e1; overflow-x:auto; }
+.head-fleet-tab { border:1px solid transparent; border-radius:8px; padding:10px 15px; background:transparent; color:#456a51; font-size:13px; font-weight:650; cursor:pointer; white-space:nowrap; }
+.head-fleet-tab:hover { background:#f0f8f2; }
+.head-fleet-tab.active { background:#e9f5eb; color:#185d34; border-color:#c4ddcb; }
+.head-fleet-tab:focus-visible { outline:2px solid #247a43; outline-offset:2px; }
+@media(max-width:700px) {
+ .head-fleet-tabs { padding:8px 12px 12px; gap:4px; }
+ .head-fleet-tab { padding:10px 11px; }
+ .head-fleet-records-heading { padding:16px 14px 8px; }
+ .head-fleet-kpi-value > strong { font-size:23px; }
 }
-/* RPM TOP BUTTON IN PAGE HEADER V3 END */
+/* HEAD FLEET TABBED WORKSPACE END */
 
-/* RPM BACK TO TOP PLAIN SCROLL V4 START */
-/* Show a simple text action only once the sticky page title has condensed. */
-#pageContent .page-head > .rpm-back-to-top,
-#pageContent .page-head > .rpm-back-to-top[hidden] {
-  display: none !important;
+/* Head Management only: Maintenance Monitoring follows the Fleet oversight workspace. */
+.head-maintenance-workspace { display:grid; gap:18px; }
+.head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.head-maintenance-workspace .head-kpi { padding:14px 12px; gap:10px; }
+.head-maintenance-workspace .head-kpi-icon { width:42px; height:42px; flex-basis:42px; font-size:19px; }
+@media(max-width:1350px) { .head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:900px) { .head-maintenance-workspace .head-trip-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:450px) { .head-maintenance-workspace .head-trip-kpis { grid-template-columns:1fr; } }
+
+/* Route & Contract Rates now reuses records.css Client Management workspace. */
+.head-route-workspace { display:grid; gap:17px; }
+.head-route-workspace .metric-strip.metric-strip-icons { margin-bottom:0; }
+
+/* Four Route & Contract Rates KPIs on wide screens, responsive on smaller ones. */
+@media(min-width:1151px) {
+  .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:repeat(4,minmax(0,1fr)); }
 }
-#pageContent .page-head.rpm-page-head-scrolled > .rpm-back-to-top:not([hidden]) {
-  display: inline-flex !important;
+@media(min-width:651px) and (max-width:1150px) {
+  .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
-#pageContent .page-head > .rpm-back-to-top {
-  width: auto; height: auto; min-width: 0; min-height: 30px;
-  padding: 2px 5px; border: 0; border-radius: 0;
-  background: transparent; box-shadow: none;
-  color: #176238; font-size: 12px; font-weight: 650;
-  text-decoration: underline; text-underline-offset: 3px;
-  white-space: nowrap; cursor: pointer;
+@media(max-width:650px) {
+  .head-route-workspace .metric-strip.metric-strip-icons { grid-template-columns:1fr; }
 }
-#pageContent .page-head > .rpm-back-to-top:hover {
-  background: transparent; border: 0; color: #0d4628; text-decoration-thickness: 2px;
+
+/* Head Management Financial Oversight uses the Client Management record component. */
+.head-financial-overview > .metric-strip.metric-strip-icons,
+.head-billing-overview > .metric-strip.metric-strip-icons {
+  grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:20px;
 }
-#pageContent .page-head > .rpm-back-to-top:focus-visible {
-  outline: 2px solid #218b48; outline-offset: 2px;
+.head-financial-records { margin-top:16px; }
+@media(max-width:1200px) {
+  .head-financial-overview > .metric-strip.metric-strip-icons,
+  .head-billing-overview > .metric-strip.metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
-@media (max-width: 575.98px) {
-  #pageContent .page-head > .rpm-back-to-top { width: auto; height: auto; min-width: 0; padding: 2px 4px; }
-  #pageContent .page-head > .rpm-back-to-top span { display: inline; }
+@media(max-width:620px) {
+  .head-financial-overview > .metric-strip.metric-strip-icons,
+  .head-billing-overview > .metric-strip.metric-strip-icons { grid-template-columns:1fr; }
 }
-@media print {
-  #pageContent .page-head > .rpm-back-to-top { display: none !important; }
+
+/* Head Management finance: prevent sticky page heading from covering KPI labels. */
+#pageContent:has(.head-financial-overview) > .page-head,
+#pageContent:has(.head-billing-overview) > .page-head {
+  position:relative;
+  top:auto;
+  z-index:auto;
+  margin-bottom:18px;
 }
-/* RPM BACK TO TOP PLAIN SCROLL V4 END */
+.head-financial-overview > .metric-strip.metric-strip-icons,
+.head-billing-overview > .metric-strip.metric-strip-icons {
+  margin-top:0;
+  margin-bottom:20px;
+  align-items:stretch;
+}
+.head-financial-overview > .metric-strip.metric-strip-icons .metric-icon-card,
+.head-billing-overview > .metric-strip.metric-strip-icons .metric-icon-card {
+  min-height:124px;
+  padding:18px;
+  gap:13px;
+  align-items:center;
+}
+.head-financial-overview .metric-icon-card .metric-content,
+.head-billing-overview .metric-icon-card .metric-content { min-width:0; }
+.head-financial-overview .metric-icon-card .metric-label,
+.head-billing-overview .metric-icon-card .metric-label {
+  line-height:1.4;
+  min-height:0;
+  white-space:normal;
+}
+.head-financial-overview .metric-icon-card .metric-value,
+.head-billing-overview .metric-icon-card .metric-value { margin-top:7px; }
+.head-financial-overview > .ui-action-summary { margin-bottom:18px; }
+.head-financial-overview > .head-financial-records { margin-top:0; }
+@media(max-width:620px) {
+  .head-financial-overview > .metric-strip.metric-strip-icons .metric-icon-card,
+  .head-billing-overview > .metric-strip.metric-strip-icons .metric-icon-card { min-height:100px; }
+}

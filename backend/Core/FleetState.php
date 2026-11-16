@@ -168,9 +168,16 @@ final class FleetState {
 
     /** Is the truck free for a new trip? Returns null when free, otherwise the reason. */
     public static function truckBlocker(PDO $p, int $vehicleId, ?int $exceptTrip = null): ?string {
-        $v = one($p, 'SELECT plate_number, active, status FROM vehicles WHERE id=?', [$vehicleId]);
+        $v = one($p, 'SELECT plate_number, active, status, registration_expiry, insurance_expiry FROM vehicles WHERE id=?', [$vehicleId]);
         if (!$v || !(int)$v['active']) return 'not an active truck';
         if (in_array($v['status'], ['Under Maintenance', 'Unavailable'], true)) return $v['plate_number'] . ' is ' . $v['status'];
+        // Document eligibility is separate from the saved operational status.
+        // Legacy blank optional dates remain informational; known expired dates block dispatch.
+        $today = date('Y-m-d');
+        if (!empty($v['registration_expiry']) && $v['registration_expiry'] < $today)
+            return $v['plate_number'] . ' has expired vehicle registration';
+        if (!empty($v['insurance_expiry']) && $v['insurance_expiry'] < $today)
+            return $v['plate_number'] . ' has expired insurance';
         if ($j = self::openJob($p, $vehicleId)) return $v['plate_number'] . ' has an unresolved repair (' . $j['job_ref'] . ', ' . $j['status'] . ($j['status'] === 'Completed' ? ', waiting for verification' : '') . ')';
         $a = one($p, "SELECT t.trip_ref, a.trip_id FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='vehicle' AND a.resource_id=?", [$vehicleId]);
         if ($a && (int)$a['trip_id'] !== (int)$exceptTrip) return $v['plate_number'] . ' is already on ' . $a['trip_ref'];

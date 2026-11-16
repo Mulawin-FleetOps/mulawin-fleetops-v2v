@@ -175,6 +175,7 @@ const MaintUI = {
       ${UI.h('Status history')}${UI.activity(r.events)}
       ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
     const el = UI.drawer(UI.esc(j.job_ref) + ' · ' + UI.esc(j.plate_number), html, { subtitle: 'Corrective maintenance · ' + UI.esc(j.verified_at ? 'Returned to service' : j.status) });
+    UI.drawerSections(el,[['overview','Overview',['Problem','Trip incident']],['repair','Inspection & Repairs',['Mechanics and repair']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]],{key:'maintenance-details'});
     el.querySelector('[data-partspage]')?.addEventListener('click', (e) => { UI.closeDrawer(); App.go('mp_parts_requests', { vehicle_id: e.currentTarget.dataset.partspage }); });
     const reopen = () => { MaintUI.open(j.id); App.route(); };
     el.querySelectorAll('[data-rmh]').forEach(b => b.onclick = () => UI.confirmAction('Remove ' + UI.esc(b.dataset.name) + ' from ' + UI.esc(j.job_ref),
@@ -243,11 +244,155 @@ const MaintUI = {
   },
 };
 
+
+/* Head Management: read-only monitoring UI; Motorpool retains all repair actions. */
+const HeadMaintenanceUI = {
+  categories: [
+    {id:'open',label:'Open records',empty:'No open maintenance records.'},
+    {id:'completed',label:'Completed repairs',empty:'No completed repairs recorded.'},
+    {id:'all',label:'All records',empty:'No maintenance records available.'}
+  ],
+  columns: [
+    ['Record / Truck','job_ref',(value,row)=>'<b>'+UI.esc(value||'—')+'</b><div class="cell-sub">'+UI.esc(row.plate_number||'—')+'</div>'],
+    ['Problem','problem',value=>UI.esc(value||'—')],
+    ['Mechanic','mechanic',value=>UI.esc(value||'Not assigned')],
+    ['Status','display_status','badge'],
+    ['Reported','reported_on','date'],
+    ['Completed','completed_on','date']
+  ],
+  exportRows(rows) {
+    const cols=[['Record','job_ref'],['Truck','plate_number'],['Type','truck_type'],
+      ['Problem','problem'],['Mechanic','mechanic'],['Status','display_status'],
+      ['Reported','reported_on'],['Completed','completed_on']];
+    const quote=value=>'"'+String(value??'').replace(/"/g,'""').replace(/^[\s\uFEFF]*[=+\-@\t\r]/,match=>"'"+match)+'"';
+    const csv='\uFEFF'+[cols.map(([label])=>quote(label)).join(','),
+      ...rows.map(row=>cols.map(([,key])=>quote(row[key])).join(','))].join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;
+    link.download='mulawin_maintenance_monitoring_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  },
+  render(ctx,data,jobs) {
+    const open=jobs.filter(job=>job.status!=='Cancelled'&&!job.verified_at);
+    const completed=jobs.filter(job=>Boolean(job.verified_at));
+    const dataByCategory={open,completed,all:jobs};
+    const metrics=[
+      ['Reported',open.filter(job=>job.status==='Reported').length,'bi-file-earmark-text','blue','open'],
+      ['Under inspection',open.filter(job=>job.status==='Under Inspection').length,'bi-search','green','open'],
+      ['Under repair',open.filter(job=>job.status==='Under Repair').length,'bi-tools','amber','open'],
+      ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open']
+    ];
+    ctx.el.innerHTML='<section class="head-maintenance-workspace">'
+      +'<div class="head-trip-kpis">'+metrics.map(([label,value,icon,tone,tab])=>
+        '<button type="button" class="head-kpi head-fleet-kpi '+tone+'" data-head-maintenance-kpi="'+tab+'">'
+        +'<span class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></span>'
+        +'<span class="head-fleet-kpi-value"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></span></button>').join('')+'</div>'
+      +'<div data-head-maintenance-workspace></div></section>';
+    const root=ctx.el.querySelector('[data-head-maintenance-workspace]');
+    const state={category:'open',status:'',sort:'default'};
+    const renderCategory=()=>{
+      const category=this.categories.find(c=>c.id===state.category)||this.categories[0];
+      const rows=dataByCategory[category.id];
+      const statuses=[...new Set(rows.map(job=>job.display_status).filter(Boolean))].sort();
+      const filterId='head-maintenance-filter',sortId='head-maintenance-sort';
+      const toolbar='<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-filter-trigger" aria-controls="'+filterId+'" aria-expanded="false"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</button>'
+        +'<button type="button" class="btn btn-sm btn-outline-secondary record-workspace-sort-trigger" aria-controls="'+sortId+'" aria-expanded="false"><i class="bi bi-arrow-down-up" aria-hidden="true"></i> Sort</button>'
+        +'<div class="record-workspace-popovers">'
+        +'<div class="record-workspace-popover" id="'+filterId+'" hidden><strong>Filter maintenance records</strong>'
+        +'<label>Status<select class="form-select form-select-sm" data-head-maintenance-status>'
+        +'<option value="">All statuses</option>'+statuses.map(status=>'<option value="'+UI.esc(status)+'">'+UI.esc(status)+'</option>').join('')
+        +'</select></label><div class="record-workspace-popover-actions">'
+        +'<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+        +'<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+        +'<div class="record-workspace-popover record-workspace-sort-panel" id="'+sortId+'" hidden>'
+        +'<strong>Sort maintenance records</strong>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head_maintenance_sort" value="default" data-record-sort checked> Default order</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head_maintenance_sort" value="asc" data-record-sort> Record A–Z</label>'
+        +'<label class="record-workspace-sort-option"><input type="radio" name="head_maintenance_sort" value="desc" data-record-sort> Record Z–A</label>'
+        +'</div></div>'
+        +'<button type="button" class="btn btn-sm btn-outline-success record-workspace-add" data-head-maintenance-export><i class="bi bi-download" aria-hidden="true"></i> Export</button>';
+      const table=UI.table(this.columns,rows,{
+        tools:toolbar,showAllColumns:true,viewSwitch:false,empty:category.empty,
+        actions:()=>UI.btn('view','View details','outline-primary'),
+        onAction:(_,job)=>MaintUI.open(job.id),
+        rowClick:job=>MaintUI.open(job.id)
+      });
+      root.innerHTML=RecordComponents.panel(table,RecordComponents.categories(
+        this.categories.map(item=>({value:item.id,label:item.label})),category.id,'data-head-maintenance-category'));
+      UI.activate(root);
+      RecordComponents.mountPanel(root,{title:'Maintenance Records',addSelector:'.record-workspace-add'});
+      const tbody=root.querySelector('[data-tbody]'),id=tbody?.dataset.tbody;
+      const tableState=id?UI._tables[id]:null;
+      if(!tableState)return;
+      const statusSelect=root.querySelector('[data-head-maintenance-status]');
+      const search=root.querySelector('[data-tsearch]');
+      const original=rows.slice();
+      let visible=rows.slice();
+      statusSelect.value=state.status;
+      const selectedSort=root.querySelector('[data-record-sort][value="'+state.sort+'"]');
+      if(selectedSort)selectedSort.checked=true;
+      const draw=()=>{
+        const term=(search?.value||'').trim().toLocaleLowerCase();
+        visible=original.filter(job=>(!state.status||job.display_status===state.status)
+          &&(!term||['job_ref','plate_number','truck_type','problem','mechanic','display_status','reported_on','completed_on']
+            .some(key=>String(job[key]??'').toLocaleLowerCase().includes(term))));
+        if(state.sort!=='default')visible.sort((a,b)=>(state.sort==='asc'?1:-1)
+          *String(a.job_ref??'').localeCompare(String(b.job_ref??''),undefined,{numeric:true}));
+        tableState.rows=visible;
+        tableState.filter='';
+        tableState.page=0;
+        UI.drawTable(id);
+        // Only the Head Management view needs headers and pager for an empty table.
+        if(typeof HeadOversight!=='undefined')HeadOversight.finishTable(root);
+      };
+      search?.addEventListener('input',draw);
+      RecordComponents.bindDropdowns(root,{
+        apply:panel=>{
+          state.status=panel.querySelector('[data-head-maintenance-status]').value;
+          draw();
+          root.querySelector('.record-workspace-filter-trigger')?.click();
+        },
+        reset:()=>{
+          state.status='';
+          statusSelect.value='';
+          draw();
+          root.querySelector('.record-workspace-filter-trigger')?.click();
+        },
+        sort:value=>{state.sort=value;draw();}
+      },{filter:filterId,sort:sortId});
+      root.querySelectorAll('[data-head-maintenance-category]').forEach(button=>button.addEventListener('click',()=>{
+        if(state.category===button.dataset.headMaintenanceCategory)return;
+        state.category=button.dataset.headMaintenanceCategory;
+        state.status='';
+        state.sort='default';
+        renderCategory();
+      }));
+      root.querySelector('[data-head-maintenance-export]')?.addEventListener('click',()=>this.exportRows(visible));
+      draw();
+    };
+    ctx.el.querySelectorAll('[data-head-maintenance-kpi]').forEach(button=>button.addEventListener('click',()=>{
+      state.category=button.dataset.headMaintenanceKpi;
+      state.status='';
+      state.sort='default';
+      renderCategory();
+    }));
+    renderCategory();
+    if(Object.keys(data._errors||{}).length)
+      UI.toast('Some maintenance records could not be loaded. Check server logs.','error');
+  }
+};
+
 App.page('maintenance', {
   title: 'Repair Management',
   subtitle: 'Track repairs, assign mechanics, and verify completed work.',
   render(ctx) {
     const d = MaintUI.data = ctx.data;
+    if (App.me?.user?.role === 'admin') {
+      const jobs=(d.jobs||[]).map(j=>({...j,display_status:j.verified_at?'Returned to service':j.status==='Completed'?'Awaiting verification':j.status}));
+      HeadMaintenanceUI.render(ctx,d,jobs);
+      return;
+    }
     // MOTORPOOL_WORKSPACE_PHASE1: the former "Parts requests" tab is now its own page. Old links / remembered tab go there.
     try {
       if (d.can.act && sessionStorage.getItem('tab:maintenance') === 'parts') {

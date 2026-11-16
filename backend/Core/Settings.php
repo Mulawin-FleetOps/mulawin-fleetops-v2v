@@ -36,7 +36,7 @@ final class Settings {
             if(in_array($row['setting_key'],TRUCK_TYPES,true)&&isset($value['versions']))foreach(array_reverse($value['versions']) as $version)$history[]=array_replace($row,['effective_at'=>$version['effective_at'],'reference'=>$version['reference'],'actor_id'=>$version['actor_id'],'value_json'=>json_encode(['value'=>$version['value']],JSON_THROW_ON_ERROR)]);
             else $history[]=$row;
         }
-        foreach(['diesel',...TRUCK_TYPES] as $key)$current[$key]=self::pricingAt($p,$key,$now);
+        foreach(['diesel','garage',...TRUCK_TYPES] as $key)$current[$key]=self::pricingAt($p,$key,$now);
         return ['history'=>$history,'current'=>$current,'truckTypes'=>TRUCK_TYPES];
     }
     public static function pricingSave(array $u,array $d): array {

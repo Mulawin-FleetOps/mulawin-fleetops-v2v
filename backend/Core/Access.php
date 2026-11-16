@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 final class Access {
     /** Small headings in the menu (only shown when the role has pages under them). */
-    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Purchasing', 'Accounting', 'Billing', 'Audit', 'Records'];
+    public const SECTIONS = ['Operations', 'Masterlists', 'Maintenance', 'Purchasing', 'Accounting', 'Billing', 'Audit', 'Records', 'Operations Oversight', 'Client & Commercial', 'Financial Oversight', 'Management Control'];
 
     /**
      * Shared workflow pages belong in the employee's work area, never in a
@@ -82,13 +82,18 @@ final class Access {
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
             'dispatcher-monitoring' => ['Dispatcher Monitoring','bi-person-workspace',null,'Trips','operations/ops-head',['operations_head']],
+            'head-trips' => ['Trip Monitoring','bi-signpost-split','Operations Oversight','HeadManagement','administration/head-management',['admin']],
+            'head-fleet' => ['Fleet & Personnel Status','bi-people', 'Operations Oversight', 'HeadManagement', 'administration/head-management', ['admin']],
+            'head-approvals' => ['Management Action Center','bi-clipboard-check', 'Management Control', 'HeadManagement', 'administration/head-management', ['admin']],
+            'head-settings' => ['System Configuration','bi-gear', 'Management Control', 'Admin', 'administration/admin', ['admin']],
+
 
             'trucks'      => ['Truck Masterlist', 'bi-truck', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'motorpool', 'audit'], $D)],
             'crew'        => ['Driver & Helper Masterlist', 'bi-person-badge', 'Masterlists', 'Fleet', 'operations/fleet',
                               array_merge(['admin', 'operations_head', 'audit'], $D)],
             'clients'     => ['Client Masterlist', 'bi-building', 'Masterlists', 'Clients', 'operations/clients',
-                              array_merge(['admin', 'operations_head', 'billing', 'finance', 'audit'], $D)],
+                              array_merge(['admin', 'billing', 'finance', 'audit'], $D)],
             // Approved routes per client (Checklist #20). Roles follow Routes::POLICY['view'].
             'fuel-adjustment' => ['Fuel Adjustment','bi-fuel-pump','Pricing','Admin','administration/admin',['admin']],
             'routes'      => ['Client Routes', 'bi-signpost-2', 'Masterlists', 'Routes', 'operations/routes',
@@ -176,6 +181,32 @@ final class Access {
     /** Pages the user can open, for the menu. */
     public static function navFor(array $u): array {
         $out = [];
+        if (($u['role'] ?? null) === 'admin') {
+            // Head Management uses a purpose-built executive navigation. Original
+            // page URLs/permissions remain available for existing cross-page links.
+            $structure = [
+                'dashboard' => ['Executive Dashboard', null],
+                'head-trips' => ['Trip Monitoring', 'Operations Oversight'],
+                'head-fleet' => ['Fleet & Personnel Status', 'Operations Oversight'],
+                'maintenance' => ['Maintenance Monitoring', 'Operations Oversight'],
+                'clients' => ['Client Management', 'Client & Commercial'],
+                'routes' => ['Route & Contract Rates', 'Client & Commercial'],
+                'finance' => ['Financial Overview', 'Financial Oversight'],
+                'billing' => ['Billing & Collections', 'Financial Oversight'],
+                'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
+                'head-approvals' => ['Management Action Center', 'Management Control'],
+                'reports' => ['Management Reports', 'Management Control'],
+                'admin' => ['User & Access Management', 'Management Control'],
+                'head-settings' => ['System Configuration', 'Management Control'],
+            ];
+            $pages = self::pages();
+            foreach ($structure as $id => [$label, $section]) {
+                [$oldLabel, $icon, $oldSection, $module, $js, $roles] = $pages[$id];
+                if (in_array('admin', $roles, true))
+                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$icon,'section'=>$section,'js'=>$js];
+            }
+            return $out;
+        }
         foreach (self::pages() as $id => [$label, $icon, $section, $module, $js, $roles]) {
             if (in_array($u['role'], $roles, true)) {
                 // Navigation grouping is per ROLE, not per backend department.
@@ -191,6 +222,18 @@ final class Access {
             usort($out, fn($a, $b) => [$rank[$a['id']] ?? 999, $pos[$a['id']]] <=> [$rank[$b['id']] ?? 999, $pos[$b['id']]]);
         }
         return $out;
+    }
+
+    /** Authorized deep links are independent of the role's curated sidebar. */
+    public static function routesFor(array $u): array {
+        $routes = [];
+        foreach (self::pages() as $id => [$label, $icon, $section, $module, $js, $roles]) {
+            if (self::canOpen($u, $id))
+                $routes[$id] = ['id'=>$id, 'label'=>$label, 'icon'=>$icon, 'section'=>$section, 'js'=>$js];
+        }
+        // Keep the approved role-specific labels on pages already in the menu.
+        foreach (self::navFor($u) as $item) $routes[$item['id']] = $item;
+        return array_values($routes);
     }
 
     public static function canOpen(array $u, string $page): bool {

@@ -234,10 +234,59 @@ App.page('billing_overview', {
 });
 
 // ---------------------------------------------------------------- Billing & Invoices
+const HeadBillingPage = {
+  title: 'Billing & Collection',
+  subtitle: 'Billing drafts from dispatched trips, invoices for completed trips, client payments and receivables.',
+  render(ctx) {
+    if(UI.role('admin')||UI.role('billing')||UI.role('audit'))UI.tool(ctx,'Pricing Impact',()=>BillUI.pricingReport(),'bi-clock-history','outline-secondary');
+    const d = BillUI.data = ctx.data;
+    const head = UI.role('admin');
+    const by = (s) => d.billings.filter(b => s.includes(b.status));
+    const unpaid = by(['Invoiced', 'Partially Paid']);
+    const adjBanner = d.adjustments.length && d.can.decide ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.adjustments.length} billing charge / adjustment request(s) are waiting for Admin approval.</div>` : '';
+    ctx.el.innerHTML = adjBanner + (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.<a class="btn btn-sm btn-light" href="#clients?status=Pending%20Rate">Open clients</a></div>` : '') + UI.cards([
+      ...(!head ? [{ label: 'Ongoing trips (drafts)', value: by(['Ongoing']).length, icon: 'bi-hourglass', color: 'gray' }] : []),
+      { label: 'For billing', value: by(['For Billing']).length, icon: 'bi-receipt', color: 'amber' },
+      { label: 'Unpaid invoices', value: unpaid.length, icon: 'bi-file-earmark-text', color: 'blue' },
+      { label: 'Outstanding balance', value: unpaid.reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-hourglass-split', color: 'red' },
+      { label: 'Overdue', value: unpaid.filter(b => +b.days_overdue > 0).reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-exclamation-octagon', color: 'red' },
+    ]);
+    const open = { actions: () => UI.btn('view', 'Open'), onAction: (a, b) => BillUI.open(b.id) };
+    const box = document.createElement('div');
+    if (head) {
+      ctx.el.classList.add('head-billing-overview');
+      box.className = 'head-financial-records';
+    }
+    ctx.el.append(box);
+    const billingTabs = [
+      ['ongoing', 'Ongoing', () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Route', 'delivery_point'], ['Dispatched', 'dispatched_at', 'datetime'],
+        ['Draft amount', 'total_amount', 'money']], by(['Ongoing']), { ...open, title: 'Billing drafts (view only while the trip is ongoing)' })],
+      ['for', 'For Billing', () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Completed', 'completed_at', 'datetime'], ['Waybill', 'waybill_number'],
+        ['Documents', 'waybill_docs', (v, b) => { const okd = +b.waybill_docs && +b.dr_docs && +b.ar_docs; return `<span class="badge-s ${okd ? 'green' : 'red'}">${okd ? 'Complete' : 'Missing'}</span>`; }],
+        ['Verified', 'docs_verified_at', (v) => v ? '<span class="badge-s green">Yes</span>' : '<span class="badge-s amber">No</span>'],
+        ['Approvals', 'pending_adjustments', (v) => +v ? `<span class="badge-s amber">${v} pending</span>` : '—'], ['Amount', 'total_amount', 'money']], by(['For Billing']), { ...open, title: 'Completed trips to verify and invoice' })],
+      ['approvals', 'Approvals', () => UI.table([['Trip', 'trip_ref'], ['Client', 'client'], ['Request', 'id', (v, x) => BillUI.reqText(x)], ['Reason', 'reason'],
+        ['Requested by', 'added_by_name'], ['Requested', 'created_at', 'datetime'], ['Current total', 'total_amount', 'money']], d.adjustments,
+        { title: 'Charge and rate adjustment requests waiting for Admin approval', actions: (x) => (d.can.decide && +x.added_by !== d.can.me ? UI.btn('approve', 'Approve', 'success') + ' ' + UI.btn('reject', 'Reject', 'outline-danger') + ' ' : '') + UI.btn('view', 'Open', 'outline-secondary'),
+          onAction: (a, x) => a === 'view' ? BillUI.open(x.billing_id) : BillUI.decide(x, a, () => App.route()) })],
+      ['invoices', 'Unpaid', () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Invoice date', 'invoice_date', 'date'], ['Due date', 'due_date', 'date'],
+        ['Amount', 'total_amount', 'money'], ['Paid', 'amount_paid', 'money'], ['Balance', 'balance', 'money'], ['Overdue', 'days_overdue', (v) => +v > 0 ? `<span class="badge-s red">${v} days</span>` : '—'], ['Status', 'status', 'badge']], unpaid, { ...open, title: 'Invoices waiting for payment' })],
+      ['paid', 'Paid', () => UI.table([['Invoice', 'invoice_number'], ['Client', 'client'], ['Trip', 'trip_ref'], ['Invoice date', 'invoice_date', 'date'], ['Amount', 'total_amount', 'money']], by(['Paid']), { ...open, title: 'Paid invoices' })],
+      ['collections', 'Collections', () => UI.table([['Payment date', 'payment_date', 'date'], ['Invoice', 'invoice_number'], ['Client', 'client'], ['Amount', 'amount', 'money'], ['Method', 'payment_method'], ['Reference', 'reference'], ['AR no.', 'ar_number']], d.collections, { title: 'Payments received' })],
+      ['ar', 'Receivables', () => UI.table([['Client', 'client'], ['Invoices', 'invoices', 'num'], ['Balance', 'balance', 'money'], ['Not yet due', 'not_due', 'money'], ['1-30 days', 'd1_30', 'money'], ['31-60 days', 'd31_60', 'money'], ['Over 60 days', 'd60', 'money']],
+        d.receivables, { title: 'Outstanding balances and aging', actions: () => UI.btn('soa', 'Print SOA', 'outline-secondary'), onAction: (a, x) => BillUI.printSOA(x.id) })],
+    ];
+    const defaultTab=d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : 'ongoing';
+    if(head)RecordComponents.executiveTabs(box,['for','invoices','paid','approvals','collections','ar','ongoing'].map(key=>billingTabs.find(tab=>tab[0]===key)).filter(Boolean),defaultTab,'Billing & Collection Records',{showAllTabs:true,clientFilter:true});
+    else UI.tabs(box,billingTabs,d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : null);
+  },
+};
+
 App.page('billing', {
   title: 'Billing & Invoices',
   subtitle: 'Billing drafts of dispatched trips, completed trips to verify and invoice, and the invoices issued.',
   render(ctx) {
+    if (UI.role('admin')) return HeadBillingPage.render(ctx);
     if (UI.role('admin') || UI.role('billing') || UI.role('audit')) UI.tool(ctx, 'Pricing Impact', () => BillUI.pricingReport(), 'bi-clock-history', 'outline-secondary'); // kenneth: fixed-route pricing preview
     const d = BillUI.data = ctx.data, q = ctx.query, all = d.billings || [];
     const TABS = { for: ['To bill', b => b.status === 'For Billing'], approvals: ['Adjustment approvals', null], unpaid: ['Unpaid invoices', b => ['Invoiced', 'Partially Paid'].includes(b.status)],

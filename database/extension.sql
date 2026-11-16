@@ -94,7 +94,7 @@ CREATE TABLE trips (
   INDEX idx_trip_dispatcher_shift (dispatcher_role,dispatcher_shift,status),
   CONSTRAINT chk_trip_dispatcher_shift CHECK (dispatcher_shift IS NULL OR (dispatcher_shift IN ('Day','Night') AND dispatcher_role IS NOT NULL AND dispatcher_role IN ('car_carrier_dispatcher','container_wingvan_dispatcher'))),
   CONSTRAINT chk_trip_status CHECK (status IN ('Pending Review','Awaiting Resources','Pre-Assigned','Ready for Dispatch','Dispatched',
-                                               'On Hold - Incident Reported','In Transit','For Reschedule','Completed','Cancelled','Rejected')),
+                                               'On Hold - Incident Reported','In Transit','For Reschedule','Completed','Cancelled','Rejected','Missed')),
   CONSTRAINT chk_trip_type CHECK (truck_type IS NULL OR truck_type IN ('Car Carrier','Container','Wing Van')),
   CONSTRAINT chk_trip_distance CHECK (distance_km IS NULL OR distance_km >= 0),
   CONSTRAINT chk_trip_attempt CHECK (attempt_number >= 1),
@@ -1197,3 +1197,34 @@ ALTER TABLE incidents
       OR (resumed_by IS NOT NULL AND resumed_at IS NOT NULL AND clearance = 'Fit to Continue'));
 
 INSERT INTO schema_migrations (id) VALUES ('2026-11-14_14_incident_clearance');
+
+-- 2026-11-15_15_dispatcher_truck_authorizations: individual Dispatcher account vehicle permissions.
+-- Account-to-vehicle authorization never changes trip ownership, turnover or resource holds.
+CREATE TABLE IF NOT EXISTS dispatcher_truck_authorizations (
+  dispatcher_id INT NOT NULL,
+  vehicle_id INT NOT NULL,
+  authorized_by INT NOT NULL,
+  authorized_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (dispatcher_id, vehicle_id),
+  INDEX idx_dispatcher_truck_vehicle (vehicle_id, dispatcher_id),
+  CONSTRAINT fk_dispatcher_truck_user FOREIGN KEY (dispatcher_id) REFERENCES users(id),
+  CONSTRAINT fk_dispatcher_truck_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
+  CONSTRAINT fk_dispatcher_truck_authorized_by FOREIGN KEY (authorized_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-15_15_dispatcher_truck_authorizations');
+
+
+-- Additive migration for existing installations only (fresh schema includes this column).
+ALTER TABLE users
+  ADD COLUMN dispatcher_truck_type VARCHAR(25) NULL AFTER shift,
+  ADD CONSTRAINT chk_user_dispatcher_type CHECK (
+    dispatcher_truck_type IS NULL OR
+    (role='car_carrier_dispatcher' AND dispatcher_truck_type='Car Carrier') OR
+    (role='container_wingvan_dispatcher' AND dispatcher_truck_type IN ('Container','Wing Van'))
+  );
+INSERT IGNORE INTO schema_migrations(id) VALUES('2026-11-15_16_dispatcher_truck_type');
+
+-- 2026-11-15_17: optional multi-category Dispatcher account assignments.
+-- No backfill, no deleted data, no changes to trip/turnover ownership.
+ALTER TABLE users ADD COLUMN dispatcher_truck_types JSON NULL AFTER dispatcher_truck_type;
+INSERT IGNORE INTO schema_migrations(id) VALUES('2026-11-15_17_dispatcher_multi_types');
