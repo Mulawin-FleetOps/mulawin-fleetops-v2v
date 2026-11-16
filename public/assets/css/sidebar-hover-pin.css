@@ -373,3 +373,22 @@
   #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav > .head-nav-group > summary > span,
   #appShell.hover-pin-sidebar.sb-hover-open .sidebar-logout-button > span {animation:none;}
 }
+
+/* Show nested navigation only while sidebar is visually expanded.
+   Collapsed = top-level icon rail; hover/pinned = normal accordion links. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .sidebar-more-items,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .nav-group .nav-item-link:not(:first-child) {
+    display:none !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav > .head-nav-group {
+    height:48px !important;
+    min-height:48px !important;
+    overflow:hidden !important;
+  }
+  #appShell.hover-pin-sidebar.sb-hover-open .sidebar-nav .head-nav-group[open] > .head-nav-items,
+  #appShell.hover-pin-sidebar.sb-pinned .sidebar-nav .head-nav-group[open] > .head-nav-items {
+    display:block !important;
+  }
+}
