@@ -494,7 +494,7 @@ const App = {
             </div>
             <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
               <span class="avatar">${UI.esc(initials)}</span>
-              <span class="profile-text"><span class="profile-name">My Profile</span><span class="profile-role">${UI.esc(u.role_label)}</span></span>
+              <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name || u.username)}</span></span>
               <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
             </button>
           </div>
