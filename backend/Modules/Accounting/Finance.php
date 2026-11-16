@@ -36,6 +36,12 @@ final class Finance {
         $keys = $page === 'finance_budgets'
             ? ['expenses', 'budgets', 'cashflow', 'trucks', 'expenseMix']
             : ['poPayables', 'payables', 'disbursements', 'suppliers', 'trucks'];   // 'finance' = Payables & Payments
+        // Admin Financial Overview reuses the Finance page but displays
+        // company-wide budget, expense and cash-flow records as well.
+        // Finance staff keep their original smaller payload and permissions.
+        if ($page === 'finance' && hasRole($u, 'admin')) {
+            $keys = array_merge($keys, ['expenses', 'budgets', 'cashflow']);
+        }
         $data = readSections(array_intersect_key($sections, array_flip($keys)));
         $data['period'] = ['from' => $from, 'to' => $to];
         $data['categories'] = self::EXPENSE_CATEGORIES;

@@ -118,6 +118,14 @@ ok(empty($fo['_errors']) && (int)$fo['counts']['po_approvals'] === 1 && count($f
 Purchasing::action($fin, 'po_decide', ['po_id' => $po, 'decision' => 'approve']);
 $line = one($p, 'SELECT id FROM purchase_order_lines WHERE purchase_order_id=?', [$po]);
 Purchasing::action($pur, 'po_receive', ['po_id' => $po, 'receive' => [['line_id' => $line['id'], 'qty' => 4]]]);
+$adminFinance = Finance::read($U('admin'), 'finance', []);
+ok(
+    array_reduce(['poPayables', 'payables', 'disbursements', 'expenses', 'budgets', 'cashflow'],
+        fn(bool $valid, string $key): bool => $valid && isset($adminFinance[$key]) && is_array($adminFinance[$key]), true),
+    'Admin Financial Overview receives every section required by its renderer'
+);
+ok(($adminFinance['can']['act'] ?? null) === false,
+    'Admin Financial Overview retains read-only Finance permissions');
 $fo = Finance::read($fin, 'finance_overview', []); $pp = Finance::read($fin, 'finance', []);
 $poDue = array_sum(array_map(fn($o) => max(0, $o['received_value'] - $o['paid_amount']), $pp['poPayables']));
 ok($near($fo['counts']['po_due']['total'], 3400) && $near($poDue, 3400), 'PO payments due = received not paid (4 x 850 = 3,400) on both pages');

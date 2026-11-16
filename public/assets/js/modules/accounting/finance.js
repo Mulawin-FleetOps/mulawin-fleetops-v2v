@@ -114,8 +114,13 @@ const HeadFinancePage = {
   title: 'Finance',
   subtitle: 'Payables, payments, expenses, purchasing budget and cash flow.',
   render(ctx) {
-    const d = ctx.data, act = d.can.act;
+    const d = ctx.data || {}, act = !!d.can?.act;
     const head = UI.role('admin');
+    // Allow the page to render a meaningful empty state if an older API
+    // version omitted a section; do not replace real stored records.
+    for (const key of ['budgets', 'poPayables', 'payables', 'expenses', 'disbursements', 'cashflow']) {
+      if (!Array.isArray(d[key])) d[key] = [];
+    }
     const b = d.budgets.find(x => x.status === 'Active');
     const poDue = d.poPayables.reduce((a, o) => a + Math.max(0, +o.received_value - +o.paid_amount), 0);
     const apDue = d.payables.filter(p => p.status !== 'Paid').reduce((a, p) => a + +p.balance, 0);
