@@ -138,6 +138,11 @@
   #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:focus-visible {
     background: rgba(255,255,255,.16) !important; color: #fff;
   }
+  /* Keep the narrow icon rail clean: pin is visible only when the
+     sidebar is expanded by hover/focus or persistently pinned. */
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-top #sbCollapse {
+    display: none !important;
+  }
   #appShell.hover-pin-sidebar .sidebar-top #sbCollapse .bi {font-size: 19px;}
   #appShell.hover-pin-sidebar.sb-pinned .sidebar-top #sbCollapse {
     background: rgba(255,255,255,.15);
