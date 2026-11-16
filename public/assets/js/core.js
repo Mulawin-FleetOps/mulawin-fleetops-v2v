@@ -453,8 +453,7 @@ const App = {
         })).join('');
       }
     }
-    // UI CORRECTION: account controls stay in the top bar for every role; the workspace sidebar is navigation only.
-    const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
+    // The role remains visible in the topbar profile; do not duplicate it above Logout.
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
     // Every authenticated role uses the same sidebar shell (Admin, Operations,
@@ -474,7 +473,6 @@ const App = {
           ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" title="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" aria-pressed="${pinned}"><i class="bi ${pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}" aria-hidden="true"></i></button>
             ${ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : ''}` : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
-        ${sideFoot}
         <div class="sidebar-logout-wrap no-print">
           <button type="button" class="sidebar-logout-button" id="sidebarLogout" aria-label="Log out" title="Log out">
             <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Log out</span>
