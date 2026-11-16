@@ -458,14 +458,17 @@ const App = {
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
     const executiveSidebar = ['admin','operations_head','motorpool','purchasing','finance','billing'].includes(u.role);
-    const collapseKey = executiveSidebar ? 'executive-sidebar-collapsed-' + u.role : 'ws-sidebar-collapsed';
-    let collapsed = false;
-    try { collapsed = (!!ws || executiveSidebar) && localStorage.getItem(collapseKey) === '1'; } catch { /* storage unavailable */ }
+    // The approved demo pin model: compact rail by default, persistent per-role pin.
+    // Legacy collapse settings are intentionally not consulted.
+    const pinKey = 'fleetops-sidebar-pinned-' + u.role;
+    let pinned = false;
+    try { pinned = localStorage.getItem(pinKey) === '1'; } catch { /* storage unavailable */ }
+    const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : u.role === 'finance' ? ' finance-admin-sidebar' : u.role === 'billing' ? ' billing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : u.role === 'finance' ? ' finance-admin-sidebar' : u.role === 'billing' ? ' billing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
-          ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${collapsed ? 'Expand' : 'Collapse'} the menu" title="${collapsed ? 'Expand' : 'Collapse'} the menu" aria-pressed="${collapsed}"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
+          ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" title="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" aria-pressed="${pinned}"><i class="bi ${pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}" aria-hidden="true"></i></button>
             ${ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : ''}` : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
         ${sideFoot}
@@ -520,27 +523,45 @@ const App = {
     document.getElementById('menuBtn').onclick = () => { sb.classList.add('open'); bd.classList.add('show'); };
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
     document.getElementById('sbClose')?.addEventListener('click', () => bd.onclick());
-    document.getElementById('sbCollapse')?.addEventListener('click', (e) => {
-      const shell = document.getElementById('appShell'), on = shell.classList.toggle('sb-collapsed'), b = e.currentTarget;
-      b.setAttribute('aria-pressed', String(on)); b.title = (on ? 'Expand' : 'Collapse') + ' the menu'; b.setAttribute('aria-label', b.title);
-      try { localStorage.setItem(collapseKey, on ? '1' : '0'); } catch { /* storage unavailable */ }
-      if (executiveSidebar) document.querySelector('.executive-sidebar-flyout')?.remove();
+    const pinButton = document.getElementById('sbCollapse');
+    const appShell = document.getElementById('appShell');
+    const syncPinButton = () => {
+      const on = appShell.classList.contains('sb-pinned');
+      if (!pinButton) return;
+      pinButton.setAttribute('aria-pressed', String(on));
+      pinButton.setAttribute('aria-label', on ? 'Unpin sidebar' : 'Pin sidebar open');
+      pinButton.title = on ? 'Unpin sidebar' : 'Pin sidebar open';
+      pinButton.querySelector('i')?.classList.toggle('bi-pin-angle-fill', on);
+      pinButton.querySelector('i')?.classList.toggle('bi-pin-angle', !on);
+    };
+    pinButton?.addEventListener('click', () => {
+      const next = !appShell.classList.contains('sb-pinned');
+      appShell.classList.toggle('sb-pinned', next);
+      appShell.classList.toggle('sb-collapsed', !next);
+      // The pinned state reserves space; the unpinned state overlays on hover.
+      appShell.classList.toggle('sb-hover-open', !next && sb.matches(':hover'));
+      try { localStorage.setItem(pinKey, next ? '1' : '0'); } catch { /* storage unavailable */ }
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+      syncPinButton();
     });
-    // In compact workspace mode a group icon expands the sidebar before opening
-    // its links; do not create duplicate flyouts or change route permissions.
-    if (ws && !executiveSidebar) sb.querySelector('.sidebar-nav')?.addEventListener('click', event => {
-      const summary=event.target.closest('.head-nav-group > summary');
-      const shell=document.getElementById('appShell');
-      if (!summary||!shell?.classList.contains('sb-collapsed')
-          ||!window.matchMedia('(min-width: 992px)').matches)return;
-      shell.classList.remove('sb-collapsed');
-      const button=document.getElementById('sbCollapse');
-      if(button){
-        button.setAttribute('aria-pressed','false');
-        button.title='Collapse the menu';
-        button.setAttribute('aria-label',button.title);
-      }
-      try{localStorage.setItem(collapseKey,'0')}catch{}
+    syncPinButton();
+    // On desktops the sidebar floats over the content on pointer or keyboard
+    // focus. It only shifts the main content when pinned.
+    sb.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'touch') return;
+      if (window.matchMedia('(min-width: 992px)').matches && !appShell.classList.contains('sb-pinned'))
+        appShell.classList.add('sb-hover-open');
+    });
+    sb.addEventListener('pointerleave', () => {
+      if (!appShell.classList.contains('sb-pinned')) appShell.classList.remove('sb-hover-open');
+    });
+    sb.addEventListener('focusin', () => {
+      if (window.matchMedia('(min-width: 992px)').matches && !appShell.classList.contains('sb-pinned'))
+        appShell.classList.add('sb-hover-open');
+    });
+    sb.addEventListener('focusout', event => {
+      if (!sb.contains(event.relatedTarget) && !sb.matches(':hover') && !appShell.classList.contains('sb-pinned'))
+        appShell.classList.remove('sb-hover-open');
     });
     this._executiveSidebarAbort?.abort();
     this._executiveSidebarAbort = new AbortController();
@@ -579,7 +600,7 @@ const App = {
       };
       nav.addEventListener('click', (event) => {
         const summary = event.target.closest('.head-nav-group > summary');
-        if (summary && document.getElementById('appShell')?.classList.contains('sb-collapsed') && window.matchMedia('(min-width: 992px)').matches) {
+        if (summary && document.getElementById('appShell')?.classList.contains('sb-collapsed') && !document.getElementById('appShell')?.classList.contains('sb-hover-open') && window.matchMedia('(min-width: 992px)').matches) {
           event.preventDefault();
           const group = summary.parentElement;
           const existing = document.querySelector('.executive-sidebar-flyout');
