@@ -240,3 +240,28 @@
   #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary > span,
   #appShell.hover-pin-sidebar .sidebar-top .brand-text {transition:none !important;}
 }
+
+/* Highlight the actual active page only, never its accordion parent.
+   An open group is a navigation container, not the selected destination. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open]:has(.nav-item-link.active) > summary {
+  background:transparent !important;
+  color:#d8f1dd !important;
+  box-shadow:none !important;
+  border:0 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary > .bi {
+  color:inherit !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:hover,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:focus-visible {
+  background:rgba(255,255,255,.12) !important;
+  color:#fff !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  background:rgba(205,246,216,.17) !important;
+  color:#fff !important;
+  box-shadow:inset 3px 0 #9ce4af !important;
+}
