@@ -480,7 +480,7 @@ const App = {
           ])
           + group('Budgets & Expenses','bi-piggy-bank',[
             direct('Budgets & expenses','bi-wallet2','finance_budgets'),
-            direct('Expenses & liquidation','bi-coin','finance?tab=expenses')
+            direct('Expenses & liquidation','bi-coin','finance_budgets?focus=expenses')
           ])
           + group('Collections','bi-receipt',[
             direct('Collections summary','bi-receipt','billing_collections')
