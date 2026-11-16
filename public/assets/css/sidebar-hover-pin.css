@@ -392,3 +392,82 @@
     display:block !important;
   }
 }
+
+/* COMPACT ACCORDION SUB-ICONS: an opened parent shows only its authorized
+   child icons, in the same rail, without forcing sidebar hover expansion. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] {
+    height:auto !important;
+    min-height:48px !important;
+    overflow:visible !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group:not([open]) > .head-nav-items {
+    display:none !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items {
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    width:100% !important;
+    min-width:0;
+    padding:5px 0 8px !important;
+    margin:0 !important;
+    gap:3px !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:44px !important;
+    min-width:44px !important;
+    max-width:44px !important;
+    height:40px !important;
+    min-height:40px !important;
+    padding:0 !important;
+    margin:0 !important;
+    gap:0 !important;
+    border:0 !important;
+    border-radius:9px !important;
+    background:transparent !important;
+    color:#c5e9ce !important;
+    text-decoration:none;
+    overflow:hidden;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link > .bi {
+    display:block !important;
+    flex:0 0 19px !important;
+    width:19px !important;
+    height:auto !important;
+    font-size:17px !important;
+    line-height:1.2 !important;
+    text-align:center !important;
+    margin:0 !important;
+    color:inherit !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link > span {
+    display:none !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link:hover,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link:focus-visible {
+    background:rgba(255,255,255,.13) !important;
+    color:#fff !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link.active {
+    background:rgba(205,246,216,.17) !important;
+    color:#fff !important;
+    box-shadow:inset 3px 0 #9ce4af !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open)
+  .sidebar-nav > .head-nav-group[open] > .head-nav-items > .nav-item-link.active::before {
+    display:none !important;
+  }
+}
