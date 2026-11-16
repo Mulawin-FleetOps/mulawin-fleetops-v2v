@@ -504,6 +504,31 @@ const App = {
         })).join('');
       }
     }
+    // A dashboard is always ONE direct navigation destination, never a
+    // parent accordion with a duplicate dashboard child. This applies to
+    // all authenticated roles while retaining each role's authorized route.
+    {
+      const dashboardId = this.homePage();
+      const menu = document.createElement('template');
+      menu.innerHTML = nav;
+      const dashboardLinks = [...menu.content.querySelectorAll('a.nav-item-link[data-nav]')]
+        .filter(link => link.dataset.nav === dashboardId);
+      if (dashboardLinks.length) {
+        const dashboardLink = dashboardLinks[0];
+        dashboardLinks.forEach(link => link.remove());
+        // Remove only groups left empty by extracting the dashboard.
+        menu.content.querySelectorAll('.head-nav-group').forEach(group => {
+          if (!group.querySelector('.head-nav-items .nav-item-link')) group.remove();
+        });
+        if (u.role !== 'admin') {
+          const label = dashboardLink.querySelector('span');
+          if (label) label.textContent = 'Dashboard';
+          dashboardLink.title = 'Dashboard';
+        }
+        menu.content.prepend(dashboardLink);
+        nav = menu.innerHTML;
+      }
+    }
     // The role remains visible in the topbar profile; do not duplicate it above Logout.
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
