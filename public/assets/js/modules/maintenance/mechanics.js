@@ -70,10 +70,11 @@ App.page('mechanics', {
       <button type="button" class="mp-action-stage" data-go="mechanics?availability=Available"><span class="mp-action-stage-icon"><i class="bi bi-person-check"></i></span><span class="mp-action-stage-content"><b>Available</b><small>Timed in, ready to assign</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Available').length}</strong></button>
       <button type="button" class="mp-action-stage" data-go="mechanics?availability=Assigned"><span class="mp-action-stage-icon"><i class="bi bi-wrench-adjustable"></i></span><span class="mp-action-stage-content"><b>Assigned</b><small>Working on a repair</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Assigned').length}</strong></button>
       <button type="button" class="mp-action-stage" data-go="mechanics?availability=Unavailable"><span class="mp-action-stage-icon"><i class="bi bi-person-dash"></i></span><span class="mp-action-stage-content"><b>Not on duty</b><small>Must Time In before assignment</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Unavailable').length}</strong></button></div>`;
-    ctx.el.innerHTML = statusSummary + `<div class="line-tabs ws-status-tabs no-print" role="tablist">${tab('mechanics', 'All active', active.length, key === '')}
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + statusSummary + `<div class="line-tabs ws-status-tabs no-print" role="tablist">${tab('mechanics', 'All active', active.length, key === '')}
       ${AV.map(a => tab('mechanics?availability=' + a, a === 'Assigned' ? 'On a repair' : a, active.filter(m => m.availability === a).length, key === a)).join('')}
       ${tab('mechanics?inactive=1', 'Inactive', inactive.length, key === 'inactive')}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
+    box.classList.add('mp-reference-table');
     box.innerHTML = UI.table([
       ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
       ['Specialization', 'specialization'],
@@ -118,7 +119,7 @@ App.page('mechanic_attendance', {
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
       <button type="button" class="btn btn-sm btn-outline-primary" data-go="mechanics"><i class="bi bi-people"></i> Mechanic masterlist</button></div></div>`;
-    ctx.el.innerHTML = attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'duty', [['', 'All mechanics', board.length], ['in', 'On duty', on.length], ['out', 'Not timed in', board.length - on.length]], duty);
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'duty', [['', 'All mechanics', board.length], ['in', 'On duty', on.length], ['out', 'Not timed in', board.length - on.length]], duty);
     const rows = board.filter(m => !duty || (duty === 'in' ? !!m.open_time_in : !m.open_time_in)).map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
     const box = document.createElement('div'); ctx.el.append(box);
     // Buttons call the existing actions only (MechUI.toggle -> Mechanics.time_in / time_out, server-checked; MechUI.open -> Mechanics.details).
