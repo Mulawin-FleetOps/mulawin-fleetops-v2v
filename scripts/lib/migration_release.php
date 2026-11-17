@@ -37,5 +37,21 @@ function migrationReleaseCheck(string $projectRoot, string $receiptPath, array $
     if ($files !== $actual) {
         throw new RuntimeException('Release receipt file hashes do not match pending migrations.');
     }
+    if (!isset($record['backup_path'], $record['backup_sha256']) ||
+        !is_string($record['backup_path']) || !is_string($record['backup_sha256'])) {
+        throw new RuntimeException('Backup verification is missing from release receipt.');
+    }
+    $backup = realpath($record['backup_path']);
+    if (!$backup || !is_file($backup) || is_link($record['backup_path']) ||
+        strncmp($backup, $root . DIRECTORY_SEPARATOR, strlen($root) + 1) === 0) {
+        throw new RuntimeException('Backup must be a real file outside the deployed tree.');
+    }
+    if (filesize($backup) < 128 || filemtime($backup) < $record['ready_at'] - 3600) {
+        throw new RuntimeException('Backup missing, unexpectedly small, or too old.');
+    }
+    if (!preg_match('/^[0-9a-f]{64}$/', $record['backup_sha256']) ||
+        !hash_equals($record['backup_sha256'], hash_file('sha256', $backup))) {
+        throw new RuntimeException('Verified backup SHA-256 mismatch.');
+    }
     return $record;
 }
