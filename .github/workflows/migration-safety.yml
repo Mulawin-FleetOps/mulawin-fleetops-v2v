@@ -5,17 +5,21 @@ on:
     paths:
       - 'scripts/migrate.php'
       - 'scripts/lib/migration_sql.php'
+      - 'scripts/lib/migration_release.php'
       - 'database/migrations/**'
       - 'tests/migration_safety_checks.php'
       - 'tests/migration_mysql_integration.php'
+      - 'tests/migration_release_checks.php'
       - '.github/workflows/migration-safety.yml'
   pull_request:
     paths:
       - 'scripts/migrate.php'
       - 'scripts/lib/migration_sql.php'
+      - 'scripts/lib/migration_release.php'
       - 'database/migrations/**'
       - 'tests/migration_safety_checks.php'
       - 'tests/migration_mysql_integration.php'
+      - 'tests/migration_release_checks.php'
       - '.github/workflows/migration-safety.yml'
   workflow_dispatch:
 permissions:
@@ -48,10 +52,14 @@ jobs:
         run: |
           php -l scripts/migrate.php
           php -l scripts/lib/migration_sql.php
+          php -l scripts/lib/migration_release.php
           php -l tests/migration_safety_checks.php
           php -l tests/migration_mysql_integration.php
+          php -l tests/migration_release_checks.php
       - name: Offline migration regression tests (no DB credentials)
-        run: php tests/migration_safety_checks.php
+        run: |
+          php tests/migration_safety_checks.php
+          php tests/migration_release_checks.php
       - name: Isolated MySQL integration checks
         env:
           CI: 'true'
