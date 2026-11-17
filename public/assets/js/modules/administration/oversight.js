@@ -414,16 +414,18 @@ App.page('admin_reports', {
 });
 
 // ---------------------------------------------------------------- Analytics: topic-based, mixed visualizations
-App.page('admin_analytics', {
-  title: 'Analytics',
-  subtitle: 'What happened, what contributed, and which areas need investigation — by topic.',
+['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].forEach(analyticsPage => App.page(analyticsPage, {
+  title: analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic Analytics' : 'Descriptive Analytics',
+  subtitle: analyticsPage === 'admin_diagnostic_analytics' ? 'Recorded patterns and areas requiring investigation.' : 'Recorded activity, totals, and trends by department.',
   render(ctx) {
+    if (analyticsPage === 'admin_analytics') { App.go('admin_descriptive_analytics', ctx.query); return; }
     HM.destroyCharts();
+    const kindFilter = analyticsPage === 'admin_diagnostic_analytics' ? 'g' : 'd';
     const d = ctx.data, q = ctx.query, per = d.period || {}, b = d.buckets || [], topic = d.topic || 'operations', sg = d.suggestions || {};
     const unit = { day: 'day', week: 'week', month: 'month' }[per.granularity] || 'period';
     const tag = (k) => `<span class="hm-kind hm-kind-${k}">${{ d: 'Descriptive', g: 'Diagnostic' }[k]}</span>`;
-    const panel = (cls, title, kind, body, o = {}) => UI.wsPanel(title, 'bi-graph-up', `${tag(kind)}${body}`, { cls, ...o });
-    const tabs = UI.statusTabs('admin_analytics', q, 'topic', [['operations', 'Operations'], ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['finance', 'Finance']], topic);
+    const panel = (cls, title, kind, body, o = {}) => kind === kindFilter ? UI.wsPanel(title, 'bi-graph-up', body, { cls, ...o }) : '';
+    const tabs = UI.statusTabs(analyticsPage, q, 'topic', [['operations', 'Operations'], ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['finance', 'Finance']], topic);
     const sugg = (list, empty) => ({ tipHtml: HM.sug(list || [], empty || 'No supported recommendation for this view.') });
     const has = (arr) => (arr || []).some(x => +x);
     const C = { g: '#2f7d57', a: '#d97706', b: '#2563eb', p: '#9333ea', r: '#b91c1c', s: '#64748b' }, PAL = ['#2f7d57', '#d97706', '#2563eb', '#9333ea', '#64748b', '#0891b2', '#b91c1c', '#a16207'];
@@ -474,8 +476,8 @@ App.page('admin_analytics', {
         () => HM.chart(ctx.el.querySelector('#hmC'), 'stack', ['Budget'], [{ label: 'Spent', data: [+mb.spent_amount], color: C.b }, { label: 'Committed', data: [+mb.reserved_amount], color: C.a }, { label: 'Available', data: [+mb.available], color: '#cbd5e1' }], { money: true }),
         () => HM.chart(ctx.el.querySelector('#hmD'), 'hbar', [...ag.map(x => 'Receivable: ' + x.label), ...pdue.map(x => 'Payable: ' + x.label)], [{ label: 'Balance', data: [...ag.map(x => +x.value), ...pdue.map(x => +x.value)], color: C.b }], { money: true, axis: 'Balance (PHP)' })];
     }
-    ctx.el.innerHTML = `${tabs}${UI.wsPeriod('admin_analytics', per).replaceAll('admin_analytics?', 'admin_analytics?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">Descriptive: what happened · Diagnostic: what contributed · Prescriptive: the lightbulb suggestions, from documented rules only.</div>${html}`;
+    ctx.el.innerHTML = `${tabs}${UI.wsPeriod(analyticsPage, per).replaceAll(analyticsPage + '?', analyticsPage + '?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">${analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic: distributions and patterns that can help identify areas to investigate; they do not establish root causes.' : 'Descriptive: recorded activity and trends; no causal claims.'}</div>${html}`;
     UI.bindPeriod(ctx.el); UI.bindTips(ctx.el);
     draw.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
   },
-});
+}));
