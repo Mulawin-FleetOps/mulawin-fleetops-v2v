@@ -361,36 +361,119 @@ const App = {
     // WS_SHELL_V1: Maintenance and Accounting roles (Motorpool, Purchasing, Finance, Billing, Audit) get one grouped
     // workspace menu with the profile at the bottom. Links come only from me.nav (server-side permissions); nothing is added.
     const ws = UI.wsNav(u.role);
-    const profileMenu = `<div class="dropdown-header">${UI.esc(u.username)} · ${UI.esc(u.email || '')}</div>
-                <button class="dropdown-item" id="mySig"><i class="bi bi-pen"></i> My e-signature${u.has_signature ? '' : ' <span class="badge-s amber">not set</span>'}</button>
-                <button class="dropdown-item" id="chgPw"><i class="bi bi-key"></i> Change password</button>
-                <button class="dropdown-item" id="chgEmail"><i class="bi bi-envelope-check"></i> Change email</button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>`;
+    // The account button opens an actual live-user profile, not a second action menu.
+    // Password/email/signature controls remain accessible inside the profile modal.
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
-      nav = ws.groups.map((g,i)=>UI.sidebarGroup({
-        title:g.title,
-        icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
-        items:g.items.map(wsLink).join('')
-      })).join('');
+      if (u.role === 'motorpool') {
+        // Same navigation pattern as Head Management: direct Overview,
+        // categorized accordion groups, and icon-only collapsed flyouts.
+        // Only use the existing authorized Motorpool menu items.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['maintenance_overview']).map(wsLink).join('');
+        const groups = [
+          { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
+          { title:'Workforce', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
+          { title:'Records & Reports', icon:'bi-journal-text', ids:['maint_history','maintenance_reports'] }
+        ];
+        nav += groups.map(group => {
+          const entries = take(group.ids);
+          return entries.length ? UI.sidebarGroup({
+            title:group.title, icon:group.icon,
+            items:entries.map(wsLink).join('')
+          }) : '';
+        }).join('');
+        const remaining = items.filter(n => !shown.has(n.id));
+        if (remaining.length) nav += UI.sidebarGroup({
+          title:'Other Tools', icon:'bi-grid-3x3-gap',
+          items:remaining.map(wsLink).join('')
+        });
+      } else if (u.role === 'purchasing') {
+        // Same executive navigation as Admin and Motorpool. Use only routes
+        // already provided by the server-authorized Purchasing workspace.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['purchasing_overview']).map(wsLink).join('');
+        const groups = [
+          { title:'Purchasing Operations', icon:'bi-cart-check', ids:['parts_requests','purchase_orders'] },
+          { title:'Inventory Control', icon:'bi-boxes', ids:['inventory','stock_movements'] },
+          { title:'Records & Reports', icon:'bi-journal-text', ids:['purchasing_reports'] }
+        ];
+        nav += groups.map(group => {
+          const entries = take(group.ids);
+          return entries.length ? UI.sidebarGroup({
+            title:group.title, icon:group.icon,
+            items:entries.map(wsLink).join('')
+          }) : '';
+        }).join('');
+        const remaining = items.filter(n => !shown.has(n.id));
+        if (remaining.length) nav += UI.sidebarGroup({
+          title:'Other Tools', icon:'bi-grid-3x3-gap',
+          items:remaining.map(wsLink).join('')
+        });
+      } else {
+        nav = ws.groups.map((g,i)=>UI.sidebarGroup({
+          title:g.title,
+          icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
+          items:g.items.map(wsLink).join('')
+        })).join('');
+      }
     }
-    // UI CORRECTION: account controls stay in the top bar for every role; the workspace sidebar is navigation only.
-    const sideFoot = ws ? '' : `<div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>`;
+    // A dashboard is always ONE direct navigation destination, never a
+    // parent accordion with a duplicate dashboard child. This applies to
+    // all authenticated roles while retaining each role's authorized route.
+    {
+      const dashboardId = this.homePage();
+      const menu = document.createElement('template');
+      menu.innerHTML = nav;
+      const dashboardLinks = [...menu.content.querySelectorAll('a.nav-item-link[data-nav]')]
+        .filter(link => link.dataset.nav === dashboardId);
+      if (dashboardLinks.length) {
+        const dashboardLink = dashboardLinks[0];
+        dashboardLinks.forEach(link => link.remove());
+        // Remove only groups left empty by extracting the dashboard.
+        menu.content.querySelectorAll('.head-nav-group').forEach(group => {
+          if (!group.querySelector('.head-nav-items .nav-item-link')) group.remove();
+        });
+        if (u.role !== 'admin') {
+          const label = dashboardLink.querySelector('span');
+          if (label) label.textContent = 'Dashboard';
+          dashboardLink.title = 'Dashboard';
+        }
+        menu.content.prepend(dashboardLink);
+        nav = menu.innerHTML;
+      }
+    }
+    // The role remains visible in the topbar profile; do not duplicate it above Logout.
     document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
     document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
-    const executiveSidebar = ['admin','operations_head'].includes(u.role);
-    const collapseKey = executiveSidebar ? 'executive-sidebar-collapsed-' + u.role : 'ws-sidebar-collapsed';
-    let collapsed = false;
-    try { collapsed = (!!ws || executiveSidebar) && localStorage.getItem(collapseKey) === '1'; } catch { /* storage unavailable */ }
+    // Every authenticated role uses the same sidebar shell (Admin, Operations,
+    // both Dispatchers, Motorpool, Purchasing, Finance, Billing and Audit).
+    // The server-provided me.nav still exclusively controls available links.
+    const executiveSidebar = true;
+    // The approved demo pin model: compact rail by default, persistent per-role pin.
+    // Legacy collapse settings are intentionally not consulted.
+    const pinKey = 'fleetops-sidebar-pinned-' + u.role;
+    let pinned = false;
+    try { pinned = localStorage.getItem(pinKey) === '1'; } catch { /* storage unavailable */ }
+    const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${executiveSidebar ? ' executive-sidebar' : ''}${ws && ws.exclusive ? ' ref-app' : ''}${collapsed ? ' sb-collapsed' : ''}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
-          ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${collapsed ? 'Expand' : 'Collapse'} the menu" title="${collapsed ? 'Expand' : 'Collapse'} the menu" aria-pressed="${collapsed}"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
+          ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" title="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" aria-pressed="${pinned}"><i class="bi ${pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}" aria-hidden="true"></i></button>
             ${ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : ''}` : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
-        ${sideFoot}
+        <div class="sidebar-logout-wrap no-print">
+          <button type="button" class="sidebar-logout-button" id="sidebarLogout" aria-label="Log out" title="Log out">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Log out</span>
+          </button>
+        </div>
       </aside>
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <div class="main">
@@ -399,18 +482,17 @@ const App = {
           <div class="crumbs" id="crumbs"></div>
           <div class="topbar-actions">
             <div class="dropdown">
-              <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
+              <button class="icon-btn bell updated-bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell-fill" aria-hidden="true"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
               <div class="dropdown-menu dropdown-menu-end bell-menu">
                 <div class="bell-head"><span>Notifications</span><button type="button" class="btn btn-link btn-sm p-0" id="bellReadAll">Mark all as read</button></div>
                 <div id="bellList" class="bell-list"></div>
                 <a href="#notifications" class="bell-foot" id="bellAll">View all notifications</a>
               </div>
             </div>
-            <div class="dropdown">
-              <button class="profile-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account settings for ${UI.esc(u.full_name)}"><span class="avatar">${UI.esc(initials)}</span>
-                <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name)}</span><span class="profile-role">${UI.esc(u.role_label)}${ws && u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</span></span><i class="bi bi-chevron-down"></i></button>
-              <div class="dropdown-menu dropdown-menu-end">${profileMenu}</div>
-            </div>
+            <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
+              <span class="avatar">${UI.esc(initials)}</span>
+              <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name || u.username)}</span><span class="profile-role">${UI.esc(u.role_label || u.role)}</span></span>
+            </button>
           </div>
         </header>
         <main class="content" id="pageContent"></main>
@@ -437,92 +519,207 @@ const App = {
     document.getElementById('menuBtn').onclick = () => { sb.classList.add('open'); bd.classList.add('show'); };
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
     document.getElementById('sbClose')?.addEventListener('click', () => bd.onclick());
-    document.getElementById('sbCollapse')?.addEventListener('click', (e) => {
-      const shell = document.getElementById('appShell'), on = shell.classList.toggle('sb-collapsed'), b = e.currentTarget;
-      b.setAttribute('aria-pressed', String(on)); b.title = (on ? 'Expand' : 'Collapse') + ' the menu'; b.setAttribute('aria-label', b.title);
-      try { localStorage.setItem(collapseKey, on ? '1' : '0'); } catch { /* storage unavailable */ }
-      if (executiveSidebar) document.querySelector('.executive-sidebar-flyout')?.remove();
+    const pinButton = document.getElementById('sbCollapse');
+    const appShell = document.getElementById('appShell');
+    const syncPinButton = () => {
+      const on = appShell.classList.contains('sb-pinned');
+      if (!pinButton) return;
+      pinButton.setAttribute('aria-pressed', String(on));
+      pinButton.setAttribute('aria-label', on ? 'Unpin sidebar' : 'Pin sidebar open');
+      pinButton.title = on ? 'Unpin sidebar' : 'Pin sidebar open';
+      pinButton.querySelector('i')?.classList.toggle('bi-pin-angle-fill', on);
+      pinButton.querySelector('i')?.classList.toggle('bi-pin-angle', !on);
+    };
+    pinButton?.addEventListener('click', () => {
+      const next = !appShell.classList.contains('sb-pinned');
+      appShell.classList.toggle('sb-pinned', next);
+      appShell.classList.toggle('sb-collapsed', !next);
+      // The pinned state reserves space; the unpinned state overlays on hover.
+      appShell.classList.toggle('sb-hover-open', !next && sb.matches(':hover') && !document.hidden);
+      try { localStorage.setItem(pinKey, next ? '1' : '0'); } catch { /* storage unavailable */ }
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+      syncPinButton();
     });
-    // In compact workspace mode a group icon expands the sidebar before opening
-    // its links; do not create duplicate flyouts or change route permissions.
-    if (ws) sb.querySelector('.sidebar-nav')?.addEventListener('click', event => {
-      const summary=event.target.closest('.head-nav-group > summary');
-      const shell=document.getElementById('appShell');
-      if (!summary||!shell?.classList.contains('sb-collapsed')
-          ||!window.matchMedia('(min-width: 992px)').matches)return;
-      shell.classList.remove('sb-collapsed');
-      const button=document.getElementById('sbCollapse');
-      if(button){
-        button.setAttribute('aria-pressed','false');
-        button.title='Collapse the menu';
-        button.setAttribute('aria-label',button.title);
+    syncPinButton();
+    // Debounce hover intent so quickly crossing the icon rail does not cause
+    // a cascade of width / menu changes. Timers belong to this shell instance.
+    if (this._sidebarHoverTimers) {
+      clearTimeout(this._sidebarHoverTimers.enter);
+      clearTimeout(this._sidebarHoverTimers.leave);
+    }
+    const hoverTimers = this._sidebarHoverTimers = { enter: null, leave: null };
+    const desktopSidebar = () => window.matchMedia('(min-width: 992px)').matches;
+    const enterHover = (immediate = false) => {
+      clearTimeout(hoverTimers.leave);
+      clearTimeout(hoverTimers.enter);
+      if (document.hidden || !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
+      const show = () => {
+        if (this._sidebarHoverTimers !== hoverTimers || document.hidden ||
+            !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
+        appShell.classList.add('sb-hover-open');
+      };
+      if (immediate) show();
+      else hoverTimers.enter = setTimeout(show, 95);
+    };
+    const leaveHover = () => {
+      clearTimeout(hoverTimers.enter);
+      clearTimeout(hoverTimers.leave);
+      if (!appShell.classList.contains('sb-pinned')) {
+        hoverTimers.leave = setTimeout(() => {
+          if (this._sidebarHoverTimers === hoverTimers && !appShell.classList.contains('sb-pinned'))
+            appShell.classList.remove('sb-hover-open');
+        }, 110);
       }
-      try{localStorage.setItem(collapseKey,'0')}catch{}
+    };
+    sb.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'touch') enterHover();
+    });
+    sb.addEventListener('pointerleave', leaveHover);
+    sb.addEventListener('focusin', event => {
+      // Keyboard focus must also be able to reveal the sidebar. Pointer focus
+      // is already handled by pointerenter and should not bypass its delay.
+      if (event.target.matches(':focus-visible')) enterHover(true);
+    });
+    sb.addEventListener('focusout', event => {
+      if (!sb.contains(event.relatedTarget) && !sb.matches(':hover')) leaveHover();
+    });
+    // Hover is transient. Browser tab switching often skips pointerleave,
+    // leaving the old overlay open indefinitely. Reset ONLY the hover state
+    // when this tab is hidden; never change the user's persisted pin setting.
+    this._sidebarVisibilityAbort?.abort();
+    this._sidebarVisibilityAbort = new AbortController();
+    const resetTransientSidebar = () => {
+      if (document.getElementById('appShell') !== appShell) return;
+      clearTimeout(hoverTimers.enter);
+      clearTimeout(hoverTimers.leave);
+      appShell.classList.remove('sb-hover-open');
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) resetTransientSidebar();
+    }, { signal: this._sidebarVisibilityAbort.signal });
+    window.addEventListener('pagehide', resetTransientSidebar, {
+      signal: this._sidebarVisibilityAbort.signal
+    });
+    // When the page is revisited, do not reopen from a stale :hover or focus
+    // state. A fresh pointer entry or keyboard focus is required.
+    window.addEventListener('pageshow', resetTransientSidebar, {
+      signal: this._sidebarVisibilityAbort.signal
     });
     this._executiveSidebarAbort?.abort();
     this._executiveSidebarAbort = new AbortController();
     sb.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sb.classList.contains('open')) { bd.onclick(); document.getElementById('menuBtn')?.focus(); } });
-    // Shared collapsed group flyout for Head Management and Operations Head.
-    // Defer until the Operations-specific shell has finished rebuilding its menu.
-    if (executiveSidebar) queueMicrotask(() => {
-      if (document.getElementById('appSidebar') !== sb) return;
-      document.querySelector('.executive-sidebar-flyout')?.remove();
-      const nav = sb.querySelector('.sidebar-nav');
-      const closeFlyout = () => document.querySelector('.executive-sidebar-flyout')?.remove();
-      const openFlyout = (group, summary) => {
-        closeFlyout();
-        const flyout = document.createElement('div');
-        flyout.className = 'executive-sidebar-flyout';
-        flyout.setAttribute('role', 'navigation');
-        const label = summary.querySelector('span')?.textContent || 'Navigation';
-        flyout.setAttribute('aria-label', label);
-        const heading = document.createElement('div');
-        heading.className = 'executive-sidebar-flyout-heading';
-        heading.textContent = label;
-        const links = document.createElement('div');
-        links.className = 'executive-sidebar-flyout-links';
-        group.querySelectorAll('.head-nav-items a').forEach(link => {
-          const copy = link.cloneNode(true);
-          copy.removeAttribute('id');
-          copy.addEventListener('click', closeFlyout);
-          links.append(copy);
+    // Submenu items belong inside the expanded sidebar, never in a detached
+    // popup while the icon rail is compact. The native details elements keep
+    // their state and remain usable on hover, pin and keyboard focus.
+    document.querySelector('.executive-sidebar-flyout')?.remove();
+    sb.querySelectorAll('[data-sidebar-tool]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.sidebarTool;
+        const destinations = {
+          'billing-accounts': [
+            ['Receivables','billing_receivables','bi-hourglass-split'],
+            ['Collections','billing_collections','bi-cash-stack']
+          ],
+          'po-finance': [
+            ['PO approvals','purchase_orders?tab=approval','bi-check2-square'],
+            ['PO payments','finance?tab=po','bi-wallet2']
+          ],
+          'workflow-billing': [
+            ['Billing overview','billing_overview','bi-grid-1x2'],
+            ['Completed trips','trips?tab=history&status=Completed','bi-truck'],
+            ['Invoice processing','billing','bi-receipt'],
+            ['Collections','billing_collections','bi-cash-stack'],
+            ['Receivables','billing_receivables','bi-hourglass-split']
+          ],
+          'workflow-finance': [
+            ['Finance overview','finance_overview','bi-grid-1x2'],
+            ['Fund approvals & release','funds?tab=release','bi-wallet2'],
+            ['Fund liquidation','funds?tab=liquidate','bi-coin'],
+            ['Purchase order approvals','purchase_orders?tab=approval','bi-cart-check'],
+            ['Payments','finance?tab=po','bi-wallet2'],
+            ['Budgets & expenses','finance_budgets','bi-piggy-bank']
+          ],
+          'forms-billing': [
+            ['Invoice forms & printouts','billing','bi-receipt'],
+            ['Trip records & printouts','trips?tab=history','bi-truck'],
+            ['Uploaded documents','documents','bi-file-earmark-text']
+          ],
+          'forms-finance': [
+            ['Fund documents & vouchers','funds','bi-wallet2'],
+            ['Purchase order printouts','purchase_orders','bi-cart-check'],
+            ['Payment records & vouchers','finance?tab=vouchers','bi-file-earmark-text'],
+            ['Uploaded documents','documents','bi-folder2-open']
+          ]
+        };
+        const choices = (destinations[action] || []).filter(([,spec]) => UI.canGo(spec));
+        if (!choices.length) return;
+        const title = button.textContent.trim();
+        const body = '<div class="d-grid gap-2">'
+          + choices.map(([label,spec,icon]) =>
+            '<button type="button" class="btn btn-outline-success text-start" data-workspace-destination="'
+            + UI.esc(spec) + '"><i class="bi ' + UI.esc(icon)
+            + ' me-2" aria-hidden="true"></i>' + UI.esc(label) + '</button>'
+          ).join('') + '</div>';
+        UI.modal(UI.esc(title), body, null, {
+          size:'modal-sm',
+          onShow: wrap => {
+            wrap.querySelectorAll('[data-workspace-destination]').forEach(link => {
+              link.addEventListener('click', () => {
+                const spec = link.dataset.workspaceDestination;
+                wrap.addEventListener('hidden.bs.modal', () => UI.goTo(spec), {once:true});
+                bootstrap.Modal.getInstance(wrap)?.hide();
+              });
+            });
+          }
         });
-        flyout.append(heading,links);
-        document.body.append(flyout);
-        const rect = summary.getBoundingClientRect();
-        const width = flyout.offsetWidth;
-        flyout.style.left = Math.min(rect.right + 9, window.innerWidth - width - 8) + 'px';
-        flyout.style.top = Math.max(8, Math.min(rect.top, window.innerHeight - flyout.offsetHeight - 8)) + 'px';
-      };
-      nav.addEventListener('click', (event) => {
-        const summary = event.target.closest('.head-nav-group > summary');
-        if (summary && document.getElementById('appShell')?.classList.contains('sb-collapsed') && window.matchMedia('(min-width: 992px)').matches) {
-          event.preventDefault();
-          const group = summary.parentElement;
-          const existing = document.querySelector('.executive-sidebar-flyout');
-          const same = existing?.getAttribute('aria-label') === (summary.querySelector('span')?.textContent || 'Navigation');
-          if (same) closeFlyout(); else openFlyout(group, summary);
-          summary.setAttribute('aria-expanded', String(!same));
-          return;
-        }
-        if (event.target.closest('a')) closeFlyout();
       });
-      document.addEventListener('pointerdown', (event) => {
-        if (!document.getElementById('appShell')?.classList.contains('executive-sidebar')) return;
-        if (!event.target.closest('.executive-sidebar-flyout, .head-nav-group > summary')) closeFlyout();
-      }, { signal: this._executiveSidebarAbort?.signal });
-      const escapeFlyout = (event) => { if(event.key === 'Escape') closeFlyout(); };
-      document.addEventListener('keydown', escapeFlyout, { signal: this._executiveSidebarAbort?.signal });
-      window.addEventListener('resize', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
-      window.addEventListener('hashchange', closeFlyout, { signal: this._executiveSidebarAbort?.signal });
     });
-    document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
-    document.getElementById('chgPw').onclick = () => this.passwordScreen();
-    document.getElementById('chgEmail').onclick = () => this.emailScreen();
-    document.getElementById('mySig').onclick = () => UI.signatureModal();
+    document.getElementById('sidebarLogout').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
+    document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
     this.renderBell();
+  },
+
+  /** Show real account details for the authenticated user, not demo identities. */
+  showMyProfile() {
+    const u = this.me?.user;
+    if (!u) return;
+    const fields = [
+      ['FULL NAME', u.full_name || u.username || '—'],
+      ['USERNAME', u.username || '—'],
+      ['EMAIL', u.email || 'Not set'],
+      ['ROLE', u.role_label || u.role || '—'],
+      ['SHIFT', u.shift || 'Not assigned'],
+      ['E-SIGNATURE', u.has_signature ? 'Saved' : 'Not set']
+    ];
+    const body = '<div class="my-profile-grid">' + fields.map(([label, value]) =>
+      '<div class="my-profile-field"><span>' + UI.esc(label) + '</span><strong>' + UI.esc(String(value)) + '</strong></div>'
+    ).join('') + '</div><div class="my-profile-actions">' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="signature"><i class="bi bi-pen" aria-hidden="true"></i> My e-signature</button>' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="password"><i class="bi bi-key" aria-hidden="true"></i> Change password</button>' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="email"><i class="bi bi-envelope-check" aria-hidden="true"></i> Change email</button>' +
+      '</div>';
+    UI.modal('My Profile', body, null, {
+      size: 'modal-lg',
+      onShow: wrap => {
+        wrap.classList.add('my-profile-modal');
+        wrap.querySelectorAll('[data-myprofile]').forEach(button => {
+          button.addEventListener('click', () => {
+            const action = button.dataset.myprofile;
+            // Wait until Bootstrap removes the current modal/backdrop before
+            // opening another modal or a full-screen account-security workflow.
+            wrap.addEventListener('hidden.bs.modal', () => {
+              if (action === 'signature') UI.signatureModal();
+              else if (action === 'password') this.passwordScreen();
+              else if (action === 'email') this.emailScreen();
+            }, { once: true });
+            bootstrap.Modal.getInstance(wrap)?.hide();
+          });
+        });
+      }
+    });
   },
 
   renderBell() {

@@ -1,0 +1,105 @@
+/* Shared account navigation — logged-in roles only.
+   The sidebar owns Log out; topbar owns Notifications and My Profile. */
+#appShell .sidebar-logout-wrap {
+  flex: none; padding: 11px 11px 16px;
+  border-top: 1px solid rgba(255,255,255,.17);
+}
+#appShell .sidebar-logout-button {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 43px; padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 9px;
+  background: rgba(255,255,255,.07); color: #f5fff7;
+  font-size: 12.5px; font-weight: 700; text-align: left;
+  cursor: pointer;
+}
+#appShell .sidebar-logout-button .bi { width: 20px; font-size: 17px; text-align: center; flex: none; }
+#appShell .sidebar-logout-button:hover,
+#appShell .sidebar-logout-button:focus-visible {
+  background: rgba(255,255,255,.17); color: #fff;
+  outline-color: #c2efce; outline-offset: 2px;
+}
+/* Keep logout visible even on the legacy light workspace sidebar. */
+#appShell.ws-app:not(.executive-sidebar) .sidebar-logout-wrap { border-top-color: #d9e8dc; }
+#appShell.ws-app:not(.executive-sidebar) .sidebar-logout-button {
+  color: #19643d; background: #eff8f1; border-color: #d1e8d7;
+}
+#appShell.ws-app:not(.executive-sidebar) .sidebar-logout-button:hover {
+  background: #e1f1e5;
+}
+/* The Admin and Motorpool/Purchasing/Finance/Billing 76px icon rail. */
+@media (min-width: 992px) {
+  #appShell.executive-sidebar.sb-collapsed .sidebar-logout-wrap,
+  #appShell.ws-app.sb-collapsed .sidebar-logout-wrap { padding: 10px 7px 16px; }
+  #appShell.executive-sidebar.sb-collapsed .sidebar-logout-button,
+  #appShell.ws-app.sb-collapsed .sidebar-logout-button {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 43px; padding: 10px 0; gap: 0;
+  }
+  #appShell.executive-sidebar.sb-collapsed .sidebar-logout-button span,
+  #appShell.ws-app.sb-collapsed .sidebar-logout-button span { display: none; }
+  #appShell.executive-sidebar.sb-collapsed .sidebar-logout-button .bi,
+  #appShell.ws-app.sb-collapsed .sidebar-logout-button .bi { width: auto; font-size: 20px; }
+}
+/* One-click user details replaces the former account dropdown. */
+#appShell .my-profile-trigger {
+  display: inline-flex; align-items: center; gap: 9px;
+  border: 1px solid #d4e5d8; border-radius: 12px;
+  background: #fff; padding: 6px 11px 6px 7px;
+  color: #1f5035; cursor: pointer; min-height: 43px;
+}
+#appShell .my-profile-trigger:hover,
+#appShell .my-profile-trigger:focus-visible {
+  background: #f0f8f2; border-color: #a9d6b6;
+}
+#appShell .my-profile-trigger .profile-name { font-size: 12.5px; color: #1c5636; }
+#appShell .my-profile-trigger .profile-role { font-size: 10.5px; }
+#appShell .my-profile-trigger > .bi { color: #2b824f; font-size: 16px; }
+#appShell .updated-bell {
+  border: 1px solid #cce2d3; border-radius: 11px;
+  color: #1a7042; background: #f1f9f3; width: 41px; height: 41px;
+  font-size: 18px;
+}
+#appShell .updated-bell:hover,
+#appShell .updated-bell:focus-visible {
+  color: #125b34; background: #e1f3e7; border-color: #9bc8ab;
+}
+.my-profile-modal .modal-dialog { max-width: 600px; }
+.my-profile-modal .modal-content {
+  border: 0; border-radius: 16px; overflow: hidden;
+  box-shadow: 0 20px 58px rgba(15,59,34,.18);
+}
+.my-profile-modal .modal-header { padding: 20px 23px; border-bottom: 1px solid #dae9dd; }
+.my-profile-modal .modal-title { color: #1d4531; font-size: 17px; font-weight: 800; }
+.my-profile-modal .modal-body { padding: 21px 23px; }
+.my-profile-modal .my-profile-grid {
+  display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+}
+.my-profile-modal .my-profile-field {
+  padding: 12px; min-width: 0; min-height: 62px;
+  background: #f3f8f4; border: 1px solid #dce9df; border-radius: 10px;
+}
+.my-profile-modal .my-profile-field span {
+  display: block; color: #6f8978; font-size: 10px;
+  font-weight: 750; letter-spacing: .06em; margin-bottom: 3px;
+}
+.my-profile-modal .my-profile-field strong {
+  display: block; color: #173d28; font-size: 12.5px;
+  font-weight: 750; overflow-wrap: anywhere;
+}
+.my-profile-modal .my-profile-actions {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px;
+  padding-top: 15px; border-top: 1px solid #e4eee6;
+}
+.my-profile-modal .my-profile-actions button {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.my-profile-modal .modal-footer {
+  padding: 13px 23px; border-top: 1px solid #dae9dd;
+}
+@media(max-width:575px) {
+  #appShell .my-profile-trigger .profile-role { display: none; }
+  #appShell .my-profile-trigger > .bi { display: none; }
+  .my-profile-modal .my-profile-grid { grid-template-columns: 1fr; }
+  .my-profile-modal .modal-body { padding: 16px; }
+}

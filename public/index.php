@@ -150,6 +150,8 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link rel="stylesheet" href="assets/css/login.css?v=<?= $v('assets/css/login.css') ?>">
   <link rel="stylesheet" href="assets/css/app.css?v=<?= $v('assets/css/app.css') ?>">
   <link rel="stylesheet" href="assets/css/workspace.css?v=<?= $v('assets/css/workspace.css') ?>">
+  <link rel="stylesheet" href="assets/css/account-navigation.css?v=<?= $v('assets/css/account-navigation.css') ?>">
+  <link rel="stylesheet" href="assets/css/sidebar-hover-pin.css?v=<?= $v('assets/css/sidebar-hover-pin.css') ?>">
   <link rel="stylesheet" href="assets/css/ops-head.css?v=<?= $v('assets/css/ops-head.css') ?>">
   <link rel="stylesheet" href="assets/css/records.css?v=<?= $v('assets/css/records.css') ?>">
   <link rel="stylesheet" href="assets/css/dispatcher.css?v=<?= $v('assets/css/dispatcher.css') ?>">
