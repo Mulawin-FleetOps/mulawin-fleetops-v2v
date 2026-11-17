@@ -926,7 +926,23 @@ const DispatcherUI = {
     append('Pre-Dispatch Checklist',[...sections].find(([title])=>title.startsWith('Pre-dispatch checklist'))?.[1]);
     const dispatch=append('Dispatch & Progress',sections.get('Updates and delays'));if(progress)dispatch.prepend(progress);dispatch.insertAdjacentHTML('beforeend',UI.kv([['Next Action',UI.esc(this.next(t))],['Dispatched',this.datetime(t.dispatched_at)],['Checklist Opens',this.datetime(t.time_gates?.checklist_opens_at)],['Dispatch Opens',this.datetime(t.time_gates?.dispatch_opens_at)]]));
     const incidents=append('Incidents & Maintenance',sections.get('Incidents')||'<p>No incident reports recorded.</p>');const incidentButton=actions?.querySelector('[data-tact=incident]');if(incidentButton){incidentButton.textContent='Submit Incident Report';incidents.prepend(incidentButton);}
-    const completion=append('Completion & Arrival',sections.get('Completion')||'<p>Trip completion is not recorded.</p>');if(sections.get('Arrival checklist'))completion.append(sections.get('Arrival checklist'));if(+t.awaiting_arrival)completion.insertAdjacentHTML('afterbegin','<p class="small">The delivery is completed, but the vehicle remains held until arrival inspection and any required maintenance clearance.</p>');
+    // A Delivery progress update is an activity record, not the formal Trips.complete
+    // transaction. Surface the recorded update and the next required action where
+    // dispatchers expect to find completion, without bypassing document validation.
+    const deliveryUpdate=(r.updates||[]).find(update=>update.update_type==='Delivery');
+    const latestUpdate=(r.updates||[])[0];
+    const pendingCompletion=['Dispatched','In Transit'].includes(t.status);
+    const progressSummary=deliveryUpdate
+      ? '<p class="small"><strong>Delivery progress recorded</strong> · '+this.datetime(deliveryUpdate.created_at)
+        +(deliveryUpdate.note?' — '+UI.esc(deliveryUpdate.note):'')+'</p>'
+      : latestUpdate?'<p class="small">Latest progress update: '+UI.esc(latestUpdate.update_type)
+        +' · '+this.datetime(latestUpdate.created_at)+(latestUpdate.note?' — '+UI.esc(latestUpdate.note):'')+'</p>':'';
+    const completionPending='<div class="alert alert-info mb-3">'+progressSummary
+      +'<p class="mb-0"><strong>Trip not yet completed.</strong> Use <strong>Complete trip</strong> below to record the actual completion time and upload the waybill, acknowledgement receipt, and delivery receipt. The Arrival checklist becomes available after the trip is formally completed.</p></div>';
+    const completion=append('Completion & Arrival',sections.get('Completion')||(pendingCompletion
+      ?completionPending:'<p>Trip completion is not recorded.</p>'));
+    if(sections.get('Arrival checklist'))completion.append(sections.get('Arrival checklist'));
+    if(+t.awaiting_arrival)completion.insertAdjacentHTML('afterbegin','<p class="small">The delivery is completed, but the vehicle remains held until arrival inspection and any required maintenance clearance.</p>');
     completion.querySelectorAll('dt').forEach(label=>{if(label.textContent==='Billing'){label.nextElementSibling?.remove();label.remove();}});
     append('Documents',sections.get('Documents'));append('Activity Timeline',sections.get('History'));
     this.tripPills(el,t,r,actions,{inspection,arrival,fund});
@@ -942,7 +958,7 @@ const DispatcherUI = {
       keys.forEach(key=>{const content=parts.get(key);if(!content)return;if(keys.length>1){const h=document.createElement('h3');h.className='ds-trip-part-title';h.textContent=key;panel.append(h);}panel.append(content);});if(index===0&&readiness)panel.prepend(readiness);
       const button=document.createElement('button');button.type='button';button.className='ds-trip-tab';button.id=prefix+'-tab-'+index;button.setAttribute('role','tab');button.setAttribute('aria-controls',panel.id);button.setAttribute('aria-selected',String(index===0));button.tabIndex=index===0?0:-1;button.innerHTML=(state?`<i class="bi ${state==='complete'?'bi-check-circle-fill':'bi-exclamation-triangle-fill'} ds-pill-${state}" aria-hidden="true"></i> `:'')+UI.esc(name);if(state)button.setAttribute('aria-label',name+(state==='complete'?' — recorded completion verified':' — needs attention'));nav.append(button);return panel;
     });
-    if(actions)actions.querySelectorAll('[data-tact]').forEach(button=>{const act=button.dataset.tact,index=act==='checklist'?2:['dispatch','complete','update'].includes(act)?3:['resume','reschedule','incident'].includes(act)?4:act==='arrival'?5:0;panels[index].prepend(button);});
+    if(actions)actions.querySelectorAll('[data-tact]').forEach(button=>{const act=button.dataset.tact,index=act==='checklist'?2:act==='complete'?5:['dispatch','update'].includes(act)?3:['resume','reschedule','incident'].includes(act)?4:act==='arrival'?5:0;panels[index].prepend(button);});
     if(t.status==='Awaiting Resources'||(t.status==='For Reschedule'&&(!t.vehicle_id||t.truck_status!=='Assigned'))){const assign=document.createElement('button');assign.type='button';assign.className='btn btn-primary';assign.dataset.assignResources=t.id;assign.textContent='Assign Resources';assign.onclick=()=>this.assignResources(t.id);panels[0].prepend(assign);}
     body.replaceChildren(nav,...panels);body.querySelectorAll('.wf-steps').forEach(node=>node.remove());
     const footer=document.createElement('div');footer.className='ds-drawer-footer';const close=document.createElement('button');close.type='button';close.className='btn btn-outline-secondary';close.textContent='Close Details';close.onclick=()=>UI.closeDrawer();footer.append(close);el.append(footer);
