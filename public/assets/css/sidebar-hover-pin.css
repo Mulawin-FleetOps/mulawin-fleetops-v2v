@@ -399,3 +399,19 @@
   width:5px !important;
   border-radius:3px !important;
 }
+
+/* Main navigation: keep the outward yellow selection marker visible,
+   matching submenu links without changing the active white background. */
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active {
+  overflow:visible !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active::before {
+  z-index:1;
+}
+/* A main category icon receives the same gold accent only when its
+   child page is selected; merely opening the category is not selection. */
+#appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group:has(.head-nav-items > .nav-item-link.active) > summary > .bi:first-child {
+  color:#efbc37 !important;
+}
