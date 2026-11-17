@@ -366,6 +366,18 @@ PurUI.list = (title, icon, items, empty, more) => `<section class="panel"><div c
 PurUI.item = (go, top, sub, side) => `<li class="mo-item clickable" data-go="${UI.esc(go)}" role="link" tabindex="0"><div class="mo-item-main"><div class="mo-item-top">${top}</div>${sub ? `<div class="mo-item-issue">${sub}</div>` : ''}</div><div class="mo-item-side">${side}</div></li>`;
 
 const PurRef = {
+  /** Move the existing URL-backed filters into the existing shared table toolbar.
+   *  No duplicate inputs or new event handlers: UI.generalFilters remains authoritative. */
+  inlineFilters(root, source = root) {
+    const filters = source.querySelector('.ws-filters');
+    const toolbar = root.querySelector('.ref-toolbar, .table-tools');
+    if (!filters || !toolbar) return;
+    toolbar.classList.add('purchasing-unified-toolbar');
+    filters.classList.add('purchasing-inline-filters');
+    const search = toolbar.querySelector('.table-search');
+    if (search) search.insertAdjacentElement('afterend', filters);
+    else toolbar.prepend(filters);
+  },
   cards(items) { return UI.kpiTiles(items, 'ws-kpi4 purchasing-page-kpis'); },
   recordBox(box,title,subtitle,count) {
     box.classList.add('purchasing-records-card','purchasing-ref-records');
@@ -486,6 +498,7 @@ App.page('parts_requests', {
       ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>']], rows,
       { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
         empty: 'No parts request in this list.' });
+    PurRef.inlineFilters(box, ctx.el);
     PurUI.openFromQuery(ctx, all, open);
   },
 });
@@ -533,6 +546,7 @@ App.page('purchase_orders', {
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
+    PurRef.inlineFilters(box, ctx.el);
     PurUI.openFromQuery(ctx, all, open);
   },
 });
@@ -574,16 +588,6 @@ App.page('inventory', {
     box.classList.add('purchasing-records-card','purchasing-ref-records');
     box.insertAdjacentHTML('afterbegin', `<div class="purchasing-ref-records-head"><div><strong>${view === 'counts' ? 'Stock Count Records' : 'Inventory Records'}</strong><small>${UI.num(view === 'counts' ? counts.length : parts.length)} records</small></div><span>Availability and stock levels</span></div>`);
     const body = document.createElement('div'); body.className='purchasing-ref-records-body'; box.append(body);
-    const alignFilters = () => {
-      const filters = body.querySelector('.ws-filters');
-      const toolbar = body.querySelector('.ref-toolbar, .table-tools');
-      if (!filters || !toolbar) return;
-      toolbar.classList.add('purchasing-inventory-toolbar');
-      filters.classList.add('purchasing-inventory-inline-filter');
-      const search = toolbar.querySelector('.table-search');
-      if (search) search.insertAdjacentElement('afterend', filters);
-      else toolbar.prepend(filters);
-    };
     if (view === 'counts') {
       const st = ['Submitted', 'Posted', 'Rejected'].includes(q.count) ? q.count : '';
       const rows = counts.filter(c => !st || c.status === st);
@@ -599,7 +603,7 @@ App.page('inventory', {
           { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (c) => PurUI.countActs(c, can) + UI.ibtn('view', 'Open count', 'bi-eye'),
             onAction: (a, c) => a === 'view' ? PurUI.openCount(c, can) : PurUI.countReview(c, a), rowClick: (c) => PurUI.openCount(c, can),
             empty: 'No stock count recorded yet.' });
-      alignFilters();
+      PurRef.inlineFilters(box, body);
       const once = UI.takeQuery(ctx, 'open');
       if (once.open) { const c = counts.find(x => String(x.id) === String(once.open)); if (c) PurUI.openCount(c, can); }
       return;
@@ -615,7 +619,7 @@ App.page('inventory', {
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
         { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
-    alignFilters();
+    PurRef.inlineFilters(box, body);
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
   },
 });
@@ -654,6 +658,7 @@ App.page('stock_movements', {
       { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true,
         actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.ibtn('ref', refLabel[m.reference_type][0], refLabel[m.reference_type][1]) : '',
         onAction: (a, m) => UI.goTo(ref(m)), empty: 'No stock movement matches.' });
+    PurRef.inlineFilters(box, ctx.el);
   },
 });
 
