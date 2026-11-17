@@ -8,6 +8,7 @@ on:
       - 'scripts/lib/migration_release.php'
       - 'tests/migration_auto_checks.php'
       - 'database/migrations/approved.json'
+      - 'scripts/approve_migration.php'
       - 'scripts/lib/migration_backup.php'
       - 'scripts/lib/migration_auto.php'
       - 'database/migrations/**'
@@ -55,6 +56,7 @@ jobs:
       - name: PHP syntax lint
         run: |
           php -l scripts/migrate.php
+          php -l scripts/approve_migration.php
           php -l scripts/lib/migration_sql.php
           php -l scripts/lib/migration_release.php
           php -l tests/migration_auto_checks.php
