@@ -119,7 +119,7 @@ final class Access {
             // UI_REFERENCE_V1: Maintenance Reports (Motorpool workspace "Reports"): repairs, downtime and maintenance cost.
             // Read-only, served by Analytics::maintenanceReport. Replaces Motorpool's use of the general Reports page.
             'maintenance_reports' => ['Maintenance Reports', 'bi-graph-up', 'Maintenance', 'Analytics', 'maintenance/maintenance',
-                              ['admin', 'operations_head', 'motorpool', 'audit']],
+                              ['admin']],
 
             // Purchasing workspace (replaces the combined "Parts & Purchasing" page). The five Purchasing pages share
             // one backend module and one screen file. Purchasing Officer: all pages. Finance: Purchase Orders (approvals)
@@ -136,7 +136,7 @@ final class Access {
             'stock_movements' => ['Stock Movements', 'bi-arrow-left-right', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
                               ['admin', 'purchasing', 'audit']],
             'purchasing_reports' => ['Purchasing Reports', 'bi-graph-up', 'Purchasing', 'Analytics', 'maintenance/purchasing',
-                              ['admin', 'purchasing', 'finance', 'audit']],
+                              ['admin']],
 
             'funds'       => ['Trip Funds', 'bi-cash-coin', 'Accounting', 'Funds', 'accounting/funds',
                               array_merge(['admin', 'operations_head', 'finance', 'audit'], $D)],
@@ -156,14 +156,14 @@ final class Access {
 
             'documents'   => ['Documents', 'bi-folder2-open', 'Records', 'Documents', 'general/documents', $all],
             'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports',
-                              ['admin', 'operations_head', 'finance', 'billing', 'audit']],
+                              ['admin']],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
             // AUDIT_WORKSPACE_V1: read-only audit pages (Admin module, audit_events). Audit uses them instead of its former
             // Activity Log view of User Management (same records, now with filters, record history and reports).
             'audit_overview' => ['Audit Overview', 'bi-speedometer2', 'Audit', 'Admin', 'administration/audit', ['audit']],
             'audit_logs'  => ['Audit Logs', 'bi-journal-text', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
             'audit_history' => ['Transaction History', 'bi-clock-history', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
-            'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
+            'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin']],
             'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin']],
             // HEAD_MANAGEMENT_V1: Head Management (Admin) workspace. Read-only oversight pages (Oversight module); approval
             // decisions use the existing Purchasing / Billing actions, which check the Admin role and the request state.
@@ -197,8 +197,7 @@ final class Access {
                 'billing' => ['Billing & Collections', 'Financial Oversight'],
                 'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'head-approvals' => ['Management Action Center', 'Management Control'],
-                'reports' => ['Management Reports', 'Management Control'],
-                'admin' => ['User & Access Management', 'Management Control'],
+                                'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
