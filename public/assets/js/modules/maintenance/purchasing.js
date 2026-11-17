@@ -365,6 +365,15 @@ PurUI.list = (title, icon, items, empty, more) => `<section class="panel"><div c
   <div class="panel-body flush">${items.length ? `<ul class="mo-list mo-scroll">${items.join('')}</ul>` : `<div class="mo-empty">${UI.esc(empty)}</div>`}</div></section>`;
 PurUI.item = (go, top, sub, side) => `<li class="mo-item clickable" data-go="${UI.esc(go)}" role="link" tabindex="0"><div class="mo-item-main"><div class="mo-item-top">${top}</div>${sub ? `<div class="mo-item-issue">${sub}</div>` : ''}</div><div class="mo-item-side">${side}</div></li>`;
 
+const PurRef = {
+  cards(items) { return UI.kpiTiles(items, 'ws-kpi4 purchasing-page-kpis'); },
+  recordBox(box,title,subtitle,count) {
+    box.classList.add('purchasing-records-card','purchasing-ref-records');
+    box.insertAdjacentHTML('afterbegin',
+      `<div class="purchasing-ref-records-head"><div><strong>${UI.esc(title)}</strong><small>${UI.num(count)} records</small></div><span>${UI.esc(subtitle)}</span></div>`);
+    const body=document.createElement('div');body.className='purchasing-ref-records-body';box.append(body);return body;
+  }
+};
 // ---------------------------------------------------------------- Purchasing Overview (landing page of the Purchasing Officer)
 App.page('purchasing_overview', {
   title: 'Purchasing Dashboard',
@@ -376,10 +385,10 @@ App.page('purchasing_overview', {
     // UI_REFERENCE_V1: four KPI cards -> Quick actions -> left: Needs attention + Recent purchasing activity;
     // right: Purchase order status + Inventory alerts. Every row opens the real record or the filtered list.
     const tiles = [
-      { label: 'Pending requests', value: n('requests_open'), note: 'Waiting for stock check', icon: 'bi-box-arrow-up', tone: n('requests_open') ? 'amber' : 'gray', go: 'parts_requests?tab=todo' },
-      { label: 'For follow-up', value: n('requests_followup'), note: 'Shortage or partially released', icon: 'bi-exclamation-circle', tone: n('requests_followup') ? 'amber' : 'gray', go: 'parts_requests?tab=followup' },
-      { label: 'Pending PO approval', value: n('po_pending'), note: 'Waiting on Finance / Admin', icon: 'bi-cart-check', tone: n('po_pending') ? 'blue' : 'gray', go: 'purchase_orders?tab=approval' },
-      { label: 'Low stock items', value: n('low_stock'), note: 'At or below reorder level', icon: 'bi-exclamation-triangle', tone: n('low_stock') ? 'red' : 'gray', go: 'inventory?stock=low' },
+      { label:'New Parts Requests', value:n('requests_open'), note:'Awaiting stock check', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo', tone:n('requests_open')?'amber':'gray' },
+      { label:'Requests for Follow-up', value:n('requests_followup'), note:'Partial release / unavailable', icon:'bi-clock-history', go:'parts_requests?tab=followup', tone:n('requests_followup')?'amber':'gray' },
+      { label:'POs Awaiting Approval', value:n('po_pending'), note:'Finance / Admin decision', icon:'bi-check2-square', go:'purchase_orders?tab=approval', tone:n('po_pending')?'blue':'gray' },
+      { label:'Orders to Receive', value:n('po_to_receive'), note:'Approved / partially received', icon:'bi-box-arrow-in-down', go:'purchase_orders?tab=receive', tone:n('po_to_receive')?'blue':'gray' },
     ];
     const reqs = d.requests || [];
     const attention = [
@@ -411,15 +420,31 @@ App.page('purchasing_overview', {
       ...reqs.filter(r => r.status !== 'Requested').map(r => UI.wsEntry('parts_requests?open=' + r.id, `<b>${UI.esc(r.request_ref)}</b> <span class="mo-ref">${UI.esc(r.plate_number)}</span>`,
         'Outstanding shortage · ' + UI.esc(r.items || ''), UI.badge(r.status))),
     ];
-    ctx.el.innerHTML = `<div class="maint-overview mp-ws">${UI.kpiTiles(tiles, 'ws-kpi4')}
-      ${UI.quickBar([can.stock ? { label: 'New purchase order', icon: 'bi-cart-plus', act: 'newpo', primary: true } : null,
-        { label: 'Parts requests', icon: 'bi-box-arrow-up', go: 'parts_requests' }, { label: 'Purchase orders', icon: 'bi-cart-check', go: 'purchase_orders' },
-        { label: 'Inventory', icon: 'bi-boxes', go: 'inventory' }, { label: 'Reports', icon: 'bi-graph-up', go: 'purchasing_reports' }])}
-      <div class="ws-grid2">
-        ${UI.wsPanel('Parts requests requiring action', 'bi-flag', UI.wsList(attention, 'Nothing is waiting for Purchasing right now.'), { cls: 'ws-l1', count: attention.length, go: 'parts_requests?tab=todo' })}
-        ${UI.wsPanel('Purchase order follow-up', 'bi-cart-check', UI.wsList(poRows, ''), { cls: 'ws-r1', go: 'purchase_orders?tab=all', foot: budgetFoot })}
-        ${UI.wsPanel('Recent purchasing activity', 'bi-activity', UI.wsList(activity, 'No stock movement recorded yet.'), { cls: 'ws-l2', go: 'stock_movements' })}
-        ${UI.wsPanel('Inventory alerts', 'bi-exclamation-triangle', UI.wsList(alerts, 'No low stock and no outstanding shortage.'), { cls: 'ws-r2', count: alerts.length, go: 'inventory?stock=low' })}
+    const incoming = (d.receiving || []).map(o => UI.wsEntry('purchase_orders?open=' + o.id,
+      `<b>${UI.esc(o.po_ref)}</b> <span class="mo-ref">${UI.esc(o.supplier || '')}</span>`,
+      'Ready to receive · ' + UI.money(o.total_amount), UI.badge(o.status)));
+    const outstanding = reqs.filter(r => r.status !== 'Released' && r.status !== 'Cancelled');
+    const requestsAction = outstanding.map(r => UI.wsEntry('parts_requests?open='+r.id,
+      `<b>${UI.esc(r.request_ref)}</b> <span class="mo-ref">${UI.esc(r.plate_number)}</span>`,
+      UI.esc(r.items || 'Check requested items'), UI.badge(r.status)));
+    const poDependencies = [
+      ...(d.approvals || []).filter(o=>o.status==='Pending Approval').map(o=>UI.wsEntry('purchase_orders?open='+o.id,
+        `<b>${UI.esc(o.po_ref)}</b> <span class="mo-ref">${UI.esc(o.supplier || '')}</span>`,
+        'Finance / Admin approval · ' + UI.money(o.total_amount), UI.badge(o.status))),
+      UI.wsEntry('purchase_orders?tab=payment','<b>Supplier payment processing</b>',
+        'Handled by Finance after approval and receiving','<span class="badge-s blue">Finance</span>')
+    ];
+    ctx.el.innerHTML = `<div class="maint-overview mp-ws purchasing-dashboard-ref">${UI.kpiTiles(tiles,'ws-kpi4')}
+      ${UI.quickBar([can.stock ? { label:'Process requests', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo' } : null,
+        can.stock ? { label:'New purchase order', icon:'bi-cart-plus', act:'newpo', primary:true } : null,
+        { label:'Low-stock inventory', icon:'bi-exclamation-triangle', go:'inventory?stock=low' },
+        { label:'Stock movements', icon:'bi-arrow-left-right', go:'stock_movements' }])}
+      <div class="ws-grid2 purchasing-ref-panels">
+        ${UI.wsPanel('Parts Requests Needing Action','bi-box-seam', UI.wsList(requestsAction.slice(0,5),'No open parts requests.'), {cls:'ws-l1',count:outstanding.length,go:'parts_requests?tab=todo',goLabel:'View all'})}
+        ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',UI.wsList(incoming.slice(0,5),'No deliveries to receive.'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
+        ${UI.wsPanel('Purchase Order Status','bi-cart-check',UI.wsList(poRows,'No outstanding POs.'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
+        ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',UI.wsList(alerts.slice(0,5),'No low-stock items or outstanding shortages.'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
+        ${UI.wsPanel('Approval & Payment Dependencies','bi-diagram-3',UI.wsList(poDependencies,'No external approvals pending.'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
       </div></div>`;
     ctx.el.querySelector('[data-qa="newpo"]')?.addEventListener('click', () => App.go('purchase_orders', { new: 1 }));
   },
@@ -439,11 +464,17 @@ App.page('parts_requests', {
     const trucks = [...new Set(all.map(r => r.plate_number))].sort();
     const rows = all.filter(TABS[tab][1]).filter(r => (!q.truck || r.plate_number === q.truck) && (!q.po || (q.po === 'linked' ? !!r.linked_pos : !r.linked_pos)));
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${UI.statusTabs('parts_requests', q, 'tab', Object.entries(TABS).map(([key, [label]]) => [key, label, cnt(key)]), tab)}
+    ctx.el.innerHTML = `${PurRef.cards([
+      {label:'Requests', value:all.length, note:'All recorded requests', icon:'bi-box-seam', go:'parts_requests?tab=all'},
+      {label:'Awaiting Stock Check',value:cnt('todo'),note:'From Motorpool',icon:'bi-search',go:'parts_requests?tab=todo'},
+      {label:'Needs Follow-up',value:cnt('followup'),note:'Shortage or partial',icon:'bi-exclamation-triangle',go:'parts_requests?tab=followup'},
+      {label:'Released',value:cnt('released'),note:'Fully fulfilled',icon:'bi-check2-circle',go:'parts_requests?tab=released'}
+    ])}${UI.statusTabs('parts_requests', q, 'tab', Object.entries(TABS).map(([key, [label]]) => [key, label, cnt(key)]), tab)}
       ${UI.generalFilters(ctx, [{ name: 'truck', label: 'Trucks', options: trucks }, { name: 'po', label: 'PO link', all: 'With or without PO', options: [['linked', 'Has a linked PO'], ['none', 'No linked PO']] }])}`;
-    const box = document.createElement('div'); ctx.el.append(box); box.classList.add('purchasing-records-card');
+    const box = document.createElement('div'); ctx.el.append(box);
+    const target = PurRef.recordBox(box,'Parts Request Records','Motorpool requests and release progress',rows.length);
     const open = (r) => PurUI.openRequest(r, k);
-    box.innerHTML = UI.table([
+    target.innerHTML = UI.table([
       ['Request', 'request_ref', (v, r) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.date(r.created_at)}</div>`],
       ['Truck / repair', 'plate_number', (v, r) => `${UI.esc(v)}${r.job_ref ? `<div class="cell-sub">${UI.esc(r.job_ref)}</div>` : ''}`],
       ['Parts', 'items', (v) => `<span class="cell-clamp" title="${UI.esc(v)}">${UI.esc(v)}</span>`],
@@ -476,11 +507,17 @@ App.page('purchase_orders', {
     const suppliers = [...new Set(all.map(o => o.supplier).filter(Boolean))].sort();
     const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) && (!q.payment || o.payment_status === q.payment));
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', Object.entries(TABS).map(([key, [label]]) => [key, key === 'approval' && mine.length ? label + ' (' + mine.length + ' for you)' : label, cnt(key)]), tab)}
+    ctx.el.innerHTML = `${PurRef.cards([
+      {label:'Purchase Orders', value:all.length, note:'Total created',icon:'bi-cart-check',go:'purchase_orders?tab=all'},
+      {label:'Awaiting Approval',value:cnt('approval'),note:'Finance / Admin',icon:'bi-clock',go:'purchase_orders?tab=approval'},
+      {label:'To Receive',value:cnt('receive'),note:'Goods not fully received',icon:'bi-box-arrow-in-down',go:'purchase_orders?tab=receive'},
+      {label:'Completed',value:cnt('done'),note:'Received and settled',icon:'bi-check-circle',go:'purchase_orders?tab=done'}
+    ])}${UI.statusTabs('purchase_orders', q, 'tab', Object.entries(TABS).map(([key, [label]]) => [key, key === 'approval' && mine.length ? label + ' (' + mine.length + ' for you)' : label, cnt(key)]), tab)}
       ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }, { name: 'payment', label: 'Payment statuses', options: [...new Set(all.map(o => o.payment_status).filter(Boolean))].sort() }])}`;
-    const box = document.createElement('div'); ctx.el.append(box); box.classList.add('purchasing-records-card');
+    const box = document.createElement('div'); ctx.el.append(box);
+    const target = PurRef.recordBox(box,'Purchase Order Records','Approval and receiving status',rows.length);
     const open = (o) => PurUI.openPO(o, k);
-    box.innerHTML = UI.table([
+    target.innerHTML = UI.table([
       ['PO', 'po_ref', (v, o) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.date(o.created_at)}</div>`],
       ['Supplier', 'supplier', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
       ['Total', 'total_amount', 'money'],
@@ -508,13 +545,19 @@ App.page('inventory', {
     if (can.count && d.countsReady) PurUI.tool(ctx, 'Record stock count', 'bi-clipboard-check', () => PurUI.countForm(d));
     const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +p.quantity_on_hand <= 0);
     const counts = d.counts || [], pending = counts.filter(c => c.status === 'Submitted');
+    const inventoryCards = PurRef.cards([
+      {label:'Active Parts',value:active.length,note:'In masterlist',icon:'bi-boxes',go:'inventory?stock=active'},
+      {label:'Low / Out of Stock',value:low.length,note:'At or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
+      {label:'Inventory Units',value:UI.num(active.reduce((v,p)=>v+(+p.quantity_on_hand||0),0)),note:'Total units on hand',icon:'bi-collection'},
+      {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On hand × unit cost',icon:'bi-cash-coin'}
+    ]);
     const view = q.view === 'counts' ? 'counts' : 'parts';
     const cats = [...new Set(parts.map(p => p.category).filter(Boolean))].sort();
     const link = (extra) => 'inventory?' + new URLSearchParams(Object.fromEntries(Object.entries({ ...q, ...extra }).filter(([, v]) => v)));
     // UI_REFERENCE_V1: stock tabs (?stock=) and the Stock counts tab (?view=counts) instead of a KPI row.
     const stockKey = view === 'counts' ? '' : (['low', 'out', 'inactive', 'all'].includes(q.stock) ? q.stock : 'active');
     const tabBtn = (spec, label, n, on) => `<button type="button" role="tab" aria-selected="${on}" class="tab ${on ? 'active' : ''}" data-go="${UI.esc(spec)}">${UI.esc(label)} <span class="tab-count">${UI.num(n)}</span></button>`;
-    ctx.el.innerHTML = `<div class="line-tabs ws-status-tabs no-print" role="tablist">
+    ctx.el.innerHTML = inventoryCards + `<div class="line-tabs ws-status-tabs no-print" role="tablist">
         ${tabBtn(link({ view: '', stock: '' }), 'Active parts', active.length, stockKey === 'active')}${tabBtn(link({ view: '', stock: 'low' }), 'Low stock', low.length, stockKey === 'low')}
         ${tabBtn(link({ view: '', stock: 'out' }), 'Out of stock', out.length, stockKey === 'out')}${tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, stockKey === 'inactive')}
         ${d.countsReady ? tabBtn(link({ view: 'counts', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div>
