@@ -39,6 +39,7 @@ final class Oversight {
             'admin_finance' => self::finance($p, $q),
             'admin_reports' => self::executive($u, $p),
             'admin_analytics' => self::analytics($u, $p, $q),
+            'admin_descriptive_analytics', 'admin_diagnostic_analytics' => self::analytics($u, $p, $q),
             default => throw new BusinessRuleException('Unknown page.', 404),
         };
         $data['me'] = (int)$u['id'];
