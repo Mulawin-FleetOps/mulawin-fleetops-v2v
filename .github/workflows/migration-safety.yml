@@ -4,6 +4,8 @@ on:
     branches: [luis]
     paths:
       - 'scripts/migrate.php'
+      - 'backend/Modules/Accounting/Finance.php'
+      - 'public/assets/js/modules/accounting/finance.js'
       - 'scripts/lib/migration_sql.php'
       - 'scripts/lib/migration_release.php'
       - 'tests/migration_auto_checks.php'
@@ -19,6 +21,8 @@ on:
   pull_request:
     paths:
       - 'scripts/migrate.php'
+      - 'backend/Modules/Accounting/Finance.php'
+      - 'public/assets/js/modules/accounting/finance.js'
       - 'scripts/lib/migration_sql.php'
       - 'scripts/lib/migration_release.php'
       - 'tests/migration_auto_checks.php'
@@ -61,6 +65,8 @@ jobs:
       - name: PHP syntax lint
         run: |
           php -l scripts/migrate.php
+          php -l backend/Modules/Accounting/Finance.php
+          node --check public/assets/js/modules/accounting/finance.js
           php -l scripts/approve_migration.php
           php -l scripts/lib/migration_sql.php
           php -l scripts/lib/migration_release.php
