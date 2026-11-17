@@ -565,11 +565,14 @@ App.page('inventory', {
         ${d.countsReady && pending.length ? `${UI.num(pending.length)} stock count(s) wait for the Admin.` : ''}</div>
       ${d.countsReady ? '' : `<div class="alert alert-secondary small py-2"><i class="bi bi-lock me-1"></i> Direct stock adjustments are disabled. Stock changes only when a purchase order is received or parts are released.
         Physical count corrections need the stock count and review step (database update 2026-11-12_13, not applied yet).</div>`}`;
-    const box = document.createElement('div'); ctx.el.append(box); box.classList.add('purchasing-records-card');
+    const box = document.createElement('div'); ctx.el.append(box);
+    box.classList.add('purchasing-records-card','purchasing-ref-records');
+    box.insertAdjacentHTML('afterbegin', `<div class="purchasing-ref-records-head"><div><strong>${view === 'counts' ? 'Stock Count Records' : 'Inventory Records'}</strong><small>${UI.num(view === 'counts' ? counts.length : parts.length)} records</small></div><span>Availability and stock levels</span></div>`);
+    const body = document.createElement('div'); body.className='purchasing-ref-records-body'; box.append(body);
     if (view === 'counts') {
       const st = ['Submitted', 'Posted', 'Rejected'].includes(q.count) ? q.count : '';
       const rows = counts.filter(c => !st || c.status === st);
-      box.innerHTML = UI.generalFilters(ctx, [{ name: 'count', label: 'Count statuses', options: [['Submitted', 'Waiting for review'], ['Posted', 'Posted'], ['Rejected', 'Rejected']] }])
+      body.innerHTML = UI.generalFilters(ctx, [{ name: 'count', label: 'Count statuses', options: [['Submitted', 'Waiting for review'], ['Posted', 'Posted'], ['Rejected', 'Rejected']] }])
         + UI.table([
           ['Count', 'count_ref', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.datetime(c.counted_at)}</div>`],
           ['Part', 'part_number', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(c.description)}</div>`],
@@ -588,7 +591,7 @@ App.page('inventory', {
     const rows = parts.filter(p => (!q.category || p.category === q.category)
       && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +p.quantity_on_hand <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)));
     const openCount = new Set(pending.map(c => +c.part_id));
-    box.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
+    body.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
       + UI.table([
         ['Part no.', 'part_number', (v, p) => `<b>${UI.esc(v)}</b>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
         ['Description', 'description', (v, p) => `<span class="cell-clamp">${UI.esc(v)}</span>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`],
@@ -619,11 +622,12 @@ App.page('stock_movements', {
       ${UI.generalFilters(ctx, [{ name: 'part', label: 'Parts', options: parts }, { name: 'from', label: 'From date', type: 'date' }, { name: 'to', label: 'To date', type: 'date' }])}
       <div class="small text-muted mb-2">Shown: stock in <b>${UI.num(sum('Stock In'))}</b> units (${UI.money(val('Stock In'))}) · stock out <b>${UI.num(sum('Stock Out'))}</b> units (${UI.money(val('Stock Out'))})
         · ${UI.num(rows.filter(m => m.movement_type === 'Adjustment').length)} adjustment(s). Values use the unit cost recorded on each movement.</div>`;
-    const box = document.createElement('div'); ctx.el.append(box); box.classList.add('purchasing-records-card');
+    const box = document.createElement('div'); ctx.el.append(box);
+    const target = PurRef.recordBox(box,'Stock Movement Records','Stock in, stock out and adjustments',rows.length);
     const ref = (m) => m.reference_type === 'purchase_order' ? 'purchase_orders?open=' + m.reference_id : m.reference_type === 'part_request' ? 'parts_requests?open=' + m.reference_id
       : m.reference_type === 'stock_count' ? 'inventory?view=counts&open=' + m.reference_id : '';
     const refLabel = { purchase_order: ['Open purchase order', 'bi-cart-check'], part_request: ['Open parts request', 'bi-box-arrow-up'], stock_count: ['Open stock count', 'bi-clipboard-check'] };
-    box.innerHTML = UI.table([
+    target.innerHTML = UI.table([
       ['Date and time', 'created_at', 'datetime'],
       ['Part', 'part_number', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(m.description)}</div>`],
       ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => `<span class="cell-nowrap">${v > 0 ? '+' : ''}${UI.num(v)}</span>`],
