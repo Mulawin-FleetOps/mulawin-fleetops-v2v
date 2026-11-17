@@ -446,3 +446,15 @@
     text-align:center !important;
   }
 }
+
+/* Collapse must remove submenu label widths from flex layout.
+   Visibility:hidden alone left each invisible label taking up space,
+   pushing the visible icon to the left of center. */
+@media (min-width:992px) {
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > .nav-label {
+    display:none !important;
+    width:0 !important;
+    flex:none !important;
+  }
+}
