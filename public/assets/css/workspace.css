@@ -1113,3 +1113,20 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
  #pageContent .purchasing-live-v1 .mo-quickbar{align-items:flex-start;flex-direction:column;gap:10px}
  #pageContent .purchasing-live-v1 .purchasing-ref-records-head{padding:13px 15px}
 }
+
+/* PURCHASING_COMPACT_STATUS_TABS_V3 */
+/* Primary status choices are limited to three; the remaining statuses use an accessible select. */
+#pageContent .purchasing-live-v1 .purchasing-more-filter{
+  display:inline-flex;align-items:center;vertical-align:middle;margin:0 0 14px 9px;
+}
+#pageContent .purchasing-live-v1 .purchasing-more-filter .form-select{
+  min-width:160px;min-height:38px;border:1px solid #dce8df;border-radius:8px;
+  background-color:#fff;color:#486c54;font-size:12px;font-weight:650;padding:8px 30px 8px 11px;
+}
+#pageContent .purchasing-live-v1 .line-tabs.ws-status-tabs{
+  display:inline-flex;vertical-align:middle;max-width:100%;flex-wrap:wrap;margin-bottom:14px;
+}
+@media(max-width:650px){
+ #pageContent .purchasing-live-v1 .purchasing-more-filter{margin-left:0;display:flex;margin-top:0}
+ #pageContent .purchasing-live-v1 .purchasing-more-filter .form-select{min-width:150px;max-width:100%}
+}
