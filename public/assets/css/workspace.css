@@ -873,3 +873,65 @@ body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-mark
  #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
  #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {align-items:flex-start;flex-direction:column}
 }
+
+/* MOTORPOOL_COMPACT_MODAL_V6
+   Match the luis Operations/Admin field-form visual treatment. Only modal forms
+   opened from Motorpool content pages; no sidebar, reports, global shell styling. */
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-dialog {
+  max-width:min(760px,calc(100vw - 28px));
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-content {
+  overflow:hidden;border:1px solid #d6e6dc;border-radius:18px;
+  background:#f9fcfa;box-shadow:0 20px 70px rgba(8,50,31,.18);
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-header {
+  position:relative;display:flex;align-items:center;
+  padding:22px 28px 19px;background:linear-gradient(115deg,#f0f8f2,#fcfefd);
+  border-bottom:1px solid #e2ebe5;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-title {
+  font-size:19px;font-weight:750;line-height:1.3;letter-spacing:-.25px;color:#184c32;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {
+  padding:23px 28px 25px;background:#f9fcfa;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-intro {
+  margin:0 0 20px;padding:12px 14px;background:#f0f7f2;
+  border:1px solid #d9e8de;border-radius:10px;color:#486b55;
+  font-size:12px;line-height:1.6;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body > .row {
+  row-gap:15px!important;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-label {
+  margin-bottom:7px;color:#335744;font-size:12px;font-weight:680;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-control,
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-select {
+  min-height:42px;padding:9px 12px;border-radius:9px;
+  border-color:#d2e1d7;background-color:#fff;color:#294735;font-size:12.5px;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) textarea.form-control {
+  min-height:95px;resize:vertical;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-control:focus,
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-select:focus {
+  border-color:#70b48a;box-shadow:0 0 0 3px rgba(42,136,76,.13);
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-help {
+  font-size:11px;color:#809385;margin-top:5px;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {
+  gap:8px;padding:14px 28px;border-top:1px solid #e2ebe5;background:#fff;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer .btn {
+  min-height:37px;padding:8px 15px;border-radius:9px;font-size:12px;font-weight:700;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .pl-row {
+  padding:8px 0;border-bottom:1px solid #e8efe9;
+}
+@media(max-width:650px) {
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-header {padding:18px 20px}
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {padding:18px 20px}
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {padding:12px 20px}
+}
