@@ -4,9 +4,11 @@
  * Usage (CLI only): php scripts/migrate.php --status [default]
  *                   php scripts/migrate.php --apply
  *                   php scripts/migrate.php --auto (requires trusted release receipt)
- * Applying requires server .env flags MIGRATIONS_ENABLED=1,
- * MIGRATIONS_EXPECTED_DB, MIGRATIONS_APPROVED_IDS and MIGRATIONS_BACKUP_VERIFIED=1.
- * Do not schedule --apply until deployment/backup checks are implemented.
+ * Manual apply requires MIGRATIONS_ENABLED=1, MIGRATIONS_EXPECTED_DB,
+ * MIGRATIONS_APPROVED_IDS and MIGRATIONS_BACKUP_VERIFIED=1.
+ * Auto apply requires MIGRATIONS_ENABLED=1, MIGRATIONS_EXPECTED_DB,
+ * MIGRATIONS_AUTO_PRIVATE_DIR outside public_html, stable code/files,
+ * hash-pinned SQL approvals, and a fresh private backup.
  *
  */
 declare(strict_types=1);
@@ -24,6 +26,8 @@ $apply = $mode === '--apply' || $mode === '--auto';
 // Keep parser unit-testable without loading application/database settings.
 require __DIR__ . '/lib/migration_sql.php';
 require __DIR__ . '/lib/migration_release.php';
+require __DIR__ . '/lib/migration_backup.php';
+require __DIR__ . '/lib/migration_auto.php';
 
 try {
     $p = db();
@@ -58,28 +62,19 @@ try {
         echo "Read-only status; no SQL executed.\n";
         exit(0);
     }
-    if ($mode === '--auto') {
-        if ($pending === []) {
-            echo "No pending migrations; nothing to apply.\n";
-            exit(0);
-        }
-        $receiptPath = envValue('MIGRATIONS_RELEASE_RECEIPT');
-        if ($receiptPath === '') {
-            throw new RuntimeException('Automatic migration blocked: trusted post-deployment receipt path is not configured.');
-        }
-        // The receipt must be generated independently on Hostinger AFTER confirmed
-        // deployment and backup completion, and stored outside the deployed tree.
-        migrationReleaseCheck(dirname(__DIR__), $receiptPath, $pending);
-    } else {
-        // Manual apply requires an explicit operator attestation.
-        if (envValue('MIGRATIONS_BACKUP_VERIFIED') !== '1') {
-            throw new RuntimeException('Explicit backup verification required before applying migrations.');
-        }
+    if ($mode === '--auto' && $pending === []) {
+        echo "No pending migrations; nothing to apply.\n";
+        exit(0);
     }
-    $approved = array_filter(array_map('trim', explode(',', envValue('MIGRATIONS_APPROVED_IDS'))));
-    foreach ($pending as $file) {
-        $id = basename($file, '.sql');
-        if (!in_array($id, $approved, true)) throw new RuntimeException("Unapproved migration: $id");
+    if ($mode !== '--auto') {
+        if (envValue('MIGRATIONS_BACKUP_VERIFIED') !== '1') {
+            throw new RuntimeException('Explicit backup verification required for manual apply.');
+        }
+        $approved = array_filter(array_map('trim', explode(',', envValue('MIGRATIONS_APPROVED_IDS'))));
+        foreach ($pending as $file) {
+            $id = basename($file, '.sql');
+            if (!in_array($id, $approved, true)) throw new RuntimeException("Unapproved migration: $id");
+        }
     }
     // Pre-parse *all* pending files before starting any DDL. This prevents
     // later unsupported SQL from being discovered after earlier DDL commits.
@@ -91,6 +86,41 @@ try {
         if (migrationSqlStatements($raw) === []) {
             throw new RuntimeException('No SQL statements in: ' . basename($file));
         }
+    }
+    if ($mode === '--auto') {
+        $private = envValue('MIGRATIONS_AUTO_PRIVATE_DIR');
+        if ($private === '') throw new RuntimeException('MIGRATIONS_AUTO_PRIVATE_DIR not configured.');
+        $private = realpath($private);
+        if (!$private || !is_dir($private)) throw new RuntimeException('Private backup directory missing.');
+        if (is_file($private . '/migration-failed.lock')) {
+            throw new RuntimeException('Previous migration failed; manual schema reconciliation required.');
+        }
+        $ready = migrationAutoPrepare(dirname(__DIR__), $pending, $private, 300);
+        if ($ready === null) {
+            echo "Deployed files are settling; no SQL applied.\n";
+            exit(0);
+        }
+        $backup = migrationMakeBackup($p, $private, $database);
+        $receipt = $private . '/deployment-receipt.json';
+        $payload = [
+            'ready_at' => time(),
+            'files' => $ready['files'],
+            'backup_path' => $backup['backup_path'],
+            'backup_sha256' => $backup['backup_sha256'],
+        ];
+        $receiptTemp = $receipt . '.tmp';
+        if (file_put_contents($receiptTemp, json_encode($payload, JSON_THROW_ON_ERROR), LOCK_EX) === false) {
+            throw new RuntimeException('Cannot write backup receipt.');
+        }
+        chmod($receiptTemp, 0600);
+        if (!rename($receiptTemp, $receipt)) throw new RuntimeException('Cannot finalize receipt.');
+        migrationReleaseCheck(dirname(__DIR__), $receipt, $pending);
+        // Recheck that the deployment did not change during the backup.
+        $again = migrationAutoPrepare(dirname(__DIR__), $pending, $private, 300);
+        if ($again === null || $again['digest'] !== $ready['digest']) {
+            throw new RuntimeException('Deployment changed while backing up; migration blocked.');
+        }
+        echo "Verified private backup: " . basename($backup['backup_path']) . "\n";
     }
     $ran = 0;
     foreach ($files as $file) {
@@ -127,8 +157,10 @@ try {
             $ran++;
         } catch (Throwable $e) {
             echo "FAILED\n";
-            fwrite(STDERR, "Error in $name.sql: " . $e->getMessage() . "\n");
-            exit(1);
+            if ($mode === '--auto' && isset($private)) {
+                file_put_contents($private . '/migration-failed.lock', date(DATE_ATOM) . ' ' . $name . "\n", LOCK_EX);
+            }
+            throw $e;
         }
     }
 
