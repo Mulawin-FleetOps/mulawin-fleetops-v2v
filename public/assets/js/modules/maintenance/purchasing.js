@@ -455,7 +455,7 @@ App.page('parts_requests', {
   title: 'Parts Requests',
   subtitle: 'Review requests and track parts availability.',
   render(ctx) {
-    ctx.el.classList.add('purchasing-live-v1');
+    ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-parts-requests');
     const { d, k } = PurUI.prep(ctx), q = ctx.query, all = d.requests || [];
     const TABS = { todo: ['To process', r => r.status === 'Requested'], followup: ['Follow up', r => ['Partially Released', 'Not Available'].includes(r.status)],
       released: ['Released', r => r.status === 'Released'], cancelled: ['Cancelled', r => r.status === 'Cancelled'], all: ['All', () => true] };
@@ -495,7 +495,7 @@ App.page('purchase_orders', {
   title: 'Purchase Orders',
   subtitle: 'Follow approvals and received deliveries.',
   render(ctx) {
-    ctx.el.classList.add('purchasing-live-v1');
+    ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-purchase-orders');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query, all = d.orders || [];
     if (can.stock) PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => PurUI.newPO());
     const TABS = { approval: ['Awaiting approval', o => o.status === 'Pending Approval'], receive: ['To receive', o => ['Approved', 'Partially Received'].includes(o.status)],
@@ -544,7 +544,7 @@ App.page('inventory', {
   title: 'Inventory',
   subtitle: 'See current stock and item availability.',
   render(ctx) {
-    ctx.el.classList.add('purchasing-live-v1');
+    ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-inventory');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query;
     if (can.stock) PurUI.tool(ctx, 'Add part', 'bi-plus-lg', () => k.partForm(), 'btn-outline-secondary');
     if (can.count && d.countsReady) PurUI.tool(ctx, 'Record stock count', 'bi-clipboard-check', () => PurUI.countForm(d));
@@ -613,7 +613,7 @@ App.page('stock_movements', {
   title: 'Stock Movements',
   subtitle: 'Review stock changes and their source transactions.',
   render(ctx) {
-    ctx.el.classList.add('purchasing-live-v1');
+    ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-stock-movements');
     const { d } = PurUI.prep(ctx), q = ctx.query, all = d.movements || [];
     const parts = [...new Set(all.map(m => m.part_number))].sort();
     const rows = all.filter(m => (!q.type || m.movement_type === q.type) && (!q.part || m.part_number === q.part)
