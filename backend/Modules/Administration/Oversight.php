@@ -39,7 +39,7 @@ final class Oversight {
             'admin_finance' => self::finance($p, $q),
             'admin_reports' => self::executive($u, $p),
             'admin_analytics' => self::analytics($u, $p, $q),
-            'admin_descriptive_analytics', 'admin_diagnostic_analytics' => self::analytics($u, $p, $q),
+            'admin_descriptive_analytics', 'admin_diagnostic_analytics' => self::analyticsWithReports($u, $p, $q),
             default => throw new BusinessRuleException('Unknown page.', 404),
         };
         $data['me'] = (int)$u['id'];
@@ -434,6 +434,25 @@ final class Oversight {
      * diagnostic (what contributed) and prescriptive (rule-based suggestions). Each chart keeps one unit; every dataset
      * comes from recorded rows; Maintenance and Purchasing reuse their validated report logic.
      */
+    /** A single admin-only report entry point; reuse the established calculation owners. */
+    private static function analyticsWithReports(array $u, PDO $p, array $q): array {
+        $data = self::analytics($u, $p, $q);
+        $kind = (string)($q['report'] ?? 'management');
+        $allowed = ['management', 'general', 'maintenance', 'purchasing', 'audit'];
+        if (!in_array($kind, $allowed, true)) $kind = 'management';
+        $data['reportKind'] = $kind;
+        $data['reportData'] = readSections(['result' => static function () use ($kind, $u, $p, $q) {
+            if ($kind === 'management') return self::executive($u, $p);
+            if ($kind === 'audit') { Actions::load('Admin'); return Admin::read($u, 'audit_reports', $q); }
+            Actions::load('Analytics');
+            return Analytics::read($u, match ($kind) {
+                'general' => 'reports', 'maintenance' => 'maintenance_reports',
+                default => 'purchasing_reports'
+            }, $q);
+        }])['result'] ?? [];
+        return $data;
+    }
+
     private static function analytics(array $u, PDO $p, array $q): array {
         Actions::load('Analytics');
         $topic = in_array($q['topic'] ?? '', ['operations', 'maintenance', 'purchasing', 'finance'], true) ? $q['topic'] : 'operations';
