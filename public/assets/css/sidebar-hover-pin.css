@@ -468,7 +468,7 @@
   z-index:1050;
   background:#12553F !important;
   background-image:none !important;
-  border-bottom:1px solid #0C422F !important;
+  border-bottom:2px solid #448B6A !important;
   box-shadow:0 2px 9px rgba(7,61,40,.13);
   color:#fff !important;
   backdrop-filter:none;
@@ -556,4 +556,25 @@
 @media (max-width:991.98px) {
   #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {display:none !important;}
   #appShell.sidebar-manual-toggle > .main > .topbar {padding-left:12px;}
+}
+
+/* Shared header sizing and navigation edge detail: all authenticated roles. */
+#appShell.sidebar-manual-toggle {
+  --topbar-h:64px;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar {
+  height:64px !important;
+  min-height:64px !important;
+}
+#appShell.sidebar-manual-toggle > .sidebar {
+  border-right:2px solid #448B6A !important;
+}
+#appShell.sidebar-manual-toggle > .sidebar .sidebar-top {
+  border-bottom:1px solid rgba(181,221,196,.36) !important;
+}
+@media (max-width:991.98px) {
+  #appShell.sidebar-manual-toggle > .main > .topbar {
+    height:64px !important;
+    min-height:64px !important;
+  }
 }
