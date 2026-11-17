@@ -16,8 +16,8 @@ if (PHP_SAPI !== 'cli') exit('CLI only');
 require dirname(__DIR__) . '/backend/bootstrap.php';
 
 $args = array_slice($argv, 1);
-if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply', '--auto'], true)) {
-    fwrite(STDERR, "Usage: php scripts/migrate.php [--status|--apply|--auto]\n");
+if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply', '--auto', '--backup-test'], true)) {
+    fwrite(STDERR, "Usage: php scripts/migrate.php [--status|--apply|--auto|--backup-test]\n");
     exit(2);
 }
 $mode = $args[0] ?? '--status';
@@ -33,6 +33,25 @@ try {
     $p = db();
     $database = (string)$p->query('SELECT DATABASE()')->fetchColumn();
     if ($database === '') throw new RuntimeException('No database selected.');
+    if ($mode === '--backup-test') {
+        if (envValue('MIGRATIONS_EXPECTED_DB') === '' ||
+            envValue('MIGRATIONS_EXPECTED_DB') !== $database) {
+            throw new RuntimeException('Backup preflight database does not match MIGRATIONS_EXPECTED_DB.');
+        }
+        $privateConfigured = envValue('MIGRATIONS_AUTO_PRIVATE_DIR');
+        $privatePath = $privateConfigured !== ''
+            ? $privateConfigured
+            : dirname(dirname(__DIR__)) . '/.fleetops-migration-private';
+        if (!is_dir($privatePath) && !mkdir($privatePath,0700,true) && !is_dir($privatePath)) {
+            throw new RuntimeException('Cannot initialize private backup directory.');
+        }
+        $backup = migrationMakeBackup($p, $privatePath, $database);
+        echo 'Backup test successful. File: ' . $backup['backup_path'] . "\n";
+        echo 'SHA-256: ' . $backup['backup_sha256'] . "\n";
+        echo 'Bytes: ' . $backup['bytes'] . "\n";
+        echo "No migrations executed. Restore test still required before treating backup as recoverable.\n";
+        exit(0);
+    }
     if ($apply) {
         if (envValue('MIGRATIONS_ENABLED') !== '1') throw new RuntimeException('Migration application is disabled.');
         if (envValue('MIGRATIONS_EXPECTED_DB') === '' || envValue('MIGRATIONS_EXPECTED_DB') !== $database) {
