@@ -456,9 +456,6 @@ App.page('maintenance', {
       }
     } catch { /* storage unavailable: stay on Repair Management */ }
     if (d.can.act) UI.tool(ctx, 'Report truck problem', () => MaintUI.report(), 'bi-plus-lg', 'primary');
-    if (d.can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-box-seam');
-    if (d.can.act && UI.canGo('mp_parts_requests')) UI.tool(ctx, 'Parts requests', () => App.go('mp_parts_requests'), 'bi-list-check');
-     if (UI.canGo('mechanic_attendance')) UI.tool(ctx, 'Mechanic attendance', () => App.go('mechanic_attendance'), 'bi-clock-history');
     const q = ctx.query;
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     // STAGE_A_MOTORPOOL_UI: filters (truck, source, mechanic, stage). Field names = URL keys, so a filter survives a reload and can be linked.
@@ -532,11 +529,13 @@ App.page('maintenance', {
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     const label = TABS.find(t => t[0] === tab)[1];
-    box.classList.add('mp-reference-table');
-    if (tab === 'done') box.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
-    else if (tab === 'all') box.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
+    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Repair Records</strong><small>${UI.num(shownJobs.length)} matching record${shownJobs.length === 1 ? '' : 's'}</small></div><small>Truck maintenance and verification</small></div>`);
+    const tableBody = document.createElement('div'); box.append(tableBody);
+    if (tab === 'done') tableBody.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
+    else if (tab === 'all') tableBody.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
     else { const rows = view ? open.filter(view[1]) : open.filter(j => j.status !== 'Completed');
-      box.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
+      tableBody.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
     if (once.open) MaintUI.open(once.open);
@@ -624,8 +623,8 @@ App.page('mp_parts_requests', {
     };
     const box = document.createElement('div');
     ctx.el.append(box);
-    box.classList.add('mp-reference-table');
-    box.innerHTML = UI.table(cols, shown, { ...opt, title: TABS.find(t => t[0] === key)[1] + ' (' + shown.length + ')',
+    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.innerHTML = `<div class="mp-records-heading"><div><strong>Parts Request Records</strong><small>${UI.num(shown.length)} matching request${shown.length === 1 ? '' : 's'}</small></div><small>Requested items and release progress</small></div>` + UI.table(cols, shown, { ...opt, title: TABS.find(t => t[0] === key)[1] + ' (' + shown.length + ')',
       empty: rows.length ? 'No parts request in this list.' : 'No parts requests yet. Use Request parts on a repair record.' });
     const once = UI.takeQuery(ctx, 'open');
     if (once.open) {
