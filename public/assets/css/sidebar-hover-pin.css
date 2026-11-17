@@ -458,3 +458,93 @@
     flex:none !important;
   }
 }
+
+
+/* 2026-11-18 shared FleetOps header/navigation refresh.
+   Scoped to the authenticated shell only; account navigation and module workflows are unchanged. */
+#appShell.sidebar-manual-toggle > .main > .topbar {
+  position:sticky;
+  top:0;
+  z-index:1050;
+  background:#087A52 !important;
+  background-image:none !important;
+  border-bottom:1px solid #076747 !important;
+  box-shadow:0 2px 9px rgba(7,61,40,.13);
+  color:#fff !important;
+  backdrop-filter:none;
+  overflow:visible;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs a,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .bi,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumb-page {
+  color:#fff !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs { opacity:1; }
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs a:hover { color:#e7fff1 !important; }
+#appShell.sidebar-manual-toggle > .main > .topbar .icon-btn,
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
+  color:#fff !important;
+  border-color:rgba(255,255,255,.22) !important;
+  background:rgba(255,255,255,.07) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .icon-btn:hover,
+#appShell.sidebar-manual-toggle > .main > .topbar .icon-btn:focus-visible {
+  background:rgba(255,255,255,.17) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn {
+  background:rgba(255,255,255,.96) !important;
+  border:1px solid rgba(255,255,255,.74) !important;
+  color:#154A33 !important;
+  border-radius:11px;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn:hover {
+  background:#fff !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-name {color:#164B35 !important;}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-role {color:#617D6E !important;}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .avatar {
+  color:#17633F !important;
+  background:#E5F2E7 !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell-count {
+  border-color:#087A52 !important;
+}
+@media (min-width:992px) {
+  #appShell.sidebar-manual-toggle > .main > .topbar { position:sticky; }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {
+    position:absolute !important;
+    left:0;
+    top:50%;
+    transform:translate(-50%,-50%);
+    z-index:1060;
+    display:inline-flex !important;
+    align-items:center;
+    justify-content:center;
+    width:38px;
+    height:38px;
+    padding:0;
+    border-radius:50%;
+    background:#fff !important;
+    border:2px solid #DCE8DE !important;
+    box-shadow:0 2px 8px rgba(11,51,30,.19);
+    color:#126844 !important;
+    cursor:pointer;
+  }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle:hover {
+    background:#EAF6EE !important;
+    box-shadow:0 3px 10px rgba(11,51,30,.22);
+  }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle:focus-visible {
+    outline:3px solid #B5DDC5;
+    outline-offset:3px;
+  }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle .bi {font-size:16px;line-height:1;}
+  #appShell.sidebar-manual-toggle.sb-collapsed.sb-hover-open > .sidebar {width:var(--sidebar-rail) !important;box-shadow:none;}
+  #appShell.sidebar-manual-toggle.sb-collapsed.sb-hover-open > .main {margin-left:var(--sidebar-rail) !important;}
+  #appShell.sidebar-manual-toggle .sidebar-top #sbCollapse {display:none !important;}
+}
+@media (max-width:991.98px) {
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {display:none !important;}
+  #appShell.sidebar-manual-toggle > .main > .topbar {padding-left:12px;}
+}

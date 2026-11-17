@@ -465,18 +465,17 @@ const App = {
     // both Dispatchers, Motorpool, Purchasing, Finance, Billing and Audit).
     // The server-provided me.nav still exclusively controls available links.
     const executiveSidebar = true;
-    // The approved demo pin model: compact rail by default, persistent per-role pin.
-    // Legacy collapse settings are intentionally not consulted.
-    const pinKey = 'fleetops-sidebar-pinned-' + u.role;
-    let pinned = false;
-    try { pinned = localStorage.getItem(pinKey) === '1'; } catch { /* storage unavailable */ }
+    // Shared desktop navigation: expanded by default, click to minimize.
+    // A fresh preference key intentionally ignores the old hover/pin choice.
+    const pinKey = 'fleetops-sidebar-minimized-v3-' + u.role;
+    let pinned = true;
+    try { pinned = localStorage.getItem(pinKey) !== '1'; } catch { /* storage unavailable */ }
     const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar sidebar-manual-toggle${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
-          ${ws || executiveSidebar ? `<button type="button" class="sb-collapse sb-desktop" id="sbCollapse" aria-label="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" title="${pinned ? 'Unpin sidebar' : 'Pin sidebar open'}" aria-pressed="${pinned}"><i class="bi ${pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}" aria-hidden="true"></i></button>
-            ${ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : ''}` : ''}</div>
+          ${ws || executiveSidebar ? (ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : '') : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
         <div class="sidebar-logout-wrap no-print">
           <button type="button" class="sidebar-logout-button" id="sidebarLogout" aria-label="Log out" title="Log out">
@@ -487,6 +486,7 @@ const App = {
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <div class="main">
         <header class="topbar no-print">
+          <button type="button" class="sb-border-toggle sb-desktop" id="sbCollapse" aria-label="${pinned ? 'Minimize sidebar' : 'Expand sidebar'}" title="${pinned ? 'Minimize sidebar' : 'Expand sidebar'}" aria-expanded="${pinned}" aria-controls="appSidebar"><i class="bi ${pinned ? 'bi-chevron-left' : 'bi-chevron-right'}" aria-hidden="true"></i></button>
           <button class="icon-btn d-lg-none" id="menuBtn" type="button" aria-label="Open the menu"><i class="bi bi-list"></i></button>
           <div class="crumbs" id="crumbs"></div>
           <div class="topbar-actions">
@@ -539,19 +539,19 @@ const App = {
     const syncPinButton = () => {
       const on = appShell.classList.contains('sb-pinned');
       if (!pinButton) return;
-      pinButton.setAttribute('aria-pressed', String(on));
-      pinButton.setAttribute('aria-label', on ? 'Unpin sidebar' : 'Pin sidebar open');
-      pinButton.title = on ? 'Unpin sidebar' : 'Pin sidebar open';
-      pinButton.querySelector('i')?.classList.toggle('bi-pin-angle-fill', on);
-      pinButton.querySelector('i')?.classList.toggle('bi-pin-angle', !on);
+      pinButton.setAttribute('aria-expanded', String(on));
+      pinButton.setAttribute('aria-label', on ? 'Minimize sidebar' : 'Expand sidebar');
+      pinButton.title = on ? 'Minimize sidebar' : 'Expand sidebar';
+      pinButton.querySelector('i')?.classList.toggle('bi-chevron-left', on);
+      pinButton.querySelector('i')?.classList.toggle('bi-chevron-right', !on);
     };
     pinButton?.addEventListener('click', () => {
       const next = !appShell.classList.contains('sb-pinned');
       appShell.classList.toggle('sb-pinned', next);
       appShell.classList.toggle('sb-collapsed', !next);
-      // The pinned state reserves space; the unpinned state overlays on hover.
-      appShell.classList.toggle('sb-hover-open', !next && sb.matches(':hover') && !document.hidden);
-      try { localStorage.setItem(pinKey, next ? '1' : '0'); } catch { /* storage unavailable */ }
+      // Both desktop states reserve their own width; never expand on hover.
+      appShell.classList.remove('sb-hover-open');
+      try { localStorage.setItem(pinKey, next ? '0' : '1'); } catch { /* storage unavailable */ }
       document.querySelector('.executive-sidebar-flyout')?.remove();
       syncPinButton();
       resetCollapsedNavScroll();
@@ -568,7 +568,7 @@ const App = {
     const enterHover = (immediate = false) => {
       clearTimeout(hoverTimers.leave);
       clearTimeout(hoverTimers.enter);
-      if (document.hidden || !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
+      if (appShell.classList.contains('sidebar-manual-toggle') || document.hidden || !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
       const show = () => {
         if (this._sidebarHoverTimers !== hoverTimers || document.hidden ||
             !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
