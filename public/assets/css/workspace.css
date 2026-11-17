@@ -1273,3 +1273,66 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
   #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{min-width:125px;max-width:100%}
 }
+
+/* FLEETOPS_GLOBAL_RECORD_DESIGN_V1 */
+/* Shared table typography and toolbars for FleetOps pages — no forced table width,
+   so role-specific Administration, Operations, and Purchasing layouts remain intact.
+   Applies only to records rendered in #pageContent (never popups or login screens). */
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar){
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 15px;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar) .table-search{
+  flex:1 1 280px;min-width:170px;max-width:none;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar) .table-search .form-control{
+  min-height:40px;font-size:13px;border-radius:8px;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  flex:0 1 auto;width:auto;min-height:0;margin:0;padding:0;
+  background:transparent;border:0;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters :is(.form-select,.form-control){
+  min-height:39px;min-width:142px;max-width:210px;
+  width:auto;font-size:12.5px;margin:0;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters input[type=date]{
+  min-width:145px;max-width:175px;
+}
+#pageContent .fleet-unified-record-toolbar :is(.ws-filter-reset,.ref-reset,.table-count){
+  margin:0;white-space:nowrap;
+}
+/* Shared visual rhythm, preserving every module's chosen column widths. */
+#pageContent .data-table{
+  font-size:13px;line-height:1.45;
+}
+#pageContent .data-table th{
+  font-size:12px;font-weight:700;letter-spacing:0;
+  padding-block:12px;
+}
+#pageContent .data-table td{
+  font-size:13px;line-height:1.45;
+  padding-block:13px;
+}
+#pageContent .data-table .cell-sub{
+  font-size:11.5px;line-height:1.4;margin-top:3px;
+}
+#pageContent .data-table :is(.badge-s,.status-badge){
+  font-size:11.5px;
+}
+#pageContent .table-count,
+#pageContent .pager-info{
+  font-size:12px;
+}
+#pageContent :is(.ref-toolbar,.table-tools) :is(.btn,.ref-reset){
+  min-height:35px;
+}
+#pageContent .data-table .row-icons,
+#pageContent .data-table .row-actions{
+  display:inline-flex;align-items:center;gap:6px;
+}
+@media(max-width:800px){
+  #pageContent .fleet-unified-record-toolbar .table-search{flex:1 1 100%}
+  #pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{flex:1 1 auto}
+}
