@@ -1,61 +1,58 @@
-# FleetOps migration automation — guarded rollout
+# FleetOps Hostinger automatic SQL migration rollout
 
-**Current status:** GitHub source, isolated MySQL tests, and guarded `--auto` mode prepared; **automatic production migration is NOT active**.
-Hostinger Single Web Hosting has PHP Cron Jobs, but there is no verified post-deployment receipt producer or unattended per-release backup mechanism yet. Keep the current deployment auto-trigger and migration cron disabled.
+## Current deployment
+- Hostinger Git auto-deployment: ON; repository Mulawin-FleetOps/mulawin-fleetops-v2v; branch luis.
+- Live PHP Cron Job currently runs the **read-only** migration status checker.
+- Database: u826906339_mulawin_test (verified from CLI output).
+- Live path: /home/u826906339/domains/azure-mosquito-762573.hostingersite.com/public_html/scripts/migrate.php
+- Migration history and schema 17,18,19 were previously verified; do not reapply them.
+- Do not assert live auto-apply is active before the release preflight and the cron replacement are confirmed.
 
-## What was changed
+## What is implemented on luis
+- --status: displays database and pending migration files, never modifies schema.
+- --backup-test: creates a private SQL snapshot, verifies its SHA-256 and closing marker, changes no schema.
+- --apply: explicit manual apply with ID allowlist, expected database, and operator backup attestation.
+- --auto: unattended mode with exact database match, MySQL GET_LOCK, hash-approved SQL files, quiet-period verification, PHP InnoDB backup, SHA-256 verification, post-backup file recheck, failure lock on partial migration, and migration history.
+- scripts/approve_migration.php: developer authorizes a new SQL file hash before it can run automatically. Commit approved.json with the SQL.
+- GitHub Actions migration-safety.yml tests parser, approval/stability, backup and full migration application against disposable MySQL.
 
-- `scripts/migrate.php`: CLI-only; default is read-only `--status`. `--apply` and `--auto` need explicit environment checks below. Pending SQL files are parsed before executing any DDL. A MySQL advisory lock prevents overlapping runs of this runner. On a failed migration, execution stops and its history entry is not added by the runner.
-- `scripts/lib/migration_sql.php`: offline-testable SQL splitter; rejects unsupported mysql-client directives and routines/triggers.
-- `tests/migration_safety_checks.php`: no-database parser and guard tests.
-- `.github/workflows/migration-safety.yml`: PHP 8.2 lint, offline parser checks, and disposable MySQL integration tests. Never connects to Hostinger production or deploys.
-
-## Command safety
-
-```sh
-php scripts/migrate.php --status    # default; reads pending migrations, no changes
-php scripts/migrate.php --apply     # manual, with explicit approval
-php scripts/migrate.php --auto      # unattended; fail-closed without post-deploy receipt
-```
-
-Manual applying is disabled unless **all** server-side `.env` values are set:
-```dotenv
+## One-time Hostinger settings after CI succeeds
+Edit the PRIVATE server-side public_html/.env file; preserve all existing credentials.
+Add these values:
 MIGRATIONS_ENABLED=1
-MIGRATIONS_EXPECTED_DB=<verified actual target database>
-MIGRATIONS_APPROVED_IDS=<explicit comma-separated migration IDs reviewed for this deployment>
-MIGRATIONS_BACKUP_VERIFIED=1
-```
+MIGRATIONS_EXPECTED_DB=u826906339_mulawin_test
 
-Unattended `--auto` requires `MIGRATIONS_ENABLED=1`, `MIGRATIONS_EXPECTED_DB`, and exact `MIGRATIONS_APPROVED_IDS`, plus a server-side `MIGRATIONS_RELEASE_RECEIPT` absolute path to a JSON receipt **outside** the deployed application. This receipt must be written by an independently trusted post-deployment process **after Git deployment completes and a fresh database backup is made**. It must contain:
-- `ready_at`: Unix timestamp of completion (max 60 minutes old)
-- `files`: map of **all pending migration basenames** to the SHA-256 hashes of their final deployed contents
-- `backup_path`: absolute path of backup file **outside** deployed tree
-- `backup_sha256`: SHA-256 of the backup file
+No permanent backup attestation is needed for --auto. The default private backup directory is:
+ /home/u826906339/domains/azure-mosquito-762573.hostingersite.com/.fleetops-migration-private
+It is created automatically with restricted permissions and is **outside public_html**.
+Do not put SQL backups in public_html.
 
-The runner verifies file hashes, timestamps, backup path and checksum, and fails closed when any check is absent or wrong. **A SHA-256 match only verifies file integrity, not that a SQL backup is complete or restorable.** The external producer must actually verify backup completion and restoration feasibility. The Hostinger hPanel Git integration does not expose a verified post-deployment hook in the official documentation consulted, and no such trusted producer has been configured, so **DO NOT schedule `--auto` yet**.
+Run a one-time PHP Cron Job with:
+ /usr/bin/php /home/u826906339/domains/azure-mosquito-762573.hostingersite.com/public_html/scripts/migrate.php --backup-test
+Review output: the command must finish successfully, produce a SQL file with SHA-256, and execute NO migrations.
+Review backup size, available disk and restore the backup in a disposable environment before production activation.
+The CI restore test only verifies the disposable fixture, NOT production database recoverability.
+If the database contains views, routines, events, triggers or non-InnoDB tables, built-in backup deliberately refuses to continue; establish verified native MySQL backups instead. If it fails, DO NOT enable --auto.
 
-Never commit real `.env` secrets. `MIGRATIONS_BACKUP_VERIFIED` is a *manual attestation*, not automatic backup verification. Do not leave it permanently enabled for unattended cron execution. MySQL DDL may commit even if later statements fail; the advisory lock and tracking table cannot undo partial DDL.
+Once backup preflight and CI are green, replace the existing read-only cron job with:
+ /usr/bin/php /home/u826906339/domains/azure-mosquito-762573.hostingersite.com/public_html/scripts/migrate.php --auto
+Schedule: * * * * * (every minute), if Hostinger allows.
+Do not run parallel cron entries executing --apply or --auto.
 
-## Known rollout blockers (2026-11-17)
+## Future SQL releases (developer workflow)
+1. Add a SQL file to database/migrations using the standard naming convention. It should be backward-compatible with the newly deployed application.
+2. Review SQL for irreversible/destructive operations. Confirm compatibility with existing production data.
+3. Run locally: php scripts/approve_migration.php 2026-11-XX_20_example.sql
+4. Commit BOTH the migration .sql and database/migrations/approved.json in the same GitHub push to luis.
+5. GitHub Actions checks the release; Hostinger deploys luis automatically.
+6. The scheduled --auto runner detects the approved pending SQL, waits at least five minutes for the relevant deployed files to remain unchanged, then takes a private backup before applying.
+7. On failure, the runner leaves migration-failed.lock in the private directory. **Manual diagnosis and schema/history reconciliation** are required before retrying; never delete the lock without investigating.
+8. Review the Hostinger Cron output and database history to verify completion.
 
-1. **Updated status:** User verified on Hostinger `u826906339_mulawin_test` that migrations 17, 18 and 19 are all recorded and their corresponding schema objects exist (1/1/1 check). No need to re-run these migrations.
-2. An older read of migration history/schema disagreed with the later verification; future rollout must always compare the actual target schema with migration history.
-3. `database/schema.sql` defines `dispatcher_truck_types`, while `database/extension.sql` also includes an unconditional `ALTER TABLE` to add it, along with other historical alters. A fresh import of these unchanged files is not a reliable migration test baseline.
-4. No approved repeatable tested deployment completion signal, automatic backup/restore verification, or unattended production rollout workflow exists. **Do not enable a migration cron yet.**
-
-## Required before production activation
-
-1. Verify which Git ref Hostinger deploys, its working directory, and that the deployed commit is complete before invoking the runner. Do not assume a scheduled cron fires after deployment.
-2. Review the GitHub CI disposable MySQL integration test results. Expand tests to include intentionally failing and interrupted migrations before unattended activation. Never test destructive scenarios against an existing user database.
-3. Recheck real schema/history together before every release; no schema-history mismatch remained for migrations 17–19 at the user's latest verification.
-4. Establish automated, verified per-deployment backups and rehearse recovery. Enforce approval for each migration release.
-5. Configure and validate an independently trusted post-deployment receipt producer and verified per-release backup process; validate on staging before switching the existing single cron from `--status` to `--auto`. Record error output and monitor failures.
-6. Only then consider setting `MIGRATIONS_ENABLED=1` for an approved release. Avoid indefinite broad migration approval.
-
-## GitHub CI
-
-Open **Actions → PHP Migration Safety** on GitHub and inspect the latest run. CI includes a disposable minimal-schema integration test for migrations 17–19. It does **not** establish that all future migrations will be safe against full production schema, nor that deployment ordering or production backups are verified.
-
-## Hostinger
-
-Hostinger may expose a PHP Cron Job form with a PHP binary and script path. Because the deployed application root was observed as `public_html`, a possible CLI script path is `/home/<account>/domains/<domain>/public_html/scripts/migrate.php` or `/home/<account>/public_html/scripts/migrate.php` depending on setup. **Do not paste a guessed path or schedule `--apply`.** Verify the absolute path via File Manager or Hostinger support, and test read-only status only after deployment correctness has been verified.
+## Important limits
+- Hostinger Git integration does not supply this runner a cryptographically authenticated deployment-complete event. A 5-minute unchanged-file check **reduces but does not eliminate** the risk of overlapping an incomplete/stalled deployment. For truly guaranteed ordering, use a supported deployment pipeline with a documented completion trigger and maintenance/readiness controls.
+- This backup implementation supports InnoDB base tables only, without views, triggers, stored routines, or events. The backup verifier checks file integrity, not full logical consistency or restorable production behavior.
+- On MySQL, DDL is often nontransactional. If the nth statement fails, earlier DDL may remain applied. GET_LOCK and schema_migrations do not roll back partial migrations.
+- Backup files contain sensitive database records. Keep private directory protected, avoid public download links, and set retention/disk monitoring manually. No automatic deletion was implemented to avoid unintentionally removing recovery copies.
+- The current setup requires explicit review of each new SQL migration hash. It is automatic *execution of approved migrations*, not automatic approval of arbitrary SQL pushed to the branch.
+- Do not enable unattended migrations on a production database until CI results and a fresh production backup/restore procedure have been reviewed.
