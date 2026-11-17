@@ -434,12 +434,12 @@ App.page('maintenance', {
       { name: 'from', label: 'Reported from', type: 'date', col: 6 }, { name: 'to', label: 'Reported to', type: 'date', col: 6 },
     ];
     const active = ['vehicle_id', 'mechanic_id', 'source', 'from', 'to', 'cancelled'].filter(k => q[k]);
-    // MOTORPOOL_UI_V2: three tabs only. Narrower views (?view=reported|inspection|repair|in_progress|all, e.g. from Dashboard
-    // links) still work and appear as a fourth tab only while they are open.
-    const TABS = [['', 'Active', reported.length + inspection.length + repair.length], ['verify', 'For verification', verify.length], ['done', 'Completed', done.length]];
-    const EXTRA = { reported: ['New reports', reported.length], inspection: ['Under inspection', inspection.length], repair: ['Under repair', repair.length],
-      in_progress: ['Inspection or repair', inspection.length + repair.length], all: ['All records', shownJobs.length] };
-    if (EXTRA[q.view]) TABS.push([q.view, ...EXTRA[q.view]]);
+    // MOTORPOOL_HTML_REFERENCE_V5: keep the same live filter keys but show every reference stage as a visible tab.
+    const TABS = [['', 'Active', reported.length + inspection.length + repair.length],
+      ['reported', 'Reported', reported.length], ['inspection', 'Inspection', inspection.length],
+      ['repair', 'Under Repair', repair.length], ['verify', 'For Verification', verify.length],
+      ['done', 'Completed', done.length], ['all', 'All', shownJobs.length]];
+    if (q.view === 'in_progress') TABS.push(['in_progress', 'Inspection or repair', inspection.length + repair.length]);
     const tab = TABS.some(t => t[0] === (q.view || '')) ? (q.view || '') : '';
     const stageTiles = [
       ['Reported', reported.length, 'bi-exclamation-circle', 'maintenance?view=reported', 'New issue to assess'],
@@ -452,7 +452,7 @@ App.page('maintenance', {
         <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
         <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
         <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary + `<section class="panel mb-3"><div class="panel-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2 small">
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2 small">
        <strong class="me-1">Repair workflow</strong>
        <span>Report issue</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
        <span>Assign mechanic</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
