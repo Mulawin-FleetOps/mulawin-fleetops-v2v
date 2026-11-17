@@ -3,6 +3,7 @@
  * scripts/migrate.php — automatically runs pending migrations after git pull.
  * Usage (CLI only): php scripts/migrate.php --status [default]
  *                   php scripts/migrate.php --apply
+ *                   php scripts/migrate.php --auto (requires trusted release receipt)
  * Applying requires server .env flags MIGRATIONS_ENABLED=1,
  * MIGRATIONS_EXPECTED_DB, MIGRATIONS_APPROVED_IDS and MIGRATIONS_BACKUP_VERIFIED=1.
  * Do not schedule --apply until deployment/backup checks are implemented.
@@ -13,14 +14,16 @@ if (PHP_SAPI !== 'cli') exit('CLI only');
 require dirname(__DIR__) . '/backend/bootstrap.php';
 
 $args = array_slice($argv, 1);
-if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply'], true)) {
-    fwrite(STDERR, "Usage: php scripts/migrate.php [--status|--apply]\n");
+if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply', '--auto'], true)) {
+    fwrite(STDERR, "Usage: php scripts/migrate.php [--status|--apply|--auto]\n");
     exit(2);
 }
-$apply = ($args[0] ?? '--status') === '--apply';
+$mode = $args[0] ?? '--status';
+$apply = $mode === '--apply' || $mode === '--auto';
 
 // Keep parser unit-testable without loading application/database settings.
 require __DIR__ . '/lib/migration_sql.php';
+require __DIR__ . '/lib/migration_release.php';
 
 try {
     $p = db();
@@ -55,10 +58,23 @@ try {
         echo "Read-only status; no SQL executed.\n";
         exit(0);
     }
-    // This is an intentionally manual gate. Do not run --apply from cron until
-    // verified deployment and per-release backups exist.
-    if (envValue('MIGRATIONS_BACKUP_VERIFIED') !== '1') {
-        throw new RuntimeException('Explicit backup verification required before applying migrations.');
+    if ($mode === '--auto') {
+        if ($pending === []) {
+            echo "No pending migrations; nothing to apply.\n";
+            exit(0);
+        }
+        $receiptPath = envValue('MIGRATIONS_RELEASE_RECEIPT');
+        if ($receiptPath === '') {
+            throw new RuntimeException('Automatic migration blocked: trusted post-deployment receipt path is not configured.');
+        }
+        // The receipt must be generated independently on Hostinger AFTER confirmed
+        // deployment and backup completion, and stored outside the deployed tree.
+        migrationReleaseCheck(dirname(__DIR__), $receiptPath, $pending);
+    } else {
+        // Manual apply requires an explicit operator attestation.
+        if (envValue('MIGRATIONS_BACKUP_VERIFIED') !== '1') {
+            throw new RuntimeException('Explicit backup verification required before applying migrations.');
+        }
     }
     $approved = array_filter(array_map('trim', explode(',', envValue('MIGRATIONS_APPROVED_IDS'))));
     foreach ($pending as $file) {
