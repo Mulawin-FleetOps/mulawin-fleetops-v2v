@@ -568,6 +568,10 @@ final class Purchasing {
             auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'parts received', $o['po_ref'] . ': ' . $total . ' unit(s), ' . $status,
                 ['PO status' => $o['status'], 'Units received in this action' => 0], ['PO status' => $status, 'Units received in this action' => $total]);
             Notify::roles($p, ['finance'], 'Parts received', $o['po_ref'] . ' is ' . $status . '. Check the supplier invoice before payment.', 'finance');
+            // MOTORPOOL_UI_V2: tell the Motorpool requester that ordered parts arrived (no supplier or cost in the message).
+            if ($o['part_request_id'] && ($req = one($p, 'SELECT request_ref, requested_by, status FROM part_requests WHERE id=?', [$o['part_request_id']]))
+                && in_array($req['status'], ['Requested', 'Partially Released', 'Not Available'], true))
+                Notify::user($p, (int)$req['requested_by'], 'Parts arrived', 'Ordered parts for ' . $req['request_ref'] . ' arrived. Waiting for release by the Purchasing Officer.', 'mp_parts_requests');
             return ['message' => "Received $total unit(s). PO is $status; inventory updated."];
         });
     }
@@ -728,7 +732,12 @@ final class Purchasing {
                 (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
                 (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
-                   FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
+                   FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items,
+                -- MOTORPOOL_UI_V2: parts tracking for Motorpool (dates and order state only; no supplier, cost or PO data).
+                (SELECT MAX(sm.created_at) FROM stock_movements sm WHERE sm.reference_type='part_request' AND sm.reference_id=r.id AND sm.movement_type='Stock Out') AS last_released_at,
+                (SELECT COUNT(*) FROM purchase_orders o WHERE o.part_request_id=r.id AND o.status IN ('Pending Approval','Approved','Partially Received')) AS on_order,
+                (SELECT MAX(sm.created_at) FROM stock_movements sm JOIN purchase_orders o ON o.id=sm.reference_id
+                   WHERE sm.reference_type='purchase_order' AND sm.movement_type='Stock In' AND o.part_request_id=r.id) AS last_received_at
             FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users ru ON ru.id=r.requested_by
             WHERE ru.role='motorpool' ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available','Released','Cancelled'), r.id DESC LIMIT 300");
     }

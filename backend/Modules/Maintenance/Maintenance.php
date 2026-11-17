@@ -96,7 +96,7 @@ final class Maintenance {
             'activity' => fn() => self::overviewActivity($p, $parts),   // still used by Admin / Operations Head views
             // MOTORPOOL_UI_V2 dashboard: fleet status (replaces the Truck Masterlist menu), long-running repairs, this month.
             'fleetStatus' => fn() => array_map('intval', one($p, "SELECT COALESCE(SUM(status='Available'),0) AS available,
-                    COALESCE(SUM(status IN ('Assigned','On Trip')),0) AS on_trip, COALESCE(SUM(status='Under Maintenance'),0) AS under_maintenance,
+                    COALESCE(SUM(status='On Trip'),0) AS on_trip, COALESCE(SUM(status='Assigned'),0) AS assigned, COALESCE(SUM(status='Under Maintenance'),0) AS under_maintenance,
                     COALESCE(SUM(status='Unavailable'),0) AS unavailable, COUNT(*) AS active FROM vehicles WHERE active=1")),
             'stale' => fn() => many($p, "SELECT m.id AS job_id, m.job_ref, m.status, v.plate_number, mc.full_name AS mechanic,
                     DATEDIFF(CURRENT_DATE(), m.reported_on) AS days

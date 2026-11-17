@@ -481,6 +481,10 @@ const MpParts = {
     return key === 'open' ? MpParts.OPEN.includes(r.status) : r.status === MpParts.STATUS[key];
   },
   nextStep(r) {
+    // MOTORPOOL_UI_V2: order state for open requests (from Purchasing records; no supplier or cost shown).
+    if (MpParts.OPEN.includes(r.status) && r.last_received_at && (!r.last_released_at || r.last_received_at > r.last_released_at))
+      return 'Ordered parts arrived on ' + UI.date(r.last_received_at) + '. Waiting for release.';
+    if (MpParts.OPEN.includes(r.status) && +r.on_order) return 'Ordered by Purchasing. Waiting for delivery.';
     return {
       'Requested': 'Waiting for the Purchasing Officer to check the stock and release.',
       'Partially Released': 'Part of the items were released; the rest waits for stock.',
@@ -520,6 +524,7 @@ App.page('mp_parts_requests', {
       ['Truck / repair', 'plate_number', (v, r) => `${UI.esc(v)}${r.job_ref ? `<div class="cell-sub">${UI.esc(r.job_ref)}</div>` : ''}`],
       ['Items', 'items', (v) => `<span class="cell-clip">${UI.esc(v || '')}</span>`],
       ['Progress', 'progress'],
+      ['Last released', 'last_released_at', (v) => v ? UI.datetime(v) : '<span class="text-muted">Not yet</span>'],
       ['Status', 'status', 'badge'],
       ['Next step', 'next', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
     ];
@@ -604,12 +609,18 @@ App.page('maintenance_overview', {
     const m = d.month && !Array.isArray(d.month) ? d.month : null;
     const failed = d._errors || {};
     const fv = (k) => fs ? fs[k] : '—';
+    // MOTORPOOL_UI_V2: Admin KPI cards (head-kpi). Each card opens the matching truck list or repair view.
     const tiles = [
-      { label: 'Available', value: fv('available'), note: fs ? `of ${fs.active} active trucks` : '', icon: 'bi-truck', tone: 'green' },
-      { label: 'On trip / assigned', value: fv('on_trip'), note: 'reserved or on the road', icon: 'bi-signpost-split', tone: 'blue' },
-      { label: 'Under maintenance', value: fv('under_maintenance'), note: s ? `${n('new_reports')} new · ${n('under_inspection') + n('under_repair')} in progress` : '', icon: 'bi-wrench-adjustable', tone: fs && fs.under_maintenance ? 'red' : 'gray', go: 'maintenance' },
-      { label: 'For verification', value: n('for_verification'), note: 'repaired, still out of service', icon: 'bi-clipboard-check', tone: s && s.for_verification ? 'amber' : 'gray', go: 'maintenance?view=verify' },
+      ['Available', fv('available'), 'bi-check-circle', 'blue', 'trucks?status=Available'],
+      ['On Trip', fv('on_trip'), 'bi-signpost-split', 'purple', 'trucks?status=On Trip'],
+      ['Under Maintenance', fv('under_maintenance'), 'bi-wrench-adjustable', 'red', 'trucks?status=Under Maintenance'],
+      ['For Verification', n('for_verification'), 'bi-clipboard-check', 'green', 'maintenance?view=verify'],
     ];
+    const kpis = '<div class="head-trip-kpis head-fleet-kpis">' + tiles.map(([label, value, icon, tone, go]) =>
+      `<button type="button" class="head-kpi head-fleet-kpi ${tone}"${UI.canGo(go) ? ` data-go="${UI.esc(go)}"` : ' disabled'} aria-label="View ${UI.esc(label)}">`
+      + `<span class="head-kpi-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>`
+      + `<span class="head-fleet-kpi-value"><span>${UI.esc(label)}</span><strong>${UI.esc(String(value))}</strong></span></button>`).join('')
+      + '</div>' + (fs && fs.assigned ? `<p class="small text-muted mt-1 mb-2">${UI.num(fs.assigned)} more truck(s) are reserved for an upcoming trip.</p>` : '');
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
     const todoBody = failed.attention ? '<div class="mo-empty text-danger">The list could not be loaded. Reload the page.</div>'
@@ -634,7 +645,7 @@ App.page('maintenance_overview', {
         ['Maintenance cost', UI.money(m.cost) + ' <span class="cell-sub">parts used + labor/services</span>']]) : '<div class="mo-empty">Not available.</div>';
 
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">
-      ${UI.kpiTiles(tiles, 'ws-kpi4')}
+      ${kpis}
       ${can.act ? UI.quickBar([{ label: 'Report truck problem', icon: 'bi-plus-lg', act: 'report', primary: true }]) : ''}
       <div class="ws-grid2">
         ${UI.wsPanel('To do now', 'bi-flag', todoBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
@@ -645,6 +656,7 @@ App.page('maintenance_overview', {
       </div></div>`;
 
     const root = ctx.el.querySelector('.maint-overview');
+    UI.bindGo(root.querySelector('.head-trip-kpis'));   // MOTORPOOL_UI_V2: KPI cards open their filtered lists
     root.querySelector('[data-qa="report"]')?.addEventListener('click', () => MaintUI.report());
     root.querySelectorAll('[data-open-job]').forEach(x => {
       const go = () => App.go('maintenance', { open: x.dataset.openJob });
