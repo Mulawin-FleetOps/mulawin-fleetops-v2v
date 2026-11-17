@@ -14,7 +14,7 @@ const MechUI = {
       { name: 'notes', label: 'Notes', col: 12, value: m.notes }],
       'Mechanics.save', { extra: m.id ? { id: m.id } : {}, size: '', intro: m.id ? '' : 'The Mechanic ID (MEC-###) is given by the system. New mechanics start Unavailable until they Time In.' });
   },
-  /** Time In / Time Out: the server checks the saved state; the screen is reloaded from it (no alert or confirm dialogs). */
+  /** Attendance page only: the server checks saved Time In / Time Out state. */
   async toggle(m, btn) {
     if (btn) btn.disabled = true;
     try {
@@ -31,7 +31,7 @@ const MechUI = {
     const acts = [];
     if (can && +m.active) {
       acts.push(['edit', 'Edit', 'outline-secondary', 'bi-pencil']);
-      acts.push(['toggle', timedIn ? 'Time Out' : 'Time In', timedIn ? 'outline-secondary' : 'success', 'bi-clock']);
+
       acts.push(['deact', 'Deactivate', 'outline-danger', '']);
     } else if (can) acts.push(['react', 'Reactivate', 'outline-success', '']);
     const html = `<div class="mb-2">${UI.badge(+m.active ? m.availability : 'Inactive')}</div>
@@ -46,7 +46,6 @@ const MechUI = {
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') MechUI.form(m);
-      if (a === 'toggle') { UI.closeDrawer?.(); MechUI.toggle({ id: m.id, timed_in: timedIn ? 1 : 0 }); }
       if (a === 'deact') UI.confirmAction('Deactivate ' + UI.esc(m.full_name), 'The mechanic is removed from the lists. Repair history is kept.', 'Mechanics.set_active', { id: m.id, active: 0 }, { danger: true, submit: 'Deactivate' });
       if (a === 'react') UI.confirmAction('Reactivate ' + UI.esc(m.full_name), 'The mechanic returns to the masterlist.', 'Mechanics.set_active', { id: m.id, active: 1 });
     });
@@ -83,8 +82,8 @@ App.page('mechanics', {
       ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
       ['Completed repairs', 'completed_jobs', 'num']], rows,
       { showAllColumns: true, directActions: true,
-        actions: (m) => (d.can.edit && +m.active ? UI.ibtn('toggle', +m.timed_in ? 'Time Out' : 'Time In', 'bi-clock', +m.timed_in ? 'outline-secondary' : 'outline-primary') : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
-        onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
+        actions: () => UI.ibtn('view', 'Open mechanic', 'bi-eye'),
+        onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: d.mechanics.length ? 'No mechanic in this list.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
   },
 });
@@ -114,6 +113,14 @@ App.page('mechanic_attendance', {
     const range = d.range || {};
     const isAdmin = App.me.user.role === 'admin';
     if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
+    // Direct Motorpool navigation: retain existing server permissions and sidebar appearance.
+    if (UI.role('motorpool')) {
+      [['Repair Management','maintenance','bi-wrench-adjustable'],
+       ['Parts Requests','mp_parts_requests','bi-box-seam'],
+       ['Maintenance History','maint_history','bi-clock-history']].forEach(([label, page, icon]) => {
+        if (UI.canGo(page)) UI.tool(ctx, label, () => App.go(page), icon);
+      });
+    }
     const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
     const on = board.filter(m => m.open_time_in);
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
