@@ -1,0 +1,37 @@
+name: PHP Migration Safety
+on:
+  push:
+    branches: [luis]
+    paths:
+      - 'scripts/migrate.php'
+      - 'scripts/lib/migration_sql.php'
+      - 'database/migrations/**'
+      - 'tests/migration_safety_checks.php'
+      - '.github/workflows/migration-safety.yml'
+  pull_request:
+    paths:
+      - 'scripts/migrate.php'
+      - 'scripts/lib/migration_sql.php'
+      - 'database/migrations/**'
+      - 'tests/migration_safety_checks.php'
+      - '.github/workflows/migration-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-migration-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.2
+        run: |
+          sudo update-alternatives --set php /usr/bin/php8.2
+          php -v
+      - name: PHP syntax lint
+        run: |
+          php -l scripts/migrate.php
+          php -l scripts/lib/migration_sql.php
+          php -l tests/migration_safety_checks.php
+      - name: Offline migration regression tests (no DB credentials)
+        run: php tests/migration_safety_checks.php
