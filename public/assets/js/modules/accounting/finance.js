@@ -114,7 +114,15 @@ const HeadFinancePage = {
   title: 'Finance',
   subtitle: 'Payables, payments, expenses, purchasing budget and cash flow.',
   render(ctx) {
-    const d = ctx.data, act = d.can.act;
+    // Admin combines multiple Finance sections; empty/missing optional lists
+    // must not crash the entire page when a section is unavailable.
+    const d = { budgets: [], poPayables: [], payables: [], expenses: [],
+      disbursements: [], cashflow: [], suppliers: [], trucks: [],
+      ...ctx.data };
+    for (const key of ['budgets', 'poPayables', 'payables', 'expenses', 'disbursements', 'cashflow', 'suppliers', 'trucks']) {
+      if (!Array.isArray(d[key])) d[key] = [];
+    }
+    const act = !!d.can?.act;
     const head = UI.role('admin');
     const b = d.budgets.find(x => x.status === 'Active');
     const poDue = d.poPayables.reduce((a, o) => a + Math.max(0, +o.received_value - +o.paid_amount), 0);
