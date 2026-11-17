@@ -4,7 +4,7 @@
  * Usage (CLI only): php scripts/migrate.php --status [default]
  *                   php scripts/migrate.php --apply
  * Applying requires server .env flags MIGRATIONS_ENABLED=1,
- * MIGRATIONS_EXPECTED_DB and MIGRATIONS_APPROVED_IDS (comma-separated).
+ * MIGRATIONS_EXPECTED_DB, MIGRATIONS_APPROVED_IDS and MIGRATIONS_BACKUP_VERIFIED=1.
  * Do not schedule --apply until deployment/backup checks are implemented.
  *
  */
@@ -19,51 +19,8 @@ if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply'
 }
 $apply = ($args[0] ?? '--status') === '--apply';
 
-// MySQL DDL is not atomic. Parse simple SQL files into separate statements
-// without breaking semicolons inside quoted strings or SQL comments.
-function migrationSqlStatements(string $sql): array {
-    if (preg_match('/^\\s*(DELIMITER|SOURCE)\\b/im', $sql)) throw new RuntimeException('Unsupported mysql-client directive.');
-    $statements = [];
-    $buffer = '';
-    $quote = '';
-    $line = false;
-    $block = false;
-    $n = strlen($sql);
-    for ($i = 0; $i < $n; $i++) {
-        $ch = $sql[$i];
-        $next = $i + 1 < $n ? $sql[$i + 1] : '';
-        if ($line) {
-            if ($ch === "\n" || $ch === "\r") { $line = false; $buffer .= "\n"; }
-            continue;
-        }
-        if ($block) {
-            if ($ch === '*' && $next === '/') { $block = false; $i++; }
-            continue;
-        }
-        if ($quote !== '') {
-            $buffer .= $ch;
-            if ($ch === chr(92) && $next !== '') { $buffer .= $next; $i++; }
-            elseif ($ch === $quote) {
-                if ($next === $quote) { $buffer .= $next; $i++; }
-                else $quote = '';
-            }
-            continue;
-        }
-        if ($ch === '-' && $next === '-' && ($i+2 >= $n || ctype_space($sql[$i+2]))) { $line = true; $i++; continue; }
-        if ($ch === '#') { $line = true; continue; }
-        if ($ch === '/' && $next === '*') { $block = true; $i++; continue; }
-        if (in_array($ch, ["'", '"', '`'], true)) { $quote = $ch; $buffer .= $ch; continue; }
-        if ($ch === ';') {
-            if (trim($buffer) !== '') $statements[] = trim($buffer);
-            $buffer = '';
-            continue;
-        }
-        $buffer .= $ch;
-    }
-    if ($quote !== '' || $block) throw new RuntimeException('Unclosed quote or comment in migration.');
-    if (trim($buffer) !== '') $statements[] = trim($buffer);
-    return $statements;
-}
+// Keep parser unit-testable without loading application/database settings.
+require __DIR__ . '/lib/migration_sql.php';
 
 try {
     $p = db();
@@ -98,10 +55,26 @@ try {
         echo "Read-only status; no SQL executed.\n";
         exit(0);
     }
+    // This is an intentionally manual gate. Do not run --apply from cron until
+    // verified deployment and per-release backups exist.
+    if (envValue('MIGRATIONS_BACKUP_VERIFIED') !== '1') {
+        throw new RuntimeException('Explicit backup verification required before applying migrations.');
+    }
     $approved = array_filter(array_map('trim', explode(',', envValue('MIGRATIONS_APPROVED_IDS'))));
     foreach ($pending as $file) {
         $id = basename($file, '.sql');
         if (!in_array($id, $approved, true)) throw new RuntimeException("Unapproved migration: $id");
+    }
+    // Pre-parse *all* pending files before starting any DDL. This prevents
+    // later unsupported SQL from being discovered after earlier DDL commits.
+    foreach ($pending as $file) {
+        $raw = file_get_contents($file);
+        if ($raw === false || trim($raw) === '') {
+            throw new RuntimeException('Empty or unreadable migration: ' . basename($file));
+        }
+        if (migrationSqlStatements($raw) === []) {
+            throw new RuntimeException('No SQL statements in: ' . basename($file));
+        }
     }
     $ran = 0;
     foreach ($files as $file) {
