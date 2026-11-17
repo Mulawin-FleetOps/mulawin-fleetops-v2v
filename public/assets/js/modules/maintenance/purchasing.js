@@ -574,6 +574,16 @@ App.page('inventory', {
     box.classList.add('purchasing-records-card','purchasing-ref-records');
     box.insertAdjacentHTML('afterbegin', `<div class="purchasing-ref-records-head"><div><strong>${view === 'counts' ? 'Stock Count Records' : 'Inventory Records'}</strong><small>${UI.num(view === 'counts' ? counts.length : parts.length)} records</small></div><span>Availability and stock levels</span></div>`);
     const body = document.createElement('div'); body.className='purchasing-ref-records-body'; box.append(body);
+    const alignFilters = () => {
+      const filters = body.querySelector('.ws-filters');
+      const toolbar = body.querySelector('.ref-toolbar, .table-tools');
+      if (!filters || !toolbar) return;
+      toolbar.classList.add('purchasing-inventory-toolbar');
+      filters.classList.add('purchasing-inventory-inline-filter');
+      const search = toolbar.querySelector('.table-search');
+      if (search) search.insertAdjacentElement('afterend', filters);
+      else toolbar.prepend(filters);
+    };
     if (view === 'counts') {
       const st = ['Submitted', 'Posted', 'Rejected'].includes(q.count) ? q.count : '';
       const rows = counts.filter(c => !st || c.status === st);
@@ -589,6 +599,7 @@ App.page('inventory', {
           { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (c) => PurUI.countActs(c, can) + UI.ibtn('view', 'Open count', 'bi-eye'),
             onAction: (a, c) => a === 'view' ? PurUI.openCount(c, can) : PurUI.countReview(c, a), rowClick: (c) => PurUI.openCount(c, can),
             empty: 'No stock count recorded yet.' });
+      alignFilters();
       const once = UI.takeQuery(ctx, 'open');
       if (once.open) { const c = counts.find(x => String(x.id) === String(once.open)); if (c) PurUI.openCount(c, can); }
       return;
@@ -604,6 +615,7 @@ App.page('inventory', {
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
         { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
+    alignFilters();
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
   },
 });
