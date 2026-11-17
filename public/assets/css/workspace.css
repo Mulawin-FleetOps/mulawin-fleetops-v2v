@@ -600,6 +600,7 @@
 /* UNSUPPORTED_CLASSIFICATION_CLEANUP — workflow group rows in Executive Reports */
 .ref-scope .hm-pri tr.hm-group th { background: #f6f9f7; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--rf-muted, #6b7280); padding: 7px 12px; }
 
+
 /* MOTORPOOL_ACTION_UI_V3 — content-only action summaries. Never styles sidebar, topbar or reports. */
 #pageContent.ws-scope .mp-action-stages {
   display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;
@@ -631,69 +632,69 @@
    Content screens only: layout and visual language matched to the approved
    mulawin_motorpool_current_branch_ui_review.html. No sidebar, shell, other
    roles, reports, API, drawer logic or permissions are modified. */
-#pageContent:has(> .mp-wireframe-marker),
-#pageContent:has(> .maint-overview.mp-wireframe-dashboard) {
+#pageContent:has(#pageBody > .mp-wireframe-marker),
+#pageContent:has(#pageBody > .maint-overview.mp-wireframe-dashboard) {
   --mp-html-line:#e0e9e2; --mp-html-muted:#708274; --mp-html-ink:#203a2b;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-stages,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages,
 #pageContent .mp-wireframe-dashboard .mp-action-stages {
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:4px 0 17px;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-parts-summary {grid-template-columns:repeat(3,minmax(0,1fr))}
-#pageContent:has(> .mp-wireframe-marker) .mp-action-stage {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-parts-summary {grid-template-columns:repeat(3,minmax(0,1fr))}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage {
   padding:15px;gap:10px;background:#fff;border:1px solid #e0e9e2;border-radius:11px;
   box-shadow:0 1px 2px rgba(18,53,28,.035);min-height:83px;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-action-stage-icon {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-icon {
   width:36px;height:36px;flex:0 0 36px;background:#e9f5ed;color:#267447;border-radius:9px;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-action-stage-content b {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-content b {
   color:#203a2b;font-weight:700;font-size:14px;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-action-stage-content small {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-content small {
   font-size:12px;color:#708274;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-action-stage-count {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-count {
   font-size:23px;color:#176238;font-weight:750;
 }
-#pageContent:has(> .mp-wireframe-marker) button.mp-action-stage:hover {background:#f1faf3;border-color:#93c6a0}
-#pageContent:has(> .mp-wireframe-marker) .line-tabs,
-#pageContent:has(> .mp-wireframe-marker) .ws-status-tabs {
+#pageContent:has(#pageBody > .mp-wireframe-marker) button.mp-action-stage:hover {background:#f1faf3;border-color:#93c6a0}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .line-tabs,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .ws-status-tabs {
   display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:0;margin:15px 0;background:transparent;border:0;
 }
-#pageContent:has(> .mp-wireframe-marker) .line-tabs .tab,
-#pageContent:has(> .mp-wireframe-marker) .ws-status-tabs .tab {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .line-tabs .tab,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .ws-status-tabs .tab {
   padding:9px 13px;background:#fff;border:1px solid #dce7df;border-radius:7px;
   font-size:12.5px;color:#536c5b;box-shadow:none;min-height:36px;
 }
-#pageContent:has(> .mp-wireframe-marker) .line-tabs .tab.active,
-#pageContent:has(> .mp-wireframe-marker) .ws-status-tabs .tab.active {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .line-tabs .tab.active,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .ws-status-tabs .tab.active {
   background:#e8f4eb;border-color:#99cbaa;color:#1a693b;font-weight:700;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table {
   background:#fff;border:1px solid #e0e9e2;border-radius:12px;overflow:hidden;margin-top:16px;
   box-shadow:0 1px 2px rgba(18,53,28,.035);
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table table {width:100%}
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table th {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table table {width:100%}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
   background:#f7faf8;color:#63786a;font-size:12px;font-weight:700;
   padding:12px 13px;border-bottom:1px solid #ebf0ed;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table td {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table td {
   padding:12px 13px;border-color:#ebf0ed;vertical-align:middle;font-size:13px;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table tr:hover td {background:#fbfdfb}
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table .cell-sub {font-size:12px;color:#708274;margin-top:4px}
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table .badge-s {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table tr:hover td {background:#fbfdfb}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .cell-sub {font-size:12px;color:#708274;margin-top:4px}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .badge-s {
   border-radius:20px;padding:5px 9px;font-size:11px;font-weight:650;
 }
-#pageContent:has(> .mp-wireframe-marker) .mp-reference-table .btn {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .btn {
   border-radius:7px;
 }
-#pageContent:has(> .mp-wireframe-marker) .panel {
+#pageContent:has(#pageBody > .mp-wireframe-marker) .panel {
   border:1px solid #e0e9e2;border-radius:11px;box-shadow:0 1px 2px rgba(18,53,28,.035);
 }
-#pageContent:has(> .mp-wireframe-marker) .panel .panel-body {color:#506a56}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .panel .panel-body {color:#506a56}
 #pageContent .mp-wireframe-dashboard .head-trip-kpis {
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 15px;
 }
@@ -713,7 +714,7 @@
 #pageContent .mp-wireframe-dashboard .head-fleet-kpi .head-kpi-icon {
   background:#e9f5ed;color:#267447;border-radius:9px;padding:9px;
 }
-#pageContent .mp-wireframe-dashboard .quick-bar {
+#pageContent .mp-wireframe-dashboard .mo-quickbar {
   background:#fff;border:1px solid #e0e9e2;border-radius:11px;
   box-shadow:0 1px 2px rgba(18,53,28,.035);padding:12px 15px;margin:15px 0;
 }
@@ -741,11 +742,215 @@
   max-height:240px;overflow-y:auto;
 }
 @media(max-width:1180px) {
-  #pageContent:has(> .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
   #pageContent .mp-wireframe-dashboard .head-trip-kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
   #pageContent .mp-wireframe-dashboard .mp-wireframe-layout {grid-template-columns:1fr}
 }
 @media(max-width:620px) {
-  #pageContent:has(> .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:1fr}
+  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:1fr}
   #pageContent .mp-wireframe-dashboard .head-trip-kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* MOTORPOOL_HTML_REFERENCE_V5 — exact wireframe content styling; no shell/sidebar/report selectors.
+   The app renders page markup inside #pageBody, not directly under #pageContent. */
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) #pageBody,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) #pageBody {
+  color:#203a2b;font-size:13.5px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
+  border:1px solid #e0e9e2;background:#fff;border-radius:11px;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage {
+  display:flex;align-items:center;justify-content:space-between;
+  min-height:83px;gap:10px;text-align:left;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-icon {
+  display:grid;place-items:center;padding:0;font-size:18px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs {
+  border:0;box-shadow:none;background:transparent;gap:7px;padding:0;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab {
+  flex:none;width:auto;min-height:36px;margin:0;border:1px solid #dce7df;
+  border-radius:7px;background:#fff;padding:9px 13px;color:#536c5b;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab.active {
+  background:#e8f4eb;border-color:#99cbaa;color:#1a693b;font-weight:700;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table {
+  margin-top:16px;border:1px solid #e0e9e2;border-radius:12px;background:#fff;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);overflow:hidden;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-toolbar {
+  background:#fff;border:0;padding:14px 15px 9px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-tablebox {
+  border:0;border-radius:0;box-shadow:none;background:#fff;overflow-x:auto;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+  background:#f7faf8;color:#63786a;font-weight:700;font-size:12px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table td,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+  padding:12px 13px;border-bottom:1px solid #ebf0ed;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
+  padding:16px;min-height:106px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi-value strong {
+  font-size:28px;font-weight:750;color:#183d29;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar {
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  padding:12px 15px;margin:16px 0;border:1px solid #e0e9e2;
+  border-radius:11px;background:#fff;box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-title {
+  font-weight:700;color:#203a2b;margin-right:8px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-row {
+  display:flex;gap:9px;flex-wrap:wrap;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout > .panel.ws-panel {
+  min-width:0;background:#fff;border:1px solid #e0e9e2;
+  border-radius:11px;box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-head {
+  background:#fff;border-bottom:1px solid #e9f0eb;padding:14px 17px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-body.flush {
+  padding:6px 16px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow {
+  background:#fff;border:1px solid #e0e9e2;border-radius:10px;
+  box-shadow:none;margin:14px 0;padding:11px 14px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow .panel-body {
+  padding:0!important;
+}
+@media(max-width:1100px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout {grid-template-columns:1fr}
+}
+@media(max-width:720px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Reference page heading and side drawers — content-only; shell and sidebar remain untouched. */
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker),
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) {
+  max-width:1500px;margin-left:auto;margin-right:auto;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {
+  gap:10px;margin-bottom:18px;align-items:center;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-title,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-title {
+  color:#203a2b;font-size:24px;font-weight:750;line-height:1.2;margin:0 0 6px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-subtitle,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-subtitle {
+  color:#708274;font-size:13px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-actions .btn,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar .btn {
+  border-radius:8px;font-size:13px;font-weight:650;padding:8px 12px;
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer {
+  width:min(490px,100vw);max-width:100vw;background:#fff;
+  box-shadow:-8px 0 45px rgba(0,27,13,.18);
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer .offcanvas-header {
+  padding:20px 24px;border-bottom:1px solid #e0e9e2;
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer .offcanvas-body {
+  padding:20px 24px;
+}
+@media(max-width:720px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {align-items:flex-start;flex-direction:column}
+}
+
+/* MOTORPOOL_COMPACT_MODAL_V6
+   Match the luis Operations/Admin field-form visual treatment. Only modal forms
+   opened from Motorpool content pages; no sidebar, reports, global shell styling. */
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-dialog {
+  max-width:min(760px,calc(100vw - 28px));
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-content {
+  overflow:hidden;border:1px solid #d6e6dc;border-radius:18px;
+  background:#f9fcfa;box-shadow:0 20px 70px rgba(8,50,31,.18);
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-header {
+  position:relative;display:flex;align-items:center;
+  padding:22px 28px 19px;background:linear-gradient(115deg,#f0f8f2,#fcfefd);
+  border-bottom:1px solid #e2ebe5;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-title {
+  font-size:19px;font-weight:750;line-height:1.3;letter-spacing:-.25px;color:#184c32;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {
+  padding:23px 28px 25px;background:#f9fcfa;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-intro {
+  margin:0 0 20px;padding:12px 14px;background:#f0f7f2;
+  border:1px solid #d9e8de;border-radius:10px;color:#486b55;
+  font-size:12px;line-height:1.6;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body > .row {
+  row-gap:15px!important;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-label {
+  margin-bottom:7px;color:#335744;font-size:12px;font-weight:680;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-control,
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-select {
+  min-height:42px;padding:9px 12px;border-radius:9px;
+  border-color:#d2e1d7;background-color:#fff;color:#294735;font-size:12.5px;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) textarea.form-control {
+  min-height:95px;resize:vertical;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-control:focus,
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-select:focus {
+  border-color:#70b48a;box-shadow:0 0 0 3px rgba(42,136,76,.13);
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-help {
+  font-size:11px;color:#809385;margin-top:5px;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {
+  gap:8px;padding:14px 28px;border-top:1px solid #e2ebe5;background:#fff;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer .btn {
+  min-height:37px;padding:8px 15px;border-radius:9px;font-size:12px;font-weight:700;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .pl-row {
+  padding:8px 0;border-bottom:1px solid #e8efe9;
+}
+@media(max-width:650px) {
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-header {padding:18px 20px}
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {padding:18px 20px}
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {padding:12px 20px}
+}
+
+/* MOTORPOOL_PARTS_FORM_V7 — modal-only visual treatment; no sidebar or reports. */
+.mp-parts-request-modal .modal-dialog { max-width:min(770px,calc(100vw - 24px)); }
+.mp-parts-request-modal .modal-content {border:1px solid #d6e6dc;border-radius:18px;overflow:hidden;background:#f9fcfa;box-shadow:0 20px 70px rgba(8,50,31,.18)}
+.mp-parts-request-modal .modal-header {background:linear-gradient(115deg,#f0f8f2,#fcfefd);padding:22px 28px 19px;border-bottom:1px solid #e2ebe5}
+.mp-parts-request-modal .modal-title {font-size:19px;color:#184c32;font-weight:750}
+.mp-parts-request-modal .modal-body {padding:23px 28px;background:#f9fcfa}
+.mp-parts-request-modal .modal-footer {padding:14px 28px;border-top:1px solid #e2ebe5;background:#fff;gap:8px}
+.mp-parts-request-modal .modal-footer .btn {border-radius:9px;padding:8px 15px;font-weight:700}
+.mp-parts-request-modal .mp-parts-items {background:#fff;border:1px solid #dfeae2;border-radius:12px;padding:15px 17px;margin-top:17px}
+.mp-parts-request-modal .mp-parts-items-head {display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:13px}
+.mp-parts-request-modal .mp-parts-items-head strong {font-size:14px;color:#234e35}
+.mp-parts-request-modal .mp-parts-line {display:flex;align-items:end;gap:9px;padding:11px 0;border-top:1px solid #edf2ee}
+.mp-parts-request-modal .mp-parts-line:first-child {border-top:0}
+.mp-parts-request-modal .mp-parts-line-fields {display:grid;grid-template-columns:minmax(0,1fr) 120px;flex:1;gap:10px}
+.mp-parts-request-modal .mp-parts-line .form-control,.mp-parts-request-modal .mp-parts-line .form-select {min-height:39px}
+.mp-parts-request-modal .mp-parts-remove {height:39px;min-width:39px;border-radius:9px}
+@media(max-width:650px){.mp-parts-request-modal .modal-header,.mp-parts-request-modal .modal-body,.mp-parts-request-modal .modal-footer{padding:17px 18px}
+.mp-parts-request-modal .mp-parts-line-fields{grid-template-columns:minmax(0,1fr) 85px}.mp-parts-request-modal .mp-parts-items{padding:12px}}
