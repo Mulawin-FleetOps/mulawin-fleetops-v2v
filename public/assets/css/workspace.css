@@ -1380,3 +1380,63 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   #pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table td,
   #pageContent .purchasing-live-v1 .purchasing-records-card .data-table td{padding:11px 12px}
 }
+
+/* PURCHASING_TABLE_COLUMNS_GROUPED_V6 */
+/* Keep cards / table boxes full width. Only group the CONTENT columns toward the middle.
+   Shared ref table defaults min-width:100%, which stretches every column edge to edge.
+   Scope override to Purchasing UI only; preserve row actions, pagination, and horizontal scroll. */
+#pageContent .purchasing-live-v1{
+  width:100%;
+  max-width:none;
+  margin-inline:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-records-card,
+#pageContent .purchasing-live-v1 .purchasing-ref-records,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-list,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox{
+  width:100%;
+  max-width:none;
+}
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .ref-tablebox{
+  overflow-x:auto;
+}
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox .data-table,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .ref-tablebox .data-table,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table,
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table{
+  width:max-content;
+  min-width:0;
+  max-width:none;
+  margin-inline:auto;
+  border-collapse:collapse;
+  table-layout:auto;
+}
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .data-table th,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .data-table th,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .data-table td,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .data-table td{
+  padding-inline:13px;
+  font-size:13px;
+}
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .data-table th,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .data-table th{
+  font-size:12.5px;
+}
+#pageContent .purchasing-live-v1 .data-table .cell-clamp,
+#pageContent .purchasing-live-v1 .data-table .cell-clip{
+  max-width:250px;
+  overflow-wrap:anywhere;
+}
+#pageContent .purchasing-live-v1 .data-table .cell-nowrap,
+#pageContent .purchasing-live-v1 .data-table .row-icons,
+#pageContent .purchasing-live-v1 .data-table .row-actions{
+  white-space:nowrap;
+}
+@media(max-width:1100px){
+  #pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox .data-table,
+  #pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .ref-tablebox .data-table{
+    margin-inline:0;
+  }
+}
