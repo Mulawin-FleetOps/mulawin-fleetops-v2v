@@ -33,9 +33,14 @@ final class Finance {
         // FINANCE_WORKSPACE_V1: one page per Finance task. Each page returns only the sections it shows.
         if ($page === 'finance_overview') return self::overview($u, $p);
         $sections = self::sections($p, $from, $to);
-        $keys = $page === 'finance_budgets'
-            ? ['expenses', 'budgets', 'cashflow', 'trucks', 'expenseMix']
-            : ['poPayables', 'payables', 'disbursements', 'suppliers', 'trucks'];   // 'finance' = Payables & Payments
+        // Admin's Financial Overview renders payables AND budget/expense/cashflow
+        // tabs on the same page. Finance personnel use the narrower task pages.
+        $keys = $page === 'finance' && hasRole($u, 'admin')
+            ? ['poPayables', 'payables', 'disbursements', 'suppliers', 'trucks',
+               'expenses', 'budgets', 'cashflow', 'expenseMix']
+            : ($page === 'finance_budgets'
+                ? ['expenses', 'budgets', 'cashflow', 'trucks', 'expenseMix']
+                : ['poPayables', 'payables', 'disbursements', 'suppliers', 'trucks']);
         $data = readSections(array_intersect_key($sections, array_flip($keys)));
         $data['period'] = ['from' => $from, 'to' => $to];
         $data['categories'] = self::EXPENSE_CATEGORIES;
