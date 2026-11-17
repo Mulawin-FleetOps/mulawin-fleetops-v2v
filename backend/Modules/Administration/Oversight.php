@@ -39,6 +39,7 @@ final class Oversight {
             'admin_finance' => self::finance($p, $q),
             'admin_reports' => self::executive($u, $p),
             'admin_analytics' => self::analytics($u, $p, $q),
+            'admin_descriptive_analytics', 'admin_diagnostic_analytics' => self::analyticsWithReports($u, $p, $q),
             default => throw new BusinessRuleException('Unknown page.', 404),
         };
         $data['me'] = (int)$u['id'];
@@ -433,6 +434,43 @@ final class Oversight {
      * diagnostic (what contributed) and prescriptive (rule-based suggestions). Each chart keeps one unit; every dataset
      * comes from recorded rows; Maintenance and Purchasing reuse their validated report logic.
      */
+    /** A single admin-only report entry point; reuse the established calculation owners. */
+    private static function analyticsWithReports(array $u, PDO $p, array $q): array {
+        $data = self::analytics($u, $p, $q);
+        $topic = (string)($data['topic'] ?? 'operations');
+        $defaultKind = $topic === 'purchasing' ? 'purchasing' : 'general';
+        $kind = (string)($q['report'] ?? $defaultKind);
+        $allowed = ['management', 'general', 'maintenance', 'purchasing', 'audit'];
+        if (!in_array($kind, $allowed, true)) $kind = 'management';
+        $data['reportKind'] = $kind;
+        $data['reportData'] = readSections(['result' => static function () use ($kind, $u, $p, $q) {
+            if ($kind === 'management') return self::executive($u, $p);
+            if ($kind === 'audit') { Actions::load('Admin'); return Admin::read($u, 'audit_reports', $q); }
+            Actions::load('Analytics');
+            return Analytics::read($u, match ($kind) {
+                'general' => 'reports', 'maintenance' => 'maintenance_reports',
+                default => 'purchasing_reports'
+            }, $q);
+        }])['result'] ?? [];
+        // Inventory movements are quantified by record and by value, avoiding
+        // invalid sums of pieces, litres, and sets into one supposed unit.
+        if ($topic === 'purchasing') {
+            $from = (string)($data['period']['from'] ?? date('Y-m-01'));
+            $to = (string)($data['period']['to'] ?? date('Y-m-d'));
+            $data['stockSummary'] = readSections([
+                'movementTypes' => fn() => many($p, "SELECT movement_type AS type, COUNT(*) AS movements, COALESCE(SUM(ABS(quantity_delta)*unit_cost),0) AS value FROM stock_movements WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY movement_type", [$from, $to]),
+                'inventoryValue' => fn() => (float)(one($p, "SELECT COALESCE(SUM(quantity_on_hand*unit_cost),0) AS value FROM parts WHERE active=1")['value'] ?? 0),
+                'perPart' => fn() => many($p, "SELECT pt.part_number, pt.description, pt.unit, pt.quantity_on_hand,
+                    COALESCE(SUM(CASE WHEN sm.movement_type='Stock In' THEN sm.quantity_delta ELSE 0 END),0) AS stock_in,
+                    COALESCE(SUM(CASE WHEN sm.movement_type='Stock Out' THEN -sm.quantity_delta ELSE 0 END),0) AS stock_out,
+                    COALESCE(SUM(CASE WHEN sm.movement_type='Adjustment' THEN sm.quantity_delta ELSE 0 END),0) AS adjustments
+                    FROM parts pt LEFT JOIN stock_movements sm ON sm.part_id=pt.id AND DATE(sm.created_at) BETWEEN ? AND ?
+                    GROUP BY pt.id ORDER BY stock_out DESC, pt.part_number LIMIT 50", [$from, $to]),
+            ]);
+        }
+        return $data;
+    }
+
     private static function analytics(array $u, PDO $p, array $q): array {
         Actions::load('Analytics');
         $topic = in_array($q['topic'] ?? '', ['operations', 'maintenance', 'purchasing', 'finance'], true) ? $q['topic'] : 'operations';
