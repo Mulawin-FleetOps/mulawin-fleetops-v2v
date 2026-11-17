@@ -1336,3 +1336,37 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   #pageContent .fleet-unified-record-toolbar .table-search{flex:1 1 100%}
   #pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{flex:1 1 auto}
 }
+
+/* PURCHASING_DASHBOARD_TYPE_SCALE_V11 */
+/* Slightly larger dashboard typography only. Existing cards, grid and spacing stay intact. */
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels > .panel .panel-title{
+  font-size:16px;
+  line-height:1.4;
+  font-weight:750;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-tools :is(.ws-seeall,button,a){
+  font-size:13px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-top,
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-top b{
+  font-size:14px;
+  line-height:1.45;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-issue{
+  font-size:12.5px;
+  line-height:1.5;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-ref{
+  font-size:12px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-side :is(.badge,.badge-s),
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-title .text-muted{
+  font-size:12px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-empty,
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .ws-panel-foot{
+  font-size:13px;
+  line-height:1.5;
+}
+#pageContent .purchasing-dashboard-ref .kpi-tile .kpi-label{font-size:13px}
+#pageContent .purchasing-dashboard-ref .kpi-tile .kpi-note{font-size:12px}
