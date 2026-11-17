@@ -88,10 +88,18 @@ try {
         }
     }
     if ($mode === '--auto') {
-        $private = envValue('MIGRATIONS_AUTO_PRIVATE_DIR');
-        if ($private === '') throw new RuntimeException('MIGRATIONS_AUTO_PRIVATE_DIR not configured.');
-        $private = realpath($private);
-        if (!$private || !is_dir($private)) throw new RuntimeException('Private backup directory missing.');
+        $privateConfigured = envValue('MIGRATIONS_AUTO_PRIVATE_DIR');
+        $privatePath = $privateConfigured !== ''
+            ? $privateConfigured
+            : dirname(dirname(__DIR__)) . '/.fleetops-migration-private';
+        // Default is deliberately outside public_html, persistent across deployments.
+        if (!is_dir($privatePath) && !mkdir($privatePath, 0700, true) && !is_dir($privatePath)) {
+            throw new RuntimeException('Cannot initialize private database backup directory.');
+        }
+        $private = realpath($privatePath);
+        if (!$private || !is_dir($private) || !is_writable($private)) {
+            throw new RuntimeException('Private backup directory is not writable.');
+        }
         if (is_file($private . '/migration-failed.lock')) {
             throw new RuntimeException('Previous migration failed; manual schema reconciliation required.');
         }
