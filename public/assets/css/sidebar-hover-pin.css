@@ -353,3 +353,49 @@
   border-radius:0 3px 3px 0 !important;
   background:#efbc37 !important;
 }
+
+/* OPTION A — subtle tree connectors across all authenticated role menus.
+   Keep the sidebar scroll container intact for long navigation lists. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items {
+  position:relative;
+  isolation:isolate;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items::before {
+  content:"";
+  position:absolute;
+  left:8px;
+  top:8px;
+  bottom:18px;
+  width:1px;
+  background:rgba(232,247,236,.28);
+  pointer-events:none;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link {
+  position:relative;
+  overflow:visible !important;
+  margin-left:20px !important;
+  width:calc(100% - 20px) !important;
+  padding-left:13px !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link::after {
+  content:"";
+  position:absolute;
+  left:-12px;
+  top:0;
+  height:50%;
+  width:12px;
+  border-bottom:1px solid rgba(232,247,236,.32);
+  border-left:1px solid rgba(232,247,236,.32);
+  border-bottom-left-radius:5px;
+  pointer-events:none;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link:last-child::after {
+  background:transparent;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active::before {
+  left:-8px !important;
+  width:5px !important;
+  border-radius:3px !important;
+}
