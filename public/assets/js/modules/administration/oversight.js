@@ -414,16 +414,18 @@ App.page('admin_reports', {
 });
 
 // ---------------------------------------------------------------- Analytics: topic-based, mixed visualizations
-App.page('admin_analytics', {
-  title: 'Analytics',
-  subtitle: 'What happened, what contributed, and which areas need investigation — by topic.',
+['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].forEach(analyticsPage => App.page(analyticsPage, {
+  title: analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic Analytics' : 'Descriptive Analytics',
+  subtitle: analyticsPage === 'admin_diagnostic_analytics' ? 'Recorded patterns and areas requiring investigation.' : 'Recorded activity, totals, and trends by department.',
   render(ctx) {
+    if (analyticsPage === 'admin_analytics') { App.go('admin_descriptive_analytics', ctx.query); return; }
     HM.destroyCharts();
+    const kindFilter = analyticsPage === 'admin_diagnostic_analytics' ? 'g' : 'd';
     const d = ctx.data, q = ctx.query, per = d.period || {}, b = d.buckets || [], topic = d.topic || 'operations', sg = d.suggestions || {};
     const unit = { day: 'day', week: 'week', month: 'month' }[per.granularity] || 'period';
     const tag = (k) => `<span class="hm-kind hm-kind-${k}">${{ d: 'Descriptive', g: 'Diagnostic' }[k]}</span>`;
-    const panel = (cls, title, kind, body, o = {}) => UI.wsPanel(title, 'bi-graph-up', `${tag(kind)}${body}`, { cls, ...o });
-    const tabs = UI.statusTabs('admin_analytics', q, 'topic', [['operations', 'Operations'], ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['finance', 'Finance']], topic);
+    const panel = (cls, title, kind, body, o = {}) => kind === kindFilter ? UI.wsPanel(title, 'bi-graph-up', body, { cls, ...o }) : '';
+    const tabs = UI.statusTabs(analyticsPage, q, 'topic', [['operations', 'Operations'], ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['finance', 'Finance']], topic);
     const sugg = (list, empty) => ({ tipHtml: HM.sug(list || [], empty || 'No supported recommendation for this view.') });
     const has = (arr) => (arr || []).some(x => +x);
     const C = { g: '#2f7d57', a: '#d97706', b: '#2563eb', p: '#9333ea', r: '#b91c1c', s: '#64748b' }, PAL = ['#2f7d57', '#d97706', '#2563eb', '#9333ea', '#64748b', '#0891b2', '#b91c1c', '#a16207'];
@@ -432,7 +434,7 @@ App.page('admin_analytics', {
       const a = d.activity || {}, st = d.status || [], inc = d.incidents || [], dp = d.dispatch || [];
       html = `<div class="ws-grid2 ws-report-row">
         ${panel('ws-l1', 'Trip activity over time', 'd', has(a.created) || has(a.completed) ? HM.canvas('hmA', 'Trips created and completed per ' + unit) : HM.empty('No trip was created or completed in this period.'), sugg(sg.main, 'No trip is on hold, waiting for reschedule or resources.'))}
-        ${panel('ws-r1', 'Trip status distribution', 'g', st.length ? HM.canvas('hmB', 'Trips created in the period by current status') : HM.empty('No trip was created in this period.'))}
+        ${panel('ws-r1', 'Trip status distribution', 'd', st.length ? HM.canvas('hmB', 'Trips created in the period by current status') : HM.empty('No trip was created in this period.'))}
         ${panel('ws-l2', 'Incidents by type', 'g', inc.length ? HM.canvas('hmC', 'Incidents by recorded type') : HM.empty('No incident was recorded in this period.'))}
         ${panel('ws-r2', 'Completed trips by dispatcher division and shift', 'g', dp.length ? HM.canvas('hmD', 'Completed trips by division and shift') : HM.empty('No completed trip in this period, so dispatcher divisions cannot be compared.'))}</div>`;
       draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'line', b.map(x => x.short), [{ label: 'Trips created', data: a.created, color: C.b }, { label: 'Trips completed', data: a.completed, color: C.g }], { axis: 'Trips', titles: b.map(x => x.label) }),
@@ -445,7 +447,7 @@ App.page('admin_analytics', {
       html = `<div class="ws-grid2 ws-report-row">
         ${panel('ws-l1', 'Maintenance activity timeline', 'd', has(tl.reported) || has(tl.completed) ? HM.canvas('hmA', 'Repairs reported and completed') : HM.empty('No repair was reported or completed in this period.'), sugg(sg.main, 'No repair is waiting for verification or for parts.'))}
         ${panel('ws-r1', 'Repair frequency by truck', 'g', fq.length ? HM.canvas('hmB', 'Repairs per truck', 240) : HM.empty('No repair was reported in this period.'), sugg(sg.trucks, 'Repair counts per truck are shown as recorded; no rule applies.'))}
-        ${panel('ws-l2', 'Maintenance cost composition', 'g', cats.length ? HM.canvas('hmC', 'Maintenance cost by component') + `<div class="mr-note">Total ${UI.money(cost.total)}: parts used (release date) and recorded repair costs (date incurred).</div>` : HM.empty('No maintenance cost was recorded in this period.'))}</div>`;
+        ${panel('ws-l2', 'Maintenance cost composition', 'd', cats.length ? HM.canvas('hmC', 'Maintenance cost by component') + `<div class="mr-note">Total ${UI.money(cost.total)}: parts used (release date) and recorded repair costs (date incurred).</div>` : HM.empty('No maintenance cost was recorded in this period.'))}</div>`;
       draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'line', mb.map(x => x.short), [{ label: 'Reported', data: tl.reported, color: C.a }, { label: 'Completed', data: tl.completed, color: C.g }, ...(tl.under_repair ? [{ label: 'Under repair (end of period)', data: tl.under_repair, color: C.b }] : [])], { axis: 'Repairs', titles: mb.map(x => x.label) }),
         () => HM.chart(ctx.el.querySelector('#hmB'), 'hbar', fq.map(x => x.plate_number), [{ label: 'Repairs', data: fq.map(x => +x.repairs), color: C.g }], { axis: 'Repairs', title: 'Repairs',
           detail: (i) => HM.pp(fq[i].plate_number, [['Repairs in the period', UI.num(fq[i].repairs)], ['Truck type', UI.esc(fq[i].truck_type || '')]], [['maintenance?view=all&cancelled=0&vehicle_id=' + fq[i].id + '&from=' + per.from + '&to=' + per.to, 'Open repairs']]) }),
@@ -455,7 +457,7 @@ App.page('admin_analytics', {
       html = `<div class="ws-grid2 ws-report-row">
         ${panel('ws-l1', 'Stock in vs stock out (value)', 'd', has(fl.in) || has(fl.out) ? HM.canvas('hmA', 'Stock value received and issued') : HM.empty('No stock was received or issued in this period.'))}
         ${panel('ws-r1', 'Most used parts (value issued)', 'g', top.length ? HM.canvas('hmB', 'Parts issued, ranked by value') + '<div class="mr-note">Ranked by value (quantity × recorded unit cost); quantities keep their own units.</div>' : HM.empty('No part was issued in this period.'), sugg(sg.main, 'No part is low on stock right now.'))}
-        ${panel('ws-l2', 'Purchase order status distribution', 'g', ps.length ? HM.canvas('hmC', 'Purchase orders created in the period by status') : HM.empty('No purchase order was created in this period.'))}
+        ${panel('ws-l2', 'Purchase order status distribution', 'd', ps.length ? HM.canvas('hmC', 'Purchase orders created in the period by status') : HM.empty('No purchase order was created in this period.'))}
         ${panel('ws-r2', 'Inventory value by category (now)', 'd', inv.length ? HM.canvas('hmD', 'Inventory value by category') : HM.empty('No active part has stock value.'))}</div>`;
       draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'line', pb.map(x => x.short), [{ label: 'Stock in', data: fl.in, color: C.g }, { label: 'Stock out', data: fl.out, color: C.a }], { money: true, axis: 'Value (PHP)', titles: pb.map(x => x.label) }),
         () => HM.chart(ctx.el.querySelector('#hmB'), 'hbar', top.map(x => x.part_number), [{ label: 'Value issued', data: top.map(x => +x.value), color: C.g }], { money: true, axis: 'Value (PHP)', title: 'Part',
@@ -465,7 +467,7 @@ App.page('admin_analytics', {
     } else {
       const ex = d.expenses || [], wks = d.weeks || [], mb = d.monthlyBudget && !Array.isArray(d.monthlyBudget) ? d.monthlyBudget : {}, ag = d.aging || [], pdue = d.payDue || [];
       html = `<div class="ws-grid2 ws-report-row">
-        ${panel('ws-l1', 'Recorded expense distribution', 'g', ex.length ? HM.canvas('hmA', 'Recorded expenses by category') + `<div class="mr-note">Period total ${UI.money(ex.reduce((a, x) => a + +x.value, 0))}; each expense recorded once.</div>` : HM.empty('No expense was recorded in this period.'), sugg(sg.main, 'No spending concentration or receivable issue under the current rules.'))}
+        ${panel('ws-l1', 'Recorded expense distribution', 'd', ex.length ? HM.canvas('hmA', 'Recorded expenses by category') + `<div class="mr-note">Period total ${UI.money(ex.reduce((a, x) => a + +x.value, 0))}; each expense recorded once.</div>` : HM.empty('No expense was recorded in this period.'), sugg(sg.main, 'No spending concentration or receivable issue under the current rules.'))}
         ${panel('ws-r1', 'Weekly client collections', 'd', wks.some(x => +x.amount) ? HM.canvas('hmB', 'Collections per week') : HM.empty('No client collection was recorded in this period.'))}
         ${panel('ws-l2', 'Budget allocation', 'd', mb.id ? HM.canvas('hmC', 'Monthly Purchasing budget allocation', 120) + `<div class="mr-note">Finance's monthly Purchasing budget (${UI.date(mb.period_start)} – ${UI.date(mb.period_end)}). The weekly collection-funded allocation is not recorded yet.</div>` : HM.empty('No active budget is recorded.'))}
         ${panel('ws-r2', 'Receivables aging and payables by due date', 'g', ag.some(x => +x.value) || pdue.some(x => +x.value) ? HM.canvas('hmD', 'Receivables aging and payables by due category') : HM.empty('No open receivable or payable.'))}</div>`;
@@ -474,8 +476,8 @@ App.page('admin_analytics', {
         () => HM.chart(ctx.el.querySelector('#hmC'), 'stack', ['Budget'], [{ label: 'Spent', data: [+mb.spent_amount], color: C.b }, { label: 'Committed', data: [+mb.reserved_amount], color: C.a }, { label: 'Available', data: [+mb.available], color: '#cbd5e1' }], { money: true }),
         () => HM.chart(ctx.el.querySelector('#hmD'), 'hbar', [...ag.map(x => 'Receivable: ' + x.label), ...pdue.map(x => 'Payable: ' + x.label)], [{ label: 'Balance', data: [...ag.map(x => +x.value), ...pdue.map(x => +x.value)], color: C.b }], { money: true, axis: 'Balance (PHP)' })];
     }
-    ctx.el.innerHTML = `${tabs}${UI.wsPeriod('admin_analytics', per).replaceAll('admin_analytics?', 'admin_analytics?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">Descriptive: what happened · Diagnostic: what contributed · Prescriptive: the lightbulb suggestions, from documented rules only.</div>${html}`;
+    ctx.el.innerHTML = `${tabs}${UI.wsPeriod(analyticsPage, per).replaceAll(analyticsPage + '?', analyticsPage + '?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">${analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic: distributions and patterns that can help identify areas to investigate; they do not establish root causes.' : 'Descriptive: recorded activity and trends; no causal claims.'}</div>${html}`;
     UI.bindPeriod(ctx.el); UI.bindTips(ctx.el);
     draw.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
   },
-});
+}));
