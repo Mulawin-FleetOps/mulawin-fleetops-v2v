@@ -24,6 +24,38 @@ try {
         "INSERT INTO vehicles(id,assigned_driver_id) VALUES(1,1)",
         "INSERT INTO trips(id,status) VALUES(1,'Completed')"
     ] as $sql) $db->exec($sql);
+    // Independently verify the PHP backup can restore data/schema on disposable MySQL.
+    require_once dirname(__DIR__) . '/scripts/lib/migration_backup.php';
+    require_once dirname(__DIR__) . '/scripts/lib/migration_sql.php';
+    $backupDir = sys_get_temp_dir() . '/fleetops_backup_ci_' . bin2hex(random_bytes(8));
+    mkdir($backupDir, 0700);
+    $restoreName = 'fleetops_ci_' . bin2hex(random_bytes(8));
+    try {
+        $dump = migrationMakeBackup($db, $backupDir, $name);
+        if (!is_file($dump['backup_path']) || !hash_equals($dump['backup_sha256'], hash_file('sha256',$dump['backup_path']))) {
+            throw new RuntimeException('Backup integrity check failed');
+        }
+        $admin->exec('CREATE DATABASE ' . $restoreName . ' CHARACTER SET utf8mb4');
+        $restore = new PDO("mysql:host=127.0.0.1;port=3306;dbname=$restoreName;charset=utf8mb4", $user, $pass,
+            [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        foreach (migrationSqlStatements((string)file_get_contents($dump['backup_path'])) as $statement) {
+            $restore->exec($statement);
+        }
+        $restored = (int)$restore->query('SELECT COUNT(*) FROM personnel WHERE id=1')->fetchColumn();
+        $tripsRestored = (int)$restore->query("SELECT COUNT(*) FROM trips WHERE id=1 AND status='Completed'")->fetchColumn();
+        $historyExists = (int)$restore->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='schema_migrations'")->fetchColumn();
+        if ($restored!==1 || $tripsRestored!==1 || $historyExists!==1) {
+            throw new RuntimeException('SQL backup restore contents mismatch');
+        }
+        echo "PASS: private SQL backup, SHA-256 and disposable database restore\n";
+    } finally {
+        if (isset($restore)) { $restore=null; }
+        if (preg_match('/^fleetops_ci_[a-f0-9]{16}$/',$restoreName)) {
+            $admin->exec('DROP DATABASE IF EXISTS ' . $restoreName);
+        }
+        foreach (glob($backupDir . '/*') ?: [] as $file) unlink($file);
+        rmdir($backupDir);
+    }
     $targets = ['2026-11-15_17_dispatcher_multi_types', '2026-11-15_18_driver_truck_authorizations', '2026-11-15_19_missed_trips'];
     foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') as $file) {
         $id = basename($file, '.sql');
