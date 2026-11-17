@@ -32,7 +32,13 @@ final class Access {
         ],
         'car_carrier_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
         'container_wingvan_dispatcher' => ['funds' => 'Operations', 'trucks' => 'Operations', 'crew' => 'Operations'],
-        'motorpool' => ['trucks' => 'Maintenance', 'mechanics' => 'Maintenance', 'mechanic_attendance' => 'Maintenance'],
+        'motorpool' => [
+            'maintenance_overview' => 'Dashboard',
+            'maintenance' => 'Repair Operations', 'mp_parts_requests' => 'Repair Operations',
+            'mechanics' => 'Personnel', 'mechanic_attendance' => 'Personnel',
+            'maint_history' => 'Records & History', 'maintenance_reports' => 'Records & History',
+            'trucks' => 'Records & History',
+        ],
         'finance' => ['finance_overview' => 'Accounting', 'purchase_orders' => 'Accounting', 'purchasing_reports' => 'Accounting', 'clients' => 'Accounting', 'routes' => 'Accounting'],
         'billing' => ['trips' => 'Billing', 'clients' => 'Billing', 'routes' => 'Billing', 'billing_overview' => 'Billing', 'billing' => 'Billing',
             'billing_collections' => 'Billing', 'billing_receivables' => 'Billing', 'reports' => 'Billing'],
@@ -53,7 +59,8 @@ final class Access {
         'car_carrier_dispatcher' => ['funds' => 'My Trip Funds'],
         'container_wingvan_dispatcher' => ['funds' => 'My Trip Funds'],
         // MAINTENANCE_OVERVIEW_PHASE1_V1: Motorpool wording (labels only; same pages and permissions).
-        'motorpool' => ['maintenance_overview' => 'Overview', 'maintenance' => 'Repair Management', 'maintenance_reports' => 'Reports'],
+        'motorpool' => ['maintenance_overview' => 'Dashboard', 'maintenance' => 'Repairs', 'mp_parts_requests' => 'Parts Requests',
+                       'mechanics' => 'Mechanics', 'mechanic_attendance' => 'Attendance', 'maint_history' => 'Maintenance History', 'maintenance_reports' => 'Reports'],
         // STAGE_B_PURCHASING_UI: concise Purchasing workspace labels (labels only; same pages and permissions).
         'purchasing' => ['purchasing_overview' => 'Overview', 'purchasing_reports' => 'Reports'],
         // FINANCE_WORKSPACE_V1: Finance labels (same pages; Approvals = purchase orders routed to Finance).
@@ -64,6 +71,7 @@ final class Access {
 
     /** Workspace menu order per role: listed pages first, in this order; the other pages keep the default order. */
     private const NAV_ORDER = [
+        'motorpool' => ['maintenance_overview','maintenance','mp_parts_requests','mechanics','mechanic_attendance','maint_history','maintenance_reports','trucks'],
         'finance' => ['finance_overview', 'purchase_orders', 'funds', 'finance', 'finance_budgets', 'purchasing_reports'],
         'billing' => ['billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'reports'],
         'audit' => ['audit_overview', 'audit_logs', 'audit_history', 'audit_reports'],
