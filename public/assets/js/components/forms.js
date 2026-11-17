@@ -118,8 +118,8 @@ const FormComponents = Object.freeze({
       + (opts.intro ? '<div class="record-form-hint">' + UI.esc(opts.intro) + '</div>' : '')
       + groups.join('')
       + '</div>';
-    return UI.modal(title, html, async data => {
-      const payload = opts.transform ? opts.transform(data) : data;
+    return UI.modal(title, html, async (data, form, wrap) => {
+      const payload = opts.transform ? opts.transform(data, form, wrap) : data;
       const result = await App.api(action, { ...(opts.extra || {}), ...payload });
       UI.result(result);
       if (opts.after) opts.after(result);

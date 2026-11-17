@@ -279,7 +279,7 @@ const FleetUI = {
       compactSize:driver?'normal':'small',
       transform:(values,form)=>{
         if(!driver)return values;
-        const authorized=[...form.querySelectorAll('.driver-auth-option input:checked')]
+        const authorized=[...form.querySelectorAll('[data-driver-truck-selector] input[name^="auth_truck_"]:checked')]
           .map(input=>Number(input.name.slice('auth_truck_'.length)));
         for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
         const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked');
