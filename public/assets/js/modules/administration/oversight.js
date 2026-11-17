@@ -476,7 +476,70 @@ App.page('admin_reports', {
         () => HM.chart(ctx.el.querySelector('#hmC'), 'stack', ['Budget'], [{ label: 'Spent', data: [+mb.spent_amount], color: C.b }, { label: 'Committed', data: [+mb.reserved_amount], color: C.a }, { label: 'Available', data: [+mb.available], color: '#cbd5e1' }], { money: true }),
         () => HM.chart(ctx.el.querySelector('#hmD'), 'hbar', [...ag.map(x => 'Receivable: ' + x.label), ...pdue.map(x => 'Payable: ' + x.label)], [{ label: 'Balance', data: [...ag.map(x => +x.value), ...pdue.map(x => +x.value)], color: C.b }], { money: true, axis: 'Balance (PHP)' })];
     }
-    ctx.el.innerHTML = `${tabs}${UI.wsPeriod(analyticsPage, per).replaceAll(analyticsPage + '?', analyticsPage + '?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">${analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic: distributions and patterns that can help identify areas to investigate; they do not establish root causes.' : 'Descriptive: recorded activity and trends; no causal claims.'}</div>${html}`;
+    // All report families live inside the two admin-only Analytics pages.
+    // The existing calculation owners supply the data; this layer never recomputes totals.
+    const reportKind = d.reportKind || 'management', reportData = d.reportData || {};
+    const reportTabs = [['management', 'Management'], ['general', 'Trips / Fleet / Finance'],
+      ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['audit', 'Audit']];
+    const reportNav = '<nav class="line-tabs ws-status-tabs mb-3" aria-label="Analytics report categories">'
+      + reportTabs.map(([key, label]) => '<a class="btn btn-sm ' + (reportKind === key ? 'btn-primary' : 'btn-outline-secondary')
+        + '" href="#' + analyticsPage + '?topic=' + encodeURIComponent(topic) + '&report=' + encodeURIComponent(key)
+        + '&from=' + encodeURIComponent(per.from || '') + '&to=' + encodeURIComponent(per.to || '') + '">' + UI.esc(label) + '</a>').join(' ')
+      + '</nav>';
+    const reportTable = (headers, rows) => '<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr>'
+      + headers.map(x => '<th scope="col">' + UI.esc(x) + '</th>').join('') + '</tr></thead><tbody>'
+      + (rows.length ? rows.map(row => '<tr>' + row.map(x => '<td>' + UI.esc(String(x ?? '—')) + '</td>').join('') + '</tr>').join('')
+        : '<tr><td colspan="' + headers.length + '" class="text-muted">No recorded data for this period.</td></tr>')
+      + '</tbody></table></div>';
+    const overview = () => {
+      if (reportKind === 'management') {
+        const perf = reportData.performance || [], items = reportData.items || [], recent = reportData.recent || [];
+        if (kindFilter === 'd') return UI.wsPanel('Management performance and decisions', 'bi-clipboard-data',
+          reportTable(['Department', 'Measure', 'Last 30 days', 'Previous 30 days'], perf.map(p => [p.dept, p.measure, p.now, p.prev]))
+          + '<h3 class="h6 mt-3">Recent management decisions</h3>'
+          + reportTable(['Reference', 'Type', 'Status', 'Decided at'], recent.map(x => [x.ref, x.type, x.status, x.decided_at])), {});
+        return UI.wsPanel('Management exceptions requiring investigation', 'bi-search',
+          reportTable(['Department', 'Reference', 'Issue', 'Recorded reason', 'Next step'],
+            items.filter(x => x.group === 'issues').map(x => [x.dept, x.ref, x.issue, x.reason, x.next])), {});
+      }
+      if (reportKind === 'general') {
+        const sections = reportData.sections || {}, insights = reportData.insights || {};
+        if (kindFilter === 'd') return Object.entries(sections).map(([key, section]) => UI.blocks(section, { maxCharts: 3, key: 'admin-analytics-report-' + key })).join('');
+        return Object.entries(insights).map(([key, findings]) => UI.wsPanel(
+          (sections[key]?.title || key) + ' — Diagnostic observations', 'bi-search',
+          (findings || []).length ? '<ul>' + findings.map(x => '<li><b>' + UI.esc(x.title || 'Observation')
+            + '</b> ' + UI.esc(x.text || '') + '</li>').join('') + '</ul>'
+            : '<p class="text-muted">No supported diagnostic observation for this period.</p>', {})).join('');
+      }
+      if (reportKind === 'maintenance') {
+        if (kindFilter === 'd') return UI.wsPanel('Maintenance activity report', 'bi-wrench',
+          reportTable(['Metric', 'Value'], Object.entries(reportData.kpis || {}).map(([key, val]) => [key.replaceAll('_', ' '), val]))
+          + '<p class="small text-muted">Detailed repair timelines and cost charts are also available above in the Maintenance topic.</p>', {});
+        return UI.wsPanel('Maintenance investigation signals', 'bi-search',
+          reportTable(['Vehicle', 'Repairs'], (reportData.frequency || []).slice(0, 20).map(x => [x.plate_number, x.repairs]))
+          + '<p class="small text-muted">Repair frequency is an indicator for investigation, not proof of a mechanical cause.</p>', {});
+      }
+      if (reportKind === 'purchasing') {
+        if (kindFilter === 'd') return UI.wsPanel('Purchasing and inventory report', 'bi-box-seam',
+          reportTable(['Purchase order status', 'Count'], (reportData.poStatus || []).map(x => [x.status, x.n]))
+          + reportTable(['Part', 'Value issued'], (reportData.topUsed || []).slice(0, 15).map(x => [x.part_number, x.value])), {});
+        return UI.wsPanel('Purchasing investigation signals', 'bi-search',
+          reportTable(['Part', 'Units issued', 'Value issued'], (reportData.topUsed || []).slice(0, 15).map(x => [x.part_number, x.units, x.value]))
+          + '<p class="small text-muted">High use alone does not establish waste or an inventory discrepancy.</p>', {});
+      }
+      const summary = reportData.summary || {}, groups = summary.byArea || [];
+      if (kindFilter === 'd') return UI.wsPanel('Audit activity report', 'bi-journal-text',
+        '<p>Recorded events: <b>' + UI.num(summary.total || 0) + '</b></p>'
+        + reportTable(['Area', 'Events', 'With changes'], groups.map(x => [x.area, x.n, x.changes]))
+        + reportTable(['User', 'Role', 'Events'], (summary.byUser || []).map(x => [x.actor, x.role, x.n])), {});
+      return UI.wsPanel('Audit patterns to review', 'bi-search',
+        reportTable(['Area', 'Events', 'With changes'], [...groups].sort((a, b) => b.n - a.n).map(x => [x.area, x.n, x.changes]))
+        + '<p class="small text-muted">Event volume is not a performance score or evidence of wrongdoing.</p>', {});
+    };
+    const reportLibrary = '<section aria-label="Consolidated reports" class="mt-4"><h2 class="h5">Reports</h2>'
+      + '<p class="text-muted small">Admin-only reports grouped by purpose. All figures are drawn from recorded system data.</p>'
+      + reportNav + overview() + '</section>';
+    ctx.el.innerHTML = `${tabs}${UI.wsPeriod(analyticsPage, per).replaceAll(analyticsPage + '?', analyticsPage + '?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">${analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic: distributions and patterns that can help identify areas to investigate; they do not establish root causes.' : 'Descriptive: recorded activity and trends; no causal claims.'}</div>${html}${reportLibrary}`;
     UI.bindPeriod(ctx.el); UI.bindTips(ctx.el);
     draw.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
   },
