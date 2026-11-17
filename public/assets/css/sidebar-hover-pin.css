@@ -1,0 +1,291 @@
+/* FleetOps sidebar: one consistent desktop geometry for compact, hover and pin.
+   Hover overlays content; Pin changes content width. Only existing authorized
+   nav links and native <details> groups are used. No data/API behavior. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar {
+    --sidebar-rail:76px;
+    --sidebar-expanded:260px;
+    --sidebar-w:var(--sidebar-rail);
+  }
+  #appShell.hover-pin-sidebar.sb-pinned { --sidebar-w:var(--sidebar-expanded); }
+  #appShell.hover-pin-sidebar.sb-collapsed { --sidebar-w:var(--sidebar-rail); }
+
+  #appShell.hover-pin-sidebar > .sidebar {
+    position:fixed; inset:0 auto 0 0;
+    width:var(--sidebar-w) !important;
+    height:100vh; display:flex; flex-direction:column;
+    z-index:1030; overflow:hidden;
+    background:linear-gradient(175deg,#176238,#207444);
+    color:#e8f7ec; border-right:1px solid rgba(255,255,255,.1);
+    box-shadow:none;
+    transition:width 240ms cubic-bezier(.22,1,.36,1),box-shadow 240ms ease !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed.sb-hover-open > .sidebar {
+    width:var(--sidebar-expanded) !important;
+    box-shadow:11px 0 30px rgba(11,42,25,.2);
+    z-index:1040;
+  }
+  #appShell.hover-pin-sidebar > .main {
+    flex:1 1 auto; min-width:0; width:auto;
+    margin-left:var(--sidebar-w) !important;
+    transition:margin-left 240ms cubic-bezier(.22,1,.36,1) !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed.sb-hover-open > .main {
+    margin-left:var(--sidebar-rail) !important;
+  }
+
+  /* The header never rotates from column to row. Same logo position in all states. */
+  #appShell.hover-pin-sidebar .sidebar-top {
+    position:relative;flex:0 0 79px;
+    display:flex !important;flex-direction:row !important;
+    align-items:center !important;justify-content:flex-start !important;
+    height:79px !important;min-height:79px !important;
+    width:100%;padding:13px 12px !important;gap:10px !important;
+    margin:0 !important;overflow:hidden;
+    border-bottom:1px solid rgba(255,255,255,.15);
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .sidebar-brand {
+    display:flex !important;flex:none !important;
+    align-items:center !important;justify-content:flex-start !important;
+    gap:10px !important;min-width:0;width:auto !important;
+    padding:0 !important;margin:0 !important;border:0 !important;
+    white-space:nowrap;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .sidebar-logo {
+    width:43px !important;max-width:43px !important;
+    flex:0 0 43px !important;height:auto;
+    object-fit:contain;margin:0 !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text {
+    display:flex !important;flex-direction:column;
+    flex:0 0 150px;min-width:0;
+    white-space:nowrap;overflow:hidden;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .brand-product {color:#fff;}
+  #appShell.hover-pin-sidebar .sidebar-top .brand-company {color:#d1e7d5;}
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse {
+    position:absolute;top:23px;right:11px;z-index:2;
+    display:grid !important;place-items:center;
+    width:32px;height:32px;padding:0;
+    border:0;border-radius:8px;
+    background:transparent;color:#eaf8ef;
+    cursor:pointer;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:hover,
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:focus-visible {
+    background:rgba(255,255,255,.16) !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse .bi {font-size:19px;}
+  #appShell.hover-pin-sidebar.sb-pinned .sidebar-top #sbCollapse {
+    background:rgba(255,255,255,.12);
+  }
+
+  /* Same column, icon x-position and row heights at every width. */
+  #appShell.hover-pin-sidebar .sidebar-nav {
+    flex:1 1 auto;min-width:0;width:100%;
+    display:flex !important;flex-direction:column;
+    align-items:stretch;gap:6px !important;
+    padding:16px 12px !important;
+    overflow-y:auto;overflow-x:hidden;
+    scrollbar-width:none;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav::-webkit-scrollbar {display:none;}
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group,
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-group {
+    flex:0 0 auto;width:100% !important;max-width:none !important;
+    min-width:0;margin:0 !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > summary,
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link {
+    display:flex !important;align-items:center !important;
+    justify-content:flex-start !important;flex-direction:row !important;
+    width:100% !important;height:48px !important;
+    min-height:48px !important;max-height:48px !important;
+    gap:11px !important;padding:0 14px !important;margin:0 !important;
+    border:0 !important;border-radius:11px !important;
+    white-space:nowrap;overflow:hidden;
+    color:#d8f1dd;
+    transition:background-color 120ms ease,color 120ms ease !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group {
+    height:auto !important;overflow:visible !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link > .bi,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > summary > .bi:first-child,
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link > .bi {
+    flex:0 0 24px !important;width:24px !important;
+    display:block !important;text-align:center !important;
+    font-size:20px !important;line-height:1.2;
+    margin:0 !important;color:inherit;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link:hover,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > summary:hover {
+    background:rgba(255,255,255,.12) !important;color:#fff !important;
+  }
+  /* Only destination links have active backgrounds; parent groups do not. */
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active {
+    background:rgba(205,246,216,.15) !important;color:#fff !important;
+    box-shadow:inset 3px 0 #9ce4af !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before {
+    display:none !important;
+  }
+
+  /* Existing native details controls determine whether sub-icons appear.
+     Keep children in a single vertical list, no block/flex flip on hover. */
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > .head-nav-items {
+    display:none !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group[open] > .head-nav-items {
+    display:flex !important;flex-direction:column !important;
+    align-items:stretch !important;gap:3px !important;
+    padding:5px 0 7px !important;margin:0 !important;
+    width:100% !important;min-width:0;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link {
+    display:flex !important;align-items:center !important;
+    justify-content:flex-start !important;gap:11px !important;
+    width:100% !important;max-width:none !important;
+    height:40px !important;min-height:40px !important;
+    padding:0 14px !important;margin:0 !important;
+    border:0 !important;border-radius:9px !important;
+    overflow:hidden;white-space:nowrap;
+    background:transparent !important;color:#c5e9ce !important;
+    text-decoration:none;
+    transition:background-color 120ms ease,color 120ms ease !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link > .bi {
+    display:block !important;flex:0 0 24px !important;
+    width:24px !important;margin:0 !important;
+    font-size:17px !important;line-height:1.2;
+    text-align:center !important;color:inherit !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link:hover,
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link:focus-visible {
+    background:rgba(255,255,255,.12) !important;color:#fff !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link.active {
+    background:rgba(205,246,216,.17) !important;color:#fff !important;
+    box-shadow:inset 3px 0 #9ce4af !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link.active::before {
+    display:none !important;
+  }
+
+  /* Hide text without display:none so the icon grid does not relayout.
+     Fade only the labels, beginning after the width has room for them. */
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text,
+  #appShell.hover-pin-sidebar .sidebar-nav .nav-item-link > span,
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary > span,
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-chevron,
+  #appShell.hover-pin-sidebar .sidebar-logout-button > span {
+    display:inline-block !important;
+    opacity:1;visibility:visible;white-space:nowrap;
+    transition:opacity 130ms ease 95ms,visibility 0s linear 0s !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text {display:flex !important;}
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-chevron {
+    margin-left:auto !important;flex:0 0 auto;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-top .brand-text,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .nav-item-link > span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-group > summary > span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-chevron,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-logout-button > span {
+    opacity:0 !important;visibility:hidden !important;
+    transition:opacity 85ms ease,visibility 0s linear 85ms !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-top #sbCollapse {
+    display:none !important;
+  }
+
+  /* Permanent logout stays aligned with the same x-position as menu icons. */
+  #appShell.hover-pin-sidebar .sidebar-logout-wrap {
+    flex:0 0 auto;padding:12px 12px 18px !important;
+    border-top:1px solid rgba(255,255,255,.15);
+  }
+  #appShell.hover-pin-sidebar .sidebar-logout-button {
+    display:flex !important;justify-content:flex-start !important;
+    align-items:center !important;width:100% !important;
+    height:48px !important;min-height:48px !important;
+    padding:0 14px !important;margin:0 !important;
+    gap:11px !important;border-radius:11px !important;
+    background:rgba(255,255,255,.08) !important;
+    color:#eefaf1 !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-logout-button > .bi {
+    flex:0 0 24px !important;width:24px !important;
+    font-size:20px !important;text-align:center;
+    color:inherit;
+  }
+
+  /* Keyboard users can expand via focus; active submenu is still accessible
+     in the compact view. No detached flyout or page shift on hover. */
+}
+@media (max-width: 991.98px) {
+  #appShell.hover-pin-sidebar > .main {margin-left:0 !important;}
+  #appShell.hover-pin-sidebar > .sidebar {
+    width:min(280px,88vw) !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > .head-nav-items {
+    display:block;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  #appShell.hover-pin-sidebar > .sidebar,
+  #appShell.hover-pin-sidebar > .main {transition:none !important;}
+  #appShell.hover-pin-sidebar .sidebar-nav .nav-item-link > span,
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary > span,
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text {transition:none !important;}
+}
+
+/* Highlight the actual active page only, never its accordion parent.
+   An open group is a navigation container, not the selected destination. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open]:has(.nav-item-link.active) > summary {
+  background:transparent !important;
+  color:#d8f1dd !important;
+  box-shadow:none !important;
+  border:0 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary > .bi {
+  color:inherit !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:hover,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:focus-visible {
+  background:rgba(255,255,255,.12) !important;
+  color:#fff !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  background:rgba(205,246,216,.17) !important;
+  color:#fff !important;
+  box-shadow:inset 3px 0 #9ce4af !important;
+}
+
+/* Universal role guarantee: parent accordion remains neutral even if an
+   authorized child page is active; only the active destination is highlighted. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary {
+  background:transparent !important;
+  box-shadow:none !important;
+  color:#d8f1dd !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:hover,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:focus-visible {
+  background:rgba(255,255,255,.12) !important;
+  color:#fff !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active {
+  background:rgba(205,246,216,.17) !important;
+  color:#fff !important;
+  box-shadow:inset 3px 0 #9ce4af !important;
+}
+/* Prevent role-specific legacy workspace palette from changing these common
+   navigation colors. All authenticated roles use green sidebar styling. */
+#appShell.hover-pin-sidebar .sidebar .sidebar-brand .brand-product {color:#fff !important;}
+#appShell.hover-pin-sidebar .sidebar .sidebar-brand .brand-company {color:#d1e7d5 !important;}
