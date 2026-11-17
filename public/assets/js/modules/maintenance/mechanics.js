@@ -73,8 +73,8 @@ App.page('mechanics', {
       ${AV.map(a => tab('mechanics?availability=' + a, a === 'Assigned' ? 'On a repair' : a, active.filter(m => m.availability === a).length, key === a)).join('')}
       ${tab('mechanics?inactive=1', 'Inactive', inactive.length, key === 'inactive')}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
-    box.classList.add('mp-reference-table');
-    box.innerHTML = UI.table([
+    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.innerHTML = `<div class="mp-records-heading"><div><strong>Mechanic Records</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Skills, duty status and repair assignments</small></div>` + UI.table([
       ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
       ['Specialization', 'specialization'],
       ['Attendance', 'timed_in', (v, m) => +v ? `<span class="badge-s green">Timed in</span><div class="cell-sub">${UI.datetime(m.last_time_in)}</div>` : (m.last_time_out ? `<span class="badge-s amber">Timed out</span><div class="cell-sub">${UI.datetime(m.last_time_out)}</div>` : '<span class="text-muted">Not timed in</span>')],
@@ -113,19 +113,11 @@ App.page('mechanic_attendance', {
     const range = d.range || {};
     const isAdmin = App.me.user.role === 'admin';
     if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
-    // Direct Motorpool navigation: retain existing server permissions and sidebar appearance.
-    if (UI.role('motorpool')) {
-      [['Repair Management','maintenance','bi-wrench-adjustable'],
-       ['Parts Requests','mp_parts_requests','bi-box-seam'],
-       ['Maintenance History','maint_history','bi-clock-history']].forEach(([label, page, icon]) => {
-        if (UI.canGo(page)) UI.tool(ctx, label, () => App.go(page), icon);
-      });
-    }
     const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
     const on = board.filter(m => m.open_time_in);
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
-      <button type="button" class="btn btn-sm btn-outline-primary" data-go="mechanics"><i class="bi bi-people"></i> Mechanic masterlist</button></div></div>`;
+      </div></div>`;
     ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'duty', [['', 'All mechanics', board.length], ['in', 'On duty', on.length], ['out', 'Not timed in', board.length - on.length]], duty);
     const rows = board.filter(m => !duty || (duty === 'in' ? !!m.open_time_in : !m.open_time_in)).map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
     const box = document.createElement('div'); ctx.el.append(box);
@@ -143,9 +135,12 @@ App.page('mechanic_attendance', {
         onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
 
+    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Attendance Records</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Duty status and current assignments</small></div>`);
+
     // Session history for the chosen dates.
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
-    const hist = document.createElement('section'); hist.className = 'mt-4'; ctx.el.append(hist);
+    const hist = document.createElement('section'); hist.className = 'mt-4 mp-session-section'; ctx.el.append(hist);
     hist.innerHTML = `<h2 class="ref-h">Time In / Time Out sessions · ${UI.esc(label)}</h2>`
       + UI.generalFilters(ctx, [{ name: 'from', label: 'Sessions from', type: 'date' }, { name: 'to', label: 'Sessions to', type: 'date' }])
       + UI.table([
