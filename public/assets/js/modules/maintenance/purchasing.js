@@ -24,30 +24,61 @@ const PurUI = {
     const drawer=UI.drawer(UI.esc(reference),html,{subtitle:(order?'Purchase Order':'Parts Request')+' details'});
     UI.drawerSections(drawer,[['summary','Overview',['Overview']],['items','Items & Quantities',['Items and Quantities']],['record','Processing Record',['Processing Record']],['payments','Payments',['Payments']],['docs','Documents',['Documents']]],{key:'purchasing-details'});
   },
+  /** Editable PO item list — Purchasing backend still validates all lines and prices. */
   lineEditor(withPrice, lines = []) {
-    const parts = PurUI.data.parts.filter(p => +p.active);
-    const row = (l = {}) => `<div class="row g-2 mb-1 pl-row"><div class="col-${withPrice ? 6 : 9}"><select class="form-select form-select-sm" data-part><option value="">Choose part…</option>
-        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.part_number)} · ${UI.esc(p.description)} (on hand ${p.quantity_on_hand} ${UI.esc(p.unit)})</option>`).join('')}</select></div>
-      <div class="col-${withPrice ? 2 : 3}"><input class="form-control form-control-sm" type="number" min="1" max="100000" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
-      ${withPrice ? `<div class="col-2"><input class="form-control form-control-sm" type="number" min="0" step="0.01" placeholder="Unit price" data-price value="${UI.esc(l.unit_price || '')}"></div><div class="col-2 small text-end pt-1" data-lt></div>` : ''}</div>`;
-    const rows = (lines.length ? lines : [{}, {}, {}]).map(row).join('');
-    return `<div class="small text-muted mb-1">${withPrice ? 'Part · Qty · Unit price · Amount' : 'Part · Qty'} ${parts.length ? '' : '<b class="text-danger">No parts yet: Purchasing adds them on the Inventory page.</b>'}</div><div data-lines>${rows}</div>
-      <button type="button" class="btn btn-sm btn-link p-0" data-addrow>+ Add item</button>${withPrice ? '<div class="text-end fw-bold" data-total></div><div class="small text-end" data-route></div>' : ''}`;
+    const parts = (PurUI.data.parts || []).filter(p => +p.active);
+    const row = (l = {}) => `<div class="purchasing-line pl-row">
+      <div class="purchasing-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part><option value="">Choose part…</option>
+        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.part_number)} · ${UI.esc(p.description)} (on hand ${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)})</option>`).join('')}</select></div>
+        <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
+        ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"></div>` : ''}</div>
+      ${withPrice ? '<div class="purchasing-line-amount" data-lt></div>' : ''}
+      <button type="button" class="btn btn-outline-danger btn-sm purchasing-remove" data-remove-row title="Remove item" aria-label="Remove item"><i class="bi bi-trash"></i></button>
+    </div>`;
+    return `<section class="purchasing-line-editor"><div class="purchasing-line-title"><div><strong>Items to purchase</strong><small>Choose a catalog part, quantity and unit price.</small></div>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-addrow><i class="bi bi-plus-lg me-1"></i>Add item</button></div>
+      ${parts.length ? '' : '<div class="alert alert-warning small">No parts in catalog. Add a part through Inventory before creating a PO.</div>'}
+      <div data-lines>${(lines.length ? lines : [{}]).map(row).join('')}</div>
+      ${withPrice ? '<div class="purchasing-line-total" data-total></div><div class="small text-muted text-end" data-route></div>' : ''}</section>`;
   },
   wireLines(w, withPrice) {
     const host = w.querySelector('[data-lines]');
-    const tpl = host.querySelector('.pl-row').outerHTML;
-    w.querySelector('[data-addrow]').onclick = () => { host.insertAdjacentHTML('beforeend', tpl); host.lastElementChild.querySelectorAll('input').forEach(i => i.value = ''); host.lastElementChild.querySelector('select').value = ''; calc(); };
+    const template = host.querySelector('.pl-row').outerHTML;
     const calc = () => {
+      let total = 0;
+      host.querySelectorAll('.pl-row').forEach(r => {
+        const qty = +r.querySelector('[data-qty]').value || 0;
+        const price = withPrice ? +r.querySelector('[data-price]').value || 0 : 0;
+        if (withPrice) r.querySelector('[data-lt]').textContent = qty && price ? UI.money(qty * price) : '';
+        total += qty * price;
+      });
+      host.querySelectorAll('[data-remove-row]').forEach(b => b.disabled = host.querySelectorAll('.pl-row').length <= 1);
       if (!withPrice) return;
-      let t = 0;
-      host.querySelectorAll('.pl-row').forEach(r => { const q = +r.querySelector('[data-qty]').value || 0, p = +r.querySelector('[data-price]').value || 0; r.querySelector('[data-lt]').textContent = q && p ? UI.money(q * p) : ''; t += q * p; });
-      w.querySelector('[data-total]').textContent = 'Total: ' + UI.money(t);
+      w.querySelector('[data-total]').textContent = 'Estimated total: ' + UI.money(total);
       const lim = +PurUI.data.threshold;
-      w.querySelector('[data-route]').innerHTML = t ? (t <= lim ? `Approval goes to <b>Finance</b> (PHP ${UI.num(lim)} and below).` : `Approval goes to the <b>Admin</b> (above PHP ${UI.num(lim)}).`) : '';
+      w.querySelector('[data-route]').innerHTML = total
+        ? (total <= lim ? `Approval route: <b>Finance</b> (up to ${UI.money(lim)}).` : `Approval route: <b>Admin</b> (above ${UI.money(lim)}).`) : '';
     };
+    w.querySelector('[data-addrow]').onclick = () => {
+      host.insertAdjacentHTML('beforeend', template);
+      const last = host.lastElementChild;
+      last.querySelectorAll('input').forEach(i => i.value = '');
+      last.querySelector('[data-part]').value = '';
+      calc();
+    };
+    host.addEventListener('click', e => {
+      const button = e.target.closest('[data-remove-row]');
+      if (!button || host.querySelectorAll('.pl-row').length === 1) return;
+      button.closest('.pl-row').remove(); calc();
+    });
     host.addEventListener('input', calc);
-    host.addEventListener('change', (e) => { if (withPrice && e.target.matches('[data-part]')) { const pr = e.target.closest('.pl-row').querySelector('[data-price]'); if (!pr.value) pr.value = +e.target.selectedOptions[0]?.dataset.cost || ''; } calc(); });
+    host.addEventListener('change', e => {
+      if (withPrice && e.target.matches('[data-part]')) {
+        const input = e.target.closest('.pl-row').querySelector('[data-price]');
+        if (!input.value) input.value = e.target.selectedOptions[0]?.dataset.cost || '';
+      }
+      calc();
+    });
     calc();
   },
   readLines(w, withPrice) {
@@ -84,7 +115,7 @@ const PurUI = {
         : d.budget && d.budget.id ? `<div class="small text-danger mt-2">The purchasing budget period ended on ${UI.date(d.budget.period_end)}: approval will be rejected until Finance sets a new budget.</div>`
         : '<div class="small text-danger mt-2">No active purchasing budget: approval will be rejected until Finance sets one.</div>'),
       async (x, form, w) => { const r = await App.api('Purchasing.po_create', { ...x, lines: PurUI.readLines(w, true) }); UI.result(r); App.route(); },
-      { submit: 'Submit for approval', onShow: (w) => { PurUI.wireLines(w, true); PurUI.wireSupplier(w); } });
+      { submit: 'Submit for approval', onShow: (w) => { w.classList.add('purchasing-po-modal'); PurUI.wireLines(w, true); PurUI.wireSupplier(w); } });
   },
   async processRequest(rq) {
     const r = await App.api('Purchasing.request_details', { request_id: rq.id });
