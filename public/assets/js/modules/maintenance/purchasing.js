@@ -451,11 +451,15 @@ App.page('purchasing_overview', {
         can.stock ? { label:'New purchase order', icon:'bi-cart-plus', act:'newpo', primary:true } : null,
         { label:'Low-stock inventory', icon:'bi-exclamation-triangle', go:'inventory?stock=low' },
         { label:'Stock movements', icon:'bi-arrow-left-right', go:'stock_movements' }])}
-      <div class="ws-grid2 purchasing-ref-panels">
-        ${UI.wsPanel('Parts Requests Needing Action','bi-box-seam', UI.wsList(requestsAction.slice(0,5),'No open parts requests.'), {cls:'ws-l1',count:outstanding.length,go:'parts_requests?tab=todo',goLabel:'View all'})}
-        ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',UI.wsList(incoming.slice(0,5),'No deliveries to receive.'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
-        ${UI.wsPanel('Purchase Order Status','bi-cart-check',UI.wsList(poRows,'No outstanding POs.'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
-        ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',UI.wsList(alerts.slice(0,5),'No low-stock items or outstanding shortages.'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
+      <div class="purchasing-ref-panels purchasing-content-columns">
+        <div class="purchasing-content-column">
+          ${UI.wsPanel('Parts Requests Needing Action','bi-box-seam', UI.wsList(requestsAction.slice(0,5),'No open parts requests.'), {cls:'ws-l1',count:outstanding.length,go:'parts_requests?tab=todo',goLabel:'View all'})}
+          ${UI.wsPanel('Purchase Order Status','bi-cart-check',UI.wsList(poRows,'No outstanding POs.'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
+        </div>
+        <div class="purchasing-content-column">
+          ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',UI.wsList(incoming.slice(0,5),'No deliveries to receive.'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
+          ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',UI.wsList(alerts.slice(0,5),'No low-stock items or outstanding shortages.'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
+        </div>
         ${UI.wsPanel('Approval & Payment Dependencies','bi-diagram-3',UI.wsList(poDependencies,'No external approvals pending.'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
       </div></div>`;
     ctx.el.querySelector('[data-qa="newpo"]')?.addEventListener('click', () => App.go('purchase_orders', { new: 1 }));

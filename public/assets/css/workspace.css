@@ -1370,3 +1370,74 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 }
 #pageContent .purchasing-dashboard-ref .kpi-tile .kpi-label{font-size:13px}
 #pageContent .purchasing-dashboard-ref .kpi-tile .kpi-note{font-size:12px}
+
+/* FLEETOPS_CONTENT_DENSITY_V1 */
+/* Content-height dashboard columns fix blank white areas caused by grid row stretching.
+   Applies only to the two dashboards explicitly adapted above. Other departments retain
+   their functional chart/tables and layouts. */
+#pageContent .mp-wireframe-dashboard .mp-content-columns{
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);
+  align-items:start;
+  gap:14px;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column{
+  display:flex;flex-direction:column;gap:14px;min-width:0;align-self:start;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .panel.ws-panel{
+  display:flex;flex-direction:column;
+  width:100%;height:auto;min-height:0;
+  flex:0 0 auto;margin:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .panel.ws-panel .panel-body{
+  flex:0 0 auto;min-height:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .panel.ws-panel .ws-panel-foot{
+  margin-top:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-columns{
+  display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  align-items:start;gap:14px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column{
+  display:flex;flex-direction:column;gap:14px;min-width:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column > .panel.ws-panel{
+  flex:0 0 auto;width:100%;height:auto;min-height:0;margin:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column > .panel.ws-panel .panel-body{
+  flex:0 0 auto;min-height:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column > .panel.ws-panel .ws-panel-foot{margin-top:0}
+#pageContent .purchasing-dashboard-ref .purchasing-content-columns > .purchasing-full-panel{
+  grid-column:1/-1;min-height:0;height:auto;align-self:start;
+}
+/* Shared compact spacing for normal data pages in all departments.
+   Avoid charts/maps, dialogs, long forms, and intentional dashboard feature cards. */
+#pageContent .page-body > .ws-filters,
+#pageContent .page-body > .filter-summary,
+#pageContent .page-body > .line-tabs{
+  margin-bottom:10px;
+}
+#pageContent .page-body .panel:not(.chart-panel):not(.rpm-feature-card):not(.ws-panel){
+  margin-bottom:12px;
+}
+#pageContent .page-body .panel:not(.chart-panel):not(.rpm-feature-card):not(.ws-panel) > .panel-head{
+  min-height:0;
+}
+#pageContent .page-body .panel:not(.chart-panel):not(.rpm-feature-card):not(.ws-panel) > .panel-body:not(.flush){
+  padding:13px 15px;
+}
+#pageContent .page-body .ref-list .ref-toolbar,
+#pageContent .page-body .fleet-unified-record-toolbar{
+  margin-block:0;
+}
+#pageContent .page-body .ref-list .ref-tablebox{margin-top:0}
+@media(max-width:1180px){
+ #pageContent .mp-wireframe-dashboard .mp-content-columns,
+ #pageContent .purchasing-dashboard-ref .purchasing-content-columns{grid-template-columns:1fr}
+}
+@media(max-width:767px){
+ #pageContent .mp-wireframe-dashboard .mp-content-column,
+ #pageContent .purchasing-dashboard-ref .purchasing-content-column{gap:10px}
+}

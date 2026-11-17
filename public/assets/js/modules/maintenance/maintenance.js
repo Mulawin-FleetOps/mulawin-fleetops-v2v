@@ -739,12 +739,16 @@ App.page('maintenance_overview', {
         can.parts ? { label: 'Parts requests', icon: 'bi-box-seam', go: 'mp_parts_requests' } : null,
         { label: 'Mechanic attendance', icon: 'bi-clock-history', go: 'mechanic_attendance' }
       ])}
-      <div class="mp-wireframe-layout ws-grid2">
-        ${UI.wsPanel('To do now', 'bi-flag', todoBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
-        ${crew ? UI.wsPanel('Mechanics on duty', 'bi-person-gear', crewBody, { cls: 'ws-r1', go: 'mechanic_attendance', foot: `${crew.on_duty} of ${crew.active} active mechanics are timed in.` }) : ''}
-        ${UI.wsPanel('Long-running repairs (3+ days)', 'bi-hourglass-split', staleBody, { cls: 'ws-l2', count: stale.length, go: 'maintenance' })}
-        ${partsBody ? UI.wsPanel('Parts requests', 'bi-box-seam', partsBody, { cls: 'ws-r2', go: 'mp_parts_requests' }) : ''}
-        ${UI.wsPanel('This month', 'bi-calendar3', monthBody, { cls: 'ws-r2' })}
+      <div class="mp-wireframe-layout mp-content-columns">
+        <div class="mp-content-column">
+          ${UI.wsPanel('To do now', 'bi-flag', todoBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
+          ${UI.wsPanel('Long-running repairs (3+ days)', 'bi-hourglass-split', staleBody, { cls: 'ws-l2', count: stale.length, go: 'maintenance' })}
+          ${UI.wsPanel('This month', 'bi-calendar3', monthBody, { cls: 'ws-r2' })}
+        </div>
+        <div class="mp-content-column">
+          ${crew ? UI.wsPanel('Mechanics on duty', 'bi-person-gear', crewBody, { cls: 'ws-r1', go: 'mechanic_attendance', foot: `${crew.on_duty} of ${crew.active} active mechanics are timed in.` }) : ''}
+          ${partsBody ? UI.wsPanel('Parts requests', 'bi-box-seam', partsBody, { cls: 'ws-r2', go: 'mp_parts_requests' }) : ''}
+        </div>
       </div></div>`;
 
     const root = ctx.el.querySelector('.maint-overview');
