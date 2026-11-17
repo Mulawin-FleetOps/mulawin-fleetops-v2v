@@ -198,12 +198,8 @@ final class Trips {
     public static function dispatcherOverview(array $u): array {
         must(roleIsDispatcher($u['role']), 'Only dispatchers can open this overview.', 403);
         $p = db(); self::closeOverdueUnassigned($p); [$scope, $args] = self::scope($u);
-        // Match Trips::read: overdue trips without resources or active funding
-        // are no longer active, even before the additive Missed migration runs.
-        $pendingMissed = self::pendingMissedSql();
         return readSections([
-            'active' => fn() => many($p, self::select() . " WHERE ((t.status NOT IN ('Completed','Cancelled','Rejected','Missed')
-                    AND NOT ($pendingMissed))
+            'active' => fn() => many($p, self::select() . " WHERE (t.status NOT IN ('Completed','Cancelled','Rejected','Missed')
                 OR EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle' AND t.status='Completed')) $scope ORDER BY t.scheduled_at,t.id", $args),
             'incidents' => fn() => many($p, "SELECT i.*, t.trip_ref, t.status AS trip_status, v.plate_number, m.job_ref, m.status AS job_status
                 FROM incidents i JOIN trips t ON t.id=i.trip_id JOIN vehicles v ON v.id=i.vehicle_id
@@ -950,9 +946,7 @@ final class Trips {
 
     /** Start time, minimum minutes and seconds left (computed with the database clock). */
     private static function timerState(PDO $p, array $t, string $kind): array {
-        // Both inspection checklists may be submitted as soon as all required checks are complete.
-        // Preserve recorded inspection start times for the audit trail.
-        $min = 0;
+        $min = (int)Settings::value('inspection_min_minutes');
         $s = one($p, 'SELECT started_at, TIMESTAMPDIFF(SECOND, started_at, NOW()) AS secs FROM checklist_starts WHERE trip_id=? AND attempt_number=? AND kind=?',
                  [$t['id'], $t['attempt_number'], $kind]);
         return ['started_at' => $s['started_at'] ?? null, 'min_minutes' => $min,
@@ -1031,7 +1025,7 @@ final class Trips {
         if (!$fund && (int)$t['attempt_number'] === 1) $why[] = 'No fund request yet (needs a Released fund).';
         $g = self::timeGates($t);
         if (!$g['dispatch_allowed_now']) $why[] = 'Scheduled dispatch is ' . self::phTime($g['scheduled_at']) . '; Confirm Dispatch opens ' . self::phTime($g['dispatch_opens_at']) . '.';
-        // Crew completeness is checked for both supported Car Carrier crew options and for other truck types.
+        // CHECKLIST_42_CREW_COMPLETENESS_V1 (both modes): Car Carrier = 2 different drivers; others = driver + helper.
         foreach (CrewAttendance::crewCompleteness($p, $t) as $c) $why[] = $c;
         // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1 (Enforce): attendance for the ACTUAL dispatch time (now), every crew
         // member Present on their own shift, and the existing availability rules (Present never bypasses them).
@@ -1275,8 +1269,7 @@ final class Trips {
         require_once __DIR__ . '/Inspections/Checklist.php';
         $check = Checklist::validate($d);
         $km = intField($d, 'odometer_km', 0, false, 9999999);
-        $fuel = optField($d, 'fuel_level', 20);
-        if ($fuel !== null) must(in_array($fuel, self::FUEL_LEVELS, true), 'Invalid arrival fuel level.');
+        $fuel = choiceField($d, 'fuel_level', self::FUEL_LEVELS);
         $remarks = optField($d, 'remarks', 500);
         $damage = optField($d, 'damage_notes', 1000);
         if ($check['has_not_ok']) must($damage !== null, 'Describe the damage, defects or missing equipment of the NOT OK items.');
@@ -1327,7 +1320,7 @@ final class Trips {
 
             FleetState::release($p, $id);
             $truck = FleetState::reconcile($p, $vid, $u['id'], 'Arrival checklist ' . $t['trip_ref'] . ($bad ? ' (NOT OK items, ' . $jobRef . ')' : ' (all OK)'));
-            $summary = ($bad ? count($bad) . ' NOT OK item(s): ' . implode('; ', $bad) : 'All items OK') . ($km ? "; odometer $km" : '') . ($fuel ? "; fuel $fuel" : '')
+            $summary = ($bad ? count($bad) . ' NOT OK item(s): ' . implode('; ', $bad) : 'All items OK') . ($km ? "; odometer $km" : '') . "; fuel $fuel"
                      . ($changed ? '. Changed since departure: ' . implode(', ', $changed) : '');
             self::event($p, $u['id'], $id, 'arrival checklist completed', 'Completed', 'Completed', cut($summary, 500), [],
                 ['Inspection result' => $bad ? 'NOT OK' : 'All OK', 'NOT OK item count' => count($bad)]);

@@ -24,16 +24,8 @@ final class DispatcherTurnover {
         }
         return $account;
     }
-    /** Mirrors Trips::pendingMissedSql(); also used when the Trips module is not loaded. */
-    private static function overdueUnassignedSql(): string {
-        return "t.status='Awaiting Resources' AND t.scheduled_at < NOW()
-            AND t.dispatched_at IS NULL AND t.vehicle_id IS NULL
-            AND NOT EXISTS (SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id)
-            AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id
-                AND f.status IN ('Pending Approval','Ready for Release','Released'))";
-    }
     private static function workSql(): string {
-        return "t.status<>'Missed' AND NOT (".self::overdueUnassignedSql().") AND (t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected') OR EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle') OR EXISTS(SELECT 1 FROM incidents i WHERE i.trip_id=t.id AND i.status<>'Resolved'))";
+        return "(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected') OR EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle') OR EXISTS(SELECT 1 FROM incidents i WHERE i.trip_id=t.id AND i.status<>'Resolved'))";
     }
     /** Caller holds the target users row FOR UPDATE until its account change commits. */
     public static function guardAccountChange(PDO $p,int $id,bool $dispatcherRelated): void {
@@ -57,17 +49,11 @@ final class DispatcherTurnover {
         must(count(array_unique($ids))===count($ids),'Duplicate trip selections are not allowed.');sort($ids,SORT_NUMERIC);return $ids;
     }
     private static function eligibleSql(): string {
-        // Match Trips::pendingMissedSql() even if the overdue-trip scheduler has
-        // not yet changed the persisted status to Missed.
-        $missed = self::overdueUnassignedSql();
-        return "t.status<>'Missed' AND NOT ($missed) AND "
-            ."(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected') "
-            ."OR (t.status='Completed' AND EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle')))";
+        return "(t.status NOT IN ('Pending Review','Completed','Cancelled','Rejected') OR (t.status='Completed' AND EXISTS(SELECT 1 FROM trip_assignments a WHERE a.trip_id=t.id AND a.resource_type='vehicle')))";
     }
     private static function eligible(PDO $p,array $t): bool {
-        // Re-evaluate against the current DB clock when accepting a handover.
-        // This also blocks a trip that expired after it was endorsed.
-        return (bool)one($p,'SELECT 1 FROM trips t WHERE t.id=? AND '.self::eligibleSql(),[$t['id']]);
+        if(in_array($t['status'],['Pending Review','Cancelled','Rejected'],true))return false;
+        return $t['status']!=='Completed'||(bool)one($p,"SELECT 1 FROM trip_assignments WHERE trip_id=? AND resource_type='vehicle'",[$t['id']]);
     }
     private static function summary(PDO $p,?int $account,bool $lock=false,?array $ids=null,bool $eligibleOnly=true): array {
         if($ids===[])return [];
@@ -124,12 +110,6 @@ final class DispatcherTurnover {
                     'Endorse each operational group separately when selecting trips from multiple truck groups.', 409);
                 $incoming=self::account($p,idField($d,'incoming_id'),$turnoverRole);
                 must($incoming['id']!==$actor['id'],'Choose a different incoming account.',409);
-                // Shift turnover passes outstanding work to the opposite duty shift.
-                // The original trip's planned shift and assigned driver remain unchanged.
-                must(in_array($actor['shift'],['Day','Night'],true)
-                    && in_array($incoming['shift'],['Day','Night'],true)
-                    && $incoming['shift']!==$actor['shift'],
-                    'Select an active Dispatcher from the opposite shift in the same operational group.',409);
                 foreach ($rows as $t) {
                     must(in_array($t['truck_type'], DispatcherScope::types($incoming), true),
                         'Incoming Dispatcher is assigned to a different truck type. Choose a matching account.', 409);

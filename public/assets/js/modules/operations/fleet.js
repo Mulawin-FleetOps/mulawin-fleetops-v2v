@@ -173,7 +173,6 @@ const FleetUI = {
     if(driver&&!already.length&&p.fixed_truck_id)already.push(+p.fixed_truck_id);
     const groups=['Car Carrier','Container','Wing Van'];
     const selectedTrucks=new Set(already);
-    // Existing Trucks can be changed to an unclaimed, available Truck.
     const truckOptions=allTrucks.filter(truck=>groups.includes(truck.truck_type));
     // All active trucks are searchable; existing authorizations are locked.
     const truckCategories=['All',...groups];
@@ -197,26 +196,20 @@ const FleetUI = {
         const owners=String(truck.authorized_driver_ids||'').split(',').filter(Boolean);
         const otherDriver=owners.some(id=>String(id)!==String(p.id||''))
           ||(!!truck.assigned_driver_id&&String(truck.assigned_driver_id)!==String(p.id||''));
-        const today=UI.nowManila().slice(0,10);
-        const expiredDocs=(!!truck.registration_expiry&&truck.registration_expiry<today)
-          ||(!!truck.insurance_expiry&&truck.insurance_expiry<today);
-        const unavailable=!selected&&(otherDriver||expiredDocs
-          ||['Unavailable','Under Maintenance','On Trip'].includes(truck.status)
-          ||!!Number(truck.has_active_trip||0)||!!Number(truck.has_open_job||0));
-        const locked=unavailable;
+        const unavailable=!selected&&otherDriver;
+        const locked=selected||unavailable;
         const plate=String(truck.plate_number||'');
         const unit=String(truck.truck_number||'');
         return '<label class="driver-auth-option'+(locked?' is-locked':'')+'"'
           +' data-driver-truck-option data-truck-type="'+UI.esc(truck.truck_type)+'"'
-          +' data-truck-search="'+UI.esc((plate+' '+unit+' '+truck.truck_type).toLowerCase())+'"'
-          +' data-truck-blocked="'+(unavailable?'1':'0')+'">'
+          +' data-truck-search="'+UI.esc((plate+' '+unit+' '+truck.truck_type).toLowerCase())+'">'
           +'<input type="checkbox" name="auth_truck_'+Number(truck.id)+'" value="1"'
-          +(selected?' checked':'')
+          +(selected?' checked data-locked-truck="1"':'')
           +(locked?' disabled':'')+'>'
           +'<span class="driver-auth-option-info"><strong>'+UI.esc(plate)+'</strong>'
           +'<small>'+UI.esc(truck.truck_type)+(unit?' · Unit '+UI.esc(unit):'')+'</small></span>'
           +'<span class="driver-auth-option-status'+(unavailable?' is-unavailable':selected?' is-selected':' is-available')+'">'
-          +(selected?'Current Truck':unavailable?(otherDriver?'Assigned · Locked':'Unavailable'):'Available')+'</span></label>';
+          +(selected?'Assigned · Locked':unavailable?'Assigned':'Available')+'</span></label>';
       }).join('')
       +'<p class="driver-auth-empty" data-driver-truck-empty hidden>No matching trucks found.</p>'
       +'</div><div class="driver-auth-footer"><span data-driver-truck-results></span>'
@@ -244,8 +237,8 @@ const FleetUI = {
     const authorization='<section class="record-form-section driver-auth-section">'
       +'<div class="record-form-section-title"><i class="bi bi-truck" aria-hidden="true"></i>'
       +'<h3>Authorized Trucks</h3></div>'
-      +'<p class="form-help">Choose one available Truck. Selecting another replaces the current choice. '
-      +'Already assigned, unavailable, and trip-held Trucks are locked. The server rechecks when saving.</p>'
+      +'<p class="form-help">Search by plate or unit, then select one available truck. Saved selections stay locked. '
+      +'Truck authorization does not reserve a trip; dispatch availability is checked separately.</p>'
       +authorizedBoxes+'</section>';
     const helperSection='<section class="record-form-section driver-auth-section">'
       +'<div class="record-form-section-title"><i class="bi bi-people" aria-hidden="true"></i><h3>Regular Helper</h3></div>'
@@ -279,22 +272,18 @@ const FleetUI = {
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
-      intro:'Role: '+type+'. A fixed Truck can be reassigned by the Operations Head if both resources are free from active trips.',
+      intro:'Role: '+type+'. One truck can be authorized to one driver. Existing authorizations are locked; dispatch assignments are managed separately.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
       compactSize:driver?'normal':'small',
       transform:(values,form)=>{
         if(!driver)return values;
-        const authorized=[...form.querySelectorAll('[data-driver-truck-selector] input:checked')]
+        const authorized=[...form.querySelectorAll('[data-driver-truck-selector] input[name^="auth_truck_"]:checked')]
           .map(input=>Number(input.name.slice('auth_truck_'.length)));
         for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
         const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked');
-        // When changing Trucks, use the Helper linked to the target Truck.
-        // Never move the previous Truck's Helper without explicit selection.
-        const chosenTruck=allTrucks.find(t=>Number(t.id)===authorized[0]);
-        const regularHelper=selectedHelper?Number(selectedHelper.name.slice('regular_helper_choice_'.length))
-          :Number(chosenTruck?.assigned_helper_id||0)||null;
+        const regularHelper=selectedHelper?Number(selectedHelper.name.slice('regular_helper_choice_'.length)):null;
         for(const key of Object.keys(values).filter(k=>/^regular_helper_choice_\d+$/.test(k)))delete values[key];
         return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||''};
       },
@@ -310,26 +299,29 @@ const FleetUI = {
         const search=selector.querySelector('[data-driver-truck-search]');
         const filters=[...selector.querySelectorAll('[data-driver-truck-filter]')];
         let category='All';
-        let syncHelpersForTruck=()=>{};
         const update=()=>{
-          const selected=inputs.find(input=>input.checked);
-          count.textContent=selected
-            ?(already.includes(Number(selected.name.slice('auth_truck_'.length)))
-              ?'Current Truck selected':'Replacement selected · save to reassign')
-            :'Select a Truck';
-          inputs.forEach(input=>{
-            const option=input.closest('.driver-auth-option');
-            const blocked=option.dataset.truckBlocked==='1';
-            input.disabled=blocked;
-            option.classList.toggle('is-locked',blocked);
-            const badge=option.querySelector('.driver-auth-option-status');
-            if(badge){
-              badge.className='driver-auth-option-status '+(input.checked?'is-selected':blocked?'is-unavailable':'is-available');
-              badge.textContent=input.checked?(already.includes(Number(input.name.slice('auth_truck_'.length)))?'Current Truck':'Selected · Pending Save')
-                :blocked?'Assigned / Unavailable':'Available';
-            }
-          });
-          syncHelpersForTruck();
+          const selected=inputs.filter(input=>input.checked);
+          if(count)count.textContent=selected.length
+            ? selected.some(input=>!already.includes(Number(input.name.slice('auth_truck_'.length))))
+              ? '1 truck selected · save to authorize'
+              : selected.length+' authorized truck'+(selected.length===1?'':'s')+' · locked'
+            : 'No truck selected';
+          if(selected.length){
+            inputs.forEach(input=>{
+              input.disabled=true;
+              if(input.checked){
+                input.dataset.lockedTruck='1';
+                const option=input.closest('.driver-auth-option');
+                option?.classList.add('is-locked');
+                const status=option?.querySelector('.driver-auth-option-status');
+                if(status){
+                  status.className='driver-auth-option-status is-selected';
+                  status.textContent=already.includes(Number(input.name.slice('auth_truck_'.length)))
+                    ?'Assigned · Locked':'Selected · Locked';
+                }
+              }
+            });
+          }
         };
         const filterOptions=()=>{
           const term=search.value.trim().toLowerCase();
@@ -354,9 +346,7 @@ const FleetUI = {
         }));
         search.addEventListener('input',filterOptions);
         inputs.forEach(input=>input.addEventListener('change',()=>{
-          if(input.checked)inputs.forEach(other=>{if(other!==input)other.checked=false;});
-          else if(!inputs.some(other=>other.checked))input.checked=true;
-          update();
+          if(input.checked)update();
         }));
         update();
         filterOptions();
@@ -377,38 +367,28 @@ const FleetUI = {
           helperEmpty.hidden=visible>0;
           helperResults.textContent='Showing '+visible+' of '+helperOptions.length+' helpers';
         };
-        syncHelpersForTruck=()=>{
-          const selected=inputs.find(input=>input.checked);
-          const truckId=selected?Number(selected.name.slice('auth_truck_'.length)):0;
-          const truck=allTrucks.find(v=>Number(v.id)===truckId);
-          const fixedHelper=Number(truck?.assigned_helper_id||0);
-          // A Car Carrier has no regular Helper in the current backend model.
-          const isCarrier=truck?.truck_type==='Car Carrier';
+        const lockHelpers=()=>{
+          const selected=helperInputs.filter(input=>input.checked);
+          helperCount.textContent=selected.length
+            ? (existingHelperId?'1 regular helper · locked':'1 helper selected · save to pair')
+            : 'No regular helper selected';
+          if(!selected.length)return;
           helperInputs.forEach(input=>{
-            const helperId=Number(input.name.slice('regular_helper_choice_'.length));
-            const helper=(d.assignmentHelpers||[]).find(h=>Number(h.id)===helperId);
-            const otherTruck=!!helper?.assigned_vehicle_id&&Number(helper.assigned_vehicle_id)!==truckId;
-            const selectedFixed=!isCarrier&&fixedHelper>0&&helperId===fixedHelper;
-            input.checked=selectedFixed;
-            input.disabled=isCarrier||otherTruck||fixedHelper>0;
+            input.disabled=true;
             const option=input.closest('.driver-auth-option');
-            option?.classList.toggle('is-locked',input.disabled);
-            const status=option?.querySelector('.driver-auth-option-status');
-            if(status){
-              status.className='driver-auth-option-status '+(selectedFixed?'is-selected':input.disabled?'is-unavailable':'is-available');
-              status.textContent=selectedFixed?'Regular Helper · Locked':input.disabled?'Assigned / Unavailable':'Available';
+            option?.classList.add('is-locked');
+            if(input.checked){
+              const status=option?.querySelector('.driver-auth-option-status');
+              if(status){status.className='driver-auth-option-status is-selected';
+                status.textContent=existingHelperId?'Assigned · Locked':'Selected · Locked';}
             }
           });
-          helperCount.textContent=isCarrier?'No regular Helper for Car Carrier'
-            :fixedHelper?'Regular Helper of selected Truck'
-            :'Select an available Helper if needed';
         };
         helperInputs.forEach(input=>input.addEventListener('change',()=>{
-          if(input.checked)helperInputs.forEach(other=>{if(other!==input)other.checked=false;});
-          helperCount.textContent=helperInputs.some(input=>input.checked)?'1 Helper selected':'No Helper selected';
+          if(input.checked)lockHelpers();
         }));
         helperSearch.addEventListener('input',refreshHelpers);
-        syncHelpersForTruck();refreshHelpers();
+        lockHelpers();refreshHelpers();
         form.addEventListener('submit',event=>{
           if(inputs.some(input=>input.checked))return;
           event.preventDefault();event.stopImmediatePropagation();

@@ -207,42 +207,38 @@ const TripUI = {
     const secs = TripUI.data.checklist || [];
     const arrival = kind === 'Arrival';
     const prev = before ? (JSON.parse(before.items_json || '{}').items || {}) : {};
-    const hint = (k) => !arrival ? '' : (prev[k] ? `<span class="badge-s ${prev[k].condition === 'OK' ? 'green' : 'red'} ms-1" title="Result before departure">Before: ${prev[k].condition === 'OK' ? 'Satisfactory' : 'Requires Attention'}</span>` : '<span class="badge-s ms-1">Before: —</span>');
+    const hint = (k) => !arrival ? '' : (prev[k] ? `<span class="badge-s ${prev[k].condition === 'OK' ? 'green' : 'red'} ms-1" title="Result before departure">Before: ${UI.esc(prev[k].condition)}</span>` : '<span class="badge-s ms-1">Before: —</span>');
     const intro = arrival
-      ? `Truck <b>${UI.esc(t.plate_number)}</b> is back. Check every item again; the result before departure is shown beside each item. Items marked <b>Requires Attention</b> require photographs and a description and generate a repair record (the truck becomes Under Maintenance). If all items are satisfactory, the truck becomes Available.`
-      : `Inspect Truck <b>${UI.esc(t.plate_number)}</b> and classify each item as <b>Satisfactory</b> or <b>Requires Attention</b>. Any item marked <b>Requires Attention</b> will prevent the trip from proceeding to Ready for Dispatch.`;
-    // Only show photo and description evidence when an arrival item requires attention.
-    // General arrival odometer, fuel and remarks are no longer collected.
+      ? `Truck <b>${UI.esc(t.plate_number)}</b> is back. Check every item again; the result before departure is shown beside each item. <b>NOT OK</b> items need photos and a description and open a repair record (the truck becomes Under Maintenance). All OK makes the truck Available.`
+      : `Truck <b>${UI.esc(t.plate_number)}</b>. Mark every item OK or NOT OK. Any NOT OK item keeps the trip from being Ready for Dispatch.`;
     const extra = arrival
-      ? '<section class="arrival-finding-evidence border rounded p-3 mt-3" data-arrival-evidence hidden>'
-          +'<h6 class="mb-1">Items Requiring Attention</h6>'
-          +'<p class="small text-muted mb-2">Provide a description and photographs of the identified defects before submitting.</p>'
-          +UI.fields([
-            { name: 'damage_notes', label: 'Damage or defect details', type: 'textarea', rows: 2, col: 12 },
-            { name: 'photos', label: 'Supporting photographs', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }
-          ])+'</section>'
+      ? UI.fields([{ name: 'odometer_km', label: 'Odometer on arrival (km)' + (before && before.odometer_km ? ' — departure: ' + before.odometer_km : ''), type: 'number', col: 4 },
+          { name: 'fuel_level', label: 'Fuel level on arrival' + (before && before.fuel_level ? ' — departure: ' + before.fuel_level : ''), type: 'select', options: UI.list(TripUI.data.fuelLevels), required: true, col: 4 },
+          { name: 'remarks', label: 'Remarks', col: 4 },
+          { name: 'damage_notes', label: 'Damage, defects, missing equipment or incidents (required when an item is NOT OK)', type: 'textarea', rows: 2, col: 12 },
+          { name: 'photos', label: 'Photos (required when an item is NOT OK)', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }])
       : UI.fields([{ name: 'odometer_km', label: 'Odometer (km)', type: 'number', col: 4 }, { name: 'fuel_level', label: 'Fuel level', type: 'select', options: UI.list(['Full', '3/4', '1/2', '1/4', 'Low']), col: 4 },
           { name: 'remarks', label: 'Remarks', col: 4 }]);
     const timerBox = +timer.min_minutes > 0 ? `<div class="alert alert-info py-2 small mb-2 d-flex align-items-center gap-2" data-timer><i class="bi bi-stopwatch"></i><span data-timer-text></span></div>` : '';
     const body = `${timerBox}<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">${intro}</div>
-      <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark All as Satisfactory</button></div>
+      <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark all OK</button></div>
       ${secs.map(s => `<div class="chk-sec"><h6>${UI.esc(s.title)}</h6>${s.items.map((label, i) => { const k = s.key + '_' + String(i + 1).padStart(2, '0');
         return `<div class="chk-row" data-k="${k}"><span>${UI.esc(label)}${hint(k)}</span><div class="btn-group" role="group">
-          <input type="radio" class="btn-check" name="c_${k}" id="ok_${k}" value="OK"><label class="btn btn-outline-success" for="ok_${k}" title="Satisfactory" aria-label="Satisfactory">✓<span class="visually-hidden">Satisfactory</span></label>
-          <input type="radio" class="btn-check" name="c_${k}" id="no_${k}" value="NOT OK"><label class="btn btn-outline-danger" for="no_${k}" title="Requires Attention" aria-label="Requires Attention">✕<span class="visually-hidden">Requires Attention</span></label></div>
+          <input type="radio" class="btn-check" name="c_${k}" id="ok_${k}" value="OK"><label class="btn btn-outline-success" for="ok_${k}" title="OK" aria-label="OK">✓<span class="visually-hidden">OK</span></label>
+          <input type="radio" class="btn-check" name="c_${k}" id="no_${k}" value="NOT OK"><label class="btn btn-outline-danger" for="no_${k}" title="NOT OK" aria-label="NOT OK">✕<span class="visually-hidden">NOT OK</span></label></div>
           <input class="form-control form-control-sm" placeholder="Remarks" data-rem="${k}" maxlength="250"></div>`; }).join('')}</div>`).join('')}
       ${extra}`;
-    UI.modal((arrival ? 'Arrival checklist ' : 'Pre-Dispatch Inspection Checklist — ') + UI.esc(t.trip_ref), body, async (d, form) => {
+    UI.modal((arrival ? 'Arrival checklist ' : 'Pre-dispatch checklist ') + UI.esc(t.trip_ref), body, async (d, form) => {
       const items = {}; const missing = [];
       form.querySelectorAll('.chk-row').forEach(r => { const k = r.dataset.k; const v = form.querySelector(`input[name="c_${k}"]:checked`);
         if (!v) missing.push(r.firstElementChild.textContent); items[k] = { condition: v ? v.value : '', remarks: form.querySelector(`[data-rem="${k}"]`).value }; });
-      if (missing.length) throw new Error('Select Satisfactory or Requires Attention for: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? ' and ' + (missing.length - 5) + ' more' : ''));
+      if (missing.length) throw new Error('Mark OK or NOT OK for: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? ' and ' + (missing.length - 5) + ' more' : ''));
       let r;
       if (arrival) {
         const bad = Object.values(items).some(x => x.condition === 'NOT OK');
-        if (bad && !String(d.damage_notes || '').trim()) throw new Error('Provide details of the damage, defects, or missing equipment for items requiring attention.');
-        if (bad && !form.querySelector('[name=photos]').files.length) throw new Error('Attach photographs of all items requiring attention.');
-        r = await App.apiForm('Trips.arrival', { trip_id: t.id, items, meta: {}, damage_notes: d.damage_notes }, form);
+        if (bad && !String(d.damage_notes || '').trim()) throw new Error('Describe the damage, defects or missing equipment of the NOT OK items.');
+        if (bad && !form.querySelector('[name=photos]').files.length) throw new Error('Attach photos of the NOT OK items.');
+        r = await App.apiForm('Trips.arrival', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks, damage_notes: d.damage_notes }, form);
       } else {
         r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks });
       }
@@ -255,59 +251,35 @@ const TripUI = {
         const tick = () => {
           const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
           if (left > 0) {
-            txt.innerHTML = `Required inspection duration: <b>${timer.min_minutes} minutes</b>. Inspection started at <b>${UI.esc(started)}</b>. Submission will be available in <b>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</b>. Closing this window will not reset the inspection timer.`;
+            txt.innerHTML = `Minimum inspection time: <b>${timer.min_minutes} min</b> (started ${UI.esc(started)}). You can submit in <b>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</b>. Closing this window does not reset the timer.`;
             btn.disabled = true;
           } else {
-            txt.innerHTML = `The required ${timer.min_minutes}-minute inspection period has been completed. You may now submit the checklist.`;
+            txt.innerHTML = `Minimum inspection time of ${timer.min_minutes} min reached (started ${UI.esc(started)}). You can submit the checklist.`;
             box.classList.replace('alert-info', 'alert-success'); btn.disabled = false;
           }
           return left;
         };
         if (tick() > 0) { const iv = setInterval(() => { if (!w.isConnected || tick() === 0) clearInterval(iv); }, 1000); }
       }
-      const updateArrivalEvidence=()=>{
-        if(!arrival)return;
-        const evidence=w.querySelector('[data-arrival-evidence]');
-        if(evidence)evidence.hidden=!w.querySelector('input.btn-check[value="NOT OK"]:checked');
-      };
-      w.querySelector('#chkAll').onclick = () => {
-        w.querySelectorAll('input[value=OK]').forEach(x => { x.checked = true; x.closest('.chk-row').classList.remove('bad'); });
-        updateArrivalEvidence();
-      };
-      w.addEventListener('change', (e) => {
-        if (e.target.classList.contains('btn-check')) {
-          e.target.closest('.chk-row').classList.toggle('bad', e.target.value === 'NOT OK');
-          updateArrivalEvidence();
-        }
-      });
-      updateArrivalEvidence();
+      w.querySelector('#chkAll').onclick = () => w.querySelectorAll('input[value=OK]').forEach(x => { x.checked = true; x.closest('.chk-row').classList.remove('bad'); });
+      w.addEventListener('change', (e) => { if (e.target.classList.contains('btn-check')) e.target.closest('.chk-row').classList.toggle('bad', e.target.value === 'NOT OK'); });
     } });
   },
   complete(t) {
     const cc = t.truck_type === 'Car Carrier';
-    const detailsFields=[
-      { name: 'completed_at', label: 'Actual completion date and time', type: 'datetime', value: (() => { const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); })(), required: true, col: 6 },
-      { name: 'waybill_number', label: 'Waybill number', required: true, col: 6, value: t.waybill_number },
-      ...(cc ? [{ name: 'units_delivered', label: 'Units delivered', type: 'number', min: 1, value: t.units_planned, required: true, col: 6 }] : []),
-      { name: 'delivery_notes', label: 'Delivery / return notes', col: cc ? 6 : 12 }
-    ];
-    const requiredDocuments=[
-      { name: 'waybill', label: 'Waybill (PDF or photo)' + (+t.waybill_docs ? ' — already attached: ' + t.waybill_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
-      { name: 'ack_receipt', label: 'Acknowledgement receipt' + (+t.ar_docs ? ' — already attached: ' + t.ar_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
-      { name: 'delivery_receipt', label: 'Delivery Receipt (DR)' + (+t.dr_docs ? ' — already attached: ' + t.dr_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' }
-    ];
-    const optionalDocuments=[
-      { name: 'supplier_soa', label: 'Supplier SOA' + (+t.soa_docs ? ' — already attached: ' + t.soa_docs : ''), type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"', help: 'Statement of Account from the diesel supplier, if available.' },
-      { name: 'other', label: 'Other supporting documents', type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"' }
-    ];
-    const body = '<div class="trip-completion-form">'
-      +'<p class="trip-completion-intro">Provide the delivery information and required supporting documents to finalize this trip.</p>'
-      +'<section class="trip-completion-section"><div class="trip-completion-section-header"><span class="trip-completion-section-number">01</span><div><h3>Completion Details</h3><p>Record the actual delivery information.</p></div></div>'+UI.fields(detailsFields)+'</section>'
-      +'<section class="trip-completion-section"><div class="trip-completion-section-header"><span class="trip-completion-section-number">02</span><div><h3>Required Documents</h3><p>Attach each document or use one already recorded for this trip.</p></div></div>'+UI.fields(requiredDocuments)+'</section>'
-      +'<details class="trip-completion-optional"><summary><i class="bi bi-paperclip" aria-hidden="true"></i> Optional Attachments <span>Supplier SOA and other documents</span></summary><div class="trip-completion-optional-body">'+UI.fields(optionalDocuments)+'</div></details>'
-      +'<section class="trip-completion-requirements" aria-label="Submission readiness"><div class="trip-completion-requirements-head"><div><h3>Submission Readiness</h3><p>All required information must be provided before completion.</p></div><span data-req-count aria-live="polite"></span></div><ul class="req-list" data-req></ul></section>'
-      +'</div>';
-    const modal=UI.modal('Complete Trip — ' + UI.esc(t.trip_ref), body, async (d, form) => {
+    const body = `<div class="small text-muted mb-2">Record the completion details and attach the supporting documents. <b>Complete Trip</b> stays disabled until everything required is there.</div>
+      ${UI.fields([
+        { name: 'completed_at', label: 'Actual completion date and time', type: 'datetime', value: (() => { const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); })(), required: true, col: 6 },
+        { name: 'waybill_number', label: 'Waybill no.', required: true, col: 6, value: t.waybill_number },
+        ...(cc ? [{ name: 'units_delivered', label: 'Units delivered', type: 'number', min: 1, value: t.units_planned, required: true, col: 6 }] : []),
+        { name: 'delivery_notes', label: 'Delivery / return notes', col: cc ? 6 : 12 },
+        { name: 'waybill', label: 'Waybill file (PDF or photo)' + (+t.waybill_docs ? ' — already attached: ' + t.waybill_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
+        { name: 'ack_receipt', label: 'Acknowledgement receipt file' + (+t.ar_docs ? ' — already attached: ' + t.ar_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
+        { name: 'delivery_receipt', label: 'Delivery Receipt (DR) file' + (+t.dr_docs ? ' — already attached: ' + t.dr_docs : ''), type: 'file', col: 6, attrs: 'accept="application/pdf,image/*"' },
+        { name: 'supplier_soa', label: 'Supplier SOA (optional)' + (+t.soa_docs ? ' — already attached: ' + t.soa_docs : ''), type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"', help: 'Statement of Account from the diesel supplier, if given.' },
+        { name: 'other', label: 'Other documents (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"' }])}
+      <ul class="req-list" data-req></ul>`;
+    UI.modal('Complete trip ' + UI.esc(t.trip_ref), body, async (d, form) => {
       const r = await App.apiForm('Trips.complete', { ...d, trip_id: t.id }, form); UI.result(r); TripUI.open(t.id); App.route();
     }, { submit: 'Complete Trip', onShow: (w, form) => {
       const btn = form.querySelector('button[type=submit]');
@@ -317,14 +289,11 @@ const TripUI = {
           ...(cc ? [['Units delivered', +form.units_delivered.value > 0]] : []),
           ['Waybill file', has('waybill') || +t.waybill_docs > 0], ['Acknowledgement receipt file', has('ack_receipt') || +t.ar_docs > 0],
           ['Delivery Receipt (DR) file', has('delivery_receipt') || +t.dr_docs > 0]];
-        const complete=items.filter(x=>x[1]).length;
-        w.querySelector('[data-req-count]').textContent=complete+' of '+items.length+' complete';
-        w.querySelector('[data-req]').innerHTML = items.map(([l, ok]) => `<li class="${ok ? 'ok' : 'no'}"><i class="bi ${ok ? 'bi-check-circle-fill' : 'bi-circle'}" aria-hidden="true"></i><span>${UI.esc(l)}</span><small>${ok ? 'Ready' : 'Required'}</small></li>`).join('');
+        w.querySelector('[data-req]').innerHTML = items.map(([l, ok]) => `<li class="${ok ? 'ok' : 'no'}"><i class="bi ${ok ? 'bi-check-circle-fill' : 'bi-x-circle'}"></i> ${UI.esc(l)}${ok ? '' : ' — missing'}</li>`).join('');
         btn.disabled = items.some(x => !x[1]);
       };
       form.addEventListener('input', check); form.addEventListener('change', check); check();
     } });
-    modal.classList.add('trip-completion-modal');
   },
   incident(t) {
     const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset());
@@ -411,6 +380,7 @@ const TripUI = {
         if (blocked) why = (why ? why + ' ' : '') + 'Confirm Dispatch is enabled when: ' + t.dispatch_blockers.join(' ');
       }
       if (['Dispatched', 'In Transit'].includes(t.status)) acts.push(btn('complete', 'Complete trip', 'success', 'bi-flag'), btn('incident', 'Report incident', 'outline-danger', 'bi-exclamation-triangle'));
+      if (['Dispatched','In Transit','On Hold - Incident Reported'].includes(t.status)) acts.push(btn('progress','Record Progress','outline-success','bi-pencil-square'));
       // CHECKLIST_44_DIESEL_PO_SOA_ATTACHMENTS_V1: optional Diesel PO attachment (the server checks role, team, status and file).
       if (['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed'].includes(t.status))
         acts.push(btn('dieselpo', +t.diesel_po_docs ? `Diesel PO (${+t.diesel_po_docs}) — attach more` : 'Attach Diesel PO', 'outline-secondary', 'bi-fuel-pump'));
@@ -514,6 +484,7 @@ const TripUI = {
       if (a === 'checklist') TripUI.checklist(t);
       if (a === 'arrival') TripUI.checklist(t, 'Arrival', ins || null);
       if (a === 'dispatch') UI.confirmAction((+t.attempt_number > 1 ? 'Confirm Redispatch ' : 'Confirm Dispatch ') + UI.esc(t.trip_ref), 'Confirm only when the truck is actually leaving. The billing draft is generated now.', 'Trips.dispatch', { trip_id: t.id }, { submit: 'Confirm' });
+      if (a === 'progress') UI.formModal('Record Progress', [{name:'update_type',label:'Update Type',type:'select',required:true,options:UI.list(TripUI.data.updateTypes||['Progress','Loading','Unloading','Delivery','Delay','Other'])},{name:'delay_cause',label:'Delay Cause (for Delay)',type:'select',options:UI.list(TripUI.data.delayCauses||['Client','Pending Documents','Traffic','Weather','Operational','Other'])},{name:'note',label:'Recorded Progress',type:'textarea',required:true}], 'Trips.progress', {extra:{trip_id:t.id},after:()=>TripUI.open(t.id)});
       if (a === 'complete') TripUI.complete(t);
       if (a === 'dieselpo') UI.formModalFiles('Diesel PO for ' + UI.esc(t.trip_ref), [
         { name: 'diesel_po', label: 'Diesel PO file(s)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/jpeg,image/png,image/webp"', help: 'PDF, JPG, PNG or WebP, up to 10 MB each.' }],
