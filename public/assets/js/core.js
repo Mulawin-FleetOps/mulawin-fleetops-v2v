@@ -1561,7 +1561,34 @@ UI.mountMasterlistQuickToolbar = (root) => {
 };
 
 /** Call after inserting table HTML into the page (the router calls it for the page body). */
+/* GLOBAL_RECORD_TOOLBAR_V1 */
+/** Pair a page's adjacent generalFilters bar with its one shared UI.table toolbar.
+ *  Do not relocate custom/modals, multi-table filters, or already-integrated Purchasing filters. */
+UI.unifyRecordToolbars = root => {
+  const scope = root?.querySelectorAll ? root : null;
+  if (!scope) return;
+  const roots = [scope, ...scope.querySelectorAll('.ws-filters')];
+  for (const filters of roots) {
+    if (!filters.classList?.contains('ws-filters') || filters.classList.contains('purchasing-inline-filters')) continue;
+    if (filters.closest('.modal, .offcanvas, .purchasing-unified-toolbar, .purchasing-inventory-toolbar')) continue;
+    // Only an immediately-adjacent list is safe: no intervening explanatory panels.
+    const sibling = filters.nextElementSibling;
+    if (!sibling) continue;
+    const table = sibling.matches('.ref-list, .table-tools, .fleet-data-table, .purchasing-records-card, .purchasing-ref-records')
+      ? sibling : sibling.matches('.panel, .mp-reference-table') ? sibling : null;
+    if (!table) continue;
+    const toolbar = table.matches('.table-tools, .ref-toolbar') ? table : table.querySelector('.ref-toolbar, .table-tools');
+    if (!toolbar || toolbar.contains(filters) || toolbar.querySelector('.ws-filters')) continue;
+    // Keep the source element, all data-gf attributes and existing delegated listeners.
+    const search = toolbar.querySelector('.table-search');
+    toolbar.classList.add('fleet-unified-record-toolbar');
+    filters.classList.add('fleet-inline-record-filters');
+    if (search) search.insertAdjacentElement('afterend', filters);
+    else toolbar.prepend(filters);
+  }
+};
 UI.activate = (root) => {
+  UI.unifyRecordToolbars(root);
   root.querySelectorAll('[data-tbody]').forEach(b => { if (!b.dataset.drawn) { b.dataset.drawn = '1'; UI.drawTable(b.dataset.tbody); } });
   root.querySelectorAll('[data-tsearch]').forEach(inp => { if (inp.dataset.bound) return; inp.dataset.bound = '1';
     inp.addEventListener('input', () => { const t = UI._tables[inp.dataset.tsearch]; t.filter = inp.value.trim(); t.page = 0; UI.drawTable(inp.dataset.tsearch); }); });
