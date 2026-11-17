@@ -99,6 +99,12 @@ const MaintUI = {
          <button type="button" class="btn btn-sm btn-link p-0" data-addrow>+ Add item</button></div>`,
       async (x, form, w) => {
         const lines = [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value })).filter(l => l.part_id || l.quantity);
+         if (!lines.length || lines.some(l => !l.part_id || !/^\\d+$/.test(String(l.quantity)) || +l.quantity < 1 || +l.quantity > 100000)) {
+           throw new Error('Choose at least one part. Each part needs a whole-number quantity from 1 to 100000.');
+         }
+         if (new Set(lines.map(l => String(l.part_id))).size !== lines.length) {
+           throw new Error('A part can only appear once in a request. Combine its quantity into one row.');
+         }
         const r = await App.api('Purchasing.request_create', { ...x, lines }); UI.result(r); App.route();
       },
       { submit: 'Send to Purchasing', onShow: (w) => { w.querySelector('[data-addrow]').onclick = () => w.querySelector('[data-lines]').insertAdjacentHTML('beforeend', row()); } });
@@ -403,6 +409,7 @@ App.page('maintenance', {
     if (d.can.act) UI.tool(ctx, 'Report truck problem', () => MaintUI.report(), 'bi-plus-lg', 'primary');
     if (d.can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-box-seam');
     if (d.can.act && UI.canGo('mp_parts_requests')) UI.tool(ctx, 'Parts requests', () => App.go('mp_parts_requests'), 'bi-list-check');
+     if (UI.canGo('mechanic_attendance')) UI.tool(ctx, 'Mechanic attendance', () => App.go('mechanic_attendance'), 'bi-clock-history');
     const q = ctx.query;
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     // STAGE_A_MOTORPOOL_UI: filters (truck, source, mechanic, stage). Field names = URL keys, so a filter survives a reload and can be linked.
@@ -434,7 +441,16 @@ App.page('maintenance', {
       in_progress: ['Inspection or repair', inspection.length + repair.length], all: ['All records', shownJobs.length] };
     if (EXTRA[q.view]) TABS.push([q.view, ...EXTRA[q.view]]);
     const tab = TABS.some(t => t[0] === (q.view || '')) ? (q.view || '') : '';
-    ctx.el.innerHTML = UI.statusTabs('maintenance', q, 'view', TABS, tab) + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
+    ctx.el.innerHTML = `<section class="panel mb-3"><div class="panel-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2 small">
+       <strong class="me-1">Repair workflow</strong>
+       <span>Report issue</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+       <span>Assign mechanic</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+       <span>Record findings</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+       <span>Complete repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+       <span>Verify &amp; return to service</span></div>
+       <div class="small text-muted mt-1">Open a repair record for its next action, parts requests, repair costs, photos, incident details and status history. Parts are processed by Purchasing; verification is required before returning a truck to service.</div></div></section>`
+       + UI.statusTabs('maintenance', q, 'view', TABS, tab)
+       + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
     const waited = (j) => { const days = Math.max(0, Math.floor((Date.now() - new Date(String(j.reported_on) + 'T00:00:00').getTime()) / 86400000));
       return days === 0 ? '<span class="text-muted">today</span>' : `<span class="${days >= 7 ? 'text-danger fw-semibold' : ''}">${days} day${days === 1 ? '' : 's'}</span>`; };
     const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Arrival checklist ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
