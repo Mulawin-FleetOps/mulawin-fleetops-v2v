@@ -6,6 +6,10 @@ on:
       - 'scripts/migrate.php'
       - 'scripts/lib/migration_sql.php'
       - 'scripts/lib/migration_release.php'
+      - 'tests/migration_auto_checks.php'
+      - 'database/migrations/approved.json'
+      - 'scripts/lib/migration_backup.php'
+      - 'scripts/lib/migration_auto.php'
       - 'database/migrations/**'
       - 'tests/migration_safety_checks.php'
       - 'tests/migration_mysql_integration.php'
@@ -53,6 +57,9 @@ jobs:
           php -l scripts/migrate.php
           php -l scripts/lib/migration_sql.php
           php -l scripts/lib/migration_release.php
+          php -l tests/migration_auto_checks.php
+          php -l scripts/lib/migration_backup.php
+          php -l scripts/lib/migration_auto.php
           php -l tests/migration_safety_checks.php
           php -l tests/migration_mysql_integration.php
           php -l tests/migration_release_checks.php
@@ -60,6 +67,7 @@ jobs:
         run: |
           php tests/migration_safety_checks.php
           php tests/migration_release_checks.php
+          php tests/migration_auto_checks.php
       - name: Isolated MySQL integration checks
         env:
           CI: 'true'
