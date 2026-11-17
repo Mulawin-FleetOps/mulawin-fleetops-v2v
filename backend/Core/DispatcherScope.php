@@ -47,8 +47,6 @@ final class DispatcherScope {
             JOIN vehicles av ON av.id=da.vehicle_id
             WHERE da.driver_id={$alias}.id AND av.active=1 AND av.truck_type IN ($marks)
         ))";
-        if(count($types)===1 && $types[0]==='Car Carrier')
-            return [" AND $driver",$types];
         $helper="({$alias}.person_type='Helper' AND EXISTS (
             SELECT 1 FROM vehicles sv WHERE sv.active=1 AND sv.assigned_helper_id={$alias}.id AND sv.truck_type IN ($marks)
         ) AND NOT EXISTS (
