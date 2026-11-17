@@ -434,12 +434,13 @@ App.page('maintenance', {
       { name: 'from', label: 'Reported from', type: 'date', col: 6 }, { name: 'to', label: 'Reported to', type: 'date', col: 6 },
     ];
     const active = ['vehicle_id', 'mechanic_id', 'source', 'from', 'to', 'cancelled'].filter(k => q[k]);
-    // MOTORPOOL_HTML_REFERENCE_V5: keep the same live filter keys but show every reference stage as a visible tab.
+    // MOTORPOOL_COMPACT_TABS_V6: Three primary tabs; preserve deep-link stages as contextual tabs only.
     const TABS = [['', 'Active', reported.length + inspection.length + repair.length],
-      ['reported', 'Reported', reported.length], ['inspection', 'Inspection', inspection.length],
-      ['repair', 'Under Repair', repair.length], ['verify', 'For Verification', verify.length],
-      ['done', 'Completed', done.length], ['all', 'All', shownJobs.length]];
-    if (q.view === 'in_progress') TABS.push(['in_progress', 'Inspection or repair', inspection.length + repair.length]);
+      ['verify', 'For Verification', verify.length], ['done', 'Completed', done.length]];
+    const EXTRA = { reported: ['Reported', reported.length], inspection: ['Inspection', inspection.length],
+      repair: ['Under Repair', repair.length], in_progress: ['Inspection or repair', inspection.length + repair.length],
+      all: ['All', shownJobs.length] };
+    if (Object.prototype.hasOwnProperty.call(EXTRA, q.view)) TABS.push([q.view, ...EXTRA[q.view]]);
     const tab = TABS.some(t => t[0] === (q.view || '')) ? (q.view || '') : '';
     const stageTiles = [
       ['Reported', reported.length, 'bi-exclamation-circle', 'maintenance?view=reported', 'New issue to assess'],
@@ -452,14 +453,14 @@ App.page('maintenance', {
         <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
         <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
         <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2 small">
-       <strong class="me-1">Repair workflow</strong>
-       <span>Report issue</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-       <span>Assign mechanic</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-       <span>Record findings</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-       <span>Complete repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-       <span>Verify &amp; return to service</span></div>
-       <div class="small text-muted mt-1">Open a repair record for its next action, parts requests, repair costs, photos, incident details and status history. Parts are processed by Purchasing; verification is required before returning a truck to service.</div></div></section>`
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3">
+       <div class="d-flex flex-wrap align-items-center gap-2 small">
+         <strong class="me-1"><i class="bi bi-tools me-1" aria-hidden="true"></i>Repair process</strong>
+         <span>Report</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+         <span>Inspect &amp; repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+         <span>Verify</span>
+         <span class="text-muted ms-md-auto">Select a record to view details and its next action.</span>
+       </div></div></section>`
        + UI.statusTabs('maintenance', q, 'view', TABS, tab)
        + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
     const waited = (j) => { const days = Math.max(0, Math.floor((Date.now() - new Date(String(j.reported_on) + 'T00:00:00').getTime()) / 86400000));
@@ -541,7 +542,10 @@ App.page('mp_parts_requests', {
       && (!q.from || String(r.created_at).slice(0, 10) >= q.from) && (!q.to || String(r.created_at).slice(0, 10) <= q.to));
     const inTab = (k) => byTruck.filter(r => k === 'all' || MpParts.match(r, k));
     const shown = inTab(key);
-    const TABS = [['open', 'Open'], ...Object.entries(MpParts.STATUS).map(([k, v]) => [k, v]), ['all', 'All']].map(([k, l]) => [k, l, inTab(k).length]);
+    const mainTabs = [['open', 'Open'], ['released', 'Released'], ['all', 'All']];
+    // Keep deep links for Requested / Partially Released / Not Available / Cancelled accessible.
+    if (!mainTabs.some(([k]) => k === key)) mainTabs.splice(1, 0, [key, MpParts.STATUS[key]]);
+    const TABS = mainTabs.map(([k, l]) => [k, l, inTab(k).length]);
     const truckOptions = trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]);
     const waiting = byTruck.filter(r => MpParts.OPEN.includes(r.status));
     const pendingQty = waiting.reduce((sum, r) => sum + Math.max(0, (+r.requested_units || 0) - (+r.released_units || 0)), 0);
