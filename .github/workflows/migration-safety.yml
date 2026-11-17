@@ -25,9 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up PHP 8.2
-        run: |
-          sudo update-alternatives --set php /usr/bin/php8.2
-          php -v
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+          coverage: none
       - name: PHP syntax lint
         run: |
           php -l scripts/migrate.php
