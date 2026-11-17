@@ -7,8 +7,6 @@
  * MIGRATIONS_EXPECTED_DB and MIGRATIONS_APPROVED_IDS (comma-separated).
  * Do not schedule --apply until deployment/backup checks are implemented.
  *
- *
- *   this is baste, i made this shit because i dont know fcuking sql queries to migrate...
  */
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') exit('CLI only');
@@ -16,7 +14,7 @@ require dirname(__DIR__) . '/backend/bootstrap.php';
 
 $args = array_slice($argv, 1);
 if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply'], true)) {
-    fwrite(STDERR, "Usage: php scripts/migrate.php [--status|--apply]\\n");
+    fwrite(STDERR, "Usage: php scripts/migrate.php [--status|--apply]\n");
     exit(2);
 }
 $apply = ($args[0] ?? '--status') === '--apply';
@@ -35,7 +33,7 @@ function migrationSqlStatements(string $sql): array {
         $ch = $sql[$i];
         $next = $i + 1 < $n ? $sql[$i + 1] : '';
         if ($line) {
-            if ($ch === "\\n" || $ch === "\\r") { $line = false; $buffer .= "\\n"; }
+            if ($ch === "\n" || $ch === "\r") { $line = false; $buffer .= "\n"; }
             continue;
         }
         if ($block) {
@@ -94,10 +92,10 @@ try {
     $pending = array_values(array_filter($files, static function (string $file) use ($appliedSet): bool {
         return !isset($appliedSet[basename($file, '.sql')]);
     }));
-    echo 'Database: ' . $database . "\\n";
-    foreach ($pending as $file) echo 'Pending: ' . basename($file) . "\\n";
+    echo 'Database: ' . $database . "\n";
+    foreach ($pending as $file) echo 'Pending: ' . basename($file) . "\n";
     if (!$apply) {
-        echo "Read-only status; no SQL executed.\\n";
+        echo "Read-only status; no SQL executed.\n";
         exit(0);
     }
     $approved = array_filter(array_map('trim', explode(',', envValue('MIGRATIONS_APPROVED_IDS'))));
@@ -151,7 +149,7 @@ try {
         echo "\nSuccessfully applied $ran migration(s).\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, "Migration stopped: " . $e->getMessage() . "\\n");
-    fwrite(STDERR, "DDL may be partially applied. Inspect schema before retrying.\\n");
+    fwrite(STDERR, "Migration stopped: " . $e->getMessage() . "\n");
+    fwrite(STDERR, "DDL may be partially applied. Inspect schema before retrying.\n");
     exit(1);
 }
