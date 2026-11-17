@@ -175,6 +175,8 @@ final class Access {
             'admin_finance'    => ['Financial Oversight', 'bi-cash-coin', 'Records', 'Oversight', 'administration/oversight', ['admin']],
             'admin_reports'    => ['Executive Reports', 'bi-clipboard-check', 'Records', 'Oversight', 'administration/oversight', ['admin']],
             'admin_analytics'  => ['Analytics', 'bi-graph-up', 'Records', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_descriptive_analytics' => ['Descriptive Analytics', 'bi-bar-chart-line', 'Analytics', 'Oversight', 'administration/oversight', ['admin']],
+            'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'bi-search', 'Analytics', 'Oversight', 'administration/oversight', ['admin']],
         ];
     }
 
@@ -198,6 +200,8 @@ final class Access {
                 'reports' => ['Management Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
+                'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
+                'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
             ];
             $pages = self::pages();
             foreach ($structure as $id => [$label, $section]) {
