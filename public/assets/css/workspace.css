@@ -753,87 +753,123 @@
 
 /* MOTORPOOL_HTML_REFERENCE_V5 — exact wireframe content styling; no shell/sidebar/report selectors.
    The app renders page markup inside #pageBody, not directly under #pageContent. */
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) #pageBody,
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) #pageBody {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) #pageBody,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) #pageBody {
   color:#203a2b;font-size:13.5px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage,
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
   border:1px solid #e0e9e2;background:#fff;border-radius:11px;
   box-shadow:0 1px 2px rgba(18,53,28,.035);
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage {
   display:flex;align-items:center;justify-content:space-between;
   min-height:83px;gap:10px;text-align:left;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-icon {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-icon {
   display:grid;place-items:center;padding:0;font-size:18px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs {
   border:0;box-shadow:none;background:transparent;gap:7px;padding:0;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab {
   flex:none;width:auto;min-height:36px;margin:0;border:1px solid #dce7df;
   border-radius:7px;background:#fff;padding:9px 13px;color:#536c5b;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab.active {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab.active {
   background:#e8f4eb;border-color:#99cbaa;color:#1a693b;font-weight:700;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table {
   margin-top:16px;border:1px solid #e0e9e2;border-radius:12px;background:#fff;
   box-shadow:0 1px 2px rgba(18,53,28,.035);overflow:hidden;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-toolbar {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-toolbar {
   background:#fff;border:0;padding:14px 15px 9px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-tablebox {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-tablebox {
   border:0;border-radius:0;box-shadow:none;background:#fff;overflow-x:auto;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
   background:#f7faf8;color:#63786a;font-weight:700;font-size:12px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table td,
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table td,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
   padding:12px 13px;border-bottom:1px solid #ebf0ed;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
   padding:16px;min-height:106px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi-value strong {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi-value strong {
   font-size:28px;font-weight:750;color:#183d29;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar {
   display:flex;align-items:center;gap:9px;flex-wrap:wrap;
   padding:12px 15px;margin:16px 0;border:1px solid #e0e9e2;
   border-radius:11px;background:#fff;box-shadow:0 1px 2px rgba(18,53,28,.035);
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-title {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-title {
   font-weight:700;color:#203a2b;margin-right:8px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-row {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-row {
   display:flex;gap:9px;flex-wrap:wrap;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout > .panel.ws-panel {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout > .panel.ws-panel {
   min-width:0;background:#fff;border:1px solid #e0e9e2;
   border-radius:11px;box-shadow:0 1px 2px rgba(18,53,28,.035);
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-head {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-head {
   background:#fff;border-bottom:1px solid #e9f0eb;padding:14px 17px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-body.flush {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-body.flush {
   padding:6px 16px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow {
   background:#fff;border:1px solid #e0e9e2;border-radius:10px;
   box-shadow:none;margin:14px 0;padding:11px 14px;
 }
-#pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow .panel-body {
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow .panel-body {
   padding:0!important;
 }
 @media(max-width:1100px) {
- #pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
- #pageContent.ws-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout {grid-template-columns:1fr}
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout {grid-template-columns:1fr}
 }
 @media(max-width:720px) {
- #pageContent.ws-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Reference page heading and side drawers — content-only; shell and sidebar remain untouched. */
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker),
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) {
+  max-width:1500px;margin-left:auto;margin-right:auto;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {
+  gap:10px;margin-bottom:18px;align-items:center;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-title,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-title {
+  color:#203a2b;font-size:24px;font-weight:750;line-height:1.2;margin:0 0 6px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-subtitle,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-subtitle {
+  color:#708274;font-size:13px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-actions .btn,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar .btn {
+  border-radius:8px;font-size:13px;font-weight:650;padding:8px 12px;
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer {
+  width:min(490px,100vw);max-width:100vw;background:#fff;
+  box-shadow:-8px 0 45px rgba(0,27,13,.18);
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer .offcanvas-header {
+  padding:20px 24px;border-bottom:1px solid #e0e9e2;
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer .offcanvas-body {
+  padding:20px 24px;
+}
+@media(max-width:720px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {align-items:flex-start;flex-direction:column}
 }
