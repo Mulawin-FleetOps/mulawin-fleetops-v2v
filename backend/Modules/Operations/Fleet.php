@@ -86,7 +86,11 @@ final class Fleet {
             $shift = CrewAttendance::shiftFor();
             $data['attendanceContext'] = $shift;
             $data = mergeSections($data, [
-                'assignmentTrucks' => fn() => many($p, 'SELECT v.id,v.plate_number,v.truck_number,v.truck_type,v.assigned_driver_id,v.assigned_helper_id, (SELECT GROUP_CONCAT(DISTINCT a.driver_id ORDER BY a.driver_id) FROM driver_truck_authorizations a WHERE a.vehicle_id=v.id) AS authorized_driver_ids FROM vehicles v WHERE v.active=1 ORDER BY v.plate_number'),
+                'assignmentTrucks' => fn() => many($p, 'SELECT v.id,v.plate_number,v.truck_number,v.truck_type,v.status,v.registration_expiry,v.insurance_expiry,v.assigned_driver_id,v.assigned_helper_id,
+                    EXISTS(SELECT 1 FROM trip_assignments a WHERE a.resource_type=\'vehicle\' AND a.resource_id=v.id) AS has_active_trip,
+                    EXISTS(SELECT 1 FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1) AS has_open_job,
+                    (SELECT GROUP_CONCAT(DISTINCT a.driver_id ORDER BY a.driver_id) FROM driver_truck_authorizations a WHERE a.vehicle_id=v.id) AS authorized_driver_ids
+                    FROM vehicles v WHERE v.active=1 ORDER BY v.plate_number'),
                 'assignmentHelpers' => fn() => many($p, "SELECT pe.id,pe.full_name,pe.employee_no,
                     (SELECT MIN(v.id) FROM vehicles v WHERE v.active=1 AND v.assigned_helper_id=pe.id) AS assigned_vehicle_id
                     FROM personnel pe WHERE pe.active=1 AND pe.person_type='Helper' ORDER BY pe.full_name"),
@@ -342,68 +346,65 @@ final class Fleet {
     /** Update the precise vehicles a Driver is authorized to operate.
      * Existing active trip assignments cannot lose their authorization mid-trip. */
     private static function saveDriverTruckAuthorizations(PDO $p, array $u, int $driverId, $raw): void {
-        must(is_string($raw) && strlen($raw)<=12000, 'Invalid authorized truck selection.');
+        must(is_string($raw) && strlen($raw)<=12000, 'Invalid Truck selection.');
         $selected=json_decode($raw,true);
-        must(is_array($selected) && array_is_list($selected), 'Invalid authorized truck selection.');
-        must(count($selected)>0 && count($selected)<=500, 'Select a truck. Existing assignments cannot be changed here.');
+        must(is_array($selected) && array_is_list($selected), 'Invalid Truck selection.');
         $ids=[];
         foreach($selected as $value){
-            must((is_int($value) || (is_string($value) && ctype_digit($value))) && (int)$value>0, 'Invalid truck ID.');
+            must((is_int($value)||(is_string($value)&&ctype_digit($value)))&&(int)$value>0,'Invalid Truck ID.');
             $ids[]=(int)$value;
         }
-        $ids=array_values(array_unique($ids));
-        must((bool)one($p,"SELECT id FROM personnel WHERE id=? AND person_type='Driver' AND active=1",[$driverId]),
-            'Choose an active Driver.',409);
-        $marks=implode(',',array_fill(0,count($ids),'?'));
-        $vehicles=many($p,"SELECT id FROM vehicles WHERE active=1 AND id IN ($marks) ORDER BY id FOR UPDATE",$ids);
-        must(count($vehicles)===count($ids),'An authorized truck is missing or inactive. Refresh the form.',409);
-        $held=many($p,"SELECT DISTINCT t.vehicle_id FROM trip_assignments ta
-            JOIN trips t ON t.id=ta.trip_id
-            WHERE ta.resource_type='person' AND ta.resource_id=? AND
-                (t.driver_id=? OR t.driver2_id=?) AND t.vehicle_id IS NOT NULL",[$driverId,$driverId,$driverId]);
-        foreach($held as $trip)must(in_array((int)$trip['vehicle_id'],$ids,true),
-            'Cannot revoke a truck authorization while the Driver is assigned to an active trip.',409);
-        // The edit modal only offers unassigned trucks. Recheck under vehicle
-        // row locks to prevent stale or forged selections from claiming another
-        // driver's truck. Preserve any existing legacy overlaps unchanged.
-        $existingIds=array_map('intval',array_column(many($p,
-            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? FOR UPDATE',[$driverId]),'vehicle_id'));
-        // One-to-one authorization: never silently remove legacy multi-truck
-        // associations; freeze them until an explicit reassignment workflow exists.
-        if($existingIds){
-            sort($existingIds);
-            $requested=$ids;
-            sort($requested);
-            must($requested===$existingIds,
-                'Existing truck authorization is locked. Contact an administrator for reassignment.',409);
-        }else{
-            must(count($ids)===1,'Select exactly one available truck for this Driver.',409);
-            $otherOwner=one($p,'SELECT driver_id FROM driver_truck_authorizations WHERE vehicle_id=? LIMIT 1',[$ids[0]]);
-            must(!$otherOwner,'This truck is already assigned to another Driver.',409);
-        }
-        $newIds=array_values(array_diff($ids,$existingIds));
-        foreach($vehicles as $vehicle){
-            $vehicleId=(int)$vehicle['id'];
-            if(!in_array($vehicleId,$newIds,true))continue;
-            $owner=one($p,'SELECT driver_id FROM driver_truck_authorizations WHERE vehicle_id=? AND driver_id<>? LIMIT 1',
-                [$vehicleId,$driverId]);
-            must(!$owner,'This truck is already authorized to another Driver. Refresh the form.',409);
-            $fixed=one($p,'SELECT assigned_driver_id FROM vehicles WHERE id=?',[$vehicleId]);
-            must(empty($fixed['assigned_driver_id'])||(int)$fixed['assigned_driver_id']===$driverId,
-                'This truck already has another fixed Driver. Refresh the form.',409);
-        }
+        must(count($ids)===count(array_unique($ids)) && count($ids)>0,'Choose one Truck.',409);
         $previous=array_map('intval',array_column(many($p,
-            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? FOR UPDATE',[$driverId]),'vehicle_id'));
-        $remove=array_diff($previous,$ids);
-        $add=array_diff($ids,$previous);
-        foreach($remove as $vehicleId)run($p,
-            'DELETE FROM driver_truck_authorizations WHERE driver_id=? AND vehicle_id=?',
-            [$driverId,$vehicleId]);
-        foreach($add as $vehicleId)run($p,
-            'INSERT INTO driver_truck_authorizations(driver_id,vehicle_id,authorized_by) VALUES(?,?,?)',
-            [$driverId,$vehicleId,$u['id']]);
-        if($remove || $add) auditWithChanges($p,$u['id'],'Fleet','personnel '.$driverId,'authorized trucks updated',
-            'Driver-specific truck permissions', ['Truck IDs'=>implode(',',$previous)],['Truck IDs'=>implode(',',$ids)]);
+            'SELECT vehicle_id FROM driver_truck_authorizations WHERE driver_id=? ORDER BY vehicle_id FOR UPDATE',[$driverId]),'vehicle_id'));
+        if(count($previous)>1){
+            // Historical multi-Truck grants require their own remediation.
+            // Do not silently discard authorizations on an unrelated edit.
+            $old=$previous;$new=$ids;sort($old);sort($new);
+            must($new===$old,'Legacy multi-Truck authorization must be reviewed before reassignment.',409);
+            return;
+        }
+        must(count($ids)===1,'Select exactly one Truck for this Driver.',409);
+        $targetId=$ids[0];
+        $target=one($p,'SELECT * FROM vehicles WHERE id=? AND active=1 FOR UPDATE',[$targetId]);
+        must((bool)$target,'Selected Truck is unavailable or inactive.',409);
+        $fixedRows=many($p,'SELECT id FROM vehicles WHERE active=1 AND assigned_driver_id=? ORDER BY id FOR UPDATE',[$driverId]);
+        $fixedIds=array_map('intval',array_column($fixedRows,'id'));
+        must(count($fixedIds)<=1,'This Driver has multiple fixed Trucks; resolve that data conflict before reassignment.',409);
+        $changing=($previous && !in_array($targetId,$previous,true))
+            ||($fixedIds && $fixedIds[0]!==$targetId)
+            ||(!$fixedIds && (int)($target['assigned_driver_id']??0)!==$driverId);
+        $owner=one($p,'SELECT driver_id FROM driver_truck_authorizations WHERE vehicle_id=? AND driver_id<>? LIMIT 1',[$targetId,$driverId]);
+        // Legacy shared authorizations are left untouched on unrelated
+        // personnel edits; a new/replacement pairing must be exclusive.
+        if($changing) must(!$owner && (empty($target['assigned_driver_id'])||(int)$target['assigned_driver_id']===$driverId),
+            'This Truck is already assigned to another Driver.',409);
+        if($changing){
+            must(!one($p,"SELECT trip_id FROM trip_assignments WHERE resource_type='person' AND resource_id=? LIMIT 1",[$driverId]),
+                'Driver reassignment is blocked while the Driver holds an active trip.',409);
+            foreach(array_unique([...$previous,...$fixedIds]) as $oldId){
+                if($oldId===$targetId)continue;
+                must(!FleetState::activeTrip($p,$oldId),
+                    'Release the previous Truck from its trip before reassignment.',409);
+            }
+            must(!FleetState::truckBlocker($p,$targetId),
+                'The replacement Truck is not available for reassignment (trip, maintenance, status or documents).',409);
+        }
+        foreach($previous as $oldId){
+            if($oldId!==$targetId)run($p,'DELETE FROM driver_truck_authorizations WHERE driver_id=? AND vehicle_id=?',[$driverId,$oldId]);
+        }
+        if(!in_array($targetId,$previous,true))
+            run($p,'INSERT INTO driver_truck_authorizations(driver_id,vehicle_id,authorized_by) VALUES(?,?,?)',
+                [$driverId,$targetId,$u['id']]);
+        if($changing){
+            run($p,'UPDATE vehicles SET assigned_driver_id=NULL WHERE active=1 AND assigned_driver_id=? AND id<>?',
+                [$driverId,$targetId]);
+            run($p,'UPDATE vehicles SET assigned_driver_id=? WHERE id=?',[$driverId,$targetId]);
+            auditWithChanges($p,$u['id'],'Fleet','personnel '.$driverId,'fixed Truck reassigned',
+                'Operations Head changed the regular Truck',
+                ['Truck IDs'=>implode(',',array_unique([...$previous,...$fixedIds]))],
+                ['Truck ID'=>(string)$targetId]);
+        }
     }
 
 

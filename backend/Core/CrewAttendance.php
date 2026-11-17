@@ -156,17 +156,22 @@ final class CrewAttendance {
 
     /**
      * Required crew (CHECKLIST_42_CREW_COMPLETENESS_V1), checked at Confirm Dispatch / Redispatch in BOTH modes:
-     * Car Carrier = two different active drivers (Driver 1 and Driver 2); Container / Wing Van = one active driver and one
-     * active helper. Returns the problems (empty = complete).
+     * Car Carrier accepts two different active drivers, or one active driver and one active Helper.
+     * Container / Wing Van requires one active driver and one active Helper. Returns the problems (empty = complete).
      */
     public static function crewCompleteness(PDO $p, array $t): array {
-        $need = $t['truck_type'] === 'Car Carrier' ? ['driver_id' => ['Driver 1', 'Driver'], 'driver2_id' => ['Driver 2', 'Driver']]
-                                                    : ['driver_id' => ['Driver', 'Driver'], 'helper_id' => ['Helper', 'Helper']];
+        $isCarrier = $t['truck_type'] === 'Car Carrier';
+        $hasDriver2 = (int)($t['driver2_id'] ?? 0) > 0;
+        $hasHelper = (int)($t['helper_id'] ?? 0) > 0;
+        if ($isCarrier && $hasDriver2 && $hasHelper) return ['Assign either a second authorized Driver or a Helper, not both.'];
+        $need = $isCarrier && !$hasHelper
+            ? ['driver_id' => ['Driver 1', 'Driver'], 'driver2_id' => ['Driver 2', 'Driver']]
+            : ['driver_id' => ['Driver', 'Driver'], 'helper_id' => ['Helper', 'Helper']];
         $why = []; $seen = [];
         foreach ($need as $col => [$role, $type]) {
             $id = (int)($t[$col] ?? 0);
-            if (!$id) { $why[] = 'No ' . $role . ' assigned: a ' . $t['truck_type'] . ' trip needs ' . ($t['truck_type'] === 'Car Carrier' ? 'two drivers' : 'a driver and a helper') . '. The Operations Head assigns the crew.'; continue; }
-            if (isset($seen[$id])) { $why[] = 'The same person is assigned as ' . $seen[$id] . ' and ' . $role . '. Assign two different drivers.'; continue; }
+            if (!$id) { $why[] = 'No ' . $role . ' assigned: a ' . $t['truck_type'] . ' trip needs ' . ($isCarrier && !$hasHelper ? 'two drivers' : 'a driver and a helper') . '. The Operations Head assigns the crew.'; continue; }
+            if (isset($seen[$id])) { $why[] = 'The same person is assigned as ' . $seen[$id] . ' and ' . $role . '. Assign two different crew members.'; continue; }
             $seen[$id] = $role;
             $pe = one($p, 'SELECT full_name, person_type, active FROM personnel WHERE id=?', [$id]);
             if (!$pe || !(int)$pe['active']) $why[] = $role . ' ' . ($pe['full_name'] ?? '') . ' is not an active ' . strtolower($type) . '.';
