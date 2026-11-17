@@ -1440,3 +1440,39 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
     margin-inline:0;
   }
 }
+
+/* PURCHASING_BALANCED_COLUMNS_V7 */
+/* Do not change the record card width. The previous width:max-content compressed
+   columns to the middle; restore a balanced 90% width inside the SAME full-width
+   white table box, without changing fonts, button sizes or backend actions. */
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox .data-table,
+#pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .ref-tablebox .data-table,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table,
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table{
+  width:90%;
+  min-width:760px;
+  max-width:none;
+  margin-inline:auto;
+  table-layout:auto;
+}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox,
+#pageContent .purchasing-live-v1 .purchasing-records-card .ref-tablebox{
+  width:100%;
+  overflow-x:auto;
+}
+/* Let headings and data use the space naturally, without rigid column widths. */
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table th,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table td,
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table th,
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table td{
+  padding-inline:14px;
+}
+@media(max-width:950px){
+  #pageContent.ref-scope .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox .data-table,
+  #pageContent.ref-scope .purchasing-live-v1 .purchasing-records-card .ref-tablebox .data-table,
+  #pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table,
+  #pageContent .purchasing-live-v1 .purchasing-records-card .data-table{
+    width:100%;
+    margin-inline:0;
+  }
+}
