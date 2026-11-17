@@ -1,0 +1,840 @@
+/* Dispatcher presentation: professional brand colors and a shared elevation hierarchy. */
+.dispatcher-role {
+  --ds-brand: #247a43;
+  --ds-brand-dark: #195e34;
+  --ds-sidebar: #196a40;
+  --ds-active-bg: #e1f2dc;
+  --ds-active-text: #214b34;
+  --ds-active-marker: #e7bf3a;
+  --ds-radius: 12px;
+  --ds-shadow-base: none;
+  --ds-shadow-control: 0 1px 3px rgba(33,75,52,.10);
+  --ds-shadow-surface: 0 2px 7px rgba(33,75,52,.08);
+  --ds-shadow-float: 0 4px 10px rgba(15,23,42,.10), 0 14px 32px rgba(15,23,42,.18);
+  --ds-shadow-overlay: 0 8px 18px rgba(15,23,42,.12), 0 20px 48px rgba(15,23,42,.20);
+  --text: #1f2937; --text-2: #334155; --text-3: #475569;
+  --bg: #f3f8f4; --surface: #fff; --border: #dfe8e0; --border-strong: #a8b5c4;
+  /* Vivid colors are limited to semantic statuses. */
+  --green: #166534; --green-bg: #dcfce7; --green-bd: #86b598;
+  --blue: #1d4ed8; --blue-bg: #dbeafe; --blue-bd: #8babeb;
+  --amber: #92400e; --amber-bg: #fef3c7; --amber-bd: #d97706;
+  --red: #b91c1c; --red-bg: #fee2e2; --red-bd: #dca0a0;
+  --gray: #475569; --gray-bg: #eef2f6; --gray-bd: #bac4d0;
+  --bs-body-color: #1f2937; --bs-body-bg: #f3f8f4;
+  --focus: 0 0 0 3px rgba(25,94,52,.22);
+  color: var(--text); background: var(--bg);
+}
+
+/* Brand and navigation. Only the active link receives the yellow marker. */
+.dispatcher-role .sidebar { background: var(--ds-sidebar); border-color: #1d6b3a; }
+.dispatcher-role .sidebar :is(.nav-section,.sidebar-foot,.brand-company) { color: #dcfce7; }
+.dispatcher-role .sidebar .nav-section { font-size: 10px; letter-spacing: .08em; margin-top: 17px; }
+.dispatcher-role .sidebar .nav-item-link { color: #f0f8f1; font-size: 12px; border-radius: 8px; }
+.dispatcher-role .sidebar .nav-item-link span { white-space: normal; }
+.dispatcher-role .sidebar .nav-item-link .bi { color: inherit; }
+.dispatcher-role .sidebar .nav-item-link:hover { background: rgba(255,255,255,.12); }
+.dispatcher-role .sidebar .nav-item-link.active {
+  background: var(--ds-active-bg); color: var(--ds-active-text);
+  box-shadow: 0 0 0 3px rgba(179,224,157,.22), var(--ds-shadow-control);
+}
+.dispatcher-role .sidebar .nav-item-link.active .bi { color: var(--ds-active-text); }
+.dispatcher-role .sidebar .nav-item-link.active::before { width: 4px; background: var(--ds-active-marker); }
+.dispatcher-role :is(.main,.content) { background: var(--bg); }
+.dispatcher-role #pageContent .page-head { position: static; background: #fff; border: 1px solid var(--border); border-radius: var(--ds-radius); padding: 14px 16px; margin-bottom: 16px; }
+.dispatcher-role .page-title { font-size: 23px; color: #214b34; }
+.dispatcher-role .page-subtitle { font-size: 13px; color: var(--text-3); }
+
+/* Shared controls keep the existing professional green action color. */
+.dispatcher-role :is(.btn-primary,.btn-success) {
+  --bs-btn-color: #fff; --bs-btn-bg: var(--ds-brand); --bs-btn-border-color: var(--ds-brand);
+  --bs-btn-hover-color: #fff; --bs-btn-hover-bg: var(--ds-brand-dark); --bs-btn-hover-border-color: var(--ds-brand-dark);
+  --bs-btn-active-color: #fff; --bs-btn-active-bg: #15502c; --bs-btn-active-border-color: #15502c;
+}
+.dispatcher-role .btn-outline-success {
+  --bs-btn-color: #195e34; --bs-btn-border-color: #507b60;
+  --bs-btn-hover-color: #fff; --bs-btn-hover-bg: var(--ds-brand-dark); --bs-btn-hover-border-color: var(--ds-brand-dark);
+  --bs-btn-active-color: #fff; --bs-btn-active-bg: var(--ds-brand-dark);
+}
+.dispatcher-role .btn-outline-secondary {
+  --bs-btn-color: #334155; --bs-btn-border-color: #7c899b;
+  --bs-btn-hover-color: #1f2937; --bs-btn-hover-bg: #eef2f6; --bs-btn-hover-border-color: #475569;
+  --bs-btn-active-color: #1f2937; --bs-btn-active-bg: #e2e8f0;
+}
+.dispatcher-role .btn { min-height: 35px; border-radius: 7px; box-shadow: var(--ds-shadow-control); }
+.dispatcher-role :is(.btn:disabled,.btn.disabled) { opacity: 1; color: #475569; background: #eef2f6; border-color: #7c899b; box-shadow: none; cursor: not-allowed; }
+.dispatcher-role :is(.form-control,.form-select) { min-height: 36px; font-size: 13px; color: var(--text); background-color: #fff; border-color: #7c899b; box-shadow: var(--ds-shadow-control); }
+.dispatcher-role :is(.form-control,.form-select):disabled { background-color: #eef2f6; color: #475569; opacity: 1; box-shadow: none; }
+.dispatcher-role .form-control::placeholder { color: #475569; opacity: 1; }
+.dispatcher-role .form-label { font-size: 12px; color: #334155; font-weight: 600; }
+.dispatcher-role :is(.form-help,.cell-sub) { color: #475569; }
+.dispatcher-role .req::after,.dispatcher-role .ds-required { color: #b91c1c; }
+.dispatcher-role .form-check-input { border-color: #7c899b; }
+.dispatcher-role .form-check-input:checked { background-color: var(--ds-brand); border-color: var(--ds-brand); }
+.dispatcher-role .btn-link { --bs-btn-color: var(--ds-brand-dark); }
+.dispatcher-role :is(button,a,input,textarea,select,summary):focus-visible,
+.dispatcher-role .ds-filter-panel:focus-visible { outline: 3px solid #195e34; outline-offset: 3px; }
+.dispatcher-role .sidebar :is(button,a):focus-visible { outline-color: #fff; outline-offset: 4px; }
+
+/* Four supported operational metrics, with distinct pastel icons. */
+.dispatcher-role .ds-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
+.dispatcher-role .ds-summary-card {
+  display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 94px; padding: 16px;
+  color: var(--text); background: #fff; border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--ds-shadow-surface); text-decoration: none;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.dispatcher-role .ds-summary-card:hover,.dispatcher-role .ds-summary-card.selected {
+  border-color: #76a084;
+  box-shadow: 0 3px 9px rgba(33,75,52,.12);
+}
+.dispatcher-role .ds-card-icon { width: 50px; height: 50px; flex-shrink: 0; display: grid; place-items: center; font-size: 23px; border-radius: 12px; }
+.dispatcher-role .ds-card-icon.green { color: #008465; background: #dffbef; }
+.dispatcher-role .ds-card-icon.cyan { color: #00849d; background: #ddfbff; }
+.dispatcher-role .ds-card-icon.orange { color: #c95608; background: #fff2e2; }
+.dispatcher-role .ds-card-icon.purple { color: #8931d4; background: #faf0ff; }
+.dispatcher-role .ds-card-icon.blue { color: #2563eb; background: #e4efff; }
+.dispatcher-role .ds-card-icon.active { color: #2868b5; background: #e7effc; }
+.dispatcher-role .ds-card-icon.incidents { color: #b85143; background: #fce9e6; }
+.dispatcher-role .ds-card-icon.resources { color: #b57926; background: #fff0de; }
+.dispatcher-role .ds-card-icon.attendance { color: #188148; background: #e3f5e9; }
+.dispatcher-role .ds-card-copy { flex: 1; min-width: 0; }
+.dispatcher-role .ds-card-copy strong { display: block; font-size: 27px; line-height: 1.2; color: #0f172a; font-weight: 650; }
+.dispatcher-role .ds-card-copy > span { display: block; font-size: 13px; margin-top: 4px; line-height: 1.35; color: #334155; }
+
+/* Elevation 2: major surfaces. Rows and ordinary content stay at level 0. */
+.dispatcher-role :is(.ds-panel,.ds-records) { min-width: 0; margin-bottom: 16px; background: #fff; border: 1px solid var(--border); border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-surface); }
+.dispatcher-role .ds-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 15px; border-bottom: 1px solid var(--border); }
+.dispatcher-role .ds-panel-head h2 { font-size: 14px; margin: 0; color: #214b34; font-weight: 650; }
+.dispatcher-role .ds-panel-head a { font-size: 12px; color: var(--ds-brand-dark); }
+.dispatcher-role .ds-panel-body { padding: 12px; font-size: 13px; }
+.dispatcher-role .ds-dashboard-trips .ds-trip-table { table-layout: fixed; min-width: 660px; }
+.dispatcher-role .ds-dashboard-trips th:nth-child(1) { width: 24%; }
+.dispatcher-role .ds-dashboard-trips th:nth-child(2) { width: 17%; }
+.dispatcher-role .ds-dashboard-trips th:nth-child(3) { width: 22%; }
+.dispatcher-role .ds-dashboard-trips th:nth-child(4) { width: 22%; }
+.dispatcher-role .ds-dashboard-trips th:nth-child(5) { width: 15%; }
+.dispatcher-role .ds-action-queue { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.dispatcher-role .ds-action-queue a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; color: #334155; background: #fff; border: 1px solid var(--border); border-radius: 7px; text-decoration: none; }
+.dispatcher-role .ds-action-queue a:hover { background: #f6faf7; border-color: #76a084; }
+.dispatcher-role .ds-action-queue span { flex: 1; }
+.dispatcher-role .ds-action-queue b { color: #92400e; background: #fef3c7; border-radius: 4px; padding: 2px 7px; }
+.dispatcher-role .ds-action-queue .ds-urgent { border-left: 3px solid #dc2626; }
+.dispatcher-role .ds-action-queue .ds-urgent b { color: #b91c1c; background: #fee2e2; }
+.dispatcher-role .ds-tabs { display: flex; gap: 4px; width: max-content; max-width: 100%; padding: 4px 4px 11px; border-radius: 26px; background: #e5e7eb; margin-bottom: 16px; overflow-x: auto; }
+.dispatcher-role .ds-tabs a { position: relative; flex: 0 0 auto; color: #475569; white-space: nowrap; padding: 9px 16px; border-radius: 24px; text-decoration: none; font-size: 13px; }
+.dispatcher-role .ds-tabs .active { color: #214b34; background: #fff; box-shadow: var(--ds-shadow-control); font-weight: 650; }
+.dispatcher-role .ds-tabs .active::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -7px; height: 2px; background: var(--ds-brand); }
+
+/* Availability is one compact, read-only workspace; other page headers/tabs retain their styles. */
+.dispatcher-role #pageContent .page-head.ds-availability-head { margin-bottom: 10px; background: #fff; }
+.dispatcher-role .ds-availability-head .page-title { color: #214b34; }
+.dispatcher-role .ds-availability-head .page-subtitle { margin-bottom: 0; }
+.dispatcher-role .ds-readonly-reference { display: inline-flex; padding: 5px 10px; border-radius: 7px; color: #475569; background: #e2e7ed; font-size: 11px; font-weight: 650; white-space: nowrap; letter-spacing: .02em; }
+.dispatcher-role .ds-availability-tabs { padding: 0 0 9px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.dispatcher-role .ds-availability-tab-group { display: inline-flex; align-items: stretch; flex-wrap: nowrap; gap: 2px; max-width: 100%; padding: 4px 4px 11px; border-radius: 28px; background: #e5e7eb; overflow-x: auto; }
+.dispatcher-role .ds-availability-tab-group a { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 9px 16px; border-radius: 23px; color: #475569; font-size: 13px; font-weight: 600; text-decoration: none; }
+.dispatcher-role .ds-availability-tab-group a:hover { background: #f2f5f3; color: var(--ds-brand-dark); }
+.dispatcher-role .ds-availability-tab-group a.active { color: var(--ds-brand-dark); background: #fff; box-shadow: var(--ds-shadow-control); }
+.dispatcher-role .ds-availability-tab-group a { flex: 0 0 auto; white-space: nowrap; }
+.dispatcher-role .ds-availability-tab-group a.active::after { content: ''; position: absolute; height: 2px; bottom: -7px; left: 12px; right: 12px; background: var(--ds-brand); }
+.dispatcher-role .ds-tab-count { min-width: 24px; padding: 1px 7px; border-radius: 12px; color: #fff; background: var(--ds-brand); font-size: 12px; text-align: center; line-height: 1.6; }
+.dispatcher-role .ds-availability .ds-filterbar { margin-bottom: 12px; }
+.dispatcher-role .ds-availability .table-tools { padding-top: 10px; padding-bottom: 10px; }
+.dispatcher-role .ds-availability .table-count { font-size: 13px; font-weight: 650; color: #1f2937; }
+.dispatcher-role .ds-availability .rpm-record-toggle { gap: 4px; padding: 0; border: 0; border-radius: 8px; background: transparent; }
+.dispatcher-role .ds-availability .rpm-record-toggle button { min-width: 34px; min-height: 34px; padding: 6px 9px; background: #fff; border: 1px solid var(--border); box-shadow: var(--ds-shadow-control); }
+.dispatcher-role .ds-availability .rpm-record-toggle button.active { color: #fff; border-color: var(--ds-brand); background: var(--ds-brand); }
+.dispatcher-role .ds-availability .rpm-record-size-label { padding-left: 12px; border-left: 1px solid #c8d2dc; }
+.dispatcher-role .ds-availability .data-table :is(th,td) { padding-top: 9px; padding-bottom: 9px; }
+.dispatcher-role .ds-availability-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 8px 16px; border-top: 1px solid var(--border); background: #f8fafc; color: #475569; font-size: 12px; line-height: 1.5; }
+.dispatcher-role .ds-availability-note .bi { margin-top: 1px; flex-shrink: 0; }
+
+/* One compact toolbar with in-flow criteria below it. */
+.dispatcher-role .ds-filterbar { position: relative; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; padding: 11px; background: #fff; border: 1px solid var(--border); border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-surface); }
+.dispatcher-role .ds-filterbar:has(.ds-filter-panel:not([hidden])) { z-index: 1020; }
+.dispatcher-role .ds-search-bar { display: flex; gap: 10px; flex: 1; min-width: 0; margin: 0; }
+.dispatcher-role .ds-search-input { flex: 1; min-width: 0; position: relative; }
+.dispatcher-role .ds-search-input > .bi { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 1; color: #475569; pointer-events: none; }
+.dispatcher-role .ds-search-input input { width: 100%; padding-left: 36px; border-color: #a8b5c4; }
+.dispatcher-role .ds-filterbar :is(input,button) { min-height: 38px; }
+.dispatcher-role .ds-filterbar .btn { white-space: nowrap; }
+.dispatcher-role .ds-filter-toggle { flex-shrink: 0; background: #fff; }
+.dispatcher-role .ds-filter-toggle:hover { background: var(--ds-brand-dark); }
+.dispatcher-role .ds-filter-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #e1f4d5; color: #165c31; font-weight: 650; }
+.dispatcher-role .ds-filter-panel { flex: 1 0 100%; min-width: 0; width: 100%; padding: 14px; background: #f8fbf8; border: 1px solid var(--border); border-radius: 8px; }
+.dispatcher-role .ds-filter-panel .row > div { flex: 0 0 33.333%; width: 33.333%; }
+.dispatcher-role .ds-filter-panel[hidden] { display: none; }
+.dispatcher-role .ds-filter-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.dispatcher-role .ds-filter-heading h2 { font-size: 15px; margin: 0; color: var(--text); }
+.dispatcher-role .ds-filter-panel .btn-close { padding: 9px; opacity: .8; }
+.dispatcher-role .ds-filter-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; }
+
+/* Unified table controls, headers, rows, empty state, and footer. */
+.dispatcher-role .ds-records { overflow: hidden; }
+.dispatcher-role .ds-records .panel-body { padding: 0; }
+.dispatcher-role .ds-records .plain-table { border: 0; border-radius: 0; margin-bottom: 0; }
+.dispatcher-role :is(.ds-record-controls,.ds-records .table-tools) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin: 0; border-bottom: 1px solid var(--border); color: #475569; font-size: 13px; background: #fff; }
+.dispatcher-role .ds-records .table-tools-right { width: auto; flex: 1; justify-content: flex-start; gap: 12px; }
+.dispatcher-role .ds-records :is(.rpm-record-controls,.rpm-record-size-label) { color: #475569; }
+.dispatcher-role .ds-records .rpm-record-toggle button.active { background: var(--ds-brand); }
+.dispatcher-role .ds-record-controls label { display: inline-flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap; }
+.dispatcher-role .ds-record-controls select { width: 76px; }
+.dispatcher-role .data-table { background: #fff; }
+.dispatcher-role .data-table :is(th,td) { font-size: 13px; padding: 10px 12px; color: #334155; vertical-align: middle; border-bottom: 1px solid var(--border); box-shadow: none; }
+.dispatcher-role .data-table th { background: #f3f5f7; color: #111827; font-size: 12px; font-weight: 650; }
+.dispatcher-role .data-table td { background: #fff; }
+.dispatcher-role .data-table td:first-child { font-weight: 550; }
+.dispatcher-role .data-table td b { color: #1f2937; }
+.dispatcher-role .data-table tbody tr { box-shadow: none; }
+.dispatcher-role .data-table tbody tr:hover td { background: #f6faf7; }
+.dispatcher-role :is(.ds-pagination,.ds-records .table-pager) { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 16px; margin: 0; color: #475569; font-size: 12px; background: #fff; border-top: 1px solid var(--border); }
+.dispatcher-role .ds-pagination nav { display: flex; gap: 8px; }
+.dispatcher-role .ds-records .pg { box-shadow: var(--ds-shadow-control); min-height: 34px; }
+.dispatcher-role .ds-records .pg.active { background: var(--ds-brand); border-color: var(--ds-brand); color: #fff; }
+.dispatcher-role .ds-records .pg:disabled { opacity: 1; color: #475569; background: #eef2f6; border-color: #7c899b; box-shadow: none; }
+.dispatcher-role .ds-records .table-pager:empty { display: none; }
+.dispatcher-role .ds-empty-state { min-height: 180px; padding: 28px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; color: #475569; font-weight: 400; }
+.dispatcher-role .ds-empty-state > .bi { color: #52745f; font-size: 27px; }
+.dispatcher-role .ds-empty-state b { font-size: 14px; }
+.dispatcher-role .ds-empty-state span { font-size: 13px; }
+.dispatcher-role .badge-s { color: #475569; background: #eef2f6; }
+.dispatcher-role .badge-s.green { color: #166534; background: #dcfce7; }
+.dispatcher-role .badge-s.blue { color: #1d4ed8; background: #dbeafe; }
+.dispatcher-role .badge-s.amber { color: #92400e; background: #fef3c7; }
+.dispatcher-role .badge-s.red { color: #b91c1c; background: #fee2e2; }
+
+/* Organized form sections use mild separation inside their raised container. */
+.dispatcher-role .ds-request-form { max-width: 1020px; margin: auto; }
+.dispatcher-role .ds-form-section { min-width: 0; padding: 12px; margin: 0 0 12px; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.dispatcher-role .ds-form-section legend { float: none; width: auto; font-size: 14px; font-weight: 650; color: var(--text); padding: 0 5px; margin: 0 0 6px; }
+.dispatcher-role .ds-form-intro { color: #475569; font-size: 13px; margin-bottom: 16px; }
+.dispatcher-role .ds-form-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.dispatcher-role .ds-fund-breakdown { list-style: none; padding: 0; font-size: 13px; }
+.dispatcher-role .ds-fund-breakdown li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
+.dispatcher-role .ds-fund-total { color: var(--text); padding: 10px 0; border-top: 1px solid var(--border); }
+.dispatcher-role .alert-danger { color: #991b1b; background: #fee2e2; border-color: #b91c1c; }
+.dispatcher-role .alert-info { color: #334155; background: #f8fafc; border-color: #b9c6d3; }
+.dispatcher-role .alert-warning { color: #92400e; background: #fef3c7; border-color: #cba96a; }
+
+/* Level 4 overlays; inner panels stay flat to avoid nested heavy shadows. */
+.dispatcher-role :is(.app-drawer,.modal-content) { background: #fff; border-color: #c4ced7; box-shadow: var(--ds-shadow-overlay); }
+.dispatcher-role .modal-content { border-radius: 14px; }
+.dispatcher-role .modal-body { background: #f8fafc; }
+.dispatcher-role .ds-structured-modal .modal-body { padding: 16px; }
+.dispatcher-role .dropdown-menu { border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--ds-shadow-float); }
+.dispatcher-role .ds-trip-drawer { --bs-offcanvas-width: min(1060px,100vw); }
+.dispatcher-role .ds-trip-drawer .offcanvas-body { min-height: 0; padding-bottom: 16px; }
+.dispatcher-role .app-drawer .ds-panel { box-shadow: none; }
+.dispatcher-role .ds-detail { margin: 10px 0; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+.dispatcher-role .ds-detail > summary { font-size: 13px; font-weight: 650; color: #1f2937; padding: 11px 13px; }
+.dispatcher-role .ds-detail-body { padding: 2px 13px 14px; font-size: 13px; overflow-wrap: anywhere; }
+.dispatcher-role .ds-detail-body .route-map:empty { display: none; }
+.dispatcher-role .ds-drawer-footer { padding: 12px 18px; background: #fff; border-top: 1px solid var(--border); flex-shrink: 0; display: flex; justify-content: flex-end; gap: 8px; }
+/* Trip Details navigation: independent controls, consistent with fund request tabs.
+   Not sticky: prevents the tab bar overlapping trip details and Leaflet map controls. */
+.dispatcher-role .ds-trip-drawer .ds-trip-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 12px;
+  margin: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid #dce8df;
+  border-radius: 0;
+  background: #fff;
+  position: static;
+  z-index: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-tab {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid #cbded0;
+  border-radius: 9px;
+  background: #fff;
+  color: #355641;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-tab:hover:not([aria-selected=true]) {
+  background: #eef7f0;
+  border-color: #93c5a1;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-tab[aria-selected=true] {
+  background: #207547;
+  border-color: #207547;
+  color: #fff;
+  box-shadow: none;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-tab[aria-selected=true]::after { content: none; }
+.dispatcher-role .ds-trip-drawer .ds-trip-tab:focus-visible {
+  outline: 2px solid #207547;
+  outline-offset: 2px;
+}
+.dispatcher-role .ds-pill-complete { color: #166534; }
+.dispatcher-role .ds-pill-attention { color: #92400e; }
+.dispatcher-role .ds-trip-drawer .ds-trip-tab[aria-selected=true] .ds-pill-complete,
+.dispatcher-role .ds-trip-drawer .ds-trip-tab[aria-selected=true] .ds-pill-attention { color: #fff; }
+.dispatcher-role .ds-trip-pane { min-width: 0; font-size: 13px; }
+.dispatcher-role .ds-trip-pane[hidden] { display: none; }
+.dispatcher-role .ds-trip-part-title { font-size: 14px; margin: 16px 0 10px; color: #214b34; }
+.dispatcher-role .ds-trip-pane > .btn { margin: 0 6px 10px 0; }
+
+@media(min-width:1800px) {
+  .dispatcher-role .content { max-width: none; }
+}
+@media(max-width:991px) {
+  .dispatcher-role .ds-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:800px) { .dispatcher-role .ds-filter-panel .row > div { flex-basis: 50%; width: 50%; } }
+@media(max-width:600px) {
+  .dispatcher-role .ds-availability-head > div:first-child { flex: 1 1 100%; }
+  .dispatcher-role .ds-availability-head #pageTools { margin-left: auto; }
+  .dispatcher-role .ds-availability-tab-group { display: flex; width: 100%; }
+  .dispatcher-role .ds-availability-tab-group a { flex: 0 0 auto; gap: 7px; padding: 9px 12px; font-size: 12px; }
+  .dispatcher-role .ds-availability-note { padding: 8px 10px; }
+  .dispatcher-role .ds-summary { grid-template-columns: minmax(0,1fr); gap: 10px; }
+  .dispatcher-role .ds-summary-card { padding: 11px; gap: 9px; min-height: 92px; border-radius: 12px; }
+  .dispatcher-role .ds-card-icon { width: 34px; height: 40px; font-size: 19px; border-radius: 10px; }
+  .dispatcher-role .ds-card-copy strong { font-size: 23px; }
+  .dispatcher-role .ds-card-copy > span { font-size: 12px; }
+  .dispatcher-role .ds-action-queue { grid-template-columns: minmax(0,1fr); }
+  .dispatcher-role .ds-filterbar { flex-wrap: wrap; gap: 8px; padding: 9px; }
+  .dispatcher-role .ds-search-bar { flex-basis: 100%; gap: 8px; }
+  .dispatcher-role .ds-filter-toggle { margin-left: auto; }
+  .dispatcher-role .ds-filterbar .btn { font-size: 12px; padding: 6px 10px; }
+  .dispatcher-role .ds-filter-panel .row > div { flex-basis: 100%; width: 100%; }
+  .dispatcher-role .ds-filter-actions { flex-wrap: wrap; }
+  .dispatcher-role :is(.ds-pagination,.ds-records .table-pager) { flex-wrap: wrap; align-items: center; padding: 10px; gap: 10px; }
+  .dispatcher-role :is(.ds-pagination nav,.ds-records .pager-pages) { margin-left: auto; }
+  .dispatcher-role :is(.ds-record-controls,.ds-records .table-tools) { padding: 10px; }
+  .dispatcher-role .ds-trip-table,.dispatcher-role .ds-trip-table tbody,.dispatcher-role .ds-trip-table tr,.dispatcher-role .ds-trip-table td { display: block; width: 100%; min-width: 0; }
+  .dispatcher-role .ds-trip-table thead { display: none; }
+  .dispatcher-role .ds-trip-table tr { border-bottom: 1px solid var(--border); padding: 8px; }
+  .dispatcher-role .ds-trip-table td { border: 0; overflow-wrap: anywhere; }
+  .dispatcher-role .ds-trip-table td::before { content: attr(data-label); display: block; font-size: 11px; color: #475569; margin-bottom: 4px; font-weight: 400; }
+  .dispatcher-role :is(.ds-dashboard-trips,.ds-records) .ds-trip-table.ds-is-empty,
+  .dispatcher-role .ds-dashboard-trips .ds-trip-table { display: table; min-width: 660px; }
+  .dispatcher-role :is(.ds-dashboard-trips,.ds-is-empty).ds-trip-table thead,
+  .dispatcher-role .ds-dashboard-trips .ds-trip-table thead { display: table-header-group; }
+  .dispatcher-role .ds-trip-table.ds-is-empty tbody,.dispatcher-role .ds-dashboard-trips .ds-trip-table tbody { display: table-row-group; }
+  .dispatcher-role .ds-trip-table.ds-is-empty tr,.dispatcher-role .ds-dashboard-trips .ds-trip-table tr { display: table-row; margin: 0; padding: 0; border: 0; }
+  .dispatcher-role .ds-trip-table.ds-is-empty td,.dispatcher-role .ds-dashboard-trips .ds-trip-table td { display: table-cell; width: auto; border-bottom: 1px solid var(--border); }
+  .dispatcher-role .ds-trip-table.ds-is-empty td::before,.dispatcher-role .ds-dashboard-trips .ds-trip-table td::before { display: none; }
+  .dispatcher-role .ds-empty-state { position: sticky; left: 0; width: min(100%,calc(100vw - 48px)); min-height: 150px; padding: 24px 12px; }
+  .dispatcher-role .ds-trip-drawer .kv { grid-template-columns: minmax(90px,35%) minmax(0,1fr); }
+  .dispatcher-role .ds-request-form [class*=col-] { width: 100%; }
+  .dispatcher-role .ds-structured-modal .modal-body { padding: 12px; }
+  .dispatcher-role .ds-form-section { padding: 10px; }
+  .dispatcher-role .ds-form-section legend { font-size: 13px; }
+  .dispatcher-role .ds-structured-modal .fund-extra { margin-bottom: 10px !important; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .dispatcher-role .ds-summary-card { transition: none; }
+  .dispatcher-role .ds-summary-card:hover { transform: none; }
+}
+
+/* Dispatcher assignment: trip-plan summary and eligible resource selection. */
+.ds-resource-assignment-modal .modal-dialog{max-width:720px}
+.ds-resource-assignment-modal .modal-body{display:grid;gap:14px}
+.ds-resource-assignment-modal .ds-assignment-plan{
+  padding:16px;border:1px solid #dbe8df;border-radius:12px;background:#f7fbf8;
+}
+.ds-resource-assignment-modal .ds-assignment-plan-title{
+  display:flex;align-items:center;gap:8px;margin-bottom:11px;
+  color:#245137;font-size:13px;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dl{margin:0;display:grid;gap:0}
+.ds-resource-assignment-modal .ds-assignment-plan dl>div{
+  display:grid;grid-template-columns:minmax(110px,32%) minmax(0,1fr);
+  gap:12px;padding:9px 0;border-top:1px solid #e1ebe4;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dt{
+  color:#678070;font-size:12px;font-weight:650;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dd{
+  margin:0;min-width:0;color:#2d4938;font-size:12.5px;
+  overflow-wrap:anywhere;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dd>span{
+  display:block;color:#6c8073;font-size:11.5px;margin-top:2px;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .row{row-gap:12px}
+.ds-resource-assignment-modal .alert{margin:0;font-size:12px;line-height:1.6}
+@media(max-width:530px){
+  .ds-resource-assignment-modal .ds-assignment-plan dl>div{grid-template-columns:1fr;gap:3px}
+}
+/* Keep the Dispatcher assignment action legible without enlarging every column. */
+.dispatcher-trips-workspace .oh-dispatch-table-wrap .data-table td:last-child .btn{
+  white-space:normal;min-width:120px;line-height:1.3;
+}
+
+
+/* Driver-first assignment: compact planned trip and a guided resource summary. */
+.ds-resource-assignment-modal .modal-dialog{max-width:760px}
+.ds-resource-assignment-modal .modal-title{font-size:16px;font-weight:700;color:#214b34}
+.ds-resource-assignment-modal .modal-body{gap:12px;padding:18px 20px}
+.ds-resource-assignment-modal .ds-assignment-plan{padding:14px 16px}
+.ds-resource-assignment-modal .ds-assignment-plan-title{margin-bottom:9px;flex-wrap:wrap}
+.ds-resource-assignment-modal .ds-assignment-type{
+  margin-left:auto;padding:4px 10px;border-radius:20px;color:#246145;
+  background:#e5f4e9;font-size:11px;font-weight:650;
+}
+.ds-resource-assignment-modal .ds-assignment-plan dl>div{padding:7px 0}
+.ds-resource-assignment-modal .ds-assignment-route{
+  border-top:1px solid #e1ebe4;margin-top:4px;padding-top:10px;
+}
+.ds-resource-assignment-modal .ds-assignment-route summary{
+  display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none;
+  color:#246145;font-weight:650;font-size:12px;
+}
+.ds-resource-assignment-modal .ds-assignment-route summary::-webkit-details-marker{display:none}
+.ds-resource-assignment-modal .ds-assignment-route summary i{font-size:10px}
+.ds-resource-assignment-modal .ds-assignment-route[open] summary i{transform:rotate(180deg)}
+.ds-resource-assignment-modal .ds-assignment-route p{
+  margin:8px 0 0;font-size:12px;line-height:1.5;overflow-wrap:anywhere;
+}
+.ds-resource-assignment-modal .ds-assignment-hint{
+  display:flex;align-items:flex-start;gap:8px;margin:0;color:#536c5c;
+  font-size:12px;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-hint i{color:#39795a}
+.ds-resource-assignment-modal .ds-assignment-selection{
+  display:grid;gap:13px;padding:15px;border:1px solid #dbe8df;
+  border-radius:12px;background:#fff;
+}
+.ds-resource-assignment-modal .ds-assignment-selection h3{
+  display:flex;align-items:center;gap:8px;margin:0;color:#214b34;
+  font-size:14px;font-weight:700;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .row{row-gap:10px}
+.ds-resource-assignment-modal .ds-assignment-fields .form-label{
+  margin-bottom:5px;color:#385846;font-weight:650;font-size:12px;
+}
+.ds-resource-assignment-modal .ds-assignment-fields .form-select{
+  min-height:39px;background-color:#fff;font-size:13px;
+}
+.ds-resource-assignment-modal .ds-assignment-change-helper{justify-self:start}
+.ds-resource-assignment-modal .ds-assignment-preview{
+  display:flex;align-items:center;gap:10px;min-height:69px;padding:14px;
+  border:1px dashed #cddbd1;border-radius:10px;background:#f8fbf9;
+  font-size:12px;color:#637868;line-height:1.5;
+}
+.ds-resource-assignment-modal .ds-assignment-preview>i{font-size:24px}
+.ds-resource-assignment-modal .ds-assignment-preview:has(dl){display:block}
+.ds-resource-assignment-modal .ds-assignment-preview.is-ready{
+  border-style:solid;border-color:#b6d8c2;background:#f2faf4;
+}
+.ds-resource-assignment-modal .ds-assignment-preview strong{
+  display:flex;align-items:center;gap:8px;color:#1f6840;font-size:12px;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dl{
+  display:grid;gap:8px;margin:10px 0 0;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dl>div{
+  display:grid;grid-template-columns:105px minmax(0,1fr);gap:10px;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dt{
+  color:#617768;font-weight:550;
+}
+.ds-resource-assignment-modal .ds-assignment-preview dd{
+  margin:0;color:#234c34;font-weight:650;overflow-wrap:anywhere;
+}
+.ds-resource-assignment-modal .modal-footer{padding:12px 20px}
+.ds-resource-assignment-modal .modal-footer button[type=submit]{min-width:145px}
+.ds-resource-assignment-modal .modal-footer button[type=submit]:disabled{opacity:.55}
+@media(max-width:530px){
+  .ds-resource-assignment-modal .modal-body{padding:13px}
+  .ds-resource-assignment-modal .ds-assignment-selection{padding:12px}
+  .ds-resource-assignment-modal .ds-assignment-plan{padding:12px}
+  .ds-resource-assignment-modal .ds-assignment-preview dl>div{grid-template-columns:90px minmax(0,1fr)}
+  .ds-resource-assignment-modal .ds-assignment-type{margin-left:0}
+}
+
+
+/* Dispatcher Attendance only — compact, aligned records without oversized rows. */
+.dispatcher-role .dispatcher-attendance-workspace .data-table{
+  width:100%;
+  min-width:790px;
+  table-layout:fixed;
+  border-collapse:collapse;
+}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td){
+  padding:12px 16px;
+  vertical-align:middle;
+  line-height:1.4;
+}
+.dispatcher-role .dispatcher-attendance-workspace .data-table thead th{
+  background:#f4f8f5;
+  color:#355640;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td):nth-child(1){width:25%}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td):nth-child(2){width:12%}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td):nth-child(3){width:19%}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td):nth-child(4){width:19%}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td):nth-child(5){width:13%}
+.dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td):nth-child(6){width:12%;text-align:right}
+.dispatcher-role .dispatcher-attendance-workspace .data-table tbody tr{height:70px}
+.dispatcher-role .dispatcher-attendance-workspace .data-table tbody tr:nth-child(even) td{background:#fbfdfb}
+.dispatcher-role .dispatcher-attendance-workspace .data-table tbody tr:hover td{background:#f2f9f4}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-person{
+  display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-person strong{
+  color:#254834;font-weight:700;font-size:12.5px;line-height:1.35;overflow-wrap:anywhere;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-history{
+  display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;
+  padding:1px 0;color:#397657;font-size:11.5px;font-weight:600;line-height:1.4;
+  cursor:pointer;text-decoration:none;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-history:hover{text-decoration:underline;color:#22583b}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-history:focus-visible{
+  outline:2px solid #30815a;outline-offset:3px;border-radius:3px;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-role{color:#536c5c;font-size:12px}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-time{
+  font-size:12px;font-variant-numeric:tabular-nums;color:#344e3d;white-space:nowrap;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-empty{color:#87988a;font-size:12px}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-status{
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;border-radius:999px;
+  padding:5px 9px;font-size:11px;font-weight:700;line-height:1.25;white-space:nowrap;
+  border:1px solid #cbd7cf;background:#f3f6f4;color:#506457;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-status.is-in{
+  color:#216f41;background:#e9f7ed;border-color:#b6dfc2;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-status.is-out{
+  color:#5a6774;background:#f2f4f6;border-color:#d1d8df;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:currentColor;flex-shrink:0;
+}
+.dispatcher-role .dispatcher-attendance-workspace .data-table td:last-child .row-actions{
+  justify-content:flex-end;
+}
+.dispatcher-role .dispatcher-attendance-workspace .data-table td:last-child button[data-act="record"]{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:86px;min-height:35px;padding:6px 10px;
+  border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-action-in{
+  color:#fff;background:#207c48;border:1px solid #207c48;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-action-in:hover:not(:disabled){
+  color:#fff;background:#176238;border-color:#176238;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-action-out{
+  color:#355546;background:#fff;border:1px solid #b7cbbd;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-action-out:hover:not(:disabled){
+  background:#eff7f1;border-color:#8fb79a;color:#22583b;
+}
+@media(max-width:850px){
+  .dispatcher-role .dispatcher-attendance-workspace .table-wrap{overflow-x:auto}
+  .dispatcher-role .dispatcher-attendance-workspace .data-table :is(th,td){padding:11px 12px}
+}
+
+
+/* Completed duty-date attendance is informational, never an actionable Time In. */
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-completed{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:35px;padding:6px 9px;border-radius:8px;
+  border:1px solid #d2e6d8;background:#f2faf4;color:#31734b;
+  font-size:11.5px;font-weight:700;white-space:nowrap;
+}
+
+
+/* Dispatcher attendance checklist — reuse the records table, not a second list. */
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-person-row{
+  display:flex;align-items:flex-start;gap:11px;min-width:0;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-check{
+  width:17px;height:17px;margin:2px 0 0;flex:0 0 17px;
+  border-color:#a6bbaa;cursor:pointer;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-check-placeholder{
+  width:17px;flex:0 0 17px;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-check:checked,
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-select-all input:checked{
+  background-color:#237748;border-color:#237748;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-checklist-toolbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:12px;
+  padding:12px 16px;background:#f8fbf9;border-bottom:1px solid #dfe9e1;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-checklist-mode{
+  display:inline-flex;gap:3px;padding:3px;background:#e8f0e9;border-radius:9px;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-checklist-mode button{
+  min-height:33px;padding:5px 13px;border:0;background:transparent;
+  color:#486452;font-size:12px;font-weight:700;border-radius:7px;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-checklist-mode button.active{
+  color:#fff;background:#216f44;box-shadow:0 1px 3px #19462a25;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-select-all{
+  display:inline-flex;align-items:center;gap:7px;margin:0;
+  font-size:12px;color:#365c43;cursor:pointer;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-select-all input{
+  margin:0;width:16px;height:16px;cursor:pointer;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-selection-count{
+  color:#6b8070;font-size:12px;font-variant-numeric:tabular-nums;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-batch-button{
+  margin-left:auto;min-height:35px;padding:6px 14px;font-size:12px;font-weight:700;
+}
+.ds-attendance-batch-names{
+  max-height:180px;overflow-y:auto;margin:6px 0 15px;padding:12px 16px 12px 34px;
+  border:1px solid #dae8de;border-radius:9px;background:#f8fbf9;
+  color:#335c40;font-size:12px;line-height:1.9;
+}
+@media(max-width:680px){
+  .dispatcher-role .dispatcher-attendance-workspace .ds-attendance-checklist-toolbar{
+    gap:9px;padding:10px 12px;
+  }
+  .dispatcher-role .dispatcher-attendance-workspace .ds-attendance-batch-button{
+    width:100%;margin-left:0;
+  }
+}
+
+
+/* Attendance uses the same separate button tabs as Fund Requests. */
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-crew-tabs.record-workspace-tabs {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-crew-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-crew-links .record-workspace-tab {
+  min-height: 36px;
+  padding: 8px 13px;
+  border: 1px solid #cbded0;
+  border-radius: 8px;
+  background: #fff;
+  color: #3a5945;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-crew-links .record-workspace-tab:hover {
+  background: #eef7f0;
+  border-color: #93c5a1;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-crew-links .record-workspace-tab.active {
+  background: #207547;
+  border-color: #207547;
+  color: #fff;
+}
+.dispatcher-role .dispatcher-attendance-workspace .ds-attendance-crew-links .record-workspace-tab:focus-visible {
+  outline: 2px solid #2a8951;
+  outline-offset: 2px;
+}
+
+/* Trip drawer fund detail — scoped to the dispatcher view. */
+.dispatcher-role .ds-trip-fund-card { display:grid; gap:16px; color:var(--text); }
+.dispatcher-role .ds-trip-fund-heading { display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; padding:18px 20px; background:#f5faf6; border:1px solid #d5e7db; border-radius:12px; }
+.dispatcher-role .ds-trip-fund-heading-copy { display:flex; flex:1 1 200px; min-width:0; flex-direction:column; align-items:flex-start; gap:6px; }
+.dispatcher-role .ds-trip-fund-eyebrow { font-size:11px; letter-spacing:.055em; text-transform:uppercase; font-weight:700; color:#547663; }
+.dispatcher-role .ds-trip-fund-heading-copy > strong { font-size:18px; font-weight:750; color:#173f2a; overflow-wrap:anywhere; }
+.dispatcher-role .ds-trip-fund-state { display:inline-flex; }
+.dispatcher-role .ds-trip-fund-amount { flex:0 1 200px; display:flex; flex-direction:column; gap:5px; }
+.dispatcher-role .ds-trip-fund-amount span { color:#547663; font-size:12px; }
+.dispatcher-role .ds-trip-fund-amount strong { font-size:25px; line-height:1.2; font-weight:750; color:#185c37; font-variant-numeric:tabular-nums; }
+.dispatcher-role .ds-trip-fund-print { border:1px solid #b8d6c1; border-radius:7px; background:#fff; color:#185c37; text-decoration:none; padding:9px 13px !important; font-weight:650; }
+.dispatcher-role .ds-trip-fund-print:hover { background:#e8f4ec; color:#174b31; }
+.dispatcher-role .ds-trip-fund-progress { min-width:0; }
+.dispatcher-role .ds-trip-fund-progress .ui-workflow { margin:0; }
+.dispatcher-role .ds-trip-fund-details { border:1px solid #dce8df; border-radius:10px; overflow:hidden; background:#fff; }
+.dispatcher-role .ds-trip-fund-subheading { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 16px; background:#f7faf8; border-bottom:1px solid #e0e9e2; font-size:14px; }
+.dispatcher-role .ds-trip-fund-subheading span { color:#64776b; font-size:12px; }
+.dispatcher-role .ds-trip-fund-table-wrap { overflow-x:auto; }
+.dispatcher-role .ds-trip-fund-table { width:100%; min-width:300px; border-collapse:collapse; font-size:13px; }
+.dispatcher-role .ds-trip-fund-table th, .dispatcher-role .ds-trip-fund-table td { padding:11px 16px; border-bottom:1px solid #edf1ee; }
+.dispatcher-role .ds-trip-fund-table thead { background:#fbfcfb; color:#566f60; text-align:left; }
+.dispatcher-role .ds-trip-fund-table .ds-trip-fund-money { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.dispatcher-role .ds-trip-fund-table thead th:last-child { text-align:right; }
+.dispatcher-role .ds-trip-fund-table tfoot { background:#f5faf6; color:#174b31; font-weight:700; }
+.dispatcher-role .ds-trip-fund-table tfoot :is(th,td) { border-bottom:0; }
+.dispatcher-role .ds-trip-fund-meta { margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.dispatcher-role .ds-trip-fund-meta > div { padding:12px 14px; border:1px solid #e1eae3; border-radius:9px; min-width:0; }
+.dispatcher-role .ds-trip-fund-meta dt { color:#617468; font-size:11px; margin:0 0 5px; }
+.dispatcher-role .ds-trip-fund-meta dd { font-size:13px; font-weight:600; margin:0; overflow-wrap:anywhere; }
+@media(max-width:640px) {
+  .dispatcher-role .ds-trip-fund-heading { padding:14px; }
+  .dispatcher-role .ds-trip-fund-amount { flex-basis:100%; }
+  .dispatcher-role .ds-trip-fund-meta { grid-template-columns:1fr; }
+}
+
+/* Dispatcher trip overview: concise readiness and grouped trip information. */
+.dispatcher-role .ds-trip-overview-readiness { padding:16px; margin-bottom:16px; border:1px solid #d8e5dc; border-radius:12px; background:#fff; }
+.dispatcher-role .ds-trip-overview-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.dispatcher-role .ds-trip-overview-heading h2 { margin:3px 0 0; font-size:16px; font-weight:750; color:#1d4630; }
+.dispatcher-role .ds-trip-overview-eyebrow { display:block; font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:#698475; font-weight:700; }
+.dispatcher-role .ds-trip-overview-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.dispatcher-role .ds-trip-overview-check { display:flex; align-items:flex-start; gap:10px; min-width:0; padding:12px; border:1px solid #e1eae4; border-radius:9px; background:#f9fbf9; }
+.dispatcher-role .ds-trip-overview-check-icon { flex:0 0 auto; display:grid; place-items:center; width:27px; height:27px; border-radius:8px; background:#fef2dd; color:#98651b; }
+.dispatcher-role .ds-trip-overview-check-icon.is-complete { background:#e2f3e9; color:#197144; }
+.dispatcher-role .ds-trip-overview-check-icon.is-optional { background:#edf2f7; color:#557081; }
+.dispatcher-role .ds-trip-overview-check > div { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.dispatcher-role .ds-trip-overview-label { font-size:11px; color:#62786a; }
+.dispatcher-role .ds-trip-overview-check strong { font-size:12px; color:#233f2e; font-weight:650; overflow-wrap:anywhere; }
+.dispatcher-role .ds-trip-overview-alert { margin-top:12px; padding:12px 14px; border:1px solid #f0ceab; background:#fff9f1; border-radius:9px; color:#7e4b17; font-size:12px; }
+.dispatcher-role .ds-trip-overview-alert strong { font-size:13px; }
+.dispatcher-role .ds-trip-overview-alert ul { margin:6px 0 0; padding-left:18px; }
+.dispatcher-role .ds-trip-overview-info { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:10px; }
+.dispatcher-role .ds-trip-overview-info-card { min-width:0; border:1px solid #e0e9e3; border-radius:10px; padding:13px 15px; background:#fff; }
+.dispatcher-role .ds-trip-overview-info-card:last-child { grid-column:1 / -1; }
+.dispatcher-role .ds-trip-overview-info-title { display:flex; align-items:center; gap:8px; padding-bottom:9px; margin-bottom:4px; border-bottom:1px solid #edf1ee; color:#24774b; }
+.dispatcher-role .ds-trip-overview-info-title h4 { margin:0; font-size:13px; font-weight:700; color:#224630; }
+.dispatcher-role .ds-trip-overview-info-card .kv { margin:0; }
+.dispatcher-role .ds-trip-overview-info-card :is(dt,dd) { overflow-wrap:anywhere; }
+@media (max-width:720px) {
+  .dispatcher-role .ds-trip-overview-grid, .dispatcher-role .ds-trip-overview-info { grid-template-columns:1fr; }
+  .dispatcher-role .ds-trip-overview-info-card:last-child { grid-column:auto; }
+  .dispatcher-role .ds-trip-overview-readiness { padding:12px; }
+}
+
+/* Four-step Trip Details layout: visible primary stage, compact optional detail groups. */
+.dispatcher-role .ds-trip-drawer .ds-trip-pane { display:flex; flex-direction:column; align-items:stretch; gap:12px; min-width:0; padding:2px 0 12px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-pane[hidden] { display:none; }
+.dispatcher-role .ds-trip-drawer .ds-trip-primary-section { min-width:0; }
+.dispatcher-role .ds-trip-drawer .ds-trip-primary-section > .ds-trip-part-title { margin:4px 0 10px; font-size:13px; font-weight:700; color:#244b34; }
+.dispatcher-role .ds-trip-drawer .ds-trip-primary-section > .ds-detail-body { padding:0; }
+.dispatcher-role .ds-trip-drawer .ds-trip-subsection { border:1px solid #dbe7df; border-radius:9px; overflow:hidden; background:#fff; }
+.dispatcher-role .ds-trip-drawer .ds-trip-subsection > summary { display:list-item; cursor:pointer; padding:12px 16px; color:#294d38; font-size:12.5px; font-weight:700; background:#f8fbf9; }
+.dispatcher-role .ds-trip-drawer .ds-trip-subsection[open] > summary { border-bottom:1px solid #e4ede6; }
+.dispatcher-role .ds-trip-drawer .ds-trip-subsection > .ds-detail-body { padding:12px 15px; min-width:0; }
+.dispatcher-role .ds-trip-drawer .ds-trip-subsection > summary:focus-visible { outline:2px solid #207547; outline-offset:-2px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-pane > .btn { align-self:flex-start; }
+@media(max-width:600px) {
+  .dispatcher-role .ds-trip-drawer .ds-trip-subsection > .ds-detail-body { padding:10px 12px; }
+}
+
+/* Compact trip detail stages: show essentials first, preserve expandable records. */
+.dispatcher-role .ds-trip-drawer .ds-trip-pane { gap:10px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-primary-section > .ds-trip-part-title { margin:2px 0 8px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-card { gap:10px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-heading { padding:12px 16px; gap:10px 16px; border-radius:10px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-heading-copy { gap:3px; flex-basis:170px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-heading-copy > strong { font-size:17px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-amount { gap:3px; flex-basis:140px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-amount strong { font-size:21px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-progress .ui-workflow { gap:6px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-progress .wf-steps { gap:6px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-progress .wf-steps > * { min-width:0; padding:9px 10px; }
+.dispatcher-role .ds-trip-drawer :is(.ds-trip-fund-breakdown,.ds-trip-fund-metadata,.ds-trip-ops-extra) { border:1px solid #dce8df; border-radius:9px; background:#fff; overflow:hidden; }
+.dispatcher-role .ds-trip-drawer :is(.ds-trip-fund-breakdown,.ds-trip-fund-metadata,.ds-trip-ops-extra) > summary { cursor:pointer; padding:11px 14px; color:#284e37; font-weight:700; font-size:12.5px; background:#f8fbf9; }
+.dispatcher-role .ds-trip-drawer :is(.ds-trip-fund-breakdown,.ds-trip-fund-metadata,.ds-trip-ops-extra)[open] > summary { border-bottom:1px solid #e3ede6; }
+.dispatcher-role .ds-trip-drawer :is(.ds-trip-fund-breakdown,.ds-trip-fund-metadata,.ds-trip-ops-extra) > summary:focus-visible { outline:2px solid #207547; outline-offset:-2px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-breakdown > .ds-trip-fund-details { border:0; border-radius:0; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-breakdown .ds-trip-fund-subheading { display:none; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-table :is(th,td) { padding:8px 13px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-metadata .ds-trip-fund-meta { padding:10px; gap:8px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-fund-meta > div { padding:9px 11px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-status,.dispatcher-role .ds-trip-drawer .ds-trip-ops-next { display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:12px 14px; border:1px solid #dce8df; border-radius:9px; background:#f8fbf9; min-width:0; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-status > span,.dispatcher-role .ds-trip-drawer .ds-trip-ops-next > span { color:#64806d; font-size:11px; font-weight:600; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-summary strong { color:#234a33; font-size:13px; font-weight:700; overflow-wrap:anywhere; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-next { grid-column:1 / -1; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-extra-body { padding:10px 14px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-extra > :not(summary) { margin:0; }
+.dispatcher-role .ds-trip-drawer .ds-trip-ops-extra .ui-workflow { padding:10px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-completion-pending { display:flex; align-items:center; gap:12px; padding:15px 16px; margin:0; border:1px solid #dae7de; border-radius:10px; background:#f8fbf9; color:#244b34; }
+.dispatcher-role .ds-trip-drawer .ds-trip-completion-pending > i { flex:0 0 auto; font-size:20px; color:#207547; }
+.dispatcher-role .ds-trip-drawer .ds-trip-completion-pending span { display:flex; flex-direction:column; gap:4px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-completion-pending strong { font-size:13px; }
+.dispatcher-role .ds-trip-drawer .ds-trip-completion-pending small { color:#64776b; font-size:12px; }
+@media(max-width:640px){
+  .dispatcher-role .ds-trip-drawer .ds-trip-ops-summary { grid-template-columns:1fr; }
+  .dispatcher-role .ds-trip-drawer .ds-trip-ops-next { grid-column:auto; }
+  .dispatcher-role .ds-trip-drawer .ds-trip-fund-heading { padding:12px; }
+}
+
+/* Guided Complete Trip modal — UI only; existing validation and fields are unchanged. */
+.trip-completion-modal .modal-dialog { max-width:880px; }
+.trip-completion-modal .modal-body { padding:18px 20px; }
+.trip-completion-modal .modal-title { font-size:16px; font-weight:700; color:#1e5134; }
+.trip-completion-form { display:grid; gap:13px; }
+.trip-completion-intro { margin:0; font-size:12.5px; color:#566e60; line-height:1.5; }
+.trip-completion-section { background:#fff; border:1px solid #dce8df; border-radius:11px; padding:14px 16px; }
+.trip-completion-section-header { display:flex; gap:11px; align-items:flex-start; margin-bottom:13px; }
+.trip-completion-section-number { display:grid; place-items:center; flex:0 0 30px; height:30px; border-radius:9px; background:#e7f3eb; color:#1e7343; font-size:12px; font-weight:800; }
+.trip-completion-section-header h3,.trip-completion-requirements h3 { font-size:13.5px; color:#214831; margin:0 0 3px; font-weight:750; }
+.trip-completion-section-header p,.trip-completion-requirements p { margin:0; color:#6b7f73; font-size:11.5px; }
+.trip-completion-section .row { row-gap:11px; }
+.trip-completion-section .form-label,.trip-completion-optional .form-label { font-size:12px; font-weight:650; color:#314c3b; }
+.trip-completion-section input,.trip-completion-optional input { min-height:38px; border-radius:7px; }
+.trip-completion-optional { background:#fff; border:1px solid #dce8df; border-radius:10px; overflow:hidden; }
+.trip-completion-optional > summary { padding:12px 16px; cursor:pointer; color:#284e37; font-size:12.5px; font-weight:700; background:#f8fbf9; }
+.trip-completion-optional > summary i { margin-right:6px; }
+.trip-completion-optional > summary span { margin-left:8px; font-weight:400; color:#75887b; }
+.trip-completion-optional[open] > summary { border-bottom:1px solid #e1eae4; }
+.trip-completion-optional-body { padding:13px 16px 15px; }
+.trip-completion-requirements { border:1px solid #dce8df; background:#fff; border-radius:11px; padding:14px 16px; }
+.trip-completion-requirements-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:11px; }
+.trip-completion-requirements-head [data-req-count] { border-radius:20px; background:#edf4ee; color:#276246; padding:5px 9px; font-weight:700; font-size:11px; white-space:nowrap; }
+.trip-completion-requirements .req-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; padding:0; margin:0; list-style:none; }
+.trip-completion-requirements .req-list li { display:flex; align-items:center; gap:8px; border:1px solid #e5ede7; border-radius:7px; padding:8px 10px; min-width:0; font-size:12px; }
+.trip-completion-requirements .req-list li > span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.trip-completion-requirements .req-list li small { font-size:10px; white-space:nowrap; color:#78867c; }
+.trip-completion-requirements .req-list li.ok { color:#246543; background:#f5fbf6; }
+.trip-completion-requirements .req-list li.no { color:#7d5524; background:#fffcf5; }
+.trip-completion-requirements .req-list li.no i { color:#b78537; }
+.trip-completion-modal .modal-footer { padding:11px 18px; }
+.trip-completion-modal .modal-footer button[type=submit]:not(:disabled) { background:#207547; border-color:#207547; }
+.trip-completion-modal summary:focus-visible { outline:2px solid #207547; outline-offset:-2px; }
+@media(max-width:650px){
+  .trip-completion-modal .modal-body { padding:13px; }
+  .trip-completion-section,.trip-completion-requirements { padding:12px; }
+  .trip-completion-requirements .req-list { grid-template-columns:1fr; }
+  .trip-completion-optional > summary span { display:block; margin:4px 0 0 22px; }
+}
+
+/* Dispatcher day/night shift turnover: compact guided handover. */
+.dispatcher-turnover-drawer .offcanvas-body { display:flex; flex-direction:column; gap:14px; }
+.dispatcher-turnover-drawer .turnover-intro { border:1px solid #d6e6db; background:#f6fbf7; border-radius:11px; padding:15px 16px; }
+.dispatcher-turnover-drawer .turnover-intro > strong { font-size:15px; color:#214a33; }
+.dispatcher-turnover-drawer .turnover-intro p { margin:6px 0 11px; font-size:12.5px; color:#536c5c; line-height:1.55; }
+.dispatcher-turnover-drawer .turnover-steps { display:flex; flex-wrap:wrap; gap:7px; }
+.dispatcher-turnover-drawer .turnover-steps > span { font-size:11.5px; font-weight:650; padding:7px 9px; background:white; border:1px solid #d9e6dd; border-radius:7px; color:#315a40; }
+.dispatcher-turnover-drawer .turnover-pending { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; border:1px solid #bcdac7; background:#eef8f1; border-radius:10px; padding:12px 14px; }
+.dispatcher-turnover-drawer .turnover-pending strong { color:#215a38; font-size:12.5px; }
+.dispatcher-turnover-drawer .turnover-actions { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.dispatcher-turnover-drawer .turnover-view-tabs { display:flex; flex-wrap:wrap; gap:7px; }
+.dispatcher-turnover-drawer .turnover-history { border:1px solid #dce7df; border-radius:10px; background:#fff; padding:0; min-width:0; }
+.dispatcher-turnover-drawer .turnover-history-head { padding:12px 15px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; border-bottom:1px solid #e5ede7; }
+.dispatcher-turnover-drawer .turnover-history-head strong { color:#294c37; font-size:13px; }
+.dispatcher-turnover-drawer .turnover-history-head span { color:#748578; font-size:11.5px; }
+@media(max-width:640px) {
+  .dispatcher-turnover-drawer .turnover-intro { padding:12px; }
+  .dispatcher-turnover-drawer .turnover-actions > .btn { width:100%; }
+  .dispatcher-turnover-drawer .turnover-view-tabs { width:100%; }
+}

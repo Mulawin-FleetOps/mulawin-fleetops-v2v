@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Operations Head Analytics presentation fixture</title>
+<link rel="stylesheet" href="../public/assets/vendor/bootstrap/css/bootstrap.min.css"><link rel="stylesheet" href="../public/assets/vendor/bootstrap-icons/font/bootstrap-icons.min.css"><link rel="stylesheet" href="../public/assets/css/layout.css"><link rel="stylesheet" href="../public/assets/css/app.css"><link rel="stylesheet" href="../public/assets/css/ops-head.css">
+<div id="app"></div><div id="fixture"></div><pre id="results">RUNNING</pre><div id="toastZone"></div>
+<script src="../public/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script><script src="../public/assets/vendor/chartjs/chart.umd.min.js"></script><script src="../public/assets/js/core.js"></script><script src="../public/assets/js/map.js"></script>
+<script src="../public/assets/js/modules/general/dashboard.js"></script><script src="../public/assets/js/modules/operations/trips.js"></script><script src="../public/assets/js/modules/operations/trip-planner.js"></script><script src="../public/assets/js/modules/operations/fleet.js"></script><script src="../public/assets/js/modules/operations/clients.js"></script><script src="../public/assets/js/modules/operations/routes.js"></script><script src="../public/assets/js/modules/accounting/funds.js"></script><script src="../public/assets/js/modules/general/reports.js"></script><script src="../public/assets/js/modules/general/documents.js"></script><script src="../public/assets/js/modules/operations/ops-head.js"></script><script src="../public/assets/js/modules/operations/ops-reports.js"></script>
+<script>
+// Local mocked data only; real shared analytics/chart/table/print renderers are exercised unchanged.
+(async()=>{
+ const output=document.querySelector('#results'),checks=[],navigation=[],prints=[];
+ const assert=(condition,label)=>{if(!condition)throw new Error(label);checks.push('PASS '+label);};
+ const pause=()=>new Promise(resolve=>setTimeout(resolve,90));
+ sessionStorage.removeItem('tab:reports');
+ App.me={user:{id:1,role:'operations_head',full_name:'Fixture Operations Head',role_label:'Operations Head',username:'fixture'},roles:{operations_head:'Operations Head'},truckTypes:['Car Carrier','Container','Wing Van'],map:{routing:false},notifications:[],unread:0,nav:['dashboard','trips','trucks','crew','clients','routes','funds','reports','documents'].map(id=>({id,label:id==='reports'?'Reports':id,icon:'bi-grid'}))};
+ const logo=UI.logoTag;UI.logoTag=(...args)=>logo(...args).replace('src="assets/','src="../public/assets/');UI.toast=()=>{};App.current={page:'reports',query:{}};App.go=(page,q)=>navigation.push({page,q:structuredClone(q)});App.api=async()=>{throw new Error('No API calls are authorized in this fixture');};
+ const aggregateColumns=[['Name','name'],['Trips','trips','num'],['Completed','completed','num'],['Units','units','num'],['Delays','delays','num'],['Incidents','incidents','num']];
+ const rows=Array.from({length:25},(_,i)=>({name:'Fixture record '+(i+1),trips:i+1,completed:i,units:0,delays:1,incidents:0}));
+ const tripCards=[['Total trips',25],['Completed trips',12],['Cancelled trips',2],['Trips for reschedule',1],['Delivered units (car carrier)',8],['Recorded delays',3],['Incidents',2]].map(([label,value])=>({label,value,hint:'Existing comparison text for '+label}));
+ const trips={title:'Trips',cards:tripCards,charts:[
+   {type:'bar',horizontal:true,title:'Trips per client',labels:['Fixture Client'],datasets:[{label:'Trips',data:[25]}],how:'Trips scheduled in the period, top 12 clients.'},
+   {type:'doughnut',title:'Trips by truck type',labels:['Container','Wing Van'],datasets:[{label:'Trips',data:[15,10]}]},
+   {type:'bar',horizontal:true,stacked:true,title:'Delays and incidents per truck',labels:['Fixture Truck'],datasets:[{label:'Delays',data:[3]},{label:'Incidents',data:[2]}],how:'Shows which trucks have recurring issues.'}],
+   tables:['Per driver','Per helper','Per truck','Per client','Per dispatcher'].map(title=>({title,columns:aggregateColumns,rows})).concat([
+    {title:'Trip records (delivery and return)',columns:[['Trip','trip_ref'],['Status','status','badge'],['Client','client'],['Truck','plate_number'],['Driver','driver_name'],['From','pickup_point'],['To','delivery_point'],['Schedule','scheduled_at','datetime'],['Dispatched','dispatched_at','datetime'],['Completed','completed_at','datetime'],['Units','units_delivered'],['Waybill','waybill_number'],['Attempt','attempt_number']],rows:[{trip_ref:'FIXTURE-TRIP',status:'Completed',client:'Fixture Client',plate_number:'TEST-TRUCK',driver_name:'Fixture Driver',pickup_point:'Fixture Origin',delivery_point:'Fixture Destination',scheduled_at:'2026-11-01 08:00:00',dispatched_at:'2026-11-01 08:00:00',completed_at:'2026-11-02 08:00:00',units_delivered:8,waybill_number:'FIX-WB',attempt_number:1}]},
+    {title:'Delays and incidents',columns:[['When','at','datetime'],['Trip','trip_ref'],['Truck','plate_number'],['Type','kind'],['Details','details']],rows:[{at:'2026-11-02 08:00:00',trip_ref:'FIXTURE-TRIP',plate_number:'TEST-TRUCK',kind:'Delay',details:'Unchanged analytical detail.'}]}])};
+ const fleet={title:'Fleet and maintenance',cards:[{label:'Maintenance records',value:0},{label:'Completed',value:0},{label:'Downtime (truck-days)',value:0},{label:'Maintenance expenses',value:0,format:'money'}],charts:[
+   {type:'bar',horizontal:true,stacked:true,format:'money',title:'Maintenance cost per truck (highest first)',labels:[],datasets:[{label:'Parts',data:[]},{label:'Other',data:[]}],how:'Parts released for the truck + labor / outside service costs.'},
+   {type:'bar',horizontal:true,title:'Downtime per truck (days)',labels:[],datasets:[{label:'Days under maintenance',data:[]}],how:'Time each truck spent "Under Maintenance" in the period (truck status history).'}],tables:[
+    {title:'Highest downtime',columns:[['Truck','name'],['Downtime (days)','downtime_days','num'],['Maintenance records','jobs','num'],['Total cost','total','money']],rows:[]},
+    {title:'Highest maintenance expenses',columns:[['Truck','name'],['Parts','parts','money'],['Other costs','other','money'],['Total','total','money'],['Downtime (days)','downtime_days','num']],rows:[]},
+    {title:'Maintenance records',columns:[['Record','job_ref'],['Truck','plate_number'],['Type','source'],['Severity','severity'],['Problem','problem'],['Status','status','badge'],['Started','created_at','date'],['Completed','completed_on','date']],rows:[]}]};
+ const insight='PHP 0.00 in parts and other recorded maintenance costs for the selected period. Compare the per-truck cost table before drawing conclusions.';
+ const warning='Diagnostic signals identify records to examine. They do not prove causes or predict future outcomes.';
+ const data={period:{from:'2026-11-01',to:'2026-11-10',prevFrom:'2026-10-22',prevTo:'2026-10-31'},filterOptions:{clients:[{id:1,company_name:'Fixture Client'}],trucks:[{id:1,plate_number:'TEST-TRUCK'}],people:[{id:1,full_name:'Fixture Driver',person_type:'Driver'}],dispatchers:[{id:1,full_name:'Fixture Dispatcher'}]},statuses:['Completed','Cancelled','For Reschedule','Dispatched','In Transit','On Hold - Incident Reported','Pre-Assigned','Ready for Dispatch','Pending Review','Awaiting Resources','Rejected'],sections:{trips,fleet},insights:{trips:[{title:'Unchanged finding',text:'Original descriptive finding, retained exactly.',type:'descriptive'},{title:'Unchanged diagnostic insight',text:'Original diagnostic explanation, retained exactly.',type:'diagnostic'}],fleet:[{title:'Recorded maintenance cost',text:insight,type:'descriptive'}]}};
+ const originalData=JSON.stringify(data),printReport=UI.printReport;let printCount=0;
+ UI.printReport=(sections,meta)=>{prints.push({sections,meta});return printReport(sections,meta);};window.print=()=>printCount++;
+ const ctx={el:document.querySelector('#fixture'),tools:document.createElement('div'),data,query:{},page:'reports',setTitle(){}};
+ const render=(q={})=>{ctx.query=q;ctx.tools.replaceChildren();App.current={page:'reports',query:q};App.pages.reports.render(ctx);UI.activate(ctx.el);};
+ const tabs=()=>[...ctx.el.querySelectorAll('.oh-analytics-workspace > [role=tablist] > [data-tab]')];
+ const select=key=>ctx.el.querySelector(`.oh-analytics-workspace > [role=tablist] [data-tab=${key}]`).click();
+ const params=new URLSearchParams(location.search),preview=params.get('preview');
+ if(preview){
+   App.shell();const page=document.querySelector('#pageContent');page.innerHTML='<div class="page-head"><div class="page-head-text"><h1 class="page-title">Reports</h1><p class="page-subtitle">Summaries computed from the system records. Choose the period, filter, then print or download.</p></div><div class="page-actions"></div></div><div id="analyticsPreview" class="page-body"></div>';
+   ctx.el=document.querySelector('#analyticsPreview');ctx.tools=page.querySelector('.page-actions');render();
+   if(preview!=='trips')select('fleet');
+   if(preview==='fleet-full'){
+     data.sections.fleet.charts.forEach(c=>{c.labels=['Fixture Truck A','Fixture Truck B'];c.datasets.forEach((d,index)=>d.data=index?[120,80]:[400,200]);});
+     data.sections.fleet.cards=[{label:'Maintenance records',value:4},{label:'Completed',value:2},{label:'Downtime (truck-days)',value:3.5},{label:'Maintenance expenses',value:800,format:'money'}];render();select('fleet');
+   }
+   document.querySelector('#fixture').hidden=true;output.hidden=true;output.textContent='ANALYTICS PREVIEW READY';return;
+ }
+ if(!document.querySelector('#printArea')){const area=document.createElement('div');area.id='printArea';document.body.append(area);}
+ try{
+   render({client_id:'1',person_id:'1'});assert(tabs().map(t=>t.dataset.tab).join()==='trips,fleet','Original category identifiers and labels are preserved');
+   assert(ctx.tools.textContent.includes('Print this tab')&&ctx.tools.textContent.includes('Print all'),'Both original print controls are retained');
+   assert(ctx.el.querySelectorAll('[data-preset]').length===5,'All original period presets are retained');
+   assert(ctx.el.textContent.includes('Client: Fixture Client')&&ctx.el.textContent.includes('Driver / helper: Fixture Driver'),'Original filter summary remains visible');
+   assert(ctx.el.querySelector('.oh-analytics-filter-action [data-fopen]')&&ctx.el.querySelector('.oh-analytics-periods'),'Controls are reorganized using existing nodes');
+   assert(ctx.el.querySelectorAll('.metric').length===7&&ctx.el.querySelectorAll('.chart-panel').length===3,'Every original Trips metric and chart is present');
+   assert(ctx.el.textContent.includes(data.insights.trips[0].text)&&ctx.el.textContent.includes(data.insights.trips[1].text)&&ctx.el.textContent.includes(warning),'Descriptive and diagnostic text is unchanged');
+   const configs=[...ctx.el.querySelectorAll('[data-chart]')].map(el=>UI._charts[el.dataset.chart]);assert(configs.map(c=>c.type).join()==='bar,doughnut,bar'&&configs[2].stacked,'Original chart types, labels, and stacking survive');
+   for(const chart of trips.charts)assert(ctx.el.textContent.includes(chart.title),'Original Trips chart title: '+chart.title);
+   const picker=ctx.el.querySelector('[data-tpicker]');assert(picker.querySelectorAll('[data-pick]').length===7,'All original analytical tables remain selectable');
+   for(const table of trips.tables){picker.querySelector(`[data-pick="${table.title}"]`).click();const state=UI._tables[picker.querySelector('[data-tbody]').dataset.tbody];assert(state.rows===table.rows&&JSON.stringify(state.allColumns)===JSON.stringify(table.columns.map(([label,key,format])=>[label,key,format])),'Original analytical table content retained: '+table.title);}
+   picker.querySelector('[data-pick="Per driver"]').click();assert(ctx.el.querySelectorAll('tr[data-ri]').length===12,'Existing analytical table pagination default is unchanged');
+   ctx.el.querySelector('[aria-label="Next page"]').click();assert(ctx.el.textContent.includes('Fixture record 13'),'Existing analytical table next-page behavior works');
+   const search=ctx.el.querySelector('[data-tsearch]');search.value='Fixture record 25';search.dispatchEvent(new Event('input',{bubbles:true}));assert(ctx.el.querySelectorAll('tr[data-ri]').length===1&&ctx.el.textContent.includes('Fixture record 25'),'Existing full-table search still works');
+   select('fleet');assert(ctx.el.querySelectorAll('.metric').length===4&&ctx.el.querySelectorAll('.chart-panel').length===2,'All four Fleet metrics and both charts remain');
+   assert(ctx.el.textContent.includes(insight)&&ctx.el.textContent.includes(warning),'Exact maintenance finding and diagnostic disclaimer retained');
+   assert([...ctx.el.querySelectorAll('.metric-value')].every((el,i)=>el.textContent===(i===3?UI.money(0):UI.num(0,2))),'Zero values retain original number and currency formatting');
+   assert(ctx.el.querySelectorAll('.chart-panel .table-empty').length===2&&[...ctx.el.querySelectorAll('.chart-panel .table-empty')].every(el=>el.textContent.includes('No data for this period.')),'Both empty charts keep their original no-data message');
+   assert(ctx.el.textContent.includes('Parts released for the truck + labor / outside service costs.')&&ctx.el.textContent.includes('Time each truck spent "Under Maintenance" in the period (truck status history).'),'All cost/downtime footnotes remain unchanged');
+   assert(fleet.tables.every(t=>ctx.el.textContent.includes(t.title)),'All empty Fleet table categories remain listed');
+   assert(sessionStorage.getItem('tab:reports')==='fleet'&&ctx.query.client_id==='1','Tab memory and applied filters are preserved');
+   tabs()[1].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));assert(tabs()[0].classList.contains('active')&&document.activeElement===tabs()[0],'Capsule tabs support keyboard switching and focus');select('fleet');
+   ctx.tools.querySelectorAll('button')[0].click();await pause();assert(prints.at(-1).sections.length===1&&prints.at(-1).sections[0]===fleet&&printCount===1,'Print this tab uses the original selected section object and print builder');
+   assert(document.querySelector('#printArea').textContent.includes('Fleet and maintenance')&&!document.querySelector('#printArea').textContent.includes('Trips per client'),'Selected-tab print contains only its original analytics');
+   ctx.tools.querySelectorAll('button')[1].click();await pause();assert(prints.at(-1).sections[0]===trips&&prints.at(-1).sections[1]===fleet&&printCount===2,'Print all preserves both sections in their original order');
+   assert(document.querySelector('#printArea').textContent.includes('Trips per client')&&document.querySelector('#printArea').textContent.includes('Maintenance expenses')&&document.querySelector('#printArea').textContent.includes('Highest downtime'),'Print all retains populated charts, metrics, and analytical table content');
+   assert(!document.querySelector('#printArea').textContent.includes('Downtime per truck (days)'),'Original print omission of empty charts is preserved');
+   ctx.el.querySelector('[data-fopen]').click();await pause();const modal=[...document.querySelectorAll('.modal')].at(-1);assert(modal.querySelectorAll('input[name],select[name]').length===8,'All existing date/client/truck/driver/status/dispatcher filter fields remain');
+   modal.querySelector('[name=vehicle_id]').value='1';modal.querySelector('[name=truck_type]').value='Container';modal.querySelector('[name=status]').value='Completed';modal.querySelector('[name=dispatcher_id]').value='1';modal.querySelector('[name=from]').value='2026-11-01';modal.querySelector('[name=to]').value='2026-11-10';modal.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));await pause();assert(navigation.at(-1).q.client_id==='1'&&navigation.at(-1).q.person_id==='1'&&navigation.at(-1).q.vehicle_id==='1'&&navigation.at(-1).q.from==='2026-11-01','Original filter request fields and state are preserved');
+   const preset=ctx.el.querySelector('[data-preset]');preset.click();assert(navigation.at(-1).q.client_id==='1'&&navigation.at(-1).q.person_id==='1'&&navigation.at(-1).q.from===preset.dataset.preset.split('|')[0],'Preset requests retain their original semantics and other filters');
+   assert(JSON.stringify(data)===originalData,'Rendering, tabs, filters, and printing never mutate analytical data');
+   App.me.user.role='finance';ctx.tools.replaceChildren();ctx.data={...data,sections:{money:{title:'Finance fixture',cards:[],tables:[],charts:[]}},insights:{}};App.pages.reports.render(ctx);assert(!ctx.el.classList.contains('oh-analytics')&&ctx.tools.textContent.includes('Print all'),'Other roles retain the unstyled original report renderer');
+   output.textContent=checks.join('\n')+'\nRESULT: '+checks.length+' passed, 0 failed';
+ }catch(ex){output.textContent=checks.join('\n')+'\nFAIL '+ex.stack+'\nRESULT: '+checks.length+' passed, 1 failed';}
+})();
+</script></html>

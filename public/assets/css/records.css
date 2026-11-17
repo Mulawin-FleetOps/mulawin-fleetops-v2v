@@ -1,0 +1,1735 @@
+/* Reusable record workspace, based on the approved Mulawin Trucks layout.
+   Component classes are independent of sidebar and department navigation. */
+.record-workspace-kpis .metric-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px;background:transparent;border:0}
+.record-workspace-kpis .metric{min-width:0;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.record-workspace-kpis .metric-label{font-size:12px}
+.record-workspace-kpis .metric-value{font-size:25px;line-height:1.2}
+.record-workspace-tabs{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.record-workspace-tab{padding:8px 13px;font-weight:600;font-size:13px;cursor:pointer;background:transparent;color:var(--text-2);border:0;border-bottom:2px solid transparent}
+.record-workspace-tab.active{color:var(--green,#13743d);border-bottom-color:currentColor}
+.record-workspace-panel>.panel{margin:0}
+.record-workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 10px}
+.record-workspace-heading h2{font-size:15px;font-weight:650;color:var(--text);margin:0 0 3px}
+.record-workspace-count{margin:0;color:var(--text-3);font-size:12px}
+.record-workspace-search{display:flex;align-items:center;gap:10px;padding:4px 16px 12px}
+.record-workspace-search .table-search{flex:1 1 auto;max-width:none;min-width:0}
+.record-workspace-search .ui-filter-toolbar{margin:0;flex:0 0 auto}
+.record-workspace-search .ui-filter-toolbar>span:not(.filter-chip){display:none}
+.record-workspace-category-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.record-workspace-categories{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.record-workspace-categories .btn{font-size:12px;padding:5px 11px}
+/* Reusable compact category overflow for Finance, Billing and Management. */
+.record-category-more{position:relative;display:inline-flex;align-items:center}
+.record-category-more>summary{display:inline-flex;align-items:center;gap:7px;cursor:pointer;list-style:none;white-space:nowrap}
+.record-category-more>summary::-webkit-details-marker{display:none}
+.record-category-more>summary:focus-visible{outline:2px solid #16733e;outline-offset:2px}
+.record-category-more>summary .bi-chevron-down{font-size:10px;transition:transform .15s}
+.record-category-more[open]>summary .bi-chevron-down{transform:rotate(180deg)}
+.record-category-more-options{position:absolute;z-index:50;top:calc(100% + 7px);left:0;display:flex;flex-direction:column;gap:5px;min-width:235px;max-width:min(340px,calc(100vw - 35px));padding:9px;border:1px solid #d6e4d9;border-radius:10px;background:#fff;box-shadow:0 12px 30px rgba(12,52,30,.14)}
+.record-category-more-options .btn{display:block;width:100%;text-align:left;white-space:normal;line-height:1.4;padding:8px 11px}
+.record-workspace-category-row:has(.record-category-more[open]){position:relative;z-index:15}
+@media(max-width:640px){.record-category-more-options{left:auto;right:0}}
+
+/* Shared record-table foundation: readable header, comfortable rows, clear hover/focus. */
+.record-workspace-panel .table-wrap{overflow-x:auto}
+.record-workspace-panel .data-table{border-collapse:separate;border-spacing:0;width:100%}
+.record-workspace-panel .data-table th{font-size:11.5px;font-weight:700;letter-spacing:.015em;padding:13px 15px;background:#f3f8f4;color:#345c42;border-bottom:1px solid #dce9df;white-space:nowrap}
+.record-workspace-panel .data-table td{font-size:12.5px;line-height:1.55;padding:14px 15px;vertical-align:middle;border-bottom:1px solid #e8eee9;color:#304c3b}
+.record-workspace-panel .data-table tbody tr:last-child td{border-bottom:0}
+.record-workspace-panel .data-table tbody tr:hover td{background:#f8fcf9}
+.record-workspace-panel .data-table tbody tr:focus-within td{background:#f3faf5}
+.record-workspace-panel .data-table .cell-sub{font-size:11px;line-height:1.5;color:#718779;margin-top:4px}
+.record-workspace-panel .data-table .actions-col{white-space:nowrap;text-align:right}
+.record-workspace-panel .data-table .row-actions{display:flex;justify-content:flex-end;gap:6px;align-items:center}
+.record-workspace-panel .data-table .row-actions .btn{border-radius:8px;font-size:12px;font-weight:650;padding:7px 12px;white-space:nowrap}
+.record-workspace-panel .table-pager{padding:12px 15px;border-top:1px solid #e3ece6}
+@media(max-width:900px){.record-workspace-panel .data-table th,.record-workspace-panel .data-table td{padding-left:12px;padding-right:12px}}
+.record-workspace-panel .table-wrap:has(.table-empty)+.table-pager{display:none}
+.record-workspace-panel .table-empty{min-height:135px;justify-content:center;font-size:13px}
+.record-workspace-panel .table-tools,.record-workspace-panel .fleet-table-toolbar{display:none!important}
+@media(max-width:900px){.record-workspace-kpis .metric-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.record-workspace-search{flex-wrap:wrap}.record-workspace-search .table-search{flex-basis:100%}.record-workspace-heading{flex-wrap:wrap}.record-workspace-kpis .metric{padding:12px}.record-workspace-kpis .metric-value{font-size:22px}}
+
+
+/* Compact, floating filter/sort controls (no Bootstrap modal or backdrop). */
+.record-workspace-search {position:relative}
+.record-workspace-search .record-workspace-filter-trigger,
+.record-workspace-search .record-workspace-sort-trigger {flex:0 0 auto;white-space:nowrap;min-height:34px}
+.record-workspace-popovers {position:static}
+.record-workspace-popover {
+  position:absolute;z-index:40;right:16px;top:calc(100% - 8px);
+  width:min(310px,calc(100vw - 48px));padding:15px;
+  background:var(--surface,#fff);border:1px solid var(--border,#dce4df);
+  border-radius:12px;box-shadow:0 12px 28px rgba(15,39,27,.16);
+  display:flex;flex-direction:column;gap:11px;color:var(--text,#26392e);
+}
+.record-workspace-popover[hidden] {display:none!important}
+.record-workspace-popover strong {font-size:13px;margin-bottom:2px}
+.record-workspace-popover>label:not(.record-workspace-check):not(.record-workspace-sort-option) {
+  display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600
+}
+.record-workspace-popover .form-select {font-size:13px;min-height:35px}
+.record-workspace-check,.record-workspace-sort-option {
+  display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;margin:0
+}
+.record-workspace-check input,.record-workspace-sort-option input {accent-color:#176b3c}
+.record-workspace-popover-actions {display:flex;justify-content:flex-end;gap:7px;margin-top:4px}
+.record-workspace-sort-panel {right:16px;width:205px}
+.record-workspace-filter-trigger[aria-expanded="true"],.record-workspace-sort-trigger[aria-expanded="true"] {
+  border-color:#177541;color:#176d39;background:#f1f8f3
+}
+@media(max-width:500px) {
+  .record-workspace-popover{right:10px;top:calc(100% - 3px)}
+}
+
+
+/* Reusable compact sectioned Add/Edit forms */
+.record-form-dialog{max-width:790px;width:calc(100% - 28px)}
+.record-form-dialog .modal-content{border-radius:14px;overflow:hidden}
+.record-form-dialog .modal-header{padding:14px 20px}
+.record-form-dialog .modal-header .modal-title{font-size:17px;font-weight:650}
+.record-form-dialog .modal-body{padding:16px 20px;max-height:min(70vh,660px);overflow-y:auto}
+.record-form-dialog .modal-footer{padding:12px 20px;background:var(--surface,#fff);border-top:1px solid var(--border)}
+.record-form-dialog .form-label{font-size:12px;font-weight:550;margin-bottom:5px}
+.record-form-dialog .form-control,.record-form-dialog .form-select{min-height:37px;font-size:13px}
+.record-form-dialog .record-form .row{--bs-gutter-x:12px;--bs-gutter-y:11px}
+.record-form-hint{font-size:12px;color:var(--text-2,#5b6860);background:var(--surface-2,#f6faf7);border:1px solid var(--border);padding:10px 12px;border-radius:8px;margin-bottom:15px}
+.record-form-section{padding:2px 0 15px;margin-bottom:15px;border-bottom:1px solid var(--border)}
+.record-form-section-title{display:flex;align-items:center;gap:8px;margin:0 0 12px;color:var(--text)}
+.record-form-section-title>i{font-size:15px;color:var(--green,#176c3d)}
+.record-form-section-title h3{font-size:13.5px;font-weight:650;margin:0}
+.record-form-extra{margin:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+.record-form-extra summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;cursor:pointer;list-style:none}
+.record-form-extra summary::-webkit-details-marker{display:none}
+.record-form-extra summary:hover{background:var(--surface-2)}
+.record-form-extra summary:focus-visible{outline:2px solid var(--green,#176c3d);outline-offset:-2px}
+.record-form-extra-heading{display:flex;align-items:center;gap:10px}
+.record-form-extra-heading>i{font-size:16px;color:var(--green,#176c3d)}
+.record-form-extra-heading span{display:flex;flex-direction:column;gap:3px}
+.record-form-extra-heading strong{font-size:13px}
+.record-form-extra-heading small{font-size:11.5px;color:var(--text-3)}
+.record-form-chevron{transition:transform .15s}
+.record-form-extra[open] .record-form-chevron{transform:rotate(180deg)}
+.record-form-extra-content{border-top:1px solid var(--border);padding:14px}
+@media(max-width:575px){
+ .record-form-dialog{width:calc(100% - 16px);margin:8px auto}
+ .record-form-dialog .modal-body{max-height:72vh;padding:13px}
+ .record-form-dialog .modal-header,.record-form-dialog .modal-footer{padding:12px 13px}
+}
+
+/* Drivers & Helpers: same reusable KPI-first layout as Trucks. */
+.fleet-crew-workspace .record-workspace-help{font-size:12px;color:var(--text-3,#65766b);margin:12px 0 0}
+.fleet-crew-workspace .record-workspace-panel>.panel{overflow:visible}
+.fleet-crew-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+
+
+/* Optional compact form density for Driver/Helper Add and Edit.
+   Truck forms retain their existing section spacing. */
+.record-form-dialog-compact{max-width:750px}
+.record-form-dialog-compact .modal-header{padding:12px 18px}
+.record-form-dialog-compact .modal-body{padding:13px 18px;max-height:min(73vh,610px)}
+.record-form-dialog-compact .modal-footer{padding:10px 18px}
+.record-form-compact .record-form-section{padding:0 0 11px;margin-bottom:11px}
+.record-form-compact .record-form-section-title{margin-bottom:8px;gap:7px}
+.record-form-compact .record-form-section-title h3{font-size:13px}
+.record-form-compact .record-form-section-fields .row{--bs-gutter-x:12px;--bs-gutter-y:8px}
+.record-form-compact .form-label{font-size:12px;margin-bottom:4px}
+.record-form-compact .form-control,.record-form-compact .form-select{min-height:35px}
+.record-form-compact .form-help{font-size:11px}
+.record-form-compact .record-form-extra summary{padding:10px 12px}
+.record-form-compact .record-form-extra-content{padding:12px}
+@media(max-width:575px){
+  .record-form-dialog-compact{width:calc(100% - 16px)}
+  .record-form-dialog-compact .modal-body{max-height:73vh;padding:12px}
+}
+
+
+/* Personnel forms: compact rows, consistent accent, smaller Helper dialog. */
+.record-form-dialog-small {max-width:620px}
+.record-form-dialog-compact .modal-body {max-height:min(70vh,580px)}
+.record-form-compact .record-form-section-fields .row {--bs-gutter-x:10px;--bs-gutter-y:7px}
+.record-form-compact .record-form-section {padding-bottom:10px;margin-bottom:10px}
+.record-form-compact .record-form-extra {background:var(--surface,#fff)}
+.record-form-compact .record-form-extra-heading strong,
+.record-form-compact .record-form-extra-heading>i,
+.record-form-compact .record-form-chevron {color:var(--green,#176c3d)}
+.record-form-compact .record-form-extra-heading small {font-size:11px}
+.record-form-dialog-small .record-form-section {border-bottom:0;padding-bottom:4px;margin-bottom:7px}
+@media(max-width:767px) {
+ .record-form-dialog-small {max-width:calc(100% - 16px)}
+}
+
+
+/* Reusable client accreditation upload checklist and compact client form */
+.record-form-files .record-form-section {padding-bottom:10px;margin-bottom:11px}
+.record-form-files .record-form-extra {margin-top:9px}
+.record-form-files .record-form-extra-heading strong {color:var(--green,#176c3d)}
+.record-form-files .record-form-extra-content .row {--bs-gutter-y:11px;--bs-gutter-x:12px}
+.record-form-files .record-form-extra-content input[type=file] {
+  width:100%;min-height:39px;padding:5px;font-size:12px;
+}
+.record-form-files .record-form-extra-content input[type=file]::file-selector-button {
+  border:1px solid var(--border,#d6e3d9);border-radius:5px;
+  background:var(--surface-2,#f1f7f2);padding:4px 9px;margin-right:10px;
+}
+.record-form-files .record-file-progress {
+  font-size:12px;color:var(--green,#176c3d);font-weight:600;
+  margin:0;padding:8px 10px;background:var(--surface-2,#f3f8f4);border-radius:6px;
+}
+.record-form-files .record-form-extra input.is-invalid {border-color:#b3261e}
+
+
+/* Trips records page — shared components, wider date filter popover. */
+.fleet-trips-workspace .record-workspace-heading{flex-wrap:wrap}
+.fleet-trips-workspace .record-workspace-heading>.record-workspace-add{margin-left:0}
+.fleet-trips-workspace .record-workspace-heading>button:not(.record-workspace-add){margin-left:auto}
+.fleet-trips-workspace .record-workspace-search .table-search{flex:1 1 240px}
+.fleet-trips-workspace .record-workspace-popover-wide{width:min(355px,calc(100vw - 48px))}
+.fleet-trips-workspace .record-workspace-date-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.fleet-trips-workspace .record-workspace-date-range label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600}
+.fleet-trips-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.fleet-trips-workspace .record-workspace-help{font-size:12px;margin:4px 0 12px;color:var(--text-3)}
+@media(max-width:680px){
+ .fleet-trips-workspace .record-workspace-heading>button:not(.record-workspace-add){margin-left:0}
+ .fleet-trips-workspace .record-workspace-popover-wide{right:8px}
+}
+
+
+/* Dispatch Monitoring: operational shift overview and paginated read-only records. */
+.oh-dispatch-workspace .record-workspace-kpis{margin-bottom:16px}
+.oh-dispatch-shifts{margin:0 0 16px}
+.oh-dispatch-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.oh-dispatch-section-head h2{font-size:14px;margin:0;font-weight:650}
+.oh-dispatch-section-head span{font-size:12px;color:var(--text-3)}
+.oh-dispatch-shift-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.oh-dispatch-shift-card{display:block;padding:12px 15px;border:1px solid var(--border,#dce5df);border-radius:11px;background:var(--surface,#fff);color:inherit;text-decoration:none}
+.oh-dispatch-shift-card:hover,.oh-dispatch-shift-card.is-selected,.oh-dispatch-shift-card[aria-current="page"]{border-color:#1d7044;background:#f5faf6;color:inherit}
+.oh-dispatch-shift-head,.oh-dispatch-shift-stats{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.oh-dispatch-shift-head b{font-size:13px}
+.oh-dispatch-shift-types{font-size:11px;color:var(--text-3,#65756b);margin-top:4px}
+.oh-dispatch-shift-card[aria-current="page"]{box-shadow:inset 3px 0 #1d7044}
+.oh-dispatch-shift-head span,.oh-dispatch-shift-stats{font-size:12px;color:var(--text-3,#65756b)}
+.oh-dispatch-shift-stats{justify-content:flex-start;flex-wrap:wrap;gap:5px 14px;margin-top:8px}
+.oh-dispatch-shift-stats strong{color:var(--text,#253d2f)}
+.oh-dispatch-records{background:var(--surface,#fff);border:1px solid var(--border,#dce5df);border-radius:12px;overflow:visible}
+.oh-dispatch-records .record-workspace-heading{flex-wrap:wrap}
+.oh-dispatch-records .record-workspace-heading>button{margin-left:auto}
+.oh-dispatch-records .record-workspace-search{padding:4px 16px 13px}
+.oh-dispatch-records [data-monitor-search]{flex:1 1 220px;min-width:0;max-width:none}
+.oh-dispatch-records .oh-dispatch-filter-panel{width:min(340px,calc(100vw - 40px))}
+.oh-dispatch-records .record-workspace-date-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.oh-dispatch-records .record-workspace-date-range label{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.oh-dispatch-table-wrap{overflow-x:auto}
+.oh-dispatch-table-wrap .data-table{width:100%}
+.oh-dispatch-pager{padding:10px 16px;border-top:1px solid var(--border,#dce5df)}
+@media(max-width:680px){.oh-dispatch-shift-grid{grid-template-columns:1fr}.oh-dispatch-records .record-workspace-search{flex-wrap:wrap}.oh-dispatch-records [data-monitor-search]{flex-basis:100%}}
+
+
+/* Fund Approvals: compact Operations Head workflow, reusable records layout. */
+.fund-approval-workspace .record-workspace-tabs{margin:2px 0 12px;gap:7px}
+.fund-approval-workspace .record-workspace-tab{font-size:12.5px;padding:9px 12px;white-space:nowrap}
+.fund-approval-workspace .record-workspace-panel{border:1px solid var(--border,#dce5df);border-radius:12px;background:var(--surface,#fff);overflow:visible}
+.fund-approval-workspace .record-workspace-panel>.panel{border:0;box-shadow:none;background:transparent}
+.fund-approval-workspace .record-workspace-heading{padding:14px 16px 9px}
+.fund-approval-workspace .record-workspace-search{padding:4px 16px 12px}
+.fund-approval-workspace .record-workspace-search .table-search{flex:1 1 auto;min-width:160px}
+.fund-approval-workspace .record-workspace-panel .data-table th{font-size:11.5px}
+.fund-approval-workspace .record-workspace-panel .data-table td{font-size:12.5px}
+.fund-approval-workspace .record-workspace-panel .data-table .cell-sub{font-size:11.5px;color:var(--text-3,#6b786f)}
+@media(max-width:700px){.fund-approval-workspace .record-workspace-tabs{flex-wrap:nowrap;overflow-x:auto}.fund-approval-workspace .record-workspace-search{flex-wrap:wrap}.fund-approval-workspace .record-workspace-search .table-search{flex-basis:100%}}
+
+
+/* Head Management Fuel Configuration — scoped layout and visual hierarchy. */
+.head-fuel-workspace { display:grid; gap:4px; }
+.head-fuel-config > .record-workspace-panel {
+  background:var(--surface,#fff);
+  border:1px solid var(--border,#dce8df);
+  border-radius:14px;
+  overflow:visible;
+  box-shadow:0 3px 14px rgba(28,79,47,.045);
+}
+.head-fuel-config .record-workspace-heading {
+  padding:20px 22px 17px;
+  border-bottom:1px solid var(--border,#e1e9e3);
+}
+.head-fuel-config .record-workspace-heading h2 { font-size:18px; font-weight:700; }
+.head-fuel-config .record-workspace-heading p { font-size:12px; margin-top:5px; }
+.head-fuel-config .record-workspace-heading > .btn { min-height:38px; padding:7px 14px; }
+.head-fuel-config .record-workspace-category-row {
+  padding:14px 22px;
+  border-top:0;
+  background:#fbfdfb;
+  gap:8px;
+}
+.head-fuel-config .record-workspace-categories { display:flex; flex-wrap:wrap; gap:8px; }
+.head-fuel-config .record-workspace-categories .btn { border-radius:8px; padding:8px 15px; font-weight:600; }
+.head-fuel-diesel-content { padding:24px 22px 26px; }
+.head-fuel-section-heading { display:flex; align-items:center; gap:13px; margin-bottom:20px; }
+.head-fuel-section-icon { width:47px; height:47px; border-radius:12px; flex:0 0 47px;
+  display:grid; place-items:center; background:#e7f4eb; color:#1b7546; font-size:22px; }
+.head-fuel-section-heading h3 { font-size:16px; margin:0 0 4px; color:#21432d; font-weight:700; }
+.head-fuel-section-heading p { font-size:12px; color:#728176; margin:0; }
+.head-fuel-config-state { margin-left:auto; white-space:nowrap; border-radius:20px;
+  padding:6px 11px; font-size:11px; font-weight:700; }
+.head-fuel-config-state.is-missing { background:#fff5e7; color:#a36713; }
+.head-fuel-config-state.is-ready { background:#e6f4eb; color:#17663b; }
+.head-fuel-setting-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.head-fuel-setting { padding:19px 20px; background:#f7faf8; border:1px solid #e1ebe4;
+  border-radius:11px; display:flex; flex-direction:column; gap:7px; min-width:0; }
+.head-fuel-setting-label { color:#607666; font-size:12px; font-weight:600; }
+.head-fuel-setting strong { color:#1f432e; font-size:20px; line-height:1.25; overflow-wrap:anywhere; }
+.head-fuel-setting small { color:#75877b; font-size:11px; }
+.head-fuel-policy { display:flex; align-items:flex-start; gap:11px; margin-top:17px;
+  padding:14px 16px; border-radius:9px; background:#edf5ef; color:#42624c; }
+.head-fuel-policy i { font-size:18px; margin-top:1px; }
+.head-fuel-policy p { font-size:12px; line-height:1.65; margin:0; }
+.head-fuel-config .record-workspace-panel > .panel { border:0; box-shadow:none; }
+.head-fuel-config .record-workspace-panel .table-wrap { overflow-x:auto; }
+@media(max-width:720px) {
+  .head-fuel-config .record-workspace-heading { padding:16px; gap:10px; }
+  .head-fuel-config .record-workspace-category-row { padding:11px 16px; }
+  .head-fuel-diesel-content { padding:17px 16px; }
+  .head-fuel-setting-grid { grid-template-columns:1fr; }
+  .head-fuel-section-heading { flex-wrap:wrap; }
+  .head-fuel-config-state { margin-left:0; }
+}
+
+/* Fuel Efficiency + History: extend the existing fuel card, not global table styles. */
+.head-fuel-config .head-fuel-table-intro {
+  display:flex; align-items:center; gap:13px; padding:17px 22px;
+  background:#f7faf8; border-bottom:1px solid #e2eae4;
+}
+.head-fuel-table-intro-icon { display:grid; place-items:center; flex:0 0 43px; width:43px; height:43px;
+  border-radius:12px; background:#e6f3e9; color:#1b7546; font-size:19px; }
+.head-fuel-table-intro strong { display:block; color:#244832; font-size:14px; margin-bottom:3px; }
+.head-fuel-table-intro p { margin:0; color:#667b6b; font-size:12px; line-height:1.5; }
+.head-fuel-table-progress { margin-left:auto; flex:0 0 auto; padding:7px 11px; border-radius:20px;
+  font-size:11px; font-weight:700; color:#356449; background:#e7f2ea; white-space:nowrap; }
+.head-fuel-truck-label { display:flex; align-items:center; gap:11px; }
+.head-fuel-truck-icon { width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
+  border-radius:10px; background:#eef5f0; color:#237345; font-size:17px; }
+.head-fuel-truck-label b { display:block; font-size:13px; color:#264332; }
+.head-fuel-truck-label small { display:block; margin-top:3px; color:#819083; font-size:11px; }
+.head-fuel-muted-value { color:#748477; font-size:12px; }
+.head-fuel-efficiency-value { color:#214a31; font-size:16px; white-space:nowrap; }
+.head-fuel-efficiency-value small { color:#62786b; font-size:11px; font-weight:500; }
+.head-fuel-status { display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border-radius:20px;
+  font-size:11px; font-weight:700; white-space:nowrap; }
+.head-fuel-status.is-missing { background:#fff2df; color:#9a631c; }
+.head-fuel-status.is-ready { background:#e4f4e9; color:#207041; }
+.head-fuel-history-setting { display:inline-flex; align-items:center; gap:9px; font-weight:650; color:#2a513a; }
+.head-fuel-history-setting i { color:#268152; }
+.head-fuel-config .record-workspace-panel .data-table th { background:#f0f5f1; }
+.head-fuel-config .record-workspace-panel .data-table td { padding-top:13px; padding-bottom:13px; vertical-align:middle; }
+.head-fuel-config .record-workspace-panel .table-wrap { min-height:0; }
+.head-fuel-history-empty { min-height:265px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center; padding:35px 22px 38px; }
+.head-fuel-history-empty-icon { display:grid; place-items:center; width:62px; height:62px; border-radius:18px;
+  background:#edf5f0; color:#2c7950; font-size:28px; margin-bottom:16px; }
+.head-fuel-history-empty h3 { margin:0 0 8px; font-size:17px; font-weight:700; color:#244b33; }
+.head-fuel-history-empty p { max-width:470px; margin:0; font-size:13px; line-height:1.7; color:#6d7f71; }
+.head-fuel-history-note { display:inline-flex; align-items:center; gap:7px; margin-top:17px;
+  padding:9px 13px; border-radius:8px; background:#f4f8f5; font-size:11px; color:#537261; }
+@media(max-width:720px) {
+  .head-fuel-config .head-fuel-table-intro { flex-wrap:wrap; padding:14px 16px; }
+  .head-fuel-table-progress { margin-left:0; }
+  .head-fuel-history-empty { min-height:235px; padding:27px 15px; }
+}
+
+/* Head Management reports: one executive report workspace, scoped to #reports. */
+.head-report-dashboard { display:grid; gap:17px; }
+.head-report-config,.head-report-performance,.head-report-details {
+  border:1px solid #dce8df; border-radius:13px; background:#fff; box-shadow:0 2px 12px rgba(26,80,48,.035);
+}
+.head-report-config { padding:19px 20px 15px; }
+.head-report-config-head,.head-report-section-title,.head-report-details-heading {
+  display:flex; align-items:start; justify-content:space-between; gap:12px;
+}
+.head-report-config h2,.head-report-performance h2,.head-report-details h2 {
+  font-size:17px; font-weight:700; color:#21432d; margin:0 0 5px;
+}
+.head-report-config-head p,.head-report-section-title p,.head-report-details-heading p {
+  margin:0; color:#758579; font-size:12px; line-height:1.5;
+}
+.head-report-period-toolbar { display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  padding:17px 0; margin-top:16px; border-top:1px solid #e4ece6; }
+.head-report-field-label { display:block; flex:0 0 auto; color:#668071; font-size:11px; font-weight:650; letter-spacing:.01em; }
+.head-report-preset-buttons { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.head-report-preset-buttons .btn { min-height:35px; padding:7px 14px; border-radius:8px; }
+.head-report-config-bottom { display:flex; align-items:center; justify-content:space-between; gap:16px;
+  border-top:1px solid #e5ece7; padding-top:15px; }
+.head-report-date-summary { display:flex; align-items:center; gap:12px; min-width:0; }
+.head-report-date-icon { width:41px; height:41px; flex:0 0 41px; display:grid; place-items:center;
+  background:#eaf5ed; border-radius:10px; color:#226f42; font-size:17px; }
+.head-report-date-summary strong { display:block; margin-top:2px; font-size:14px; color:#224630; }
+.head-report-date-summary small { display:block; font-size:11px; margin-top:3px; color:#778a7d; }
+.head-report-config-filters { flex:0 1 auto; min-width:0; }
+.head-report-config-filters .btn { min-height:36px; }
+.head-report-print { position:relative; flex:0 0 auto; }
+.head-report-print summary { list-style:none; cursor:pointer; min-height:36px; display:flex; gap:8px; align-items:center; }
+.head-report-print summary::-webkit-details-marker { display:none; }
+.head-report-print-menu { position:absolute; top:calc(100% + 5px); right:0; z-index:15; min-width:195px;
+  padding:6px; background:#fff; border:1px solid #dce7df; border-radius:9px; box-shadow:0 9px 28px rgba(18,55,32,.14); }
+.head-report-print-menu button { width:100%; padding:10px; border:0; border-radius:6px; background:transparent;
+  text-align:left; color:#24432d; font-size:12px; cursor:pointer; }
+.head-report-print-menu button:hover,.head-report-print-menu button:focus-visible { background:#e9f3ec; }
+.head-report-performance { padding:19px 20px 20px; }
+.head-report-section-title { margin-bottom:17px; align-items:center; }
+.head-report-section-title > span { color:#537363; font-size:12px; font-weight:650; white-space:nowrap; }
+.head-report-performance .metric-strip,.head-report-performance .metric-strip-icons { display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0; }
+.head-report-performance .metric-icon-card { min-width:0; }
+.head-report-details { overflow:visible; }
+.head-report-details-heading { padding:19px 20px 14px; }
+.head-report-category-tabs { display:flex; gap:5px; overflow-x:auto; padding:0 18px 13px;
+  border-bottom:1px solid #dce8df; }
+.head-report-category-tab { padding:10px 14px; border:1px solid transparent; border-radius:8px;
+  background:transparent; color:#42654e; font-size:13px; font-weight:650; white-space:nowrap; cursor:pointer; }
+.head-report-category-tab:hover { background:#f0f7f2; }
+.head-report-category-tab.active { color:#155a32; background:#e8f5eb; border-color:#c5e1cc; }
+.head-report-category-tab:focus-visible { outline:2px solid #27854c; outline-offset:1px; }
+.head-report-secondary,.head-report-insights { padding:18px 20px; border-bottom:1px solid #e3ebe5; }
+.head-report-secondary h3 { margin:0 0 12px; font-size:14px; color:#244832; }
+.head-report-secondary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.head-report-secondary-item { padding:12px 14px; border:1px solid #e3ebe5; border-radius:9px; background:#f9fbf9;
+  display:flex; align-items:center; flex-wrap:wrap; column-gap:12px; row-gap:3px; }
+.head-report-secondary-item span { font-size:12px; color:#577362; flex:1 1 135px; }
+.head-report-secondary-item strong { font-size:17px; color:#224730; }
+.head-report-secondary-item small { width:100%; font-size:11px; color:#718377; }
+.head-report-subheading { display:flex; align-items:center; gap:9px; margin-bottom:14px; color:#2c8051; }
+.head-report-subheading h3 { margin:0; font-size:15px; color:#224730; }
+.head-report-insight-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }
+.head-report-insight { border:1px solid #e2eae4; border-radius:10px; background:#fbfdfb; padding:15px; }
+.head-report-insight small { display:block; color:#738879; margin-bottom:6px; }
+.head-report-insight strong { display:block; color:#244632; font-size:13px; margin-bottom:6px; }
+.head-report-insight p,.head-report-insight-empty { margin:0; color:#5c7163; font-size:12px; line-height:1.65; }
+.head-report-method,.head-report-note { color:#758778; font-size:11px; line-height:1.6; margin:13px 0 0; }
+.head-report-note { padding:12px 20px; margin:0; border-bottom:1px solid #e3ebe5; }
+.head-report-no-data { display:flex; align-items:center; gap:18px; margin:16px 20px 22px;
+  border:1px dashed #cfe0d4; border-radius:12px; background:#f8fbf9; padding:24px 25px; }
+.head-report-no-data-icon { width:52px; height:52px; flex:0 0 52px; display:grid; place-items:center;
+  border-radius:14px; color:#2e8051; background:#e7f3ea; font-size:24px; }
+.head-report-no-data h3 { margin:0 0 5px; color:#244a32; font-size:15px; font-weight:700; }
+.head-report-no-data p { max-width:700px; margin:0; color:#64786a; font-size:12px; line-height:1.6; }
+.head-report-blocks { padding:16px 20px 22px; }
+.head-report-blocks > .panel { margin-bottom:13px; }
+@media(max-width:1200px) {
+  .head-report-performance .metric-strip,.head-report-performance .metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:740px) {
+  .head-report-config { padding:15px 13px; }
+  .head-report-config-head { flex-wrap:wrap; }
+  .head-report-config-bottom { align-items:stretch; flex-direction:column; }
+  .head-report-period-toolbar { gap:9px; }
+  .head-report-preset-buttons { width:100%; }
+  .head-report-date-summary { align-items:flex-start; }
+  .head-report-config-filters { width:100%; }
+
+  .head-report-performance { padding:15px 13px; }
+  .head-report-section-title { flex-wrap:wrap; }
+  .head-report-section-title > span { white-space:normal; }
+  .head-report-performance .metric-strip,.head-report-performance .metric-strip-icons { grid-template-columns:1fr; }
+  .head-report-details-heading { padding:16px 14px 12px; }
+  .head-report-category-tabs { padding:0 10px 12px; }
+  .head-report-secondary,.head-report-insights { padding:16px 14px; }
+  .head-report-secondary-grid,.head-report-insight-grid { grid-template-columns:1fr; }
+  .head-report-blocks { padding:12px; }
+  .head-report-no-data { margin:12px; padding:18px 14px; align-items:flex-start; gap:12px; }
+  .head-report-no-data-icon { width:42px; height:42px; flex-basis:42px; font-size:19px; }
+
+}
+
+/* Head Management: User & Access Management uses the shared record workspace. */
+.head-user-management { display:grid; gap:17px; }
+.head-user-management .record-workspace-kpis .metric-strip,
+.head-user-management .record-workspace-kpis .metric-strip-icons { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0; }
+.head-user-management .record-workspace-panel { border:1px solid #dce8df; border-radius:13px; background:#fff; overflow:visible; }
+.head-user-management .record-workspace-panel .panel { border:0; border-radius:13px; margin:0; box-shadow:none; }
+.head-user-management .record-workspace-panel .table-wrap { overflow-x:auto; }
+.head-user-management .record-workspace-search .table-search { flex:1 1 300px; max-width:none; }
+.head-user-role-reference { background:#fff; border:1px solid #dce8df; border-radius:12px; overflow:hidden; }
+.head-user-role-reference > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; padding:16px 20px; color:#22472f; font-weight:700; }
+.head-user-role-reference > summary::-webkit-details-marker { display:none; }
+.head-user-role-reference > summary > .bi-shield-check { color:#267a49; font-size:18px; }
+.head-user-role-reference > summary small { font-size:11px; font-weight:400; color:#748578; margin-left:auto; }
+.head-user-role-reference > summary > .bi-chevron-down { color:#6b8873; transition:transform .2s; }
+.head-user-role-reference[open] > summary > .bi-chevron-down { transform:rotate(180deg); }
+.head-user-role-reference-body { border-top:1px solid #e4ece6; padding:16px 20px 18px; }
+.head-user-role-reference-body p { margin:0 0 12px; font-size:12px; line-height:1.6; color:#5b7563; }
+.head-user-role-tags { display:flex; gap:8px; flex-wrap:wrap; }
+.head-user-role-tags span { display:inline-flex; padding:7px 10px; border:1px solid #dce9df; border-radius:8px; background:#f7faf7; font-size:12px; color:#315d3c; }
+@media(max-width:1200px) {
+  .head-user-management .record-workspace-kpis .metric-strip,
+  .head-user-management .record-workspace-kpis .metric-strip-icons { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:650px) {
+  .head-user-management .record-workspace-kpis .metric-strip,
+  .head-user-management .record-workspace-kpis .metric-strip-icons { grid-template-columns:1fr; }
+  .head-user-role-reference > summary { padding:14px; flex-wrap:wrap; }
+  .head-user-role-reference > summary small { margin-left:0; }
+  .head-user-role-reference-body { padding:14px; }
+}
+
+/* Dedicated Head Management System Configuration workspace. */
+.head-settings-workspace{display:grid;gap:17px}
+.head-settings-workspace .record-workspace-kpis .metric-strip,
+.head-settings-workspace .record-workspace-kpis .metric-strip-icons{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0
+}
+.head-settings-workspace .record-workspace-panel{
+  border:1px solid #dce8df;border-radius:13px;background:#fff;overflow:visible;
+  box-shadow:0 2px 10px rgba(28,79,47,.03)
+}
+.head-settings-workspace .record-workspace-panel>.panel{border:0;border-radius:13px;box-shadow:none;margin:0}
+.head-settings-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.head-settings-workspace .record-workspace-search .table-search{flex:1 1 300px;max-width:none}
+.head-settings-workspace .record-workspace-heading{padding:19px 20px 13px}
+.head-settings-workspace .record-workspace-heading h2{font-size:17px;font-weight:700}
+.head-settings-workspace .record-workspace-search{padding:7px 20px 15px}
+.head-settings-workspace .record-workspace-category-row{padding:11px 20px;background:#fbfdfb}
+.head-settings-workspace .record-workspace-panel .data-table th{background:#f1f5f2;color:#244b33}
+.head-settings-workspace .record-workspace-panel .data-table td{vertical-align:middle;padding:14px 12px}
+.head-settings-workspace .record-workspace-panel .data-table td:first-child{min-width:260px}
+.head-settings-workspace .head-settings-group-label{
+  display:inline-block;padding:5px 9px;border:1px solid #dbe9df;border-radius:20px;
+  background:#f1f8f3;color:#396348;font-size:11px;font-weight:650;white-space:nowrap
+}
+.head-settings-workspace .record-workspace-panel .record-workspace-add{white-space:nowrap}
+@media(max-width:1050px){
+  .head-settings-workspace .record-workspace-kpis .metric-strip,
+  .head-settings-workspace .record-workspace-kpis .metric-strip-icons{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+  .head-settings-workspace .record-workspace-kpis .metric-strip,
+  .head-settings-workspace .record-workspace-kpis .metric-strip-icons{grid-template-columns:1fr}
+  .head-settings-workspace .record-workspace-heading{padding:15px}
+  .head-settings-workspace .record-workspace-search{padding:8px 15px 12px;flex-wrap:wrap}
+  .head-settings-workspace .record-workspace-category-row{padding:10px 15px}
+}
+
+/* Head Management command center: isolated from all departmental dashboards. */
+.rpm-executive-dashboard .rpm-executive-command{display:grid;gap:18px}
+.rpm-executive-dashboard .rpm-exec-headline,
+.rpm-executive-dashboard .rpm-exec-section{
+  border:1px solid #dce8df;border-radius:13px;background:#fff;padding:20px;
+  box-shadow:0 2px 10px rgba(19,74,39,.035)
+}
+.rpm-executive-dashboard .rpm-exec-headline h2,
+.rpm-executive-dashboard .rpm-exec-section-head h2{font-size:17px;font-weight:700;color:#1c4c2e;margin:0}
+.rpm-executive-dashboard .rpm-exec-headline>p{margin:5px 0 17px;font-size:12px;color:#718476}
+.rpm-executive-dashboard .rpm-exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi{
+  display:flex;align-items:center;gap:12px;padding:17px 15px;min-height:103px;
+}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-icon{
+  width:45px;height:45px;flex:0 0 45px;border-radius:50%;font-size:19px
+}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-body{min-width:0}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-value{margin:5px 0 0;font-size:26px}
+.rpm-executive-dashboard .rpm-exec-kpis .rpm-kpi-value:has(+ *){margin-top:5px}
+.rpm-executive-dashboard .rpm-exec-section-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 15px
+}
+.rpm-executive-dashboard .rpm-exec-section-head>span{font-size:11px;color:#738779}
+.rpm-executive-dashboard .rpm-exec-departments{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rpm-executive-dashboard .rpm-dept-card{
+  min-width:0;padding:16px;border:1px solid #dfebe2;border-radius:11px;background:#fbfdfb;
+  display:flex;flex-direction:column;gap:13px
+}
+.rpm-executive-dashboard .rpm-dept-heading{display:flex;align-items:center;gap:10px}
+.rpm-executive-dashboard .rpm-dept-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;
+  border-radius:10px;background:#e5f3e9;color:#217044;font-size:16px}
+.rpm-executive-dashboard .rpm-dept-heading h3{margin:0;font-size:13px;color:#254934;font-weight:700}
+.rpm-executive-dashboard .rpm-dept-facts{display:flex;flex-direction:column;gap:7px;min-height:48px}
+.rpm-executive-dashboard .rpm-dept-fact{display:flex;justify-content:space-between;gap:7px;font-size:12px;color:#607465}
+.rpm-executive-dashboard .rpm-dept-fact strong{font-size:12px;color:#19452b;font-variant-numeric:tabular-nums;text-align:right}
+.rpm-executive-dashboard .rpm-dept-unavailable{font-size:12px;color:#718374;line-height:1.5}
+.rpm-executive-dashboard .rpm-dept-link{
+  border:0;background:none;color:#227445;font-size:12px;font-weight:700;text-align:left;
+  padding:5px 0;margin-top:auto;cursor:pointer
+}
+.rpm-executive-dashboard .rpm-dept-link:hover{text-decoration:underline}
+.rpm-executive-dashboard .rpm-dept-link i{margin-left:5px}
+.rpm-executive-dashboard .rpm-exec-performance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.rpm-executive-dashboard .rpm-exec-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:15px}
+.rpm-executive-dashboard .rpm-exec-charts .chart-panel{min-width:0;margin:0;border:1px solid #e1ece3;border-radius:11px;overflow:hidden}
+.rpm-executive-dashboard .rpm-exec-performance-card{padding:17px;border:1px solid #e0eae3;border-radius:10px}
+.rpm-executive-dashboard .rpm-exec-performance-card h3{font-size:14px;font-weight:700;color:#27503a;margin:0 0 12px}
+.rpm-executive-dashboard .rpm-exec-performance-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ebf0ec;font-size:12px}
+.rpm-executive-dashboard .rpm-exec-performance-row:last-child{border-bottom:0}
+.rpm-executive-dashboard .rpm-exec-performance-row span{color:#5c7565}
+.rpm-executive-dashboard .rpm-exec-performance-row strong{color:#21462e;font-variant-numeric:tabular-nums}
+.rpm-executive-dashboard .rpm-exec-section .rpm-summary-panel{box-shadow:none}
+.rpm-executive-dashboard .rpm-exec-section .rpm-dashboard-tables{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rpm-executive-dashboard .rpm-exec-empty{display:flex;align-items:center;gap:10px;padding:21px;border-radius:9px;background:#f8fbf8;color:#738578}
+.rpm-executive-dashboard .rpm-exec-empty p{margin:0;font-size:12px}
+.rpm-executive-dashboard .rpm-exec-empty i{font-size:21px}
+@media(max-width:1250px){
+  .rpm-executive-dashboard .rpm-exec-kpis,
+  .rpm-executive-dashboard .rpm-exec-departments{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .rpm-executive-dashboard .rpm-exec-headline,.rpm-executive-dashboard .rpm-exec-section{padding:15px}
+  .rpm-executive-dashboard .rpm-exec-kpis,
+  .rpm-executive-dashboard .rpm-exec-departments,
+  .rpm-executive-dashboard .rpm-exec-performance,
+  .rpm-executive-dashboard .rpm-exec-charts,
+  .rpm-executive-dashboard .rpm-exec-section .rpm-dashboard-tables{grid-template-columns:1fr}
+  .rpm-executive-dashboard .rpm-exec-section-head{align-items:flex-start;flex-wrap:wrap}
+}
+
+/* Company Garage: single shared Leaflet entrance pin, scoped to the admin modal. */
+.head-garage-map-instructions{display:flex;align-items:flex-start;gap:9px;margin-bottom:12px;
+  padding:11px 13px;border:1px solid #dceadf;border-radius:9px;background:#f1f8f3;
+  color:#355f41;font-size:12px;line-height:1.55}
+.head-garage-map-instructions>i{font-size:17px;flex:0 0 17px;color:#1e7541}
+.head-garage-picker-map{width:100%;height:320px;min-height:230px;border:1px solid #cfe0d3;
+  border-radius:11px;overflow:hidden;background:#e9f0ea}
+.head-garage-picker-map .leaflet-control-container{font-size:12px}
+.head-garage-picker-status{margin:9px 0 12px;font-size:12px;color:#356347;line-height:1.45}
+@media(max-width:650px){.head-garage-picker-map{height:255px}.head-garage-map-instructions{padding:10px}}
+
+
+/* Fleet route rate editor — scoped to the shared route pricing dialog. */
+.fleet-rate-modal .modal-dialog{max-width:710px}
+.fleet-rate-modal .modal-body{padding:18px 22px 22px}
+.fleet-rate-modal .modal-header{padding:16px 22px;border-bottom:1px solid #e2ebe5}
+.fleet-rate-modal .modal-footer{padding:13px 22px;border-top:1px solid #e2ebe5;background:#fbfdfb}
+.fleet-rate-editor{font-size:13px;color:#294a37}
+.fleet-rate-route{border:1px solid #dce9df;background:linear-gradient(130deg,#f5fbf6,#fff);border-radius:12px;padding:15px 17px;margin-bottom:17px}
+.fleet-rate-eyebrow{font-size:10px;font-weight:800;letter-spacing:.09em;color:#287448;margin-bottom:8px}
+.fleet-rate-route>strong{display:block;font-size:15px;color:#184b2b;margin-bottom:6px}
+.fleet-rate-route-path{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;line-height:1.5}
+.fleet-rate-route-path i{color:#268250}
+.fleet-rate-route-meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;color:#617d6b;font-size:11px}
+.fleet-rate-route-meta i{margin-right:4px}
+.fleet-rate-section-title{display:flex;align-items:center;gap:8px;margin:15px 0 10px;font-size:12px;font-weight:800;color:#1d6038;letter-spacing:.015em}
+.fleet-rate-section-title i{font-size:15px}
+.fleet-rate-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fleet-rate-fact{display:flex;flex-direction:column;gap:5px;min-width:0;padding:10px 12px;background:#f8fbf9;border:1px solid #e3ede6;border-radius:9px}
+.fleet-rate-fact span{font-size:11px;color:#6a8171}
+.fleet-rate-fact strong{font-size:13px;color:#244c32;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.fleet-rate-highlight{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding:13px 15px;background:#eaf5ec;border:1px solid #cfe5d3;border-radius:10px}
+.fleet-rate-highlight>div{display:flex;flex-direction:column;gap:3px}
+.fleet-rate-highlight span{font-size:12px;font-weight:700;color:#245c36}
+.fleet-rate-highlight small{color:#668470;font-size:10px}
+.fleet-rate-highlight>strong{font-size:20px;font-weight:800;color:#176b38;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fleet-rate-editor .form-label{font-size:12px;font-weight:700}
+.fleet-rate-editor input,.fleet-rate-editor textarea{border-radius:8px}
+.fleet-rate-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:12px 15px;border:1px dashed #bddac4;border-radius:9px;background:#fbfdfb}
+.fleet-rate-total>span{font-weight:700;color:#335a40}
+.fleet-rate-total small{display:block;font-weight:400;color:#738578;font-size:10px;margin-top:2px}
+.fleet-rate-total strong{color:#1e683c;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.fleet-route-history-scroll{overflow-x:auto;max-width:100%;border:1px solid #e2ebe5;border-radius:9px;margin:8px 0 14px}
+.fleet-route-history-scroll table{width:100%;min-width:740px;margin-bottom:0;table-layout:auto}
+.fleet-route-history-scroll th,.fleet-route-history-scroll td{white-space:normal;min-width:100px;vertical-align:middle;padding:10px 12px;overflow-wrap:break-word;font-size:12px;line-height:1.5}
+.fleet-route-history-scroll th{font-size:11px;font-weight:700;white-space:normal;background:#f5f9f6}
+.fleet-route-history-scroll th:first-child,.fleet-route-history-scroll td:first-child{min-width:135px}
+@media(max-width:600px){
+  .fleet-rate-modal .modal-body{padding:14px}
+  .fleet-rate-modal .modal-header,.fleet-rate-modal .modal-footer{padding:13px 14px}
+  .fleet-rate-facts{grid-template-columns:1fr 1fr}
+  .fleet-rate-highlight>strong{font-size:17px}
+  .fleet-rate-highlight,.fleet-rate-total{align-items:flex-start;flex-direction:column}
+  .fleet-route-history-scroll table{min-width:680px}
+}
+
+
+/* Head Management route masterlist — small, targeted enhancements on shared tables. */
+.head-route-workspace .record-workspace-panel .data-table{min-width:980px}
+.head-route-workspace .record-workspace-panel .data-table th:first-child,
+.head-route-workspace .record-workspace-panel .data-table td:first-child{min-width:260px;width:29%}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(2),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(2){min-width:150px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(3),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(3){min-width:210px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(4),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(4){min-width:125px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(5),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(5){min-width:130px}
+.head-route-workspace .record-workspace-panel .data-table th:nth-child(6),
+.head-route-workspace .record-workspace-panel .data-table td:nth-child(6){min-width:135px}
+.head-route-workspace .record-workspace-panel .data-table td:first-child{padding-left:20px}
+.head-route-workspace .record-workspace-panel .data-table td:last-child{padding-right:18px}
+.head-route-workspace .fleet-record-primary{display:flex;flex-direction:column;min-width:0;gap:2px}
+.head-route-workspace .fleet-record-primary strong{color:#1c5736;font-size:13px;font-weight:800;letter-spacing:.012em}
+.head-route-workspace .fleet-record-primary .cell-sub{display:block;max-width:340px;overflow-wrap:anywhere;text-transform:none}
+.head-route-workspace .fleet-record-client{font-weight:700;color:#365841;line-height:1.45}
+.head-route-workspace .fleet-record-destination{display:block;line-height:1.5;overflow-wrap:anywhere}
+.head-route-workspace .fleet-record-type{display:inline-flex;align-items:center;gap:8px;color:#42624e;white-space:nowrap}
+.head-route-workspace .fleet-record-type i{color:#368357;font-size:14px}
+.head-route-workspace .fleet-record-rate{font-weight:750;color:#1d6b3c;font-variant-numeric:tabular-nums;white-space:nowrap}
+.head-route-workspace .fleet-record-unset{font-size:11px;font-weight:650;color:#7e8c81;background:#f3f6f3;border:1px solid #e4eae5;padding:5px 9px;border-radius:6px;white-space:nowrap}
+.head-route-workspace .record-workspace-panel .data-table .badge{white-space:nowrap}
+.head-route-workspace .record-workspace-panel .fleet-manage-btn{background:#fff;border:1px solid #b8d6c2;color:#216c41}
+.head-route-workspace .record-workspace-panel .fleet-manage-btn:hover{background:#edf7f0;border-color:#78b58f;color:#145d35}
+.head-route-workspace .record-workspace-panel .fleet-manage-btn:focus-visible{outline:2px solid #1d7546;outline-offset:2px}
+
+/* Fleet route detail drawer — purpose-built presentation, no global overrides. */
+.fleet-route-drawer.app-drawer{width:min(760px,100vw);max-width:100vw}
+.fleet-route-drawer .offcanvas-header{padding:18px 26px;background:#fff;border-bottom:1px solid #e3ede6}
+.fleet-route-drawer .offcanvas-body{padding:22px 26px 30px;background:#f7faf8}
+.fleet-route-detail{display:flex;flex-direction:column;gap:16px;color:#284737}
+.fleet-route-overview{padding:22px 24px;border:1px solid #d7e7da;border-radius:15px;background:linear-gradient(145deg,#f0f9f1,#fff 68%);box-shadow:0 3px 12px rgba(29,85,49,.035)}
+.fleet-route-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:17px}
+.fleet-route-overline{font-size:10px;letter-spacing:.11em;font-weight:800;color:#398059}
+.fleet-route-overview h3{font-size:18px;font-weight:800;color:#184d2f;margin:4px 0 18px}
+.fleet-route-journey{border-left:0;padding-left:2px}
+.fleet-route-journey>div:not(.fleet-route-journey-line){display:flex;gap:12px;align-items:flex-start}
+.fleet-route-point{display:block;width:12px;height:12px;margin-top:5px;border:3px solid #258856;border-radius:50%;background:#fff;flex:0 0 12px}
+.fleet-route-point.delivery{background:#e3f1e5;border-color:#1a6b41}
+.fleet-route-journey small{display:block;font-weight:800;font-size:10px;letter-spacing:.08em;color:#799080;margin-bottom:4px}
+.fleet-route-journey strong{display:block;font-size:12px;line-height:1.6;font-weight:700;color:#284d37;overflow-wrap:anywhere}
+.fleet-route-journey-line{height:26px;border-left:2px dashed #a9d2b4;margin:3px 0 3px 7px}
+.fleet-route-quickfacts{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #dfebe2}
+.fleet-route-quickfacts>div{display:flex;align-items:center;gap:7px;padding:7px 11px;background:white;border:1px solid #dce9e0;border-radius:8px;font-size:11px;font-weight:700;color:#426850}
+.fleet-route-quickfacts i{color:#23784c;font-size:14px}
+.fleet-route-actions{display:flex;gap:8px;flex-wrap:wrap;padding:13px 15px;border:1px solid #d7e9dd;background:#eef7f0;border-radius:11px}
+.fleet-route-actions .btn{padding:8px 15px;font-size:12px}
+.fleet-route-panel{padding:20px 22px;background:#fff;border:1px solid #e0eae3;border-radius:13px;box-shadow:0 2px 8px rgba(28,82,49,.025);min-width:0}
+.fleet-route-heading{display:flex;align-items:center;gap:10px;margin-bottom:16px;color:#207248}
+.fleet-route-heading i{display:grid;place-items:center;background:#eaf5ec;width:30px;height:30px;border-radius:8px;font-size:15px}
+.fleet-route-heading h4{margin:0;font-size:13px;font-weight:800;color:#245c39}
+.fleet-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+.fleet-detail-item{min-width:0;display:flex;flex-direction:column;gap:5px;padding:11px 12px;border:1px solid #e8eee9;background:#fafcfb;border-radius:8px}
+.fleet-detail-item>span{font-size:10px;color:#789081;font-weight:600}
+.fleet-detail-item>strong{font-size:12px;line-height:1.55;font-weight:700;color:#2c4f39;overflow-wrap:anywhere}
+.fleet-route-road-info{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;margin-top:12px;border-radius:9px;background:#edf7f0;color:#2c7548}
+.fleet-route-road-info>i{margin-top:2px;font-size:16px}
+.fleet-route-road-info strong,.fleet-route-road-info span{display:block;line-height:1.55}
+.fleet-route-road-info strong{font-size:12px}
+.fleet-route-road-info span{font-size:11px;color:#627e6b;margin-top:3px;overflow-wrap:anywhere}
+.fleet-route-note{margin-top:12px;padding:12px 14px;border-left:3px solid #91c6a2;background:#f6faf7;border-radius:5px}
+.fleet-route-note strong{font-size:11px;color:#315c40}
+.fleet-route-note p{font-size:12px;margin:5px 0 0;line-height:1.6;overflow-wrap:anywhere}
+.fleet-route-map{height:285px!important;min-height:235px;border-radius:10px;overflow:hidden;border:1px solid #dbe8df}
+.fleet-route-map-caption{margin:10px 0 0;font-size:11px;color:#728777;line-height:1.55}
+.fleet-detail-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:24px 15px;border:1px dashed #d5e5d9;border-radius:10px;background:#f9fcfa}
+.fleet-detail-empty.compact{padding:18px}
+.fleet-detail-empty>i{font-size:23px;color:#78a98b}
+.fleet-detail-empty strong{font-size:12px;color:#41694c}
+.fleet-detail-empty span{font-size:11px;color:#829487}
+.fleet-current-rate{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px;background:#edf7f0;border:1px solid #d4e9d9;border-radius:10px;margin-bottom:12px}
+.fleet-current-rate>span{font-size:12px;color:#4c795b}
+.fleet-current-rate>strong{font-size:18px;color:#1a7040;font-weight:800}
+.fleet-route-pending{padding:12px 14px;margin-top:12px;border:1px solid #f1dfb5;border-radius:10px;background:#fffcf5}
+.fleet-route-pending>strong{display:block;font-size:12px;color:#8b681f;margin-bottom:10px}
+.fleet-route-pending .fleet-current-rate{background:#fff;border-color:#eee0c8}
+.fleet-route-pending>small{color:#857756;font-size:11px}
+.fleet-rate-record{border:1px solid #e0ebe3;border-radius:10px;padding:14px;margin-top:10px;background:#fcfefd}
+.fleet-rate-record-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#335e41}
+.fleet-rate-record-amount{font-size:18px;font-weight:800;color:#1c7041;margin:10px 0}
+.fleet-rate-record-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fleet-rate-record-note{margin:10px 0 0;font-size:11px;color:#67816d;line-height:1.6}
+.fleet-events{display:flex;flex-direction:column}
+.fleet-event{display:flex;gap:12px;min-width:0}
+.fleet-event-dot{display:grid;place-items:center;width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:#e7f4eb;color:#247647;font-size:14px;position:relative}
+.fleet-event:not(:last-child) .fleet-event-dot:after{content:"";position:absolute;top:33px;bottom:-100%;left:14px;width:1px;background:#dbe9de;z-index:0}
+.fleet-event-content{flex:1;min-width:0;padding:2px 0 19px}
+.fleet-event-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.fleet-event-head>strong{font-size:12px;color:#27553a;text-transform:capitalize}
+.fleet-event-meta{font-size:11px;color:#7b9181;margin:6px 0}
+.fleet-event-content p{margin:8px 0 0;padding:11px 12px;background:#f7faf8;border:1px solid #ebf1ec;border-radius:8px;font-size:11px;line-height:1.65;color:#536d5a;overflow-wrap:anywhere}
+@media(max-width:650px){
+  .fleet-route-drawer .offcanvas-header{padding:14px 16px}
+  .fleet-route-drawer .offcanvas-body{padding:15px}
+  .fleet-route-panel,.fleet-route-overview{padding:16px}
+  .fleet-detail-grid,.fleet-rate-record-grid{grid-template-columns:1fr}
+  .fleet-route-map{height:245px!important}
+  .fleet-current-rate{align-items:flex-start;flex-direction:column}
+}
+
+
+/* Compact Head Management client profile */
+.client-profile-drawer.app-drawer{width:min(720px,100vw);max-width:100vw}
+.client-profile-drawer .offcanvas-body{padding:20px 24px 30px;background:#f7faf8}
+.client-profile-clean{display:flex;flex-direction:column;gap:14px;color:#294a36}
+.client-profile-top{border:1px solid #dce9df;border-radius:12px;padding:17px 19px;background:linear-gradient(120deg,#f1f8f3,#fff)}
+.client-profile-identity{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.client-profile-code{font-weight:800;letter-spacing:.05em;font-size:11px;color:#668772}
+.client-profile-top h3{font-size:19px;color:#195531;font-weight:800;margin:10px 0 0}
+.client-profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:13px;background:#fff;border:1px solid #e1ece4;border-radius:11px}
+.client-profile-actions .btn{font-size:11.5px;font-weight:650;border-radius:7px;padding:7px 11px;display:inline-flex;align-items:center;gap:7px}
+.client-profile-section{padding:18px 19px;border:1px solid #e1eae3;border-radius:12px;background:#fff;min-width:0}
+.client-profile-section>h4{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:13px;font-weight:800;color:#245f3b}
+.client-profile-section>h4 i{display:grid;place-items:center;width:29px;height:29px;border-radius:8px;background:#eaf5ed;color:#28784b;font-size:14px}
+.client-profile-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.client-profile-info-item{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px 12px;border:1px solid #e8eee9;border-radius:8px;background:#fbfdfb}
+.client-profile-info-item>span{color:#7b8d80;font-size:10.5px;font-weight:600}
+.client-profile-info-item>strong{color:#335440;font-size:12px;font-weight:700;line-height:1.55;overflow-wrap:anywhere}
+.client-profile-routes{border:1px solid #e4ede6;border-radius:9px;overflow:hidden}
+.client-profile-route{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px 15px;border-bottom:1px solid #e9efe9}
+.client-profile-route:last-child{border-bottom:0}
+.client-profile-route-main{display:flex;flex-direction:column;gap:6px;min-width:0}
+.client-profile-route-main strong{font-size:12px;line-height:1.55;font-weight:750;color:#305640;overflow-wrap:anywhere}
+.client-profile-route-main strong i{color:#318953;margin:0 4px}
+.client-profile-route-main>span{color:#78897a;font-size:11px}
+.client-profile-route-main>span i{color:#2f7e4e;margin-right:4px}
+.client-profile-route-rate{display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:105px}
+.client-profile-route-rate strong{color:#176b3d;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.client-profile-route-rate small{font-size:10.5px;color:#809083;white-space:nowrap}
+.client-profile-route-link{display:inline-flex;align-items:center;gap:8px;margin-top:12px;font-size:11.5px;font-weight:650;color:#227344;text-decoration:none}
+.client-profile-route-link:hover{text-decoration:underline}
+.client-profile-accreditation{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:0 0 13px;margin-bottom:4px;border-bottom:1px solid #e9f0eb}
+.client-profile-missing{font-size:11px;color:#a16c28}
+.client-profile-files{display:flex;flex-direction:column}
+.client-profile-document{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #ebf0ec;min-width:0}
+.client-profile-document:last-child{border-bottom:0;padding-bottom:0}
+.client-profile-file-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:42px;background:#edf6ef;border-radius:8px;color:#2c7e4c;font-size:20px}
+.client-profile-file-info{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.client-profile-file-info strong{font-size:12px;color:#335a42;font-weight:750}
+.client-profile-file-info>span{font-size:11px;color:#5d7965;overflow-wrap:anywhere}
+.client-profile-file-info small{font-size:10px;color:#849487;line-height:1.5}
+.client-profile-file-actions{display:flex;flex-shrink:0;gap:6px}
+.client-profile-file-actions .btn{font-size:11px;padding:6px 9px;border-radius:7px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.client-profile-empty{padding:18px;color:#7d907f;text-align:center;background:#f8fbf9;border:1px dashed #dce9df;border-radius:9px;font-size:12px}
+@media(max-width:600px){
+  .client-profile-drawer .offcanvas-body{padding:13px}
+  .client-profile-section{padding:15px 13px}
+  .client-profile-info-grid{grid-template-columns:1fr}
+  .client-profile-route{align-items:flex-start;flex-direction:column;gap:9px}
+  .client-profile-route-rate{align-items:flex-start}
+  .client-profile-document{flex-wrap:wrap}
+  .client-profile-file-actions{padding-left:50px;width:100%}
+}
+
+
+/* Client edit modal: focused shared form, with expandable secondary fields. */
+.client-edit-modal .modal-dialog{max-width:570px;width:calc(100% - 24px)}
+.client-edit-modal .modal-content{border:1px solid #dce9df;border-radius:14px;overflow:hidden}
+.client-edit-modal .modal-header{padding:14px 18px;border-bottom:1px solid #e1eae3}
+.client-edit-modal .modal-title{font-size:15px;font-weight:750;color:#22593a}
+.client-edit-modal .modal-body{padding:16px 18px 18px;max-height:min(68vh,550px);overflow-y:auto}
+.client-edit-modal .modal-footer{padding:11px 18px;background:#fafcfa;border-top:1px solid #e3ebe5;gap:8px}
+.client-edit-modal .modal-footer .btn{border-radius:7px;font-size:12px;font-weight:650;padding:7px 13px}
+.client-edit-compact{display:flex;flex-direction:column;gap:12px}
+.client-edit-intro{display:flex;gap:10px;align-items:flex-start;background:#f0f7f2;border:1px solid #dae9de;border-radius:9px;padding:10px 12px;color:#526e59;font-size:11.5px;line-height:1.5}
+.client-edit-intro i{font-size:16px;color:#27804b;flex-shrink:0}
+.client-edit-modal .client-edit-main>.row,
+.client-edit-modal .record-form-extra-content>.row{--bs-gutter-x:10px;--bs-gutter-y:9px}
+.client-edit-modal .form-label{font-size:11px;font-weight:650;color:#3a5d47;margin-bottom:4px}
+.client-edit-modal .form-control,.client-edit-modal .form-select{font-size:12.5px;min-height:34px;padding:6px 9px;border-radius:7px}
+.client-edit-modal .client-edit-more{border:1px solid #dce8df;border-radius:9px;background:#fff}
+.client-edit-modal .client-edit-more>summary{padding:11px 12px}
+.client-edit-modal .record-form-extra-heading{gap:9px}
+.client-edit-modal .record-form-extra-heading>i{font-size:17px;color:#287c4b}
+.client-edit-modal .record-form-extra-heading strong{font-size:12px;color:#2a603f}
+.client-edit-modal .record-form-extra-heading small{font-size:10.5px;color:#809184;line-height:1.4}
+.client-edit-modal .record-form-extra-content{padding:12px}
+.client-edit-modal .record-form-chevron{color:#5d8069}
+@media(max-width:575px){
+  .client-edit-modal .modal-dialog{width:calc(100% - 16px);margin:8px auto}
+  .client-edit-modal .modal-header,.client-edit-modal .modal-footer{padding:11px 13px}
+  .client-edit-modal .modal-body{padding:13px;max-height:74vh}
+}
+
+
+/* Operations Head Trips table: match Route & Contract Records */
+.fleet-trips-workspace .record-workspace-panel>.panel{
+  border:1px solid #d9e9dc;border-radius:13px;overflow:visible;
+  background:#fff;box-shadow:0 2px 7px rgba(28,75,42,.025)
+}
+.fleet-trips-workspace .record-workspace-heading{padding:17px 20px 12px}
+.fleet-trips-workspace .record-workspace-heading h2{
+  font-size:15px;line-height:1.4;font-weight:750;color:#294b35
+}
+.fleet-trips-workspace .record-workspace-search{padding:5px 20px 14px;gap:12px}
+.fleet-trips-workspace .record-workspace-search .table-search .form-control{
+  min-height:42px;border-radius:8px
+}
+.fleet-trips-workspace .record-workspace-search .btn{min-height:37px;border-radius:8px}
+.fleet-trips-workspace .fleet-trips-view-row{
+  padding:12px 20px;min-height:57px;background:#fff;border-top:1px solid #e4eee7;
+  border-bottom:1px solid #dce8df
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tabs{
+  display:flex;gap:8px;align-items:center;margin:0;flex-wrap:wrap
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab{
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid #cbded0;border-radius:8px;padding:8px 13px;
+  background:#fff;color:#3a5945;font-size:12px;font-weight:650;line-height:1.4;
+  transition:background .15s,border-color .15s,color .15s
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab:hover{
+  background:#eef7f0;border-color:#93c5a1
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab.active{
+  background:#207547;border-color:#207547;color:#fff
+}
+.fleet-trips-workspace .fleet-trips-view-row .record-workspace-tab:focus-visible{
+  outline:2px solid #2a8951;outline-offset:2px
+}
+.fleet-trips-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+.fleet-trips-workspace .record-workspace-panel .data-table{
+  width:100%;min-width:850px;border-collapse:separate;border-spacing:0
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th{
+  background:#f1f7f2;color:#365e43;padding:15px 17px;
+  font-size:11.5px;font-weight:750
+}
+.fleet-trips-workspace .record-workspace-panel .data-table td{
+  padding:17px;vertical-align:middle;line-height:1.55;font-size:12.5px
+}
+.fleet-trips-workspace .record-workspace-panel .data-table td .cell-sub{
+  font-size:11px;color:#6a8371;line-height:1.5;margin-top:5px
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:first-child{
+  width:20%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(2){
+  width:42%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(3){
+  width:21%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(4){
+  width:12%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:last-child{
+  width:5%
+}
+.fleet-trips-workspace .record-workspace-panel .data-table tbody tr:hover td{
+  background:#f7fbf8
+}
+.fleet-trips-workspace .record-workspace-panel .table-empty{
+  padding:48px 20px;color:#809283;text-align:center
+}
+.fleet-trips-workspace .record-workspace-panel .table-pager{
+  border-top:1px solid #e1ece4;padding:13px 19px
+}
+@media(max-width:650px){
+  .fleet-trips-workspace .record-workspace-heading{padding:14px}
+  .fleet-trips-workspace .record-workspace-search{padding:4px 14px 12px;gap:7px;flex-wrap:wrap}
+  .fleet-trips-workspace .fleet-trips-view-row{padding:11px 14px}
+  .fleet-trips-workspace .record-workspace-panel .data-table td{padding:13px}
+}
+
+
+/* Head Management Trip Monitoring: use the larger Operations Trips tab dimensions.
+   Keep the shared RecordComponents category buttons and their existing handlers. */
+.head-trip-dashboard .record-workspace-category-row,
+.head-fleet-workspace .record-workspace-category-row,
+.fleet-clients-workspace .record-workspace-category-row,
+.head-route-workspace .record-workspace-category-row {
+  min-height:57px;
+  padding:12px 20px;
+}
+.head-trip-dashboard .record-workspace-categories,
+.head-fleet-workspace .record-workspace-categories,
+.fleet-clients-workspace .record-workspace-categories,
+.head-route-workspace .record-workspace-categories {
+  gap:8px;
+}
+.head-trip-dashboard .record-workspace-categories > .btn,
+.head-fleet-workspace .record-workspace-categories > .btn,
+.fleet-clients-workspace .record-workspace-categories > .btn,
+.head-route-workspace .record-workspace-categories > .btn {
+  min-height:37px;
+  padding:8px 13px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.4;
+}
+@media (max-width:700px) {
+  .head-trip-dashboard .record-workspace-category-row,
+  .head-fleet-workspace .record-workspace-category-row,
+  .fleet-clients-workspace .record-workspace-category-row,
+  .head-route-workspace .record-workspace-category-row {
+    padding:11px 14px;
+  }
+}
+
+/* Head Management Trip Details: compact shared drawer and no wide activity tables. */
+.app-drawer:has(.head-trip-detail){--bs-offcanvas-width:min(760px,100vw)}
+.app-drawer:has(.head-trip-detail) .offcanvas-header{padding:13px 20px}
+.app-drawer:has(.head-trip-detail) .offcanvas-body{padding:16px 18px 24px;background:#f7faf8}
+.head-trip-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;color:#294938;font-size:12.5px}
+.head-trip-detail>*{min-width:0}
+.head-trip-overview,.head-trip-readonly,.head-trip-alert,.head-trip-activity-heading,.head-trip-activity,.head-trip-detail-card:first-of-type{grid-column:1/-1}
+.head-trip-overview{padding:15px 17px;background:#fff;border:1px solid #dbe9df;border-radius:12px}
+.head-trip-status-line{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.head-trip-overview-type{color:#587363;font-weight:650;font-size:12px}
+.head-trip-route{display:flex;align-items:center;gap:10px;margin:12px 0;line-height:1.5}
+.head-trip-route strong{flex:1;min-width:0;font-weight:650;overflow-wrap:anywhere}
+.head-trip-route .bi{color:#3c8a59;flex:none}
+.head-trip-overview-meta{display:flex;flex-wrap:wrap;gap:8px 18px;color:#526d5c}
+.head-trip-overview-meta .bi{margin-right:4px}
+.head-trip-readonly{margin:0;color:#668072;font-size:11.5px}
+.head-trip-alert{margin:0;padding:9px 12px;border:1px solid #efd398;border-radius:8px;background:#fff7e7;color:#805600}
+.head-trip-detail-card{background:#fff;border:1px solid #dce9df;border-radius:12px;padding:13px 15px;min-width:0}
+.head-trip-detail-card h6,.head-trip-activity-heading h6{font-size:13.5px;font-weight:750;margin:0 0 8px;color:#214a30}
+.head-trip-detail-card .kv{grid-template-columns:minmax(85px,36%) minmax(0,1fr);font-size:12px}
+.head-trip-detail-card .kv dt,.head-trip-detail-card .kv dd{padding-top:7px;padding-bottom:7px;line-height:1.4;min-width:0}
+.head-trip-detail-card .kv dd{padding-left:8px}
+.head-trip-activity-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:3px}
+.head-trip-activity-heading h6{margin:0}
+.head-trip-activity-heading>span{font-size:11px;color:#738778}
+.head-trip-activity{background:#fff;border:1px solid #dce9df;border-radius:10px;overflow:hidden}
+.head-trip-activity>summary{display:flex;align-items:center;gap:10px;padding:12px 15px;cursor:pointer;list-style:none;font-weight:700;font-size:12.5px;user-select:none}
+.head-trip-activity>summary::-webkit-details-marker{display:none}
+.head-trip-activity>summary:hover{background:#f1f8f3}
+.head-trip-activity>summary:focus-visible{outline:2px solid #268251;outline-offset:-3px}
+.head-trip-activity-count{margin-left:auto;color:#668172;font-weight:500;font-size:11px}
+.head-trip-activity>summary .bi{transition:transform .15s;color:#61826b}
+.head-trip-activity[open]>summary .bi{transform:rotate(180deg)}
+.head-trip-activity-body{border-top:1px solid #e4eee6;padding:4px 15px}
+.head-trip-activity-list{list-style:none;margin:0;padding:0}
+.head-trip-activity-item{padding:12px 0;border-bottom:1px solid #e7eee9;overflow-wrap:anywhere}
+.head-trip-activity-item:last-child{border-bottom:0}
+.head-trip-activity-item-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:5px 12px}
+.head-trip-activity-item-head strong{font-size:12px;line-height:1.45;min-width:0}
+.head-trip-activity-item-head time{font-size:11px;color:#6d8172}
+.head-trip-activity-meta{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:7px;color:#61776a;font-size:11px}
+.head-trip-inline-status{display:inline-block;background:#f1f7f3;border:1px solid #dfebe1;border-radius:5px;padding:2px 6px;color:#365941}
+.head-trip-activity-note{margin:8px 0 0;line-height:1.55;white-space:pre-wrap;color:#385545}
+.head-trip-activity-empty{padding:11px 0;margin:0;color:#718778;font-size:11.5px}
+@media(max-width:620px){
+  .head-trip-detail{grid-template-columns:minmax(0,1fr)}
+  .head-trip-detail-card{grid-column:1/-1}
+  .head-trip-route{flex-wrap:wrap}
+  .head-trip-route strong{flex:1 1 100%}
+  .head-trip-route .bi{transform:rotate(90deg)}
+  .app-drawer:has(.head-trip-detail) .offcanvas-body{padding:12px}
+}
+
+/* Client-grouped trip records: shared across executive, operations and dispatch. */
+.record-workspace-category-row:has(.record-client-group-switch){flex-wrap:wrap}
+.record-client-group-switch{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;margin-left:auto;padding:3px;border:1px solid #d8e6dc;background:#f5faf6;border-radius:9px}
+.record-client-group-switch button{display:inline-flex;align-items:center;gap:6px;justify-content:center;min-height:32px;padding:6px 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:#456b50;font-size:12px;font-weight:650;cursor:pointer}
+.record-client-group-switch button:hover{background:#e7f3ea}
+.record-client-group-switch button.active{background:#22764b;color:#fff}
+.record-client-group-switch button:focus-visible,.record-client-group-toggle:focus-visible{outline:2px solid #278854;outline-offset:2px}
+.data-table tbody .record-client-group-header td{padding:0!important;background:#edf6f0!important;border-top:1px solid #d6e7da;border-bottom:1px solid #d6e7da;white-space:normal}
+.record-client-group-toggle{display:flex;width:100%;min-height:48px;align-items:center;gap:11px;padding:11px 18px;background:transparent;border:0;text-align:left;color:#225137;cursor:pointer}
+.record-client-group-toggle:hover{background:#e2f1e6}
+.record-client-group-toggle strong{font-size:13px;font-weight:750;overflow-wrap:anywhere}
+.record-client-group-toggle span{margin-left:auto;flex:none;border-radius:12px;padding:4px 9px;color:#476c54;background:#fff;border:1px solid #d5e6da;font-size:11px;font-weight:650}
+.record-client-group-toggle .bi{transition:transform .15s;color:#327349}
+.record-client-group-toggle[aria-expanded="false"] .bi{transform:rotate(-90deg)}
+.data-table tbody tr[data-client-trip-row][hidden]{display:none!important}
+@media(max-width:620px){
+  .record-client-group-switch{width:100%;margin-left:0}
+  .record-client-group-switch button{flex:1}
+  .record-client-group-toggle{padding:10px 12px}
+}
+
+/* Fuel & Operating Costs: three equally weighted price status cards. */
+.head-fuel-diesel-content .head-fuel-price-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+.head-fuel-diesel-content .head-fuel-price-grid .head-fuel-setting{
+  min-height:146px;
+  padding:20px 21px;
+  border:1px solid #dce9e0;
+  border-radius:13px;
+  background:#f8fbf9;
+  gap:9px;
+  justify-content:center;
+}
+.head-fuel-diesel-content .head-fuel-price-grid .head-fuel-price-current{
+  border-color:#b9dcc5;
+  background:linear-gradient(125deg,#eaf6ee 0%,#f7fbf8 100%);
+}
+.head-fuel-diesel-content .head-fuel-price-grid .head-fuel-setting-label{
+  display:flex;align-items:center;gap:9px;
+  color:#577460;font-size:12px;font-weight:650;
+}
+.head-fuel-diesel-content .head-fuel-price-grid .head-fuel-setting-label .bi{
+  display:grid;place-items:center;width:27px;height:27px;flex:none;
+  border-radius:8px;background:#e7f2ea;color:#28794a;font-size:14px;
+}
+.head-fuel-diesel-content .head-fuel-price-grid .head-fuel-setting strong{
+  font-size:clamp(19px,1.7vw,25px);
+  letter-spacing:-.35px;line-height:1.25;
+}
+.head-fuel-diesel-content .head-fuel-price-grid .head-fuel-setting small{
+  font-size:11.5px;line-height:1.45;
+}
+.head-fuel-diesel-content .head-fuel-policy{
+  margin-top:14px;
+  padding:12px 15px;
+  border:1px solid #e0ece3;
+  border-radius:11px;
+  background:#f1f7f3;
+  gap:10px;
+}
+.head-fuel-diesel-content .head-fuel-policy i{
+  font-size:16px;color:#357c4e;
+}
+.head-fuel-diesel-content .head-fuel-policy p{
+  font-size:11.5px;line-height:1.6;
+}
+@media(max-width:1100px){
+  .head-fuel-diesel-content .head-fuel-price-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .head-fuel-diesel-content .head-fuel-price-grid .head-fuel-price-next{
+    grid-column:1/-1;
+  }
+}
+@media(max-width:720px){
+  .head-fuel-diesel-content .head-fuel-price-grid{
+    grid-template-columns:1fr;
+  }
+  .head-fuel-diesel-content .head-fuel-price-grid .head-fuel-price-next{
+    grid-column:auto;
+  }
+  .head-fuel-diesel-content .head-fuel-price-grid .head-fuel-setting{
+    min-height:115px;padding:16px;
+  }
+}
+
+
+/* Operations Head: refined Active Trips / Trip History table only. */
+.fleet-trips-workspace .record-workspace-panel .data-table{
+  width:100%;
+  table-layout:fixed;
+  border-collapse:separate;
+  border-spacing:0;
+}
+.fleet-trips-workspace .record-workspace-panel .data-table thead th{
+  padding:15px 17px;
+  background:#f5f9f6;
+  border-bottom:1px solid #dbe8df;
+  color:#355740;
+  font-size:12px;
+  font-weight:750;
+  letter-spacing:.01em;
+}
+.fleet-trips-workspace .record-workspace-panel .data-table tbody td{
+  padding:17px;
+  vertical-align:middle;
+  border-bottom:1px solid #e4eee6;
+  color:#304a38;
+  font-size:12.5px;
+  line-height:1.5;
+}
+.fleet-trips-workspace .record-workspace-panel .data-table tbody tr:hover td{
+  background:#f8fcf9;
+}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(1),
+.fleet-trips-workspace .record-workspace-panel .data-table td:nth-child(1){width:19%}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(2),
+.fleet-trips-workspace .record-workspace-panel .data-table td:nth-child(2){width:39%}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(3),
+.fleet-trips-workspace .record-workspace-panel .data-table td:nth-child(3){width:18%}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(4),
+.fleet-trips-workspace .record-workspace-panel .data-table td:nth-child(4){width:16%}
+.fleet-trips-workspace .record-workspace-panel .data-table th:nth-child(5),
+.fleet-trips-workspace .record-workspace-panel .data-table td:nth-child(5){width:8%;text-align:center}
+.fleet-trips-workspace .fleet-trip-identity,
+.fleet-trips-workspace .fleet-trip-route,
+.fleet-trips-workspace .fleet-trip-dispatch{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  gap:5px;
+}
+.fleet-trips-workspace .fleet-trip-ref{
+  color:#234e38;
+  font-size:13px;
+  font-weight:750;
+  letter-spacing:.01em;
+}
+.fleet-trips-workspace .fleet-trip-client{
+  font-size:11.5px;
+  color:#74867a;
+  overflow-wrap:anywhere;
+}
+.fleet-trips-workspace .fleet-trip-route-path{
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  color:#304c3a;
+  font-size:12.5px;
+  line-height:1.55;
+  overflow-wrap:anywhere;
+}
+.fleet-trips-workspace .fleet-trip-route-arrow{
+  color:#27804a;
+  font-weight:750;
+}
+.fleet-trips-workspace .fleet-trip-truck{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:#75897b;
+  font-size:11.5px;
+}
+.fleet-trips-workspace .fleet-trip-truck .bi{color:#42895d}
+.fleet-trips-workspace .fleet-trip-dispatch strong{
+  color:#34503f;
+  font-size:12.5px;
+  font-weight:700;
+}
+.fleet-trips-workspace .fleet-trip-dispatch span{
+  color:#789082;
+  font-size:11.5px;
+}
+.fleet-trips-workspace .fleet-trip-dispatch .bi{margin-right:3px}
+.fleet-trips-workspace .fleet-trip-status{
+  display:flex;
+  align-items:flex-start;
+  flex-direction:column;
+  gap:6px;
+}
+.fleet-trips-workspace .record-workspace-panel .data-table tbody td:last-child .btn{
+  min-width:76px;
+  padding:8px 12px;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:650;
+}
+@media(max-width:1100px){
+  .fleet-trips-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+  .fleet-trips-workspace .record-workspace-panel .data-table{min-width:900px}
+}
+@media(prefers-reduced-motion:no-preference){
+  .fleet-trips-workspace .record-workspace-panel .data-table tbody td{
+    transition:background-color .16s ease;
+  }
+}
+
+
+/* Dispatch Monitoring trip records: match the five-column Trips table. */
+.oh-dispatch-records .oh-dispatch-table-wrap .data-table{
+  width:100%;min-width:880px;table-layout:fixed;border-collapse:separate;border-spacing:0;
+}
+.oh-dispatch-records .data-table thead th{
+  padding:15px 17px;background:#f5f9f6;border-bottom:1px solid #dbe8df;
+  color:#355740;font-size:12px;font-weight:750;letter-spacing:.01em;
+}
+.oh-dispatch-records .data-table tbody td{
+  padding:17px;vertical-align:middle;border-bottom:1px solid #e4eee6;
+  color:#304a38;font-size:12.5px;line-height:1.5;
+}
+.oh-dispatch-records .data-table tbody tr:hover td{background:#f8fcf9}
+.oh-dispatch-records .data-table th:nth-child(1),
+.oh-dispatch-records .data-table td:nth-child(1){width:17%}
+.oh-dispatch-records .data-table th:nth-child(2),
+.oh-dispatch-records .data-table td:nth-child(2){width:33%}
+.oh-dispatch-records .data-table th:nth-child(3),
+.oh-dispatch-records .data-table td:nth-child(3){width:17%}
+.oh-dispatch-records .data-table th:nth-child(4),
+.oh-dispatch-records .data-table td:nth-child(4){width:17%}
+.oh-dispatch-records .data-table th:nth-child(5),
+.oh-dispatch-records .data-table td:nth-child(5){width:16%;text-align:center}
+.oh-dispatch-records .fleet-trip-identity,
+.oh-dispatch-records .fleet-trip-route,
+.oh-dispatch-records .fleet-trip-dispatch{
+  display:flex;flex-direction:column;min-width:0;gap:5px;
+}
+.oh-dispatch-records .fleet-trip-ref{color:#234e38;font-size:13px;font-weight:750;letter-spacing:.01em}
+.oh-dispatch-records .fleet-trip-client{
+  font-size:11.5px;color:#74867a;overflow-wrap:anywhere;
+}
+.oh-dispatch-records .fleet-trip-route-path{
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  color:#304c3a;font-size:12.5px;line-height:1.55;overflow-wrap:anywhere;
+}
+.oh-dispatch-records .fleet-trip-route-arrow{color:#27804a;font-weight:750}
+.oh-dispatch-records .fleet-trip-truck{
+  display:inline-flex;align-items:center;gap:6px;
+  color:#75897b;font-size:11.5px;overflow-wrap:anywhere;
+}
+.oh-dispatch-records .fleet-trip-truck .bi{color:#42895d}
+.oh-dispatch-records .fleet-trip-dispatch strong{
+  color:#34503f;font-size:12.5px;font-weight:700;
+}
+.oh-dispatch-records .fleet-trip-dispatch span{color:#789082;font-size:11.5px}
+.oh-dispatch-records .fleet-trip-dispatch .bi{margin-right:3px}
+.oh-dispatch-records .fleet-trip-status{
+  display:flex;align-items:flex-start;flex-direction:column;gap:6px;
+}
+.oh-dispatch-records .data-table tbody td:last-child .btn{
+  min-width:76px;max-width:100%;padding:8px 12px;border-radius:9px;
+  font-size:12px;font-weight:650;white-space:nowrap;
+}
+@media(prefers-reduced-motion:no-preference){
+  .oh-dispatch-records .data-table tbody td{transition:background-color .16s ease}
+}
+
+
+/* Dispatch Monitoring records: shared Trips panel, tabs, toolbar and pager. */
+.oh-dispatch-records .record-workspace-heading{
+  padding:18px 22px 13px;
+}
+.oh-dispatch-records .record-workspace-heading h2{
+  font-size:15px;font-weight:700;
+}
+.oh-dispatch-records .record-workspace-search{
+  padding:4px 22px 15px;
+  gap:12px;
+}
+.oh-dispatch-records .oh-dispatch-search-box{
+  display:flex;align-items:center;gap:9px;
+  flex:1 1 auto;min-width:180px;
+  height:42px;padding:0 13px;
+  border:1px solid #cbded0;border-radius:9px;
+  background:#fff;
+}
+.oh-dispatch-records .oh-dispatch-search-box:focus-within{
+  border-color:#27804a;box-shadow:0 0 0 3px rgba(39,128,74,.1);
+}
+.oh-dispatch-records .oh-dispatch-search-box>.bi{
+  color:#688474;font-size:14px;flex:none;
+}
+.oh-dispatch-records .oh-dispatch-search-box [data-monitor-search]{
+  display:block;width:100%;height:100%;padding:0;
+  min-width:0;flex:1 1 auto;border:0!important;
+  background:transparent;box-shadow:none!important;
+  outline:0;font-size:12.5px;
+}
+.oh-dispatch-records .record-workspace-search>.btn{
+  min-height:40px;border-radius:9px;
+}
+.oh-dispatch-records .oh-dispatch-view-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 20px;min-height:57px;background:#fff;
+  border-top:1px solid #e4eee7;border-bottom:1px solid #dce8df;
+}
+.oh-dispatch-records .oh-dispatch-view-row .record-workspace-tabs{
+  display:flex;gap:8px;align-items:center;margin:0;flex-wrap:wrap;
+}
+.oh-dispatch-records .oh-dispatch-view-row .record-workspace-tab{
+  display:inline-flex;justify-content:center;align-items:center;
+  padding:8px 13px;border:1px solid #cbded0;border-radius:8px;
+  font-size:12px;font-weight:650;line-height:1.4;
+  color:#3a5945;background:#fff;
+}
+.oh-dispatch-records .oh-dispatch-view-row .record-workspace-tab:hover{
+  background:#eef7f0;border-color:#93c5a1;
+}
+.oh-dispatch-records .oh-dispatch-view-row .record-workspace-tab.active{
+  background:#207547;border-color:#207547;color:#fff;
+}
+.oh-dispatch-records .oh-dispatch-view-row .record-workspace-tab:focus-visible{
+  outline:2px solid #2a8951;outline-offset:2px;
+}
+.oh-dispatch-records .oh-dispatch-clear-group{
+  margin:0;font-size:12px;color:#277747;text-decoration:underline;
+}
+.oh-dispatch-records .oh-dispatch-pager{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;padding:12px 17px;
+  border-top:1px solid #e3ece6;
+}
+.oh-dispatch-records .oh-dispatch-pager .pager-pages{
+  display:flex;align-items:center;gap:8px;
+}
+@media(max-width:680px){
+  .oh-dispatch-records .record-workspace-heading{padding:15px 16px 10px}
+  .oh-dispatch-records .record-workspace-search{padding:4px 16px 12px}
+  .oh-dispatch-records .oh-dispatch-search-box{flex:1 1 100%}
+  .oh-dispatch-records .oh-dispatch-view-row{padding:10px 14px;flex-wrap:wrap;gap:10px}
+}
+
+
+/* Shared record-card view tabs: Fund Approvals and Drivers & Helpers. */
+.record-workspace-panel .record-workspace-view-tabs{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 20px;min-height:57px;
+  background:#fff;border-top:1px solid #e4eee7;
+  border-bottom:1px solid #dce8df;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tabs{
+  display:flex;gap:8px;align-items:center;
+  margin:0;flex-wrap:wrap;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;padding:8px 13px;
+  border:1px solid #cbded0;border-radius:8px;
+  background:#fff;color:#3a5945;
+  font-size:12px;font-weight:650;line-height:1.4;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab:hover{
+  background:#eef7f0;border-color:#93c5a1;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab.active{
+  background:#207547;border-color:#207547;color:#fff;
+}
+.record-workspace-panel .record-workspace-view-tabs .record-workspace-tab:focus-visible{
+  outline:2px solid #2a8951;outline-offset:2px;
+}
+@media(max-width:680px){
+  .record-workspace-panel .record-workspace-view-tabs{padding:10px 14px}
+  .record-workspace-panel .record-workspace-view-tabs .record-workspace-tabs{
+    flex-wrap:nowrap;overflow-x:auto;max-width:100%;
+    scrollbar-width:thin;
+  }
+  .record-workspace-panel .record-workspace-view-tabs .record-workspace-tab{
+    white-space:nowrap;flex:none;
+  }
+}
+
+
+/* Shared Fleet masterlist details: trucks, drivers, helpers. */
+.fleet-master-detail-drawer{
+  --bs-offcanvas-width:min(800px,100vw);
+}
+.fleet-master-detail-drawer .offcanvas-header{
+  padding:19px 23px;
+  background:#fff;border-bottom:1px solid #dde9e0;
+}
+.fleet-master-detail-drawer .offcanvas-title{
+  color:#204d33;font-size:18px;font-weight:750;
+  overflow-wrap:anywhere;
+}
+.fleet-master-detail-drawer .offcanvas-body{
+  background:#f7faf8;padding:18px 20px 26px;
+}
+.fleet-master-detail-drawer .fleet-detail-status{
+  display:flex;align-items:center;flex-wrap:wrap;gap:9px;
+  padding:0;margin-bottom:12px!important;
+  color:#64796c;font-size:12px;
+}
+.fleet-master-detail-drawer .fleet-detail-actions{
+  display:flex;align-items:center;gap:9px;
+  flex-wrap:wrap;
+  padding:12px;margin:0 0 14px;
+  border:1px solid #dce9e0;border-radius:12px;background:#fff;
+}
+.fleet-master-detail-drawer .fleet-detail-actions .btn{
+  min-height:38px;padding:8px 13px;
+  border-radius:9px;font-size:12px;font-weight:650;
+}
+.fleet-master-detail-drawer .fleet-detail-actions .btn:focus-visible{
+  outline:2px solid #227b48;outline-offset:2px;
+}
+.fleet-master-detail-drawer .fleet-detail-section{
+  margin:0 0 11px;
+  border:1px solid #dce8df;border-radius:12px;
+  overflow:hidden;background:#fff;
+  box-shadow:0 1px 3px rgba(25,67,41,.025);
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary{
+  display:flex;align-items:center;gap:11px;
+  min-height:58px;padding:12px 16px;
+  list-style:none;cursor:pointer;
+  color:#254e37;
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary::-webkit-details-marker{display:none}
+.fleet-master-detail-drawer .fleet-detail-section>summary:hover{background:#f4faf6}
+.fleet-master-detail-drawer .fleet-detail-section[open]>summary{
+  background:#f5faf6;border-bottom:1px solid #e1ebe4;
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary>.bi:first-child{
+  display:grid;place-items:center;
+  width:34px;height:34px;flex:none;border-radius:9px;
+  background:#e8f4eb;color:#27784a;font-size:16px;
+}
+.fleet-master-detail-drawer .fleet-detail-section>summary>strong{
+  font-size:13px;font-weight:750;flex:1;
+}
+.fleet-master-detail-drawer .fleet-detail-chevron{
+  color:#779282;transition:transform .18s ease;
+}
+.fleet-master-detail-drawer .fleet-detail-section[open] .fleet-detail-chevron{
+  transform:rotate(180deg);
+}
+.fleet-master-detail-drawer .fleet-detail-section-body{
+  padding:8px 16px 18px;
+  min-width:0;overflow-wrap:anywhere;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .kv{
+  max-width:100%;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .table-wrap,
+.fleet-master-detail-drawer .fleet-detail-section-body .table-responsive{
+  max-width:100%;overflow-x:auto;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .data-table{
+  min-width:620px;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .table-tools{
+  flex-wrap:wrap;gap:8px;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .table-tools .table-search{
+  min-width:140px;flex:1 1 180px;
+}
+.fleet-master-detail-drawer .fleet-detail-empty{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;
+  min-height:122px;padding:23px 15px;
+  border:1px dashed #dce8df;border-radius:10px;background:#fafcfb;
+  color:#7d9284;gap:6px;
+}
+.fleet-master-detail-drawer .fleet-detail-empty .bi{
+  font-size:22px;color:#7bad8a;
+}
+.fleet-master-detail-drawer .fleet-detail-empty strong{
+  font-size:12.5px;font-weight:700;color:#45684f;
+}
+.fleet-master-detail-drawer .fleet-detail-empty span{
+  font-size:11.5px;line-height:1.5;
+}
+.fleet-master-detail-drawer .fleet-detail-section-body .timeline{
+  padding-left:20px;
+}
+@media(max-width:600px){
+  .fleet-master-detail-drawer .offcanvas-header{padding:15px 16px}
+  .fleet-master-detail-drawer .offcanvas-body{padding:12px}
+  .fleet-master-detail-drawer .fleet-detail-section>summary{padding:11px 12px}
+  .fleet-master-detail-drawer .fleet-detail-section-body{padding:8px 12px 15px}
+}
+@media(prefers-reduced-motion:reduce){
+  .fleet-master-detail-drawer .fleet-detail-chevron{transition:none}
+}
+
+
+/* Driver authorization: one card each for Car Carrier, Container, and Wing Van. */
+.driver-auth-section .form-help{margin:0 0 12px;font-size:12px;color:#67806e}
+.driver-auth-selector{min-width:0}
+.driver-auth-search-label{display:block;font-size:11px;font-weight:650;color:#42614d;margin-bottom:6px}
+.driver-auth-search-field{position:relative}
+.driver-auth-search-field .bi{position:absolute;top:50%;left:12px;transform:translateY(-50%);color:#72917b;pointer-events:none}
+.driver-auth-search-field input{padding-left:36px;min-height:39px;border-radius:9px}
+.driver-auth-filters{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}
+.driver-auth-filter{border:1px solid #d4e4d8;background:#fff;color:#365941;font-size:12px;font-weight:600;padding:7px 11px;border-radius:8px;cursor:pointer}
+.driver-auth-filter.is-active{background:#217447;color:white;border-color:#217447}
+.driver-auth-filter:focus-visible,.driver-auth-option:focus-within{outline:2px solid #318352;outline-offset:2px}
+.driver-auth-list{border:1px solid #d9e8df;border-radius:10px;padding:7px;display:grid;align-content:start;gap:6px;max-height:254px;overflow-y:auto;overscroll-behavior:contain}
+.driver-auth-option{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #e1eae4;border-radius:8px;background:#fff;cursor:pointer;min-width:0}
+.driver-auth-option[hidden]{display:none!important}
+.driver-auth-option:has(input:checked){background:#e3e8e5;border-color:#bcc9c0}
+.driver-auth-option input{flex:none;accent-color:#1e7547}
+.driver-auth-option-info{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.driver-auth-option strong{font-size:12px;color:#294b38;overflow-wrap:anywhere}
+.driver-auth-option small{font-size:11px;color:#819288;overflow-wrap:anywhere}
+.driver-auth-option-status{flex:none;font-size:11px;font-weight:650;border-radius:14px;padding:4px 8px}
+.driver-auth-option-status.is-available{color:#287447;background:#eaf5ed}
+.driver-auth-option-status.is-selected,.driver-auth-option-status.is-unavailable{color:#65766b;background:#e1e7e3}
+.driver-auth-option.is-locked,.driver-auth-option.is-locked:has(input:checked){background:#edf0ee;border-color:#cbd5ce;cursor:not-allowed}
+.driver-auth-option.is-locked strong{color:#526a5c}
+.driver-auth-option.is-locked input{cursor:not-allowed;accent-color:#6e8777}
+.driver-auth-empty{font-size:12px;color:#728779;text-align:center;margin:12px 0}
+.driver-auth-empty[hidden]{display:none!important}
+.driver-auth-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;color:#607b69;font-size:11.5px}
+.driver-auth-count{font-size:12px;color:#3a7750;font-weight:650}
+@media(max-width:540px){.driver-auth-option{padding:9px 10px}.driver-auth-filters{gap:5px}.driver-auth-filter{padding:6px 8px}.driver-auth-footer{align-items:flex-start}}
+
+/* Fleet type selector is a compact second-level navigation, not repeated row headers. */
+.head-fleet-type-switch{padding:10px 20px;border-bottom:1px solid #deeadf;background:#f7faf8}
+.head-fleet-type-switch .record-workspace-categories{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.head-fleet-type-switch .record-workspace-categories .btn{min-height:36px;padding:8px 13px;border-radius:8px;font-size:12px;font-weight:650}
+.head-fleet-truck-list{white-space:normal;overflow-wrap:anywhere;line-height:1.65}
+@media(max-width:620px){.head-fleet-type-switch{padding:10px 12px}}
+
+
+/* Client monitoring: two-line contact and database-backed active trip count. */
+.client-record-contact{display:flex;flex-direction:column;gap:3px;line-height:1.35;min-width:0}
+.client-record-contact strong{font-weight:600;overflow-wrap:anywhere}
+.client-record-contact span{font-size:11px;color:#6c8575;overflow-wrap:anywhere}
+.client-record-contact span .bi{margin-right:4px}
+.client-record-trip-count{font-weight:700;color:#285c40;font-variant-numeric:tabular-nums}
+.client-profile-overview{display:flex;gap:8px 16px;flex-wrap:wrap;margin-top:10px;color:#53715f;font-size:12px}
+.client-profile-overview span{display:inline-flex;align-items:center;gap:6px}
+
+/* Client Management: predictable header/body alignment and accessible compact widths. */
+.fleet-clients-workspace .record-workspace-panel .data-table{
+  table-layout:fixed;
+  width:100%;
+  min-width:1060px;
+}
+.fleet-clients-workspace .record-workspace-panel .data-table th,
+.fleet-clients-workspace .record-workspace-panel .data-table td{
+  vertical-align:middle;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(1){width:10%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(2){width:18%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(3){width:23%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(4){width:11%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(5){width:12%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(6){width:16%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(7){width:10%}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(7),
+.fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(7){text-align:right}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(6),
+.fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
+.fleet-clients-workspace .record-workspace-panel .data-table th:nth-child(4),
+.fleet-clients-workspace .record-workspace-panel .data-table td:nth-child(4){text-align:center;font-variant-numeric:tabular-nums}
+.fleet-clients-workspace .record-workspace-panel .data-table .row-actions{justify-content:flex-end}
+.fleet-clients-workspace .record-workspace-panel .table-wrap{overflow-x:auto}
+
+/* Head Management billing: compact, fully visible category navigation. */
+.head-billing-overview .head-financial-records .record-workspace-category-row{
+  padding:10px 18px;
+  min-height:54px;
+  min-width:0;
+}
+.head-billing-overview .head-financial-records .record-workspace-categories{
+  display:flex;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  max-width:100%;
+  min-width:0;
+  gap:7px;
+  scrollbar-width:thin;
+  overscroll-behavior-x:contain;
+}
+.head-billing-overview .head-financial-records .record-workspace-categories > .btn{
+  flex:0 0 auto;
+  min-height:36px;
+  padding:7px 12px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:650;
+  white-space:nowrap;
+}
+@media(max-width:700px){
+  .head-billing-overview .head-financial-records .record-workspace-category-row{padding:9px 12px}
+}
+
+/* Head Management fuel: three settings in one compact view, with a separate audit history. */
+.head-fuel-combined .record-workspace-category-row{padding:10px 20px;min-height:55px}
+.head-fuel-combined .record-workspace-categories{gap:8px}
+.head-fuel-combined .record-workspace-categories>.btn{padding:8px 14px;min-height:38px;border-radius:8px;font-weight:650;font-size:12px}
+.head-fuel-combined-sections{display:grid;gap:14px;padding:16px 20px 22px}
+.head-fuel-combined-card{background:#fff;border:1px solid #dae8de;border-radius:12px;padding:16px 18px;min-width:0}
+.head-fuel-combined-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.head-fuel-combined-heading{display:flex;align-items:center;gap:11px;min-width:0}
+.head-fuel-combined-heading h3{margin:0;color:#204d35;font-size:15px;font-weight:700}
+.head-fuel-combined-heading p{margin:3px 0 0;color:#667f70;font-size:12px}
+.head-fuel-combined-icon{width:38px;height:38px;display:grid;place-items:center;background:#e9f5ec;color:#237849;border-radius:10px;flex:none;font-size:17px}
+.head-fuel-combined-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.head-fuel-combined-facts>div{padding:12px 14px;background:#f7faf8;border:1px solid #e0ebe3;border-radius:9px;min-width:0}
+.head-fuel-combined-facts span{display:block;color:#607b69;font-size:11px;margin-bottom:5px}
+.head-fuel-combined-facts strong{display:block;color:#214c33;font-weight:700;font-size:17px;overflow-wrap:anywhere}
+.head-fuel-combined-facts small{display:block;color:#6d8374;font-size:11px;margin-top:3px}
+.head-fuel-combined-note{font-size:11.5px;color:#5d7866;background:#f4f9f5;padding:10px 12px;border-radius:8px;margin:11px 0 0}
+.head-fuel-combined-table-wrap{overflow-x:auto}
+.head-fuel-combined-table{width:100%;min-width:530px}
+.head-fuel-combined-table th,.head-fuel-combined-table td{padding:10px 12px;text-align:left;vertical-align:middle}
+.head-fuel-combined-table .actions-col{text-align:right}
+@media(max-width:760px){.head-fuel-combined-sections{padding:12px;gap:12px}.head-fuel-combined-card{padding:13px}.head-fuel-combined-facts{grid-template-columns:1fr}}
+
+
+
+/* Shared Dispatcher record layout for operational tables. */
+.dispatcher-standard-workspace .record-workspace-panel{overflow:visible}
+.dispatcher-standard-workspace .record-workspace-search .ds-filterbar{display:flex;align-items:center;gap:10px;flex:1 1 300px;min-width:0;padding:0;border:0;box-shadow:none;background:transparent}
+.dispatcher-standard-workspace .record-workspace-search .ds-search-bar{flex:1 1 240px;min-width:0}
+.dispatcher-standard-workspace .record-workspace-search .ds-search-input{width:100%}
+.dispatcher-standard-workspace .record-workspace-search .ds-filter-panel{z-index:40}
+.dispatcher-standard-workspace .ds-resource-tabs{margin:0;padding:0;border:0;background:transparent}
+.dispatcher-standard-workspace .ds-resource-tabs a{display:inline-flex;align-items:center;min-height:38px;padding:9px 14px;border:1px solid #d1e3d6;border-radius:8px;text-decoration:none;color:#355544;background:#fff;font-weight:600;font-size:12px}
+.dispatcher-standard-workspace .ds-resource-tabs a.active{background:#207a45;border-color:#207a45;color:#fff}
+.dispatcher-standard-workspace .record-workspace-category-row{gap:8px}
+.dispatcher-standard-workspace .record-workspace-heading .ds-record-context{margin:3px 0 0;font-size:12px;color:#65786b}
+@media(max-width:760px){.dispatcher-standard-workspace .record-workspace-search{flex-wrap:wrap}.dispatcher-standard-workspace .record-workspace-search .ds-filterbar{flex-basis:100%}.dispatcher-standard-workspace .ds-resource-tabs{flex-wrap:wrap}}
+
+/* Dispatcher Funds, Incidents, Attendance and Drivers: single shared record card. */
+/* KPI layout mirrors Trips: four equal cards on desktop, two on tablet. */
+.dispatcher-record-kpis{margin:0 0 16px}
+.dispatcher-role .dispatcher-record-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.dispatcher-role .dispatcher-record-kpi-grid .ds-summary-card{min-height:92px;border-radius:12px;gap:12px;padding:14px 16px;box-shadow:none}
+.dispatcher-role .dispatcher-record-kpi-grid .ds-card-icon{width:48px;height:48px;border-radius:50%;font-size:21px}
+.dispatcher-role .dispatcher-record-kpi-grid .ds-card-copy>span{margin:0 0 5px;font-size:12px;line-height:1.3;color:#325341}
+.dispatcher-role .dispatcher-record-kpi-grid .ds-card-copy strong{font-size:26px;color:#143923;line-height:1.05}
+@media(max-width:1100px){.dispatcher-role .dispatcher-record-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.dispatcher-role .dispatcher-record-kpi-grid{grid-template-columns:minmax(0,1fr)}}
+
+.dispatcher-standard-workspace .record-workspace-panel{overflow:visible;border-radius:13px}
+.dispatcher-standard-workspace .record-workspace-heading{padding:16px 20px 8px}
+.dispatcher-standard-workspace .record-workspace-search{padding:8px 20px 14px}
+.dispatcher-standard-workspace .record-workspace-category-row{padding:12px 20px;min-height:0}
+.dispatcher-standard-workspace .record-workspace-category-row:empty{display:none}
+/* Funds tabs use the same button treatment as Trip Records, without
+   inheriting the scrolling legacy pill-navigation styles. */
+.dispatcher-standard-workspace .record-workspace-view-tabs .ds-fund-view-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:8px;width:100%;min-height:0;margin:0;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;overflow:visible}
+.dispatcher-standard-workspace .record-workspace-view-tabs .ds-fund-view-tabs a{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:40px;margin:0;padding:9px 14px;border:1px solid #d1e3d6;border-radius:8px;background:#fff;color:#355544;font-size:12px;font-weight:650;text-decoration:none;box-shadow:none}
+.dispatcher-standard-workspace .record-workspace-view-tabs .ds-fund-view-tabs a.active{background:#207a45;border-color:#207a45;color:#fff}
+.dispatcher-standard-workspace .record-workspace-view-tabs .ds-fund-view-tabs a::after{content:none}
+.dispatcher-standard-workspace .record-workspace-panel>.table-responsive,
+.dispatcher-standard-workspace .record-workspace-panel>.table-wrap{border:0}
+.dispatcher-standard-workspace .ds-empty-state{min-height:112px;padding:20px 12px;gap:5px}
+.dispatcher-standard-workspace .ds-empty-state>i{font-size:21px;margin-bottom:2px}
+.dispatcher-standard-workspace .ds-empty-state>b{font-size:13px}
+.dispatcher-standard-workspace .ds-empty-state>span{font-size:12px}
+@media(max-width:700px){
+ .dispatcher-standard-workspace .record-workspace-heading{padding:14px 13px 7px}
+ .dispatcher-standard-workspace .record-workspace-search{padding:7px 13px 12px}
+ .dispatcher-standard-workspace .record-workspace-category-row{padding:10px 13px}
+}
+
+/* Dispatcher standard records: align the live search and its Filter / Sort
+   actions with the existing Trips record toolbar. */
+.dispatcher-standard-workspace .record-workspace-search{
+  display:flex;align-items:center;gap:10px;min-width:0;
+}
+.dispatcher-standard-workspace .record-workspace-search .ds-filterbar{
+  display:flex;align-items:center;gap:10px;flex:1 1 0;min-width:0;
+  margin:0;padding:0;border:0;background:transparent;box-shadow:none;
+  position:relative;
+}
+.dispatcher-standard-workspace .record-workspace-search .ds-search-bar{
+  flex:1 1 0;min-width:0;margin:0;
+}
+.dispatcher-standard-workspace .record-workspace-search .ds-search-input input{
+  height:42px;min-height:42px;
+}
+.dispatcher-standard-workspace .record-workspace-search :is(.ds-filter-toggle,.record-workspace-sort-trigger){
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  flex:0 0 auto;height:42px;min-height:42px;margin:0;padding:0 13px;
+  background:#fff;color:#284535;border:1px solid #cbded0;border-radius:8px;
+  font-size:13px;font-weight:550;line-height:1;box-shadow:none;white-space:nowrap;
+}
+.dispatcher-standard-workspace .record-workspace-search :is(.ds-filter-toggle,.record-workspace-sort-trigger):hover,
+.dispatcher-standard-workspace .record-workspace-search :is(.ds-filter-toggle,.record-workspace-sort-trigger):focus-visible{
+  background:#f1f8f3;color:#176d39;border-color:#7eb695;
+}
+.dispatcher-standard-workspace .record-workspace-search .ds-filter-panel{
+  position:absolute;z-index:45;right:0;top:calc(100% + 8px);
+  flex:none;width:min(340px,calc(100vw - 60px));min-width:0;
+  padding:14px;background:#fff;border:1px solid #d1e3d6;
+  border-radius:12px;box-shadow:0 12px 28px rgba(15,39,27,.16);
+}
+.dispatcher-standard-workspace .record-workspace-search .ds-filter-panel .row>div{
+  flex:0 0 100%;width:100%;
+}
+.dispatcher-standard-workspace .record-workspace-search .record-workspace-popover{
+  top:calc(100% + 8px);right:0;
+}
+@media(max-width:760px){
+ .dispatcher-standard-workspace .record-workspace-search{flex-wrap:wrap;gap:8px}
+ .dispatcher-standard-workspace .record-workspace-search .ds-filterbar{flex:1 1 calc(100% - 80px)}
+ .dispatcher-standard-workspace .record-workspace-search :is(.ds-filter-toggle,.record-workspace-sort-trigger){height:40px;min-height:40px}
+}
+@media(max-width:480px){
+ .dispatcher-standard-workspace .record-workspace-search .ds-search-bar{flex-basis:100%}
+ .dispatcher-standard-workspace .record-workspace-search .ds-filterbar{flex-wrap:wrap}
+ .dispatcher-standard-workspace .record-workspace-search .ds-filter-panel{top:calc(100% + 8px)}
+}
+
+/* Dispatcher Drivers: reuse the compact record-workspace tab appearance.
+   Override legacy rounded availability pills only inside the Drivers card. */
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs {
+  display:flex;align-items:center;width:100%;margin:0;padding:0;border:0;background:transparent;
+}
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group {
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;width:100%;max-width:100%;
+  margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible;
+}
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group a {
+  position:static;display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;min-height:40px;padding:9px 14px;margin:0;
+  border:1px solid #d1e3d6;border-radius:8px;
+  background:#fff;color:#355544;box-shadow:none;font-size:12px;font-weight:650;text-decoration:none;
+}
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group a.active {
+  background:#207a45;border-color:#207a45;color:#fff;box-shadow:none;
+}
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group a.active::after {content:none}
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group a:not(.active):hover {
+  background:#f1f8f2;border-color:#9bc3a9;color:#205c38;
+}
+.dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group a:focus-visible {
+  outline:2px solid #207a45;outline-offset:2px;
+}

@@ -209,14 +209,16 @@ function futureDateTimeField(array $d, string $key, string $label = 'The schedul
 function dateField(array $d, string $key, bool $required = true): ?string {
     $v = field($d, $key, 10, $required);
     if ($v === '') return null;
-    must((bool)DateTimeImmutable::createFromFormat('!Y-m-d', $v), ucfirst(str_replace('_', ' ', $key)) . ' is not a valid date.');
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $v);
+    must($parsed !== false && $parsed->format('Y-m-d') === $v, ucfirst(str_replace('_', ' ', $key)) . ' is not a valid date.');
     return $v;
 }
 /** Date and time from <input type="datetime-local"> (YYYY-MM-DDTHH:MM). */
 function dateTimeField(array $d, string $key): string {
     $v = field($d, $key, 25);
     $dt = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i', $v) ?: DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $v);
-    must((bool)$dt, ucfirst(str_replace('_', ' ', $key)) . ' is not a valid date and time.');
+    must($dt !== false && ($dt->format('Y-m-d\TH:i') === $v || $dt->format('Y-m-d H:i:s') === $v),
+        ucfirst(str_replace('_', ' ', $key)) . ' is not a valid date and time.');
     return $dt->format('Y-m-d H:i:s');
 }
 /** Value must be one of the allowed choices. */
@@ -298,7 +300,7 @@ function currentUser(): array {
         throw new BusinessRuleException('Your session expired. Please log in again.', 401);
     }
     $_SESSION['last_seen'] = time();
-    $u = one(db(), 'SELECT id, username, email, full_name, role, shift FROM users WHERE id=? AND active=1', [$id]);
+    $u = one(db(), 'SELECT id, username, email, full_name, role, shift, dispatcher_truck_type, dispatcher_truck_types FROM users WHERE id=? AND active=1', [$id]);
     if (!$u) { session_unset(); throw new BusinessRuleException('Session is no longer valid.', 401); }
     // Napalitan ang password pagkatapos mag-login ang session na ito (halimbawa ni-reset ng Admin o gamit ang recovery code).
     core('AccountSecurity');

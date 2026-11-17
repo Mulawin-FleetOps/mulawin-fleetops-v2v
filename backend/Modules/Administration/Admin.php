@@ -22,8 +22,10 @@ core('CrewAttendance');
 final class Admin {
     public static function read(array $u, string $page, array $q): array {
         $p = db();
+        if ($page === 'fuel-adjustment') return Settings::pricingRead($u);
         if ($page === 'notifications') return self::notificationsPage($u, $q);
         requireRole($u, 'admin', 'audit');
+        if (str_starts_with($page, 'audit_')) return self::auditPage($u, $p, $page, $q);
         $from = self::d((string)($q['from'] ?? '')) ?? date('Y-m-d', strtotime('-30 days'));
         $to = self::d((string)($q['to'] ?? '')) ?? date('Y-m-d');
         $w = 'WHERE DATE(a.created_at) BETWEEN ? AND ?'; $args = [$from, $to];
@@ -40,7 +42,7 @@ final class Admin {
         $data['range'] = ['from' => $from, 'to' => $to];
         if (hasRole($u, 'admin')) {
             $data = mergeSections($data, [
-                'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, active, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, full_name'),
+                'users' => fn() => many($p, 'SELECT id, username, email, full_name, role, shift, dispatcher_truck_type, dispatcher_truck_types, active, must_change_password, last_login_at, created_at, (signature_document_id IS NOT NULL) AS has_signature FROM users ORDER BY active DESC, role, shift, full_name'),
                 'fundCategories' => fn() => many($p, 'SELECT * FROM fund_categories ORDER BY sort_order, name'),
             ]);
             $data['settings'] = Settings::all();
@@ -48,14 +50,93 @@ final class Admin {
             $data['backups'] = array_values(array_map(fn($f) => ['name' => basename($f), 'size' => filesize($f), 'date' => date('Y-m-d H:i', filemtime($f))],
                 array_reverse(glob($dir . '/mulawin_backup_*.sql') ?: [])));
         }
+        // Existing Audit users remain visible/editable; only new Audit creation is blocked.
         $data['roles'] = ROLE_LABELS;
         $data['can'] = ['admin' => hasRole($u, 'admin')];
         return $data;
     }
+    /** Missing migration fails closed for writes, but does not break user-list reads. */
     private static function d(string $v): ?string { return ($v !== '' && DateTimeImmutable::createFromFormat('!Y-m-d', $v)) ? $v : null; }
+
+    /**
+     * AUDIT_WORKSPACE_V1 — read-only audit pages (Admin + Audit; Access already limits each page).
+     * Sources: audit_events (actor, area, record_ref, action, details, time) and audit_event_changes
+     * (field-level before/after, recorded only by auditWithChanges). Nothing here writes.
+     * Action types are derived from the recorded action text with fixed keyword rules (shown in the UI).
+     */
+    private const AUDIT_TYPES = [
+        'Approval' => '(approved|returned to service|verified)', 'Rejection' => '(rejected|failed)', 'Payment' => '(payment|paid|released|disburse|liquidat)',
+        'Cancellation' => '(cancel|withdraw|closed|deactivat|removed)', 'Creation' => '(created|added|submitted|reported|recorded|request)',
+        'Change' => '(changed|updated|adjusted|assigned|set|reset|saved|processed|received|activated|completed)',
+        'Sign-in' => '(signed in|signed out|login|logout)', 'Attendance' => '(time in|time out|attendance)', 'Document' => '(document|upload)',
+    ];
+    private static function auditType(string $action): string {
+        foreach (['Sign-in', 'Attendance', 'Document'] as $first) if (preg_match('/' . self::AUDIT_TYPES[$first] . '/i', $action)) return $first;
+        foreach (self::AUDIT_TYPES as $type => $re) if (preg_match('/' . $re . '/i', $action)) return $type;
+        return 'Other';
+    }
+    private static function auditPage(array $u, PDO $p, string $page, array $q): array {
+        $maxDays = 366;
+        $to = self::d((string)($q['to'] ?? '')) ?? date('Y-m-d');
+        $from = self::d((string)($q['from'] ?? '')) ?? date('Y-m-d', strtotime($to . ($page === 'audit_overview' ? ' -6 days' : ' -29 days')));
+        if ($from > $to) [$from, $to] = [$to, $from];
+        if ((new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days >= $maxDays) $from = date('Y-m-d', strtotime($to . ' -' . ($maxDays - 1) . ' days'));
+        $w = 'WHERE a.created_at >= ? AND a.created_at < ? + INTERVAL 1 DAY'; $args = [$from, $to];
+        if ($page !== 'audit_overview') {
+            if (!empty($q['area'])) { $w .= ' AND a.area=?'; $args[] = (string)$q['area']; }
+            if (!empty($q['actor_id']) && ctype_digit((string)$q['actor_id'])) { $w .= ' AND a.actor_id=?'; $args[] = (int)$q['actor_id']; }
+            if (!empty($q['record'])) { $w .= ' AND a.record_ref=?'; $args[] = cut((string)$q['record'], 70); }
+        }
+        $events = fn(int $limit) => array_map(function ($e) { $e['type'] = self::auditType((string)$e['action']); $e['has_changes'] = $e['changes_json'] !== null; return $e; },
+            many($p, "SELECT a.id, a.area, a.record_ref, a.action, a.details, a.created_at, a.actor_id, COALESCE(us.full_name, 'System') AS actor, us.role, ac.changes_json
+                FROM audit_events a LEFT JOIN users us ON us.id=a.actor_id LEFT JOIN audit_event_changes ac ON ac.audit_event_id=a.id $w ORDER BY a.id DESC LIMIT $limit", $args));
+        $base = ['areas' => fn() => array_column(many($p, 'SELECT DISTINCT area FROM audit_events ORDER BY area'), 'area'),
+                 'actors' => fn() => many($p, 'SELECT DISTINCT us.id, us.full_name, us.role FROM audit_events a JOIN users us ON us.id=a.actor_id ORDER BY us.full_name')];
+        $data = match ($page) {
+            'audit_overview' => readSections([
+                'events' => fn() => $events(500),
+                'totals' => fn() => one($p, "SELECT COUNT(*) AS all_time, MIN(created_at) AS first_at, COALESCE(SUM(created_at >= CURRENT_DATE()),0) AS today,
+                        COALESCE(SUM(created_at >= CURRENT_DATE() - INTERVAL 29 DAY),0) AS last30 FROM audit_events"),
+                'withChanges' => fn() => (int)one($p, 'SELECT COUNT(*) AS n FROM audit_event_changes')['n'],
+            ]),
+            'audit_logs' => readSections(['events' => fn() => $events(3000)] + $base),
+            'audit_history' => readSections([
+                'records' => fn() => many($p, "SELECT a.area, a.record_ref, COUNT(*) AS events, MIN(a.created_at) AS first_at, MAX(a.created_at) AS last_at,
+                        SUBSTRING_INDEX(GROUP_CONCAT(a.action ORDER BY a.id DESC SEPARATOR '\n'), '\n', 1) AS last_action,
+                        SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(us.full_name,'System') ORDER BY a.id DESC SEPARATOR '\n'), '\n', 1) AS last_actor
+                    FROM audit_events a LEFT JOIN users us ON us.id=a.actor_id $w GROUP BY a.area, a.record_ref ORDER BY last_at DESC LIMIT 1000", $args),
+                'timeline' => fn() => !empty($q['record']) ? $events(500) : [],
+            ] + $base),
+            'audit_reports' => readSections([
+                'events' => fn() => $events(20000),
+                'byMonth' => fn() => many($p, "SELECT DATE_FORMAT(a.created_at,'%Y-%m') AS m, a.area, COUNT(*) AS n FROM audit_events a $w GROUP BY m, a.area ORDER BY m, a.area", $args),
+            ] + $base),
+            default => throw new BusinessRuleException('Unknown page.', 404),
+        };
+        // Reports aggregate the event list server-side so only counts are sent (no per-event details).
+        if ($page === 'audit_reports' && is_array($data['events'] ?? null)) {
+            $agg = ['type' => [], 'user' => [], 'area' => []];
+            foreach ($data['events'] as $e) {
+                $agg['type'][$e['type']] = ($agg['type'][$e['type']] ?? 0) + 1;
+                $k = $e['actor'] . '|' . ($e['role'] ?? '');
+                $agg['user'][$k] = ($agg['user'][$k] ?? 0) + 1;
+                $agg['area'][$e['area']]['n'] = ($agg['area'][$e['area']]['n'] ?? 0) + 1;
+                $agg['area'][$e['area']]['changes'] = ($agg['area'][$e['area']]['changes'] ?? 0) + ($e['has_changes'] ? 1 : 0);
+            }
+            $data['summary'] = ['total' => count($data['events']), 'truncated' => count($data['events']) >= 20000,
+                'byType' => $agg['type'], 'byUser' => array_map(fn($k, $n) => ['actor' => explode('|', $k)[0], 'role' => explode('|', $k)[1], 'n' => $n], array_keys($agg['user']), $agg['user']),
+                'byArea' => array_map(fn($k, $v) => ['area' => $k] + $v, array_keys($agg['area']), $agg['area'])];
+            unset($data['events']);
+        }
+        $data['range'] = ['from' => $from, 'to' => $to, 'max_days' => $maxDays];
+        $data['types'] = array_merge(array_keys(self::AUDIT_TYPES), ['Other']);
+        $data['roles'] = ROLE_LABELS;
+        return $data;
+    }
 
     public static function action(array $u, string $action, array $d): array {
         return match ($action) {
+            'pricing_save' => Settings::pricingSave($u,$d),
             'user_save' => self::withRoleSlotLock(fn() => self::userSave($u, $d)),
             'user_toggle' => self::withRoleSlotLock(fn() => self::userToggle($u, $d)),
             'user_password' => self::userPassword($u, $d),
@@ -88,22 +169,24 @@ final class Admin {
         must((int)($lock['acquired'] ?? 0) === 1, 'User accounts are being updated. Please try again.', 409);
         try {
             return $work();
+        } catch (PDOException $e) {
+            if(in_array((int)($e->errorInfo[1]??0),[1205,1213],true))throw new BusinessRuleException('Concurrent account or turnover update. No account change was saved. Refresh and retry after the other transaction completes.',409);
+            throw $e;
         } finally {
             try { one($p, "SELECT RELEASE_LOCK('mulawin_user_role_slots') AS released"); }
             catch (Throwable $ignored) { /* Connection shutdown releases locks too. */ }
         }
     }
 
-    /** Active non-dispatcher roles have one slot; each dispatcher role has Day and Night slots. */
-    private static function assertRoleShiftVacancy(PDO $p, string $role, ?string $shift, ?int $excludeId = null): void {
+    /** Multiple Dispatchers may share a shift. Ownership and vehicle holds
+     * still prevent simultaneous conflicting trip assignments. */
+    private static function assertRoleShiftVacancy(PDO $p, string $role, ?string $shift, ?int $excludeId = null, ?string $truckType = null): void {
         if (roleIsDispatcher($role)) {
-            must(in_array($shift, ['Day', 'Night'], true), 'Select a dispatcher shift.', 400);
-            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND shift=? AND active=1 AND id<>? LIMIT 1', [$role, $shift, $excludeId ?? 0]);
-            must(!$occupied, 'This dispatcher role and shift already have an active account. Deactivate that account first.', 409);
-        } else {
-            $occupied = one($p, 'SELECT id FROM users WHERE role=? AND active=1 AND id<>? LIMIT 1', [$role, $excludeId ?? 0]);
-            must(!$occupied, 'This role already has an active account. Deactivate that account first.', 409);
+            must(in_array($shift, ['Day', 'Night'], true), 'Select Day or Night shift.', 400);
+            return;
         }
+        $occupied = one($p, 'SELECT id FROM users WHERE role=? AND active=1 AND id<>? LIMIT 1', [$role, $excludeId ?? 0]);
+        must(!$occupied, 'This role already has an active account. Deactivate that account first.', 409);
     }
 
     // ---------------------------------------------------------------- users
@@ -121,31 +204,49 @@ final class Admin {
         requireRole($u, 'admin');
         $id = optId($d, 'id');
         $role = choiceField($d, 'role', allowedRoles());
+        must($role !== 'audit' || optId($d, 'id') !== null, 'New Audit accounts are no longer available.', 409);
         $shift = roleIsDispatcher($role) ? choiceField($d, 'shift', ['Day', 'Night']) : null;
+        $selectedTypes = $d['dispatcher_truck_types'] ?? [];
+        must(is_array($selectedTypes) && array_is_list($selectedTypes), 'Choose valid Dispatcher truck types.');
+        must(count($selectedTypes) <= 3 && count($selectedTypes) === count(array_unique($selectedTypes)), 'Choose up to three unique truck types.');
+        foreach ($selectedTypes as $t) must(is_string($t) && in_array($t, TRUCK_TYPES, true), 'Invalid Dispatcher truck type.');
+        if (roleIsDispatcher($role)) must(count($selectedTypes) >= 1, 'Select at least one Dispatcher truck type.');
+        else must(!$selectedTypes, 'Truck types can only be assigned to Dispatchers.');
+        $truckType = roleIsDispatcher($role) ? $selectedTypes[0] : null;
+        must($truckType === null || $role === dispatcherRoleFor($truckType), 'Dispatcher role and selected primary type must match.');
         $name = field($d, 'full_name', 100);
         $email = self::emailField($d);
-        return transaction(function (PDO $p) use ($u, $id, $role, $shift, $name, $email, $d) {
+        return transaction(function (PDO $p) use ($u, $id, $role, $shift, $truckType, $selectedTypes, $name, $email, $d) {
             must(!one($p, 'SELECT id FROM users WHERE email=? AND id<>?', [$email, $id ?? 0]), 'Another account already uses this email address.', 409);
             if ($id) {
                 if ($id === $u['id']) must($role === 'admin', 'You cannot remove your own Admin role.');
-                $oldUser = one($p, 'SELECT full_name, email, role, shift, active FROM users WHERE id=? FOR UPDATE', [$id]);
+                $oldUser = one($p, 'SELECT full_name, email, role, shift, dispatcher_truck_type, dispatcher_truck_types, active FROM users WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$oldUser, 'User not found.', 404);
-                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'])) self::assertRoleShiftVacancy($p, $role, $shift, $id);
-                run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=? WHERE id=?', [$name, $email, $role, $shift, $id]);
+                must($role !== 'audit' || $oldUser['role'] === 'audit', 'The Audit role is retired for account assignments.', 409);
+                $oldTypes = json_decode((string)($oldUser['dispatcher_truck_types'] ?? 'null'), true);
+                if (!is_array($oldTypes)) $oldTypes = $oldUser['dispatcher_truck_type']
+                    ? [$oldUser['dispatcher_truck_type']] : [];
+                $typeChanged = $selectedTypes !== $oldTypes;
+                if($role!==$oldUser['role']||$shift!==$oldUser['shift']||$typeChanged){
+                    core('DispatcherTurnover');
+                    DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($oldUser['role'])||roleIsDispatcher($role));
+                }
+                if ((int)$oldUser['active'] === 1 && ($role !== $oldUser['role'] || $shift !== $oldUser['shift'] || $typeChanged)) self::assertRoleShiftVacancy($p, $role, $shift, $id, $truckType);
+                run($p, 'UPDATE users SET full_name=?, email=?, role=?, shift=?, dispatcher_truck_type=?, dispatcher_truck_types=? WHERE id=?', [$name, $email, $role, $shift, $truckType, $selectedTypes ? json_encode($selectedTypes, JSON_THROW_ON_ERROR) : null, $id]);
                 auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account updated', "$name / $role" . ($shift ? " / $shift" : '') . ' / ' . $email,
-                    ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift']],
-                    ['Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift]);
+                    ['Full name' => $oldUser['full_name'], 'Email' => $oldUser['email'], 'Role' => $oldUser['role'], 'Shift' => $oldUser['shift'], 'Truck type' => $oldUser['dispatcher_truck_types']],
+                    ['Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Truck type' => implode(', ', $selectedTypes)]);
                 return ['message' => 'Account updated.'];
             }
             $username = field($d, 'username', 70);
             must((bool)preg_match('/^[a-zA-Z0-9_.-]{3,70}$/', $username), 'Username: 3-70 letters, numbers, dot, dash or underscore.');
             must(!one($p, 'SELECT id FROM users WHERE username=?', [$username]), 'Username already exists.', 409);
             $pw = AccountSecurity::newTemporaryPassword();
-            self::assertRoleShiftVacancy($p, $role, $shift);
+            self::assertRoleShiftVacancy($p, $role, $shift, null, $truckType);
             $id = insert($p, 'users', ['username' => $username, 'email' => $email, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT),
-                'full_name' => $name, 'role' => $role, 'shift' => $shift, 'must_change_password' => 1]);
+                'full_name' => $name, 'role' => $role, 'shift' => $shift, 'dispatcher_truck_type' => $truckType, 'dispatcher_truck_types' => $selectedTypes ? json_encode($selectedTypes, JSON_THROW_ON_ERROR) : null, 'must_change_password' => 1]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, 'account created', "$username / $role / " . $email, [],
-                ['Username' => $username, 'Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Active' => 'Yes']);
+                ['Username' => $username, 'Full name' => $name, 'Email' => $email, 'Role' => $role, 'Shift' => $shift, 'Truck type' => $truckType, 'Active' => 'Yes']);
             return ['id' => $id, 'temporary_password' => $pw, 'temporary_for' => $username,
                     'message' => "Account $username created. Copy the temporary password now: it is shown only once. The user must replace it at first login."];
         });
@@ -156,10 +257,11 @@ final class Admin {
         $id = idField($d, 'user_id'); $active = !empty($d['active']) ? 1 : 0;
         must($id !== $u['id'], 'You cannot deactivate your own account.');
         return transaction(function (PDO $p) use ($u, $id, $active) {
-            $t = one($p, 'SELECT role, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
+            $t = one($p, 'SELECT role, shift, dispatcher_truck_type, full_name, active FROM users WHERE id=? FOR UPDATE', [$id]);
             must((bool)$t, 'User not found.', 404);
+            if(!$active){core('DispatcherTurnover');DispatcherTurnover::guardAccountChange($p,$id,roleIsDispatcher($t['role']));}
             if (!$active && $t['role'] === 'admin') must((int)one($p, "SELECT COUNT(*) n FROM users WHERE role='admin' AND active=1")['n'] > 1, 'Keep at least one active Admin.');
-            if ($active && (int)$t['active'] !== 1) self::assertRoleShiftVacancy($p, $t['role'], $t['shift'], $id);
+            if ($active && (int)$t['active'] !== 1) self::assertRoleShiftVacancy($p, $t['role'], $t['shift'], $id, $t['dispatcher_truck_type']);
             run($p, 'UPDATE users SET active=? WHERE id=?', [$active, $id]);
             auditWithChanges($p, $u['id'], 'Access', 'user ' . $id, $active ? 'account activated' : 'account deactivated', $t['full_name'],
                 ['Account active' => (int)$t['active'] ? 'Yes' : 'No'], ['Account active' => $active ? 'Yes' : 'No']);
@@ -249,39 +351,29 @@ final class Admin {
 
     // ---------------------------------------------------------------- settings
     private static function settingSave(array $u, array $d): array {
+        requireRole($u,'admin');
+        must(!in_array($d['key']??$d['setting_key']??null,['km_per_liter','fuel_price_per_liter'],true),'Use Pricing > Fuel Adjustment effective history.',409);
         requireRole($u, 'admin');
         $key = field($d, 'key', 80);
         must(isset(Settings::DEFS[$key]), 'Unknown setting.');
         [$label, , $unit, , $min, $max] = Settings::DEFS[$key];
         $raw = trim((string)($d['value'] ?? ''));
         must(is_numeric($raw) && (float)$raw >= $min && (float)$raw <= $max, "$label must be a number from $min to $max.");
-        // CHECKLIST_42_ATTENDANCE_PHASE2_V1: shift start hours are whole hours and Day / Night must differ
-        // (identical hours would leave no Night shift in CrewAttendance::shiftFor).
-        $shiftKeys = ['attendance_day_start_hour' => 'attendance_night_start_hour', 'attendance_night_start_hour' => 'attendance_day_start_hour'];
-        if (isset($shiftKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour (12:00 AM to 11:00 PM).");
+        // DAILY_ATTENDANCE_V1: the reminder hour is a whole hour.
+        $hourKeys = ['attendance_day_start_hour' => true, 'attendance_night_start_hour' => true];
+        if (isset($hourKeys[$key])) must(ctype_digit($raw), "$label must be a whole hour (12:00 AM to 11:00 PM).");
         if ($key === 'crew_attendance_dispatch_check') must(in_array($raw, ['1', '2'], true), "$label must be Warn (1) or Enforce (2).");
-        return transaction(function (PDO $p) use ($u, $key, $raw, $label, $shiftKeys) {
-            if ($key === 'crew_attendance_dispatch_check' && $raw === '2') {
-                // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: Enforce only when every active driver / helper has a shift.
-                $missing = CrewAttendance::unassignedCrew($p);
-                must(!$missing, 'Enforce cannot be turned on yet: ' . count($missing) . ' active driver(s)/helper(s) have no assigned shift ('
-                    . implode(', ', array_map(fn($r) => $r['full_name'], array_slice($missing, 0, 10))) . (count($missing) > 10 ? ', ...' : '')
-                    . '). Assign their shift in the Drivers & Helpers masterlist first.', 409);
-            }
-            if (isset($shiftKeys[$key])) {
-                Settings::clearCache();
-                must((int)$raw !== (int)Settings::value($shiftKeys[$key]), 'The Day and Night shift start hours cannot be the same.', 409);
-            }
+        return transaction(function (PDO $p) use ($u, $key, $raw, $label, $hourKeys) {
             $previousSetting = one($p, 'SELECT setting_value FROM app_settings WHERE setting_key=?', [$key]);
             $p->prepare('INSERT INTO app_settings (setting_key, setting_value, updated_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)')
               ->execute([$key, $raw, $u['id']]);
             Settings::clearCache();
-            // Shift start hours are shown as 12-hour times (stored value stays 0-23).
-            $show = fn($v) => $v === null || $v === '' ? $v : (isset($shiftKeys[$key]) ? CrewAttendance::hourLabel((int)$v)
+            // The reminder hour is shown as 12-hour times (stored value stays 0-23).
+            $show = fn($v) => $v === null || $v === '' ? $v : (isset($hourKeys[$key]) ? CrewAttendance::hourLabel((int)$v)
                 : ($key === 'crew_attendance_dispatch_check' ? CrewAttendance::modeName((int)$v) : $v));
             auditWithChanges($p, $u['id'], 'Settings', $key, 'setting changed', "$label = " . $show($raw),
-                // A shift start hour never saved before was using its default: show that time as "before".
-                [$label => $show($previousSetting['setting_value'] ?? (isset($shiftKeys[$key]) || $key === 'crew_attendance_dispatch_check' ? (string)(int)Settings::default($key) : null))], [$label => $show($raw)]);
+                // A reminder hour never saved before was using its default: show that time as "before".
+                [$label => $show($previousSetting['setting_value'] ?? (isset($hourKeys[$key]) || $key === 'crew_attendance_dispatch_check' ? (string)(int)Settings::default($key) : null))], [$label => $show($raw)]);
             return ['message' => "$label saved (" . $show($raw) . "). New records use the new value."];
         });
     }
