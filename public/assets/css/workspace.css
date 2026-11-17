@@ -954,3 +954,59 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 .mp-parts-request-modal .mp-parts-remove {height:39px;min-width:39px;border-radius:9px}
 @media(max-width:650px){.mp-parts-request-modal .modal-header,.mp-parts-request-modal .modal-body,.mp-parts-request-modal .modal-footer{padding:17px 18px}
 .mp-parts-request-modal .mp-parts-line-fields{grid-template-columns:minmax(0,1fr) 85px}.mp-parts-request-modal .mp-parts-items{padding:12px}}
+
+/* MOTORPOOL_OPERATIONS_TABLE_ALIGNMENT_V8 */
+/* Only Motorpool marker pages. Uses the existing UI.table() markup and behavior. */
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table{
+  border:1px solid #dee7e0;border-radius:13px;overflow:hidden;background:#fff;
+  box-shadow:0 1px 3px rgba(18,53,28,.04);margin-top:18px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .mp-records-heading{
+  padding:19px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border-bottom:1px solid #e7ece8;background:#fff;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-records-heading strong{
+  display:block;font-size:15px;font-weight:750;color:#244431;line-height:1.35;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-records-heading small{
+  display:block;color:#7a897f;font-size:12px;margin-top:4px;font-weight:400;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-tools,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-toolbar,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-controls{
+  padding:16px 19px;background:#fff;gap:10px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table th{
+  padding:13px 15px;background:#f5f7f6;color:#394c40;font-size:12px;font-weight:700;
+  border-bottom:1px solid #e1e9e3;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table td{
+  padding:15px;line-height:1.45;border-bottom:1px solid #e7ece8;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table tbody tr:last-child td{border-bottom:0}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table tbody tr:hover td{background:#f7faf8}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-pager{
+  padding:13px 19px;border-top:1px solid #e6ede8;background:#fff;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-search .form-control{
+  min-height:43px;border-radius:9px;border-color:#d7e0d8;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section{
+  border:1px solid #dee7e0;border-radius:13px;overflow:hidden;background:#fff;
+  box-shadow:0 1px 3px rgba(18,53,28,.04);padding-top:4px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section > h2{
+  margin:0;padding:17px 19px;color:#244431;font-size:15px;font-weight:750;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section > .table-wrap,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section > .table-card{
+  border:0;border-radius:0;box-shadow:none;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section .data-table th{
+  padding:13px 15px;background:#f5f7f6;color:#394c40;font-size:12px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section .data-table td{padding:15px}
+@media(max-width:700px){
+ #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .mp-records-heading{padding:14px 15px;align-items:flex-start}
+ #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-tools{padding:12px}
+}
