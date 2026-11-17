@@ -252,7 +252,7 @@ const App = {
       car_carrier_dispatcher: ['dashboard', 'trips', 'funds'],
       container_wingvan_dispatcher: ['dashboard', 'trips', 'funds'],
       // MOTORPOOL_WORKSPACE_PHASE1: the Motorpool workspace in work order (server me.nav still decides what is allowed).
-      motorpool: ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maint_history', 'trucks'],
+      motorpool: ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'maint_history', 'mechanics', 'mechanic_attendance'],
       purchasing: ['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports'],
       finance: ['dashboard', 'funds', 'finance', 'purchase_orders', 'purchasing_reports'],
       billing: ['dashboard', 'billing', 'clients', 'routes'],
@@ -268,7 +268,7 @@ const App = {
       inventory: 'Inventory', stock_movements: 'Stock movements', purchasing_reports: 'Purchasing reports',
     };
     // Role-specific menu wording (labels only).
-    const roleShortNames = { motorpool: { maintenance: 'Repair management', trucks: 'Truck masterlist', mechanics: 'Mechanic masterlist' } };
+    const roleShortNames = { motorpool: { maintenance_overview: 'Dashboard', maintenance: 'Repairs', maint_history: 'Repair history', mechanics: 'Mechanics' } };
     const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
     const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
@@ -367,31 +367,9 @@ const App = {
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
       if (u.role === 'motorpool') {
-        // Same navigation pattern as Head Management: direct Overview,
-        // categorized accordion groups, and icon-only collapsed flyouts.
-        // Only use the existing authorized Motorpool menu items.
-        const items = ws.groups.flatMap(g => g.items);
-        const shown = new Set();
-        const take = ids => ids.map(id => items.find(n => n.id === id))
-          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
-        nav = take(['maintenance_overview']).map(wsLink).join('');
-        const groups = [
-          { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
-          { title:'Workforce', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
-          { title:'Records & Reports', icon:'bi-journal-text', ids:['maint_history','maintenance_reports'] }
-        ];
-        nav += groups.map(group => {
-          const entries = take(group.ids);
-          return entries.length ? UI.sidebarGroup({
-            title:group.title, icon:group.icon,
-            items:entries.map(wsLink).join('')
-          }) : '';
-        }).join('');
-        const remaining = items.filter(n => !shown.has(n.id));
-        if (remaining.length) nav += UI.sidebarGroup({
-          title:'Other Tools', icon:'bi-grid-3x3-gap',
-          items:remaining.map(wsLink).join('')
-        });
+        // MOTORPOOL_UI_V2: six direct links, no accordion groups (Dashboard first). Items come only from the
+        // server-authorized workspace menu (UI.WS_MENUS.motorpool filtered by me.nav).
+        nav = ws.groups.flatMap(g => g.items).map(wsLink).join('');
       } else if (u.role === 'purchasing') {
         // Same executive navigation as Admin and Motorpool. Use only routes
         // already provided by the server-authorized Purchasing workspace.
@@ -1011,9 +989,10 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
    me.nav (Access::navFor) lists it, so no unauthorized page can be shown. Other permitted pages are grouped below
    under short headings (Fleet & trips, Maintenance, Purchasing, Accounting, Records). Other roles keep the old menu. */
 UI.WS_MENUS = {
-  motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Overview', 'bi-speedometer2'], ['maintenance', 'Repair Management', 'bi-wrench-adjustable'],
-    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanic Masterlist', 'bi-person-gear'],
-    ['mechanic_attendance', 'Mechanic Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up']] },
+  // MOTORPOOL_UI_V2: flat menu (no "Maintenance" group), Reports and Truck Masterlist removed (fleet status is on the Dashboard).
+  motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
+    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['maint_history', 'Repair History', 'bi-journal-check'],
+    ['mechanics', 'Mechanics', 'bi-person-gear'], ['mechanic_attendance', 'Mechanic Attendance', 'bi-person-check']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
     ['purchasing_reports', 'Reports', 'bi-graph-up']] },

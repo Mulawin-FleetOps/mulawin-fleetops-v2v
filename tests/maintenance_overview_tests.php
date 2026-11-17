@@ -125,7 +125,7 @@ ok(!isset($oo['summary']['pending_parts']) && $oo['can']['parts'] === false && $
 // ---------------------------------------------------------------------
 section('C. Garage workflow with counts at every step');
 $_FILES = [];
-fails(fn() => Maintenance::action($mp, 'report', ['vehicle_id' => $V[1], 'problem' => 'No photo', 'reported_on' => date('Y-m-d')]), 'report without a photo is still refused', 400, 'Please attach');
+// MOTORPOOL_UI_V2: photos are optional on a truck problem report (assertion "report without a photo is refused" removed).
 $r1 = $report($V[1]);
 $j1 = (int)$r1['job_id'];
 ok($job($j1)['status'] === 'Reported' && one($p, 'SELECT status FROM vehicles WHERE id=?', [$V[1]])['status'] === 'Under Maintenance', 'report: record Reported, truck Under Maintenance (unchanged rule)');

@@ -73,14 +73,14 @@ const MaintUI = {
       { name: 'vehicle_id', label: 'Affected truck', type: 'select', required: true, col: 6, value: vehicleId,
         options: ok.map(v => [v.id, `${v.plate_number}${v.truck_number ? ' · #' + v.truck_number : ''} · ${v.truck_type} (${v.status})`]),
         help: d.trucks.length > ok.length ? 'Trucks on the road or already under repair are not listed.' : '' },
-      { name: 'reported_on', label: 'Date reported', type: 'date', value: UI.today(), required: true, col: 6 },
+      // MOTORPOOL_UI_V2: mechanic required when one is available (the server checks it again); no date field (server time).
+      { name: 'mechanic_id', label: 'Assign mechanic', type: 'select', required: mech.length > 0, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is timed in',
+        help: mech.length ? 'Only Available (timed-in) mechanics are listed.' : 'No mechanic is timed in. The report is saved as Reported; assign a mechanic after Time In.' },
       { name: 'problem', label: 'Problem or defect', type: 'textarea', required: true, col: 12, placeholder: 'What is wrong with the truck? Where is the damage?' },
-      { name: 'mechanic_id', label: 'Assign mechanic (optional now)', type: 'select', col: 6, options: mech, placeholder: mech.length ? 'Assign later' : 'No mechanic is available',
-        help: 'Only Available mechanics are listed.' },
-      { name: 'remarks', label: 'Remarks', col: 6 },
-      { name: 'photos', label: 'Photos of the damaged part or truck condition', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="image/png,image/jpeg"' }],
+      { name: 'remarks', label: 'Remarks', col: 12 },
+      { name: 'photos', label: 'Photos of the damaged part or truck condition (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="image/png,image/jpeg"' }],
       'Maintenance.report', { submit: 'Report problem', size: 'modal-lg',
-        intro: 'The truck is taken out of service at once (Under Maintenance) and cannot be assigned to trips until the repair is completed and verified. If it was reserved for a trip, the trip is re-assigned automatically.' });
+        intro: 'The date and time reported are recorded automatically when you click Report problem. The truck is taken out of service at once (Under Maintenance) and cannot be assigned to trips until the repair is completed and verified.' });
   },
   /** Parts request form (Request Form). Motorpool sees part identity and availability only: no costs, no stock counts. */
   async requestParts(vehicleId, jobId) {
@@ -427,9 +427,12 @@ App.page('maintenance', {
       { name: 'from', label: 'Reported from', type: 'date', col: 6 }, { name: 'to', label: 'Reported to', type: 'date', col: 6 },
     ];
     const active = ['vehicle_id', 'mechanic_id', 'source', 'from', 'to', 'cancelled'].filter(k => q[k]);
-    const TABS = [['', 'Open', open.length], ['reported', 'New reports', reported.length], ['inspection', 'Under inspection', inspection.length],
-      ['repair', 'Under repair', repair.length], ['verify', 'Awaiting verification', verify.length], ['done', 'Completed', done.length], ['all', 'All records', shownJobs.length]];
-    if (q.view === 'in_progress') TABS.splice(1, 0, ['in_progress', 'Inspection or repair', inspection.length + repair.length]);
+    // MOTORPOOL_UI_V2: three tabs only. Narrower views (?view=reported|inspection|repair|in_progress|all, e.g. from Dashboard
+    // links) still work and appear as a fourth tab only while they are open.
+    const TABS = [['', 'Active', reported.length + inspection.length + repair.length], ['verify', 'For verification', verify.length], ['done', 'Completed', done.length]];
+    const EXTRA = { reported: ['New reports', reported.length], inspection: ['Under inspection', inspection.length], repair: ['Under repair', repair.length],
+      in_progress: ['Inspection or repair', inspection.length + repair.length], all: ['All records', shownJobs.length] };
+    if (EXTRA[q.view]) TABS.push([q.view, ...EXTRA[q.view]]);
     const tab = TABS.some(t => t[0] === (q.view || '')) ? (q.view || '') : '';
     ctx.el.innerHTML = UI.statusTabs('maintenance', q, 'view', TABS, tab) + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
     const waited = (j) => { const days = Math.max(0, Math.floor((Date.now() - new Date(String(j.reported_on) + 'T00:00:00').getTime()) / 86400000));
@@ -454,7 +457,7 @@ App.page('maintenance', {
     const label = TABS.find(t => t[0] === tab)[1];
     if (tab === 'done') box.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
     else if (tab === 'all') box.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
-    else { const rows = view ? open.filter(view[1]) : open;
+    else { const rows = view ? open.filter(view[1]) : open.filter(j => j.status !== 'Completed');
       box.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
@@ -561,6 +564,9 @@ const MaintOverview = {
     const viewBtn = r.job_id
       ? `<button type="button" class="btn btn-sm btn-outline-primary" data-open-job="${+r.job_id}">View repair</button>`
       : (can.parts ? `<button type="button" class="btn btn-sm btn-outline-primary" data-go="${can.requestParts ? 'mp_parts_requests?status=not_available' : 'parts_requests'}">View request</button>` : '');
+    // MOTORPOOL_UI_V2: the button names the next step; it opens the record where that action is done.
+    const step = { assess: 'Assess', assign: 'Assign mechanic', verify: 'Verify' }[r.next_action];
+    const actBtn = r.job_id && step ? `<button type="button" class="btn btn-sm btn-primary" data-open-job="${+r.job_id}">${step}</button>` : viewBtn;
     return `<li class="mo-item">
       <div class="mo-item-main">
         <div class="mo-item-top">${MaintOverview.truck(r)} <span class="mo-ref">${UI.esc(ref)}</span> ${tag}</div>
@@ -568,7 +574,7 @@ const MaintOverview = {
         <div class="mo-item-next"><i class="bi bi-arrow-right-circle"></i> ${UI.esc(MaintOverview.ACTIONS[r.next_action] || 'Open the record')}
           <span class="mo-since">· waiting since ${UI.datetime(r.since)}</span></div>
       </div>
-      <div class="mo-item-side">${UI.badge(MaintOverview.statusOf(r))}${viewBtn}</div></li>`;
+      <div class="mo-item-side">${UI.badge(MaintOverview.statusOf(r))}${actBtn}</div></li>`;
   },
   activityItem(e) {
     const what = [e.job_ref || e.request_ref, e.plate_number].filter(Boolean).map(UI.esc).join(' · ');
@@ -588,64 +594,54 @@ App.page('maintenance_overview', {
   render(ctx) {
     const d = MaintUI.data = ctx.data, can = d.can || {};
     // REF_FIDELITY_V1: the Motorpool's own workspace title (other roles keep 'Maintenance Overview').
-    if (UI.role('motorpool')) { const h = document.querySelector('#pageContent .page-title'); if (h) h.textContent = 'Motorpool Overview'; }
+    if (UI.role('motorpool')) { const h = document.querySelector('#pageContent .page-title'); if (h) h.textContent = 'Dashboard'; }
     const s = Array.isArray(d.summary) ? null : d.summary;   // a failed read section comes back as []
 
     const n = (k) => s ? +s[k] || 0 : '—';
-    // STAGE_A_MOTORPOOL_UI: KPI tiles. Every value comes from Maintenance::read('maintenance_overview'); every tile opens a filtered, authorized page.
+    // MOTORPOOL_UI_V2 Dashboard: Fleet status · To do now · Long-running repairs · Mechanics · Parts requests · This month.
     const crew = d.crew && !Array.isArray(d.crew) ? d.crew : null;
-    const fleet = d.fleet && !Array.isArray(d.fleet) ? d.fleet : null;
-    const inRepair = fleet && Array.isArray(fleet.in_repair) ? fleet.in_repair : [];
-    // UI_REFERENCE_V1: four KPI cards (each opens the related, filtered page), Quick actions, then
-    // left: Needs attention + Recent maintenance activity; right: Mechanic status + Trucks in repair.
-    const open = s ? n('new_reports') + n('under_inspection') + n('under_repair') + n('for_verification') : '—';
+    const fs = d.fleetStatus && !Array.isArray(d.fleetStatus) ? d.fleetStatus : null;
+    const m = d.month && !Array.isArray(d.month) ? d.month : null;
+    const failed = d._errors || {};
+    const fv = (k) => fs ? fs[k] : '—';
     const tiles = [
-      { label: 'Open repairs', value: open, note: s ? `${n('new_reports')} new · ${n('under_inspection') + n('under_repair')} in progress` : '', icon: 'bi-wrench-adjustable', tone: s && open ? 'blue' : 'gray', go: 'maintenance' },
-      can.parts ? { label: 'Waiting for parts', value: n('pending_parts'), note: s ? `${n('parts_requested')} requested · ${n('parts_partially_released')} partial` : '', icon: 'bi-box-seam', tone: s && s.pending_parts ? 'amber' : 'gray', go: can.requestParts ? 'mp_parts_requests?status=open' : 'parts_requests' }
-        : { label: 'New reports', value: n('new_reports'), note: s ? `${n('new_incidents')} from trip incidents` : '', icon: 'bi-exclamation-octagon', tone: s && s.new_reports ? 'amber' : 'gray', go: 'maintenance?view=reported' },
+      { label: 'Available', value: fv('available'), note: fs ? `of ${fs.active} active trucks` : '', icon: 'bi-truck', tone: 'green' },
+      { label: 'On trip / assigned', value: fv('on_trip'), note: 'reserved or on the road', icon: 'bi-signpost-split', tone: 'blue' },
+      { label: 'Under maintenance', value: fv('under_maintenance'), note: s ? `${n('new_reports')} new · ${n('under_inspection') + n('under_repair')} in progress` : '', icon: 'bi-wrench-adjustable', tone: fs && fs.under_maintenance ? 'red' : 'gray', go: 'maintenance' },
       { label: 'For verification', value: n('for_verification'), note: 'repaired, still out of service', icon: 'bi-clipboard-check', tone: s && s.for_verification ? 'amber' : 'gray', go: 'maintenance?view=verify' },
-      crew ? { label: 'Mechanics on duty', value: crew.on_duty, note: `${crew.available} available · ${crew.assigned} on a repair`, icon: 'bi-person-gear', tone: crew.on_duty ? 'green' : 'gray', go: 'mechanic_attendance?duty=in' }
-        : { label: 'Trucks under maintenance', value: inRepair.length, note: fleet ? `of ${fleet.active_trucks} active trucks` : '', icon: 'bi-truck', tone: inRepair.length ? 'red' : 'gray', go: 'trucks?status=Under Maintenance' },
     ];
-    // Mechanic status: the Mechanic Masterlist values, each row opens the filtered masterlist.
-    const crewBody = !crew ? '' : crew.active ? UI.wsList([
-        UI.wsEntry('mechanics?availability=Available', '<b>Available</b>', 'Timed in, no current repair', `<span class="badge-s green">${UI.num(crew.available)}</span>`),
-        UI.wsEntry('mechanics?availability=Assigned', '<b>On a repair</b>', 'Assigned to an open repair record', `<span class="badge-s blue">${UI.num(crew.assigned)}</span>`),
-        UI.wsEntry('mechanics?availability=Unavailable', '<b>Not timed in</b>', 'Cannot take a repair until timed in', `<span class="badge-s ${crew.unavailable ? 'amber' : 'gray'}">${UI.num(crew.unavailable)}</span>`)], '')
-      : '<div class="mo-empty">No active mechanics. Add them in the Mechanic Masterlist.</div>';
-    const crewPanel = crew ? UI.wsPanel('Mechanic status', 'bi-person-gear', crewBody, { cls: 'ws-r1', go: 'mechanics', foot: `${crew.on_duty} of ${crew.active} active mechanics are timed in.` }) : '';
-    // Trucks in repair: each row opens the repair record.
-    const truckPanel = fleet ? UI.wsPanel('Trucks in repair', 'bi-truck', inRepair.length ? `<ul class="ws-trucks mo-scroll">${inRepair.map(t => `<li class="clickable" data-open-job="${+t.job_id}" role="button" tabindex="0">
-          <div><b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ` <span class="text-muted">#${UI.esc(t.truck_number)}</span>` : ''}<div class="cell-sub">${UI.esc(t.job_ref)} · ${UI.esc(t.truck_type)}</div></div>
-          ${UI.badge(+t.awaiting_verification ? 'Awaiting verification' : t.status)}</li>`).join('')}</ul>` : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> Every truck is in service.</div>',
-      { cls: 'ws-r2', count: inRepair.length, go: 'maintenance' }) : '';
-
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
-    const attShown = att.slice(0, lim);
-    const act = Array.isArray(d.activity) ? d.activity : [];
-    const failed = d._errors || {};
-
-    const attentionBody = failed.attention ? '<div class="mo-empty text-danger">The list could not be loaded. Reload the page.</div>'
-      : attShown.length ? `<ul class="mo-list mo-scroll">${attShown.map(r => MaintOverview.attentionItem(r, can)).join('')}</ul>`
-        + (att.length > lim ? `<div class="mo-more">Showing the ${lim} records waiting the longest. <a href="#maintenance">Open Repair Management</a> for the rest.</div>` : '')
+    const todoBody = failed.attention ? '<div class="mo-empty text-danger">The list could not be loaded. Reload the page.</div>'
+      : att.length ? `<ul class="mo-list mo-scroll">${att.slice(0, lim).map(r => MaintOverview.attentionItem(r, can)).join('')}</ul>`
+        + (att.length > lim ? `<div class="mo-more">Showing the ${lim} records waiting the longest. <a href="#maintenance">Open Repairs</a> for the rest.</div>` : '')
       : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> Nothing needs your action right now.</div>';
-    const activityBody = failed.activity ? '<div class="mo-empty text-danger">Recent activity could not be loaded. Reload the page.</div>'
-      : act.length ? `<ul class="mo-acts mo-scroll">${act.map(MaintOverview.activityItem).join('')}</ul>`
-      : '<div class="mo-empty">No maintenance activity recorded yet.</div>';
+    const stale = Array.isArray(d.stale) ? d.stale : [];
+    const staleBody = stale.length ? `<ul class="ws-trucks mo-scroll">${stale.map(t => `<li class="clickable" data-open-job="${+t.job_id}" role="button" tabindex="0">
+        <div><b>${UI.esc(t.plate_number)}</b> <span class="text-muted">${UI.esc(t.job_ref)}</span><div class="cell-sub">${UI.esc(t.mechanic || 'No mechanic yet')}</div></div>
+        <div class="text-end"><span class="${+t.days >= 7 ? 'text-danger fw-semibold' : ''}">${UI.num(+t.days)} days</span><div>${UI.badge(t.status)}</div></div></li>`).join('')}</ul>`
+      : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> No repair has been open for 3 days or more.</div>';
+    const crewBody = !crew ? '' : crew.active ? UI.wsList([
+        UI.wsEntry('mechanic_attendance?duty=in', '<b>Available</b>', 'Timed in, no current repair', `<span class="badge-s green">${UI.num(crew.available)}</span>`),
+        UI.wsEntry('mechanics?availability=Assigned', '<b>On a repair</b>', 'Assigned to an open repair', `<span class="badge-s blue">${UI.num(crew.assigned)}</span>`),
+        UI.wsEntry('mechanic_attendance', '<b>Not timed in</b>', 'Time In first before assigning', `<span class="badge-s ${crew.unavailable ? 'amber' : 'gray'}">${UI.num(crew.unavailable)}</span>`)], '')
+      : '<div class="mo-empty">No active mechanics. Add them in Mechanics.</div>';
+    const partsBody = can.parts && s ? UI.wsList([
+        UI.wsEntry('mp_parts_requests?status=open', '<b>Waiting for release</b>', 'Sent to Purchasing', `<span class="badge-s amber">${UI.num(n('parts_requested'))}</span>`),
+        UI.wsEntry('mp_parts_requests?status=open', '<b>Partially released</b>', 'Some items still missing', `<span class="badge-s blue">${UI.num(n('parts_partially_released'))}</span>`),
+        UI.wsEntry('mp_parts_requests?status=not_available', '<b>Not available</b>', 'Purchasing must order them', `<span class="badge-s ${att.some(r => r.kind === 'parts') ? 'red' : 'gray'}">${UI.num(att.filter(r => r.kind === 'parts').length)}</span>`)], '') : '';
+    const monthBody = m ? UI.kv([['Repairs completed', UI.num(m.completed)], ['Average repair time', m.avg_days === null ? '—' : UI.esc(String(m.avg_days)) + ' days'],
+        ['Maintenance cost', UI.money(m.cost) + ' <span class="cell-sub">parts used + labor/services</span>']]) : '<div class="mo-empty">Not available.</div>';
 
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">
       ${UI.kpiTiles(tiles, 'ws-kpi4')}
-      ${UI.quickBar([can.act ? { label: 'Report truck issue', icon: 'bi-plus-lg', act: 'report', primary: true } : null,
-        { label: 'Repair management', icon: 'bi-wrench-adjustable', go: 'maintenance' },
-        can.requestParts ? { label: 'Parts requests', icon: 'bi-box-seam', go: 'mp_parts_requests' } : null,
-        { label: 'Mechanic attendance', icon: 'bi-clock-history', go: 'mechanic_attendance' },
-        { label: 'Reports', icon: 'bi-graph-up', go: 'maintenance_reports' }])}
+      ${can.act ? UI.quickBar([{ label: 'Report truck problem', icon: 'bi-plus-lg', act: 'report', primary: true }]) : ''}
       <div class="ws-grid2">
-        ${UI.wsPanel('Needs attention', 'bi-flag', attentionBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
-        ${crewPanel}
-        ${UI.wsPanel('Recent maintenance activity', 'bi-activity', activityBody, { cls: 'ws-l2', go: 'maint_history' })}
-        ${truckPanel}
+        ${UI.wsPanel('To do now', 'bi-flag', todoBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
+        ${crew ? UI.wsPanel('Mechanics on duty', 'bi-person-gear', crewBody, { cls: 'ws-r1', go: 'mechanic_attendance', foot: `${crew.on_duty} of ${crew.active} active mechanics are timed in.` }) : ''}
+        ${UI.wsPanel('Long-running repairs (3+ days)', 'bi-hourglass-split', staleBody, { cls: 'ws-l2', count: stale.length, go: 'maintenance' })}
+        ${partsBody ? UI.wsPanel('Parts requests', 'bi-box-seam', partsBody, { cls: 'ws-r2', go: 'mp_parts_requests' }) : ''}
+        ${UI.wsPanel('This month', 'bi-calendar3', monthBody, { cls: 'ws-r2' })}
       </div></div>`;
 
     const root = ctx.el.querySelector('.maint-overview');
