@@ -466,9 +466,9 @@
   position:sticky;
   top:0;
   z-index:1050;
-  background:#087A52 !important;
+  background:#12553F !important;
   background-image:none !important;
-  border-bottom:1px solid #076747 !important;
+  border-bottom:1px solid #0C422F !important;
   box-shadow:0 2px 9px rgba(7,61,40,.13);
   color:#fff !important;
   backdrop-filter:none;
@@ -480,7 +480,16 @@
 #appShell.sidebar-manual-toggle > .main > .topbar .crumb-page {
   color:#fff !important;
 }
-#appShell.sidebar-manual-toggle > .main > .topbar .crumbs { opacity:1; }
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .crumb-sec {
+  opacity:1 !important;
+  color:#E8FFF2 !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .crumb-page {
+  color:#FFFFFF !important;
+  font-weight:700;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .bi {color:#D5F1E2 !important;opacity:1 !important;}
 #appShell.sidebar-manual-toggle > .main > .topbar .crumbs a:hover { color:#e7fff1 !important; }
 #appShell.sidebar-manual-toggle > .main > .topbar .icon-btn,
 #appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
@@ -508,7 +517,7 @@
   background:#E5F2E7 !important;
 }
 #appShell.sidebar-manual-toggle > .main > .topbar .bell-count {
-  border-color:#087A52 !important;
+  border-color:#12553F !important;
 }
 @media (min-width:992px) {
   #appShell.sidebar-manual-toggle > .main > .topbar { position:sticky; }
@@ -521,25 +530,25 @@
     display:inline-flex !important;
     align-items:center;
     justify-content:center;
-    width:38px;
-    height:38px;
+    width:28px;
+    height:28px;
     padding:0;
     border-radius:50%;
     background:#fff !important;
-    border:2px solid #DCE8DE !important;
-    box-shadow:0 2px 8px rgba(11,51,30,.19);
+    border:1px solid #DCE8DE !important;
+    box-shadow:0 1px 5px rgba(11,51,30,.17);
     color:#126844 !important;
     cursor:pointer;
   }
   #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle:hover {
     background:#EAF6EE !important;
-    box-shadow:0 3px 10px rgba(11,51,30,.22);
+    box-shadow:0 2px 7px rgba(11,51,30,.2);
   }
   #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle:focus-visible {
     outline:3px solid #B5DDC5;
     outline-offset:3px;
   }
-  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle .bi {font-size:16px;line-height:1;}
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle .bi {font-size:13px;line-height:1;}
   #appShell.sidebar-manual-toggle.sb-collapsed.sb-hover-open > .sidebar {width:var(--sidebar-rail) !important;box-shadow:none;}
   #appShell.sidebar-manual-toggle.sb-collapsed.sb-hover-open > .main {margin-left:var(--sidebar-rail) !important;}
   #appShell.sidebar-manual-toggle .sidebar-top #sbCollapse {display:none !important;}
