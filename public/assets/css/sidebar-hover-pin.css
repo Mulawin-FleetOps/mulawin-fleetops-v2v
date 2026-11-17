@@ -289,3 +289,37 @@
    navigation colors. All authenticated roles use green sidebar styling. */
 #appShell.hover-pin-sidebar .sidebar .sidebar-brand .brand-product {color:#fff !important;}
 #appShell.hover-pin-sidebar .sidebar .sidebar-brand .brand-company {color:#d1e7d5 !important;}
+
+/* Submenu refinement: slightly smaller icons, indented children and a
+   crisp white selected page with a narrow yellow leading indicator.
+   Shared across all authenticated roles; parent headings stay neutral. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link {
+  width:calc(100% - 8px) !important;
+  margin-left:8px !important;
+  padding-left:16px !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link > .bi {
+  font-size:14px !important;
+  width:18px !important;
+  flex:0 0 18px !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  position:relative;
+  background:#fff !important;
+  color:#175a32 !important;
+  box-shadow:none !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active > .bi {
+  color:#175a32 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active::before {
+  content:"" !important;
+  display:block !important;
+  position:absolute;
+  left:0 !important;
+  top:7px !important;
+  bottom:7px !important;
+  width:4px !important;
+  border-radius:0 3px 3px 0;
+  background:#efbc37 !important;
+}
