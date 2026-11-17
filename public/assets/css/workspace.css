@@ -935,3 +935,22 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
  body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {padding:18px 20px}
  body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {padding:12px 20px}
 }
+
+/* MOTORPOOL_PARTS_FORM_V7 — modal-only visual treatment; no sidebar or reports. */
+.mp-parts-request-modal .modal-dialog { max-width:min(770px,calc(100vw - 24px)); }
+.mp-parts-request-modal .modal-content {border:1px solid #d6e6dc;border-radius:18px;overflow:hidden;background:#f9fcfa;box-shadow:0 20px 70px rgba(8,50,31,.18)}
+.mp-parts-request-modal .modal-header {background:linear-gradient(115deg,#f0f8f2,#fcfefd);padding:22px 28px 19px;border-bottom:1px solid #e2ebe5}
+.mp-parts-request-modal .modal-title {font-size:19px;color:#184c32;font-weight:750}
+.mp-parts-request-modal .modal-body {padding:23px 28px;background:#f9fcfa}
+.mp-parts-request-modal .modal-footer {padding:14px 28px;border-top:1px solid #e2ebe5;background:#fff;gap:8px}
+.mp-parts-request-modal .modal-footer .btn {border-radius:9px;padding:8px 15px;font-weight:700}
+.mp-parts-request-modal .mp-parts-items {background:#fff;border:1px solid #dfeae2;border-radius:12px;padding:15px 17px;margin-top:17px}
+.mp-parts-request-modal .mp-parts-items-head {display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:13px}
+.mp-parts-request-modal .mp-parts-items-head strong {font-size:14px;color:#234e35}
+.mp-parts-request-modal .mp-parts-line {display:flex;align-items:end;gap:9px;padding:11px 0;border-top:1px solid #edf2ee}
+.mp-parts-request-modal .mp-parts-line:first-child {border-top:0}
+.mp-parts-request-modal .mp-parts-line-fields {display:grid;grid-template-columns:minmax(0,1fr) 120px;flex:1;gap:10px}
+.mp-parts-request-modal .mp-parts-line .form-control,.mp-parts-request-modal .mp-parts-line .form-select {min-height:39px}
+.mp-parts-request-modal .mp-parts-remove {height:39px;min-width:39px;border-radius:9px}
+@media(max-width:650px){.mp-parts-request-modal .modal-header,.mp-parts-request-modal .modal-body,.mp-parts-request-modal .modal-footer{padding:17px 18px}
+.mp-parts-request-modal .mp-parts-line-fields{grid-template-columns:minmax(0,1fr) 85px}.mp-parts-request-modal .mp-parts-items{padding:12px}}
