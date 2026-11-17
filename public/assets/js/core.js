@@ -515,11 +515,14 @@ const App = {
     // both Dispatchers, Motorpool, Purchasing, Finance, Billing and Audit).
     // The server-provided me.nav still exclusively controls available links.
     const executiveSidebar = true;
-    // The approved demo pin model: compact rail by default, persistent per-role pin.
-    // Legacy collapse settings are intentionally not consulted.
-    const pinKey = 'fleetops-sidebar-pinned-' + u.role;
-    let pinned = false;
-    try { pinned = localStorage.getItem(pinKey) === '1'; } catch { /* storage unavailable */ }
+    // Expanded and pinned by default on desktop for every role.
+    // Use a versioned preference so an older compact-rail choice does not
+    // override the new default. Users may still unpin deliberately; when
+    // unpinned, the existing hover/focus expansion continues to work.
+    // Mobile always uses the responsive drawer regardless of this preference.
+    const pinKey = 'fleetops-sidebar-pinned-v2-' + u.role;
+    let pinned = true;
+    try { pinned = localStorage.getItem(pinKey) !== '0'; } catch { /* storage unavailable */ }
     const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
     <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : u.role === 'finance' ? ' finance-admin-sidebar' : u.role === 'billing' ? ' billing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
