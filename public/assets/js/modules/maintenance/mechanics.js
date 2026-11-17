@@ -114,6 +114,14 @@ App.page('mechanic_attendance', {
     const range = d.range || {};
     const isAdmin = App.me.user.role === 'admin';
     if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
+    // Direct Motorpool navigation: retain existing server permissions and sidebar appearance.
+    if (UI.role('motorpool')) {
+      [['Repair Management','maintenance','bi-wrench-adjustable'],
+       ['Parts Requests','mp_parts_requests','bi-box-seam'],
+       ['Maintenance History','maint_history','bi-clock-history']].forEach(([label, page, icon]) => {
+        if (UI.canGo(page)) UI.tool(ctx, label, () => App.go(page), icon);
+      });
+    }
     const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
     const on = board.filter(m => m.open_time_in);
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
