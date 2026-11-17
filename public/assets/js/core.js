@@ -445,6 +445,15 @@ const App = {
           if (label) label.textContent = 'Dashboard';
           dashboardLink.title = 'Dashboard';
         }
+        // Match the approved three-tile Dashboard icon for every role.
+        // Keep this as the existing single direct link, not an Overview submenu.
+        const oldDashboardIcon = dashboardLink.querySelector('i.bi');
+        if (oldDashboardIcon) {
+          oldDashboardIcon.outerHTML = '<svg class="bi" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<rect x="7" y="2.5" width="10" height="6" rx="1"/>'
+            + '<rect x="2" y="13" width="9" height="8" rx="1"/>'
+            + '<rect x="13" y="13" width="9" height="8" rx="1"/></svg>';
+        }
         menu.content.prepend(dashboardLink);
         nav = menu.innerHTML;
       }
