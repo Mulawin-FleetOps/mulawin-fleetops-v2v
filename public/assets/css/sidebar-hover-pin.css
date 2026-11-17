@@ -323,3 +323,33 @@
   border-radius:0 3px 3px 0;
   background:#efbc37 !important;
 }
+
+/* All-role selection state: a selected destination looks the same whether
+   it is a top-level link, a legacy grouped link or a submenu link.
+   Expanding an accordion alone never marks its heading as selected. */
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  position:relative !important;
+  background:#fff !important;
+  color:#175a32 !important;
+  box-shadow:none !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active > .bi {
+  color:#175a32 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active::before {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  left:0 !important;
+  top:7px !important;
+  bottom:7px !important;
+  width:4px !important;
+  border-radius:0 3px 3px 0 !important;
+  background:#efbc37 !important;
+}
