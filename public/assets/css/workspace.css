@@ -1233,3 +1233,43 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   #pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .table-search{flex:1 1 100%}
   #pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .form-select{min-width:140px}
 }
+
+/* PURCHASING_UNIFIED_FILTER_TOOLBAR_V10 */
+/* One shared compact toolbar for all Purchasing record lists.
+   Filter markup is moved to the existing shared UI.table search toolbar,
+   so no extra row, duplicate controls or whitespace remains. */
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 16px;margin:0;background:#fff;min-height:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-search{
+  flex:1 1 280px;min-width:180px;margin:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters{
+  display:flex;align-items:center;flex:0 1 auto;flex-wrap:wrap;
+  gap:8px;padding:0;margin:0;min-height:0;width:auto;background:none;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{
+  width:auto;min-width:142px;max-width:205px;min-height:40px;
+  margin:0;padding-top:7px;padding-bottom:7px;font-size:12px;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters input[type="date"]{
+  min-width:145px;max-width:180px;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .ws-filter-reset,
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .ref-reset{
+  margin:0;white-space:nowrap;flex:0 0 auto;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-count{
+  white-space:nowrap;margin:0;
+}
+@media(max-width:830px){
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-search{flex:1 1 100%;min-width:0}
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters{flex:1 1 auto}
+}
+@media(max-width:500px){
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar{padding:10px;gap:8px}
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{min-width:125px;max-width:100%}
+}
