@@ -447,12 +447,12 @@ App.page('maintenance', {
       ['Under Repair', repair.length, 'bi-wrench-adjustable', 'maintenance?view=repair', 'Complete corrective work'],
       ['Verify', verify.length, 'bi-shield-check', 'maintenance?view=verify', 'Return to service check']
     ];
-    const stageSummary = `<div class="mp-action-stages mb-3">${stageTiles.map(([name, count, icon, go, hint]) =>
+    const stageSummary = `<div class="mp-action-stages mp-reference-stages mb-3">${stageTiles.map(([name, count, icon, go, hint]) =>
       `<button type="button" class="mp-action-stage" data-go="${UI.esc(go)}">
         <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
         <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
         <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
-    ctx.el.innerHTML = stageSummary + `<section class="panel mb-3"><div class="panel-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2 small">
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary + `<section class="panel mb-3"><div class="panel-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2 small">
        <strong class="me-1">Repair workflow</strong>
        <span>Report issue</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
        <span>Assign mechanic</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
@@ -482,6 +482,7 @@ App.page('maintenance', {
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     const label = TABS.find(t => t[0] === tab)[1];
+    box.classList.add('mp-reference-table');
     if (tab === 'done') box.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
     else if (tab === 'all') box.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
     else { const rows = view ? open.filter(view[1]) : open.filter(j => j.status !== 'Completed');
@@ -544,11 +545,11 @@ App.page('mp_parts_requests', {
     const truckOptions = trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]);
     const waiting = byTruck.filter(r => MpParts.OPEN.includes(r.status));
     const pendingQty = waiting.reduce((sum, r) => sum + Math.max(0, (+r.requested_units || 0) - (+r.released_units || 0)), 0);
-    const partSummary = `<div class="mp-action-stages mp-parts-summary mb-3">
+    const partSummary = `<div class="mp-action-stages mp-parts-summary mp-reference-stages mb-3">
       <button type="button" class="mp-action-stage" data-go="mp_parts_requests?status=open"><span class="mp-action-stage-icon"><i class="bi bi-hourglass-split"></i></span><span class="mp-action-stage-content"><b>Open requests</b><small>Waiting on Purchasing</small></span><strong class="mp-action-stage-count">${waiting.length}</strong></button>
       <div class="mp-action-stage"><span class="mp-action-stage-icon"><i class="bi bi-box-seam"></i></span><span class="mp-action-stage-content"><b>Units still needed</b><small>Requested minus released</small></span><strong class="mp-action-stage-count">${UI.num(pendingQty)}</strong></div>
       <button type="button" class="mp-action-stage" data-go="mp_parts_requests?status=released"><span class="mp-action-stage-icon"><i class="bi bi-check-circle"></i></span><span class="mp-action-stage-content"><b>Released requests</b><small>Items provided by Purchasing</small></span><strong class="mp-action-stage-count">${inTab('released').length}</strong></button></div>`;
-    ctx.el.innerHTML = partSummary + UI.statusTabs('mp_parts_requests', { ...q, status: key }, 'status', TABS, key)
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + partSummary + UI.statusTabs('mp_parts_requests', { ...q, status: key }, 'status', TABS, key)
       + UI.filterModal(ctx, [{ name: 'vehicle_id', label: 'Truck', type: 'select', col: 12, options: truckOptions },
         { name: 'from', label: 'Requested from', type: 'date', col: 6 }, { name: 'to', label: 'Requested to', type: 'date', col: 6 }], { hint: 'All trucks and dates.' });
 
@@ -570,6 +571,7 @@ App.page('mp_parts_requests', {
     };
     const box = document.createElement('div');
     ctx.el.append(box);
+    box.classList.add('mp-reference-table');
     box.innerHTML = UI.table(cols, shown, { ...opt, title: TABS.find(t => t[0] === key)[1] + ' (' + shown.length + ')',
       empty: rows.length ? 'No parts request in this list.' : 'No parts requests yet. Use Request parts on a repair record.' });
     const once = UI.takeQuery(ctx, 'open');
@@ -677,7 +679,7 @@ App.page('maintenance_overview', {
     const monthBody = m ? UI.kv([['Repairs completed', UI.num(m.completed)], ['Average repair time', m.avg_days === null ? '—' : UI.esc(String(m.avg_days)) + ' days'],
         ['Maintenance cost', UI.money(m.cost) + ' <span class="cell-sub">parts used + labor/services</span>']]) : '<div class="mo-empty">Not available.</div>';
 
-    ctx.el.innerHTML = `<div class="maint-overview mp-ws">
+    ctx.el.innerHTML = `<div class="maint-overview mp-ws mp-wireframe-dashboard">
       ${kpis}
       ${UI.quickBar([
         can.act ? { label: 'Report truck problem', icon: 'bi-plus-lg', act: 'report', primary: true } : null,
@@ -685,7 +687,7 @@ App.page('maintenance_overview', {
         can.parts ? { label: 'Parts requests', icon: 'bi-box-seam', go: 'mp_parts_requests' } : null,
         { label: 'Mechanic attendance', icon: 'bi-clock-history', go: 'mechanic_attendance' }
       ])}
-      <div class="ws-grid2">
+      <div class="mp-wireframe-layout ws-grid2">
         ${UI.wsPanel('To do now', 'bi-flag', todoBody, { cls: 'mo-attention ws-l1', count: failed.attention ? undefined : att.length, go: 'maintenance' })}
         ${crew ? UI.wsPanel('Mechanics on duty', 'bi-person-gear', crewBody, { cls: 'ws-r1', go: 'mechanic_attendance', foot: `${crew.on_duty} of ${crew.active} active mechanics are timed in.` }) : ''}
         ${UI.wsPanel('Long-running repairs (3+ days)', 'bi-hourglass-split', staleBody, { cls: 'ws-l2', count: stale.length, go: 'maintenance' })}
