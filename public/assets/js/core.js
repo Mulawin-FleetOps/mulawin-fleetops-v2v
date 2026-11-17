@@ -530,6 +530,12 @@ const App = {
     document.getElementById('sbClose')?.addEventListener('click', () => bd.onclick());
     const pinButton = document.getElementById('sbCollapse');
     const appShell = document.getElementById('appShell');
+    const resetCollapsedNavScroll = () => {
+      if (appShell.classList.contains('sb-collapsed') && !appShell.classList.contains('sb-hover-open')) {
+        const nav = sb.querySelector('.sidebar-nav');
+        if (nav) nav.scrollTop = 0;
+      }
+    };
     const syncPinButton = () => {
       const on = appShell.classList.contains('sb-pinned');
       if (!pinButton) return;
@@ -548,6 +554,7 @@ const App = {
       try { localStorage.setItem(pinKey, next ? '1' : '0'); } catch { /* storage unavailable */ }
       document.querySelector('.executive-sidebar-flyout')?.remove();
       syncPinButton();
+      resetCollapsedNavScroll();
     });
     syncPinButton();
     // Debounce hover intent so quickly crossing the icon rail does not cause
@@ -576,7 +583,7 @@ const App = {
       if (!appShell.classList.contains('sb-pinned')) {
         hoverTimers.leave = setTimeout(() => {
           if (this._sidebarHoverTimers === hoverTimers && !appShell.classList.contains('sb-pinned'))
-            appShell.classList.remove('sb-hover-open');
+            { appShell.classList.remove('sb-hover-open'); resetCollapsedNavScroll(); }
         }, 110);
       }
     };
@@ -602,6 +609,7 @@ const App = {
       clearTimeout(hoverTimers.enter);
       clearTimeout(hoverTimers.leave);
       appShell.classList.remove('sb-hover-open');
+      resetCollapsedNavScroll();
       document.querySelector('.executive-sidebar-flyout')?.remove();
     };
     document.addEventListener('visibilitychange', () => {
