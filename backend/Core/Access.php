@@ -197,7 +197,7 @@ final class Access {
                 'billing' => ['Billing & Collections', 'Financial Oversight'],
                 'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'head-approvals' => ['Management Action Center', 'Management Control'],
-                                'admin' => ['User & Access Management', 'Management Control'],
+                'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
