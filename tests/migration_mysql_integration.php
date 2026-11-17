@@ -113,7 +113,34 @@ try {
     [$code,$out,$err] = $run('--apply');
     if ($code !== 0 || !str_contains($out, 'already up to date')) throw new RuntimeException("Repeat: $out $err");
     echo "PASS: all three migrations, backfill, history and repeat idempotence\n";
+    // Controlled partial-DDL failure must lock out future unattended attempts.
+    $failName='zzzz_ci_only_failure_' . bin2hex(random_bytes(4));
+    $failPath=dirname(__DIR__) . '/database/migrations/' . $failName . '.sql';
+    file_put_contents($failPath, "CREATE TABLE ci_partial_guard (id INT PRIMARY KEY) ENGINE=InnoDB;\n" .
+        "INSERT INTO ci_table_that_does_not_exist(id) VALUES(1);\n");
+    $approvedHashes[$failName.'.sql']=hash_file('sha256',$failPath);
+    file_put_contents($approvalPath,json_encode(['files'=>$approvedHashes],JSON_PRETTY_PRINT));
+    [$code,$out,$err]=$run('--auto');
+    if ($code!==0 || !str_contains($out,'settling')) {
+        throw new RuntimeException("Failure fixture first check: $out $err");
+    }
+    [$code,$out,$err]=$run('--auto');
+    if ($code===0 || !is_file($autoDir . '/migration-failed.lock')) {
+        throw new RuntimeException("Failed SQL was not locked out: $out $err");
+    }
+    $partial=(int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ci_partial_guard'")->fetchColumn();
+    $badHistory=(int)$db->query("SELECT COUNT(*) FROM schema_migrations WHERE id=" . $db->quote($failName))->fetchColumn();
+    if ($partial!==1 || $badHistory!==0) {
+        throw new RuntimeException('Unexpected partial migration state');
+    }
+    [$code,$out,$err]=$run('--auto');
+    if ($code===0 || !str_contains($err,'Previous migration failed')) {
+        throw new RuntimeException("Automatic retry was not blocked: $out $err");
+    }
+    echo "PASS: partial DDL failure halts history and locks out automatic retries\n";
+
 } finally {
+    if (isset($failPath) && is_file($failPath)) unlink($failPath);
     if (isset($approvalPath, $approvalOriginal) && is_string($approvalOriginal)) {
         file_put_contents($approvalPath,$approvalOriginal);
     }
