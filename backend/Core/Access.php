@@ -186,19 +186,21 @@ final class Access {
         if (($u['role'] ?? null) === 'admin') {
             // Head Management uses a purpose-built executive navigation. Original
             // page URLs/permissions remain available for existing cross-page links.
+            // Executive sidebar order: Dashboard, Management Control,
+            // Client & Commercial, Operations Oversight, Financial Oversight, Analytics.
             $structure = [
                 'dashboard' => ['Executive Dashboard', null],
-                'head-trips' => ['Trip Monitoring', 'Operations Oversight'],
-                'head-fleet' => ['Fleet & Personnel Status', 'Operations Oversight'],
-                'maintenance' => ['Maintenance Monitoring', 'Operations Oversight'],
-                'clients' => ['Client Management', 'Client & Commercial'],
-                'routes' => ['Route & Contract Rates', 'Client & Commercial'],
-                'finance' => ['Financial Overview', 'Financial Oversight'],
-                'billing' => ['Billing & Collections', 'Financial Oversight'],
-                'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'head-approvals' => ['Management Action Center', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
+                'clients' => ['Client Management', 'Client & Commercial'],
+                'routes' => ['Route & Contract Rates', 'Client & Commercial'],
+                'head-trips' => ['Trip Monitoring', 'Operations Oversight'],
+                'head-fleet' => ['Fleet & Personnel Status', 'Operations Oversight'],
+                'maintenance' => ['Maintenance Monitoring', 'Operations Oversight'],
+                'finance' => ['Financial Overview', 'Financial Oversight'],
+                'billing' => ['Billing & Collections', 'Financial Oversight'],
+                'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
             ];
