@@ -94,6 +94,16 @@ final class Maintenance {
             'summary' => fn() => self::overviewSummary($p, $parts),
             'attention' => fn() => self::overviewAttention($p, $parts),
             'activity' => fn() => self::overviewActivity($p, $parts),
+            // MOTORPOOL_UI_V2 dashboard: fleet status (replaces the Truck Masterlist menu), long-running repairs, this month.
+            'fleetStatus' => fn() => array_map('intval', one($p, "SELECT COALESCE(SUM(status='Available'),0) AS available,
+                    COALESCE(SUM(status='On Trip'),0) AS on_trip, COALESCE(SUM(status='Assigned'),0) AS assigned, COALESCE(SUM(status='Under Maintenance'),0) AS under_maintenance,
+                    COALESCE(SUM(status='Unavailable'),0) AS unavailable, COUNT(*) AS active FROM vehicles WHERE active=1")),
+            'stale' => fn() => many($p, "SELECT m.id AS job_id, m.job_ref, m.status, v.plate_number, mc.full_name AS mechanic,
+                    DATEDIFF(CURRENT_DATE(), m.reported_on) AS days
+                FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id
+                WHERE m.open_key=1 AND m.status IN ('Reported','Under Inspection','Under Repair') AND DATEDIFF(CURRENT_DATE(), m.reported_on) >= " . self::STALE_DAYS . "
+                ORDER BY days DESC, m.id LIMIT 10"),
+            'month' => fn() => self::overviewMonth($p),
             // STAGE_A_MOTORPOOL_UI: read-only status panels (same values as the Mechanic Masterlist / Truck Masterlist).
             'crew' => fn() => array_map('intval', one($p, "SELECT COUNT(*) AS active,
                     COALESCE(SUM(availability='Available'),0) AS available, COALESCE(SUM(availability='Assigned'),0) AS assigned,
@@ -110,6 +120,24 @@ final class Maintenance {
         $data['can'] = ['act' => hasRole($u, ...self::ACT), 'parts' => $parts, 'requestParts' => hasRole($u, 'motorpool')];
         $data['limits'] = ['attention' => self::OVERVIEW_ATTENTION_LIMIT, 'activity' => self::OVERVIEW_ACTIVITY_LIMIT];
         return $data;
+    }
+
+    /** MOTORPOOL_UI_V2: an open repair waiting this many days or more is listed as long-running on the dashboard. */
+    public const STALE_DAYS = 3;
+
+    /**
+     * MOTORPOOL_UI_V2 — this month: repairs returned to service, average days from report to completion, and cost
+     * (parts released to repairs at their release cost + labor/services incurred). Same cost rules as Maintenance Reports.
+     */
+    private static function overviewMonth(PDO $p): array {
+        $from = date('Y-m-01');
+        $done = one($p, "SELECT COUNT(*) AS n, AVG(DATEDIFF(completed_on, reported_on)) AS avg_days FROM maintenance_jobs
+            WHERE verified_at >= ? AND completed_on IS NOT NULL", [$from]);
+        $parts = (float)one($p, "SELECT COALESCE(SUM(-quantity_delta*unit_cost),0) AS v FROM stock_movements
+            WHERE movement_type='Stock Out' AND maintenance_job_id IS NOT NULL AND created_at >= ?", [$from])['v'];
+        $other = (float)one($p, 'SELECT COALESCE(SUM(amount),0) AS v FROM maintenance_costs WHERE incurred_on >= ?', [$from])['v'];
+        return ['completed' => (int)$done['n'], 'avg_days' => $done['avg_days'] === null ? null : round((float)$done['avg_days'], 1),
+            'cost' => round($parts + $other, 2), 'from' => $from];
     }
 
     /** One row per maintenance record / parts request, so related events are never counted twice. */

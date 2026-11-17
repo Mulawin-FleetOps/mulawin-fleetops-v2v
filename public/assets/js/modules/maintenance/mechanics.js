@@ -14,7 +14,7 @@ const MechUI = {
       { name: 'notes', label: 'Notes', col: 12, value: m.notes }],
       'Mechanics.save', { extra: m.id ? { id: m.id } : {}, size: '', intro: m.id ? '' : 'The Mechanic ID (MEC-###) is given by the system. New mechanics start Unavailable until they Time In.' });
   },
-  /** Time In / Time Out: the server checks the saved state; the screen is reloaded from it (no alert or confirm dialogs). */
+  /** Attendance page only: the server checks saved Time In / Time Out state. */
   async toggle(m, btn) {
     if (btn) btn.disabled = true;
     try {
@@ -31,7 +31,7 @@ const MechUI = {
     const acts = [];
     if (can && +m.active) {
       acts.push(['edit', 'Edit', 'outline-secondary', 'bi-pencil']);
-      acts.push(['toggle', timedIn ? 'Time Out' : 'Time In', timedIn ? 'outline-secondary' : 'success', 'bi-clock']);
+
       acts.push(['deact', 'Deactivate', 'outline-danger', '']);
     } else if (can) acts.push(['react', 'Reactivate', 'outline-success', '']);
     const html = `<div class="mb-2">${UI.badge(+m.active ? m.availability : 'Inactive')}</div>
@@ -46,7 +46,6 @@ const MechUI = {
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'edit') MechUI.form(m);
-      if (a === 'toggle') { UI.closeDrawer?.(); MechUI.toggle({ id: m.id, timed_in: timedIn ? 1 : 0 }); }
       if (a === 'deact') UI.confirmAction('Deactivate ' + UI.esc(m.full_name), 'The mechanic is removed from the lists. Repair history is kept.', 'Mechanics.set_active', { id: m.id, active: 0 }, { danger: true, submit: 'Deactivate' });
       if (a === 'react') UI.confirmAction('Reactivate ' + UI.esc(m.full_name), 'The mechanic returns to the masterlist.', 'Mechanics.set_active', { id: m.id, active: 1 });
     });
@@ -66,10 +65,15 @@ App.page('mechanics', {
     const key = q.inactive ? 'inactive' : (AV.includes(q.availability) ? q.availability : '');
     const rows = key === 'inactive' ? inactive : key ? active.filter(m => m.availability === key) : active;
     const tab = (spec, label, n, on) => `<button type="button" role="tab" aria-selected="${on}" class="tab ${on ? 'active' : ''}" data-go="${UI.esc(spec)}">${UI.esc(label)} <span class="tab-count">${UI.num(n)}</span></button>`;
-    ctx.el.innerHTML = `<div class="line-tabs ws-status-tabs no-print" role="tablist">${tab('mechanics', 'All active', active.length, key === '')}
+    const statusSummary = `<div class="mp-action-stages mb-3">
+      <button type="button" class="mp-action-stage" data-go="mechanics?availability=Available"><span class="mp-action-stage-icon"><i class="bi bi-person-check"></i></span><span class="mp-action-stage-content"><b>Available</b><small>Timed in, ready to assign</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Available').length}</strong></button>
+      <button type="button" class="mp-action-stage" data-go="mechanics?availability=Assigned"><span class="mp-action-stage-icon"><i class="bi bi-wrench-adjustable"></i></span><span class="mp-action-stage-content"><b>Assigned</b><small>Working on a repair</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Assigned').length}</strong></button>
+      <button type="button" class="mp-action-stage" data-go="mechanics?availability=Unavailable"><span class="mp-action-stage-icon"><i class="bi bi-person-dash"></i></span><span class="mp-action-stage-content"><b>Not on duty</b><small>Must Time In before assignment</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Unavailable').length}</strong></button></div>`;
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + statusSummary + `<div class="line-tabs ws-status-tabs no-print" role="tablist">${tab('mechanics', 'All active', active.length, key === '')}
       ${AV.map(a => tab('mechanics?availability=' + a, a === 'Assigned' ? 'On a repair' : a, active.filter(m => m.availability === a).length, key === a)).join('')}
       ${tab('mechanics?inactive=1', 'Inactive', inactive.length, key === 'inactive')}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
+    box.classList.add('mp-reference-table');
     box.innerHTML = UI.table([
       ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
       ['Specialization', 'specialization'],
@@ -78,8 +82,8 @@ App.page('mechanics', {
       ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
       ['Completed repairs', 'completed_jobs', 'num']], rows,
       { showAllColumns: true, directActions: true,
-        actions: (m) => (d.can.edit && +m.active ? UI.ibtn('toggle', +m.timed_in ? 'Time Out' : 'Time In', 'bi-clock', +m.timed_in ? 'outline-secondary' : 'outline-primary') : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
-        onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
+        actions: () => UI.ibtn('view', 'Open mechanic', 'bi-eye'),
+        onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: d.mechanics.length ? 'No mechanic in this list.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
   },
 });
@@ -109,9 +113,20 @@ App.page('mechanic_attendance', {
     const range = d.range || {};
     const isAdmin = App.me.user.role === 'admin';
     if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
+    // Direct Motorpool navigation: retain existing server permissions and sidebar appearance.
+    if (UI.role('motorpool')) {
+      [['Repair Management','maintenance','bi-wrench-adjustable'],
+       ['Parts Requests','mp_parts_requests','bi-box-seam'],
+       ['Maintenance History','maint_history','bi-clock-history']].forEach(([label, page, icon]) => {
+        if (UI.canGo(page)) UI.tool(ctx, label, () => App.go(page), icon);
+      });
+    }
     const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
     const on = board.filter(m => m.open_time_in);
-    ctx.el.innerHTML = UI.statusTabs('mechanic_attendance', q, 'duty', [['', 'All mechanics', board.length], ['in', 'On duty', on.length], ['out', 'Not timed in', board.length - on.length]], duty);
+    const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-go="mechanics"><i class="bi bi-people"></i> Mechanic masterlist</button></div></div>`;
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'duty', [['', 'All mechanics', board.length], ['in', 'On duty', on.length], ['out', 'Not timed in', board.length - on.length]], duty);
     const rows = board.filter(m => !duty || (duty === 'in' ? !!m.open_time_in : !m.open_time_in)).map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
     const box = document.createElement('div'); ctx.el.append(box);
     // Buttons call the existing actions only (MechUI.toggle -> Mechanics.time_in / time_out, server-checked; MechUI.open -> Mechanics.details).
