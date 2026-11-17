@@ -82,32 +82,81 @@ const MaintUI = {
       'Maintenance.report', { submit: 'Report problem', size: 'modal-lg',
         intro: 'The date and time reported are recorded automatically when you click Report problem. The truck is taken out of service at once (Under Maintenance) and cannot be assigned to trips until the repair is completed and verified.' });
   },
-  /** Parts request form (Request Form). Motorpool sees part identity and availability only: no costs, no stock counts. */
+  /** Motorpool Parts Request: existing Purchasing backend, clear line-item editing and safe truck/repair linking. */
   async requestParts(vehicleId, jobId) {
-    const d = MaintUI.data;
-    let parts; try { parts = (await App.api('Purchasing.request_catalog')).parts; } catch (e) { return UI.toast(e.message, 'error'); }
-    const openJobs = (d.jobs || []).filter(j => ['Under Inspection', 'Under Repair'].includes(j.status));
-    const row = () => `<div class="row g-2 mb-1 pl-row"><div class="col-9"><select class="form-select form-select-sm" data-part><option value="">Choose part…</option>
-        ${parts.map(p => `<option value="${p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)} (${UI.esc(p.availability)})</option>`).join('')}</select></div>
-      <div class="col-3"><input class="form-control form-control-sm" type="number" min="1" max="100000" placeholder="Qty" data-qty></div></div>`;
-    UI.modal('Request parts', UI.fields([
-      { name: 'vehicle_id', label: 'Truck', type: 'select', required: true, col: 6, value: vehicleId, options: d.trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]) },
-      { name: 'maintenance_job_id', label: 'For repair record', type: 'select', col: 6, value: jobId, options: openJobs.map(j => [j.id, j.job_ref + ' · ' + j.plate_number + ' · ' + j.problem.slice(0, 30)]),
-        help: 'Choose the open repair these parts are for.' },
-      { name: 'purpose', label: 'Reason for the request', required: true, col: 12 }])
-      + `<div class="mt-2"><div class="small text-muted mb-1">Part · Quantity</div><div data-lines>${row()}${row()}${row()}</div>
-         <button type="button" class="btn btn-sm btn-link p-0" data-addrow>+ Add item</button></div>`,
-      async (x, form, w) => {
-        const lines = [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value })).filter(l => l.part_id || l.quantity);
-         if (!lines.length || lines.some(l => !l.part_id || !/^\d+$/.test(String(l.quantity)) || +l.quantity < 1 || +l.quantity > 100000)) {
-           throw new Error('Choose at least one part. Each part needs a whole-number quantity from 1 to 100000.');
-         }
-         if (new Set(lines.map(l => String(l.part_id))).size !== lines.length) {
-           throw new Error('A part can only appear once in a request. Combine its quantity into one row.');
-         }
-        const r = await App.api('Purchasing.request_create', { ...x, lines }); UI.result(r); App.route();
-      },
-      { submit: 'Send to Purchasing', onShow: (w) => { w.querySelector('[data-addrow]').onclick = () => w.querySelector('[data-lines]').insertAdjacentHTML('beforeend', row()); } });
+    const d = MaintUI.data || {};
+    let parts;
+    try { parts = (await App.api('Purchasing.request_catalog')).parts || []; }
+    catch (e) { return UI.toast(e.message, 'error'); }
+    const trucks = Array.isArray(d.trucks) ? d.trucks : [];
+    const openJobs = (Array.isArray(d.jobs) ? d.jobs : []).filter(j => ['Under Inspection', 'Under Repair'].includes(j.status));
+    const partOptions = parts.map(p =>
+      `<option value="${+p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)} (${UI.esc(p.availability)})</option>`).join('');
+    const item = () => `<div class="mp-parts-line" data-part-row>
+      <div class="mp-parts-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part>
+        <option value="">Select a part…</option>${partOptions}</select></div>
+        <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty></div></div>
+      <button type="button" class="btn btn-outline-danger btn-sm mp-parts-remove" data-remove-part title="Remove item" aria-label="Remove item"><i class="bi bi-trash"></i></button></div>`;
+    const content = `<p class="modal-intro"><i class="bi bi-box-seam me-2" aria-hidden="true"></i>Request items for an active repair. Purchasing checks stock and handles release; quantities and status will appear in Parts Requests.</p>
+      ${UI.fields([
+        { name: 'vehicle_id', label: 'Truck', type: 'select', required: true, col: 6, value: vehicleId,
+          options: trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]) },
+        { name: 'maintenance_job_id', label: 'For repair record (optional)', type: 'select', col: 6, value: jobId,
+          options: openJobs.map(j => [j.id, j.job_ref + ' · ' + j.plate_number + ' · ' + (j.problem || '').slice(0, 30)]),
+          help: 'Only inspection/repair records for the selected truck are available.' },
+        { name: 'purpose', label: 'Reason for request', type: 'textarea', col: 12, required: true,
+          placeholder: 'Describe why these parts are needed.' }
+      ])}
+      <section class="mp-parts-items"><div class="mp-parts-items-head"><div><strong>Parts needed</strong><div class="small text-muted">Choose a part and enter its requested quantity.</div></div>
+        <button type="button" class="btn btn-outline-primary btn-sm" data-add-part><i class="bi bi-plus-lg me-1"></i>Add item</button></div>
+        <div data-part-list>${item()}</div><div class="small text-muted mt-2" data-part-count>1 item row</div></section>`;
+    const wrap = UI.modal('Request parts', content, async (values, form, dialog) => {
+      const lines = [...dialog.querySelectorAll('[data-part-row]')].map(r => ({
+        part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value
+      })).filter(x => x.part_id || x.quantity);
+      if (!lines.length || lines.some(x => !x.part_id || !/^\d+$/.test(String(x.quantity)) || +x.quantity < 1 || +x.quantity > 100000))
+        throw new Error('Select at least one part with a whole-number quantity from 1 to 100000.');
+      if (new Set(lines.map(x => String(x.part_id))).size !== lines.length)
+        throw new Error('Duplicate parts are not allowed. Combine quantities into one item.');
+      const job = openJobs.find(j => String(j.id) === String(values.maintenance_job_id));
+      if (job && String(job.vehicle_id) !== String(values.vehicle_id))
+        throw new Error('The chosen repair belongs to a different truck.');
+      const res = await App.api('Purchasing.request_create', { ...values, lines });
+      UI.result(res); App.route();
+    }, { submit: 'Send to Purchasing', size: 'modal-lg',
+      onShow: (dialog, form) => {
+        dialog.classList.add('mp-parts-request-modal');
+        const truckSelect = form.querySelector('[name="vehicle_id"]');
+        const jobSelect = form.querySelector('[name="maintenance_job_id"]');
+        const allJobs = [...jobSelect.options].map(o => ({ value:o.value, label:o.textContent }));
+        const refreshJobs = () => {
+          const desired = jobSelect.value || String(jobId || '');
+          jobSelect.innerHTML = '<option value="">No linked repair</option>';
+          allJobs.filter(o => o.value && openJobs.some(j => String(j.id) === o.value && String(j.vehicle_id) === String(truckSelect.value)))
+            .forEach(o => jobSelect.add(new Option(o.label, o.value)));
+          if ([...jobSelect.options].some(o => o.value === desired)) jobSelect.value = desired;
+        };
+        truckSelect.addEventListener('change', refreshJobs);
+        refreshJobs();
+        const list = dialog.querySelector('[data-part-list]'), count = dialog.querySelector('[data-part-count]');
+        const sync = () => {
+          const rows = [...list.querySelectorAll('[data-part-row]')];
+          count.textContent = rows.length + ' item row' + (rows.length === 1 ? '' : 's');
+          rows.forEach(r => { r.querySelector('[data-remove-part]').disabled = rows.length === 1; });
+        };
+        dialog.querySelector('[data-add-part]').addEventListener('click', () => {
+          list.insertAdjacentHTML('beforeend', item()); sync();
+        });
+        list.addEventListener('click', event => {
+          const btn = event.target.closest('[data-remove-part]');
+          if (!btn || list.querySelectorAll('[data-part-row]').length <= 1) return;
+          btn.closest('[data-part-row]').remove(); sync();
+        });
+        if (!parts.length) dialog.querySelector('[data-part-list]').insertAdjacentHTML('beforebegin',
+          '<div class="alert alert-warning">No parts in the Purchasing catalog yet. Add parts through an authorized Purchasing account.</div>');
+        sync();
+      } });
+    return wrap;
   },
   /** Fulfilment progress of one parts request: requested vs released units and current availability. */
   async openRequest(rq) {
