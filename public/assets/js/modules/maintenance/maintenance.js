@@ -99,7 +99,7 @@ const MaintUI = {
          <button type="button" class="btn btn-sm btn-link p-0" data-addrow>+ Add item</button></div>`,
       async (x, form, w) => {
         const lines = [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value })).filter(l => l.part_id || l.quantity);
-         if (!lines.length || lines.some(l => !l.part_id || !/^\\d+$/.test(String(l.quantity)) || +l.quantity < 1 || +l.quantity > 100000)) {
+         if (!lines.length || lines.some(l => !l.part_id || !/^\d+$/.test(String(l.quantity)) || +l.quantity < 1 || +l.quantity > 100000)) {
            throw new Error('Choose at least one part. Each part needs a whole-number quantity from 1 to 100000.');
          }
          if (new Set(lines.map(l => String(l.part_id))).size !== lines.length) {
