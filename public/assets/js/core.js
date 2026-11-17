@@ -376,8 +376,8 @@ const App = {
         nav = take(['maintenance_overview']).map(wsLink).join('');
         const groups = [
           { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
-          { title:'Workforce', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
-          { title:'Records & Reports', icon:'bi-journal-text', ids:['maint_history','maintenance_reports'] }
+          { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
+          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','maintenance_reports'] }
         ];
         nav += groups.map(group => {
           const entries = take(group.ids);
@@ -942,9 +942,9 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
    me.nav (Access::navFor) lists it, so no unauthorized page can be shown. Other permitted pages are grouped below
    under short headings (Fleet & trips, Maintenance, Purchasing, Accounting, Records). Other roles keep the old menu. */
 UI.WS_MENUS = {
-  motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Overview', 'bi-speedometer2'], ['maintenance', 'Repair Management', 'bi-wrench-adjustable'],
-    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanic Masterlist', 'bi-person-gear'],
-    ['mechanic_attendance', 'Mechanic Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up']] },
+  motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
+    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
     ['purchasing_reports', 'Reports', 'bi-graph-up']] },
