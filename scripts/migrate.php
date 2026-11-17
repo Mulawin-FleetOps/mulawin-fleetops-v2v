@@ -103,7 +103,13 @@ try {
         if (is_file($private . '/migration-failed.lock')) {
             throw new RuntimeException('Previous migration failed; manual schema reconciliation required.');
         }
-        $ready = migrationAutoPrepare(dirname(__DIR__), $pending, $private, 300);
+        $stabilitySeconds = 300;
+        if (getenv('CI') === 'true' && envValue('DB_HOST') === '127.0.0.1'
+            && getenv('MYSQL_TEST_ALLOW_CREATE') === '1'
+            && getenv('MIGRATIONS_CI_FAST_STABILITY') === '1') {
+            $stabilitySeconds = 0; // strictly disposable CI; never use on Hostinger
+        }
+        $ready = migrationAutoPrepare(dirname(__DIR__), $pending, $private, $stabilitySeconds);
         if ($ready === null) {
             echo "Deployed files are settling; no SQL applied.\n";
             exit(0);
@@ -124,7 +130,7 @@ try {
         if (!rename($receiptTemp, $receipt)) throw new RuntimeException('Cannot finalize receipt.');
         migrationReleaseCheck(dirname(__DIR__), $receipt, $pending);
         // Recheck that the deployment did not change during the backup.
-        $again = migrationAutoPrepare(dirname(__DIR__), $pending, $private, 300);
+        $again = migrationAutoPrepare(dirname(__DIR__), $pending, $private, $stabilitySeconds);
         if ($again === null || $again['digest'] !== $ready['digest']) {
             throw new RuntimeException('Deployment changed while backing up; migration blocked.');
         }
