@@ -89,10 +89,10 @@ function migrationSqlStatements(string $sql): array
     if (trim($buffer) !== '') $statements[] = trim($buffer);
 
     foreach ($statements as $statement) {
-        if (preg_match('/^\\s*(DELIMITER|SOURCE)\\b/i', $statement)) {
+        if (preg_match('/^\s*(DELIMITER|SOURCE)\b/i', $statement)) {
             throw new RuntimeException('MySQL client directives are not supported in migrations.');
         }
-        if (preg_match('/^\\s*CREATE\\s+(?:DEFINER\\s*=\\s*[^ ]+\\s+)?(?:PROCEDURE|FUNCTION|TRIGGER|EVENT)\\b/i', $statement)) {
+        if (preg_match('/^\s*CREATE\s+(?:DEFINER\s*=\s*[^ ]+\s+)?(?:PROCEDURE|FUNCTION|TRIGGER|EVENT)\b/i', $statement)) {
             throw new RuntimeException('Stored routines/triggers are not supported by this SQL splitter.');
         }
     }
