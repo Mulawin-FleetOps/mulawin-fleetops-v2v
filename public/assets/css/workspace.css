@@ -1010,3 +1010,363 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .mp-records-heading{padding:14px 15px;align-items:flex-start}
  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-tools{padding:12px}
 }
+
+/* PURCHASING_LIVE_WIREFRAME_V1 */
+/* Actual Purchasing workspace, scoped only to its own pages. Existing UI.table actions and server state remain intact. */
+#pageContent .purchasing-live-v1{--purch-line:#dfe9e2;--purch-ink:#203e2d;--purch-muted:#728576;color:var(--purch-ink)}
+#pageContent .purchasing-live-v1 .ws-kpi4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:17px}
+#pageContent .purchasing-live-v1 .ws-kpi4 > *{min-width:0;border:1px solid var(--purch-line);border-radius:13px;box-shadow:0 1px 3px rgba(12,54,28,.04);background:#fff}
+#pageContent .purchasing-live-v1 .ws-grid2{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
+#pageContent .purchasing-live-v1 .ws-grid2 > .panel{border:1px solid var(--purch-line);border-radius:13px;overflow:hidden;box-shadow:0 1px 3px rgba(12,54,28,.04);background:#fff}
+#pageContent .purchasing-live-v1 .ws-grid2 .panel-head{padding:17px 18px;border-bottom:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .purchasing-records-card{background:#fff;border:1px solid var(--purch-line);border-radius:13px;overflow:hidden;margin-top:17px;box-shadow:0 1px 3px rgba(12,54,28,.04)}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-tools,
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-toolbar{padding:16px 19px;background:#fff}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-search .form-control{min-height:44px;border-radius:9px;border-color:#d5e2d9}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table th{padding:13px 15px;background:#f5f8f6;color:#455f4d;font-size:12px;font-weight:700;border-bottom:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table td{padding:14px 15px;line-height:1.45;border-color:#e9eee9;vertical-align:middle}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table tbody tr:hover td{background:#f7faf8}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-pager{padding:12px 17px;border-top:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .ws-status-tabs{gap:8px;margin:15px 0}
+#pageContent .purchasing-live-v1 .ws-status-tabs .tab{background:#fff;border:1px solid #d9e7dd;border-radius:8px;padding:10px 14px;min-height:38px}
+#pageContent .purchasing-live-v1 .ws-status-tabs .tab.active{background:#e7f4ea;border-color:#a1cdb0;color:#1a6a3d;font-weight:700}
+.purchasing-po-modal .modal-content{border:1px solid #d8e6dc;border-radius:17px;overflow:hidden;background:#fafdFB;box-shadow:0 20px 65px rgba(9,48,26,.18)}
+.purchasing-po-modal .modal-header{background:#eef8f1;padding:21px 25px;border-bottom:1px solid #e0eae3}
+.purchasing-po-modal .modal-title{font-size:19px;font-weight:750;color:#1a5535}
+.purchasing-po-modal .modal-body{padding:22px 25px;background:#fafdFB}
+.purchasing-po-modal .modal-footer{background:#fff;padding:15px 25px;border-top:1px solid #e0eae3}
+.purchasing-po-modal .modal-footer .btn{border-radius:9px;padding:9px 15px}
+.purchasing-po-modal .purchasing-line-editor{background:#fff;border:1px solid #dce8df;border-radius:12px;padding:16px 18px;margin-top:14px}
+.purchasing-po-modal .purchasing-line-title{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.purchasing-po-modal .purchasing-line-title strong{display:block;font-size:14px;color:#28543a}
+.purchasing-po-modal .purchasing-line-title small{display:block;font-size:12px;color:#788b7d;margin-top:3px}
+.purchasing-po-modal .purchasing-line{display:flex;gap:8px;align-items:end;padding:12px 0;border-top:1px solid #edf2ee;flex-wrap:wrap}
+.purchasing-po-modal .purchasing-line:first-child{border-top:0}
+.purchasing-po-modal .purchasing-line-fields{display:grid;grid-template-columns:minmax(0,1fr) 91px 124px;gap:10px;flex:1;min-width:0}
+.purchasing-po-modal .purchasing-line .form-control,.purchasing-po-modal .purchasing-line .form-select{min-height:40px}
+.purchasing-po-modal .purchasing-line-amount{min-width:108px;font-weight:700;font-size:12px;color:#376348;text-align:right;padding-bottom:11px}
+.purchasing-po-modal .purchasing-remove{height:40px;min-width:40px;border-radius:9px}
+.purchasing-po-modal .purchasing-line-total{text-align:right;padding:12px 0 4px;font-size:15px;font-weight:750;color:#1e5835;border-top:1px solid #e6eee8}
+@media(max-width:1100px){#pageContent .purchasing-live-v1 .ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr))}#pageContent .purchasing-live-v1 .ws-grid2{grid-template-columns:1fr}}
+@media(max-width:680px){#pageContent .purchasing-live-v1 .ws-kpi4{grid-template-columns:1fr 1fr}.purchasing-po-modal .purchasing-line-fields{grid-template-columns:minmax(0,1fr) 90px}.purchasing-po-modal .purchasing-line-fields>div:last-child{grid-column:1/-1}.purchasing-po-modal .modal-body,.purchasing-po-modal .modal-header,.purchasing-po-modal .modal-footer{padding:16px}.purchasing-po-modal .purchasing-line-editor{padding:12px}}
+
+/* PURCHASING_SOURCE_HTML_FIDELITY_V2 */
+/* Adapted from user-provided Purchasing interactive HTML: source styles scoped to real Purchasing page roots.
+   App shell/sidebar intentionally retain production behavior, permissions and pinned navigation. */
+#pageContent .purchasing-live-v1, #pageContent .purchasing-dashboard-ref{
+ --pw-deep:#113d29; --pw-green:#1a6942; --pw-pale:#edf7ef;
+ --pw-bg:#f4f7f5; --pw-border:#dfe9e2; --pw-text:#20372b; --pw-muted:#728679;
+ --pw-shadow:0 2px 8px rgba(24,65,38,.045); font-size:13px; color:var(--pw-text);
+}
+#pageContent .purchasing-live-v1 .kpi-tiles.ws-kpi4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:14px 0 17px}
+#pageContent .purchasing-live-v1 .kpi-tile{border:1px solid var(--pw-border);background:#fff;border-radius:12px;min-height:122px;padding:18px;box-shadow:var(--pw-shadow);display:flex;gap:13px;align-items:flex-start}
+#pageContent .purchasing-live-v1 .kpi-tile:hover{border-color:#aacdb5;background:#fcfefd}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-icon{width:39px;height:39px;min-width:39px;background:var(--pw-pale);border-radius:10px;color:var(--pw-green);display:grid;place-items:center;font-size:19px}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-body{display:flex;flex-direction:column;min-width:0}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-label{color:#3c5745;font-size:12px;font-weight:700;order:-1}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-value{color:#175a35;font-size:28px;line-height:1.3;font-weight:800;margin:8px 0 2px}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-note{font-size:12px;color:#7a9080;line-height:1.4}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-go{margin-left:auto;color:#8aaa94}
+#pageContent .purchasing-live-v1 .mo-quickbar{border:1px solid var(--pw-border);background:#fff;border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:15px;margin:0 0 18px;box-shadow:var(--pw-shadow)}
+#pageContent .purchasing-live-v1 .mo-quickbar-title{font-size:12px;font-weight:800;color:#47674e;white-space:nowrap}
+#pageContent .purchasing-live-v1 .mo-quickbar-row{display:flex;flex-wrap:wrap;gap:8px}
+#pageContent .purchasing-live-v1 .mo-quickbar-row .btn{border-radius:9px;font-size:12px;padding:8px 13px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel{min-width:0;min-height:185px;margin:0;background:white;border:1px solid var(--pw-border);border-radius:12px;box-shadow:var(--pw-shadow);display:flex;flex-direction:column;overflow:hidden}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-head{padding:16px 19px;min-height:54px;display:flex;align-items:center;border-bottom:1px solid #e7eee8;background:white}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-title{font-size:14px;font-weight:760;color:#274937}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-body{padding:7px 18px;flex:1}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .mo-list{max-height:300px;overflow-y:auto}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .ws-panel-foot{background:#fbfdfa;border-top:1px solid #e7eee8;padding:12px 18px;color:#718674;font-size:12px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.purchasing-full-panel{grid-column:1/-1;min-height:125px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.purchasing-full-panel .mo-list{max-height:none}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels .mo-list-entry{padding:11px 0}
+#pageContent .purchasing-live-v1 .purchasing-ref-records{margin-top:16px;border:1px solid var(--pw-border);border-radius:12px;overflow:hidden;box-shadow:var(--pw-shadow);background:white}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head{padding:17px 20px;border-bottom:1px solid #e6eee8;display:flex;align-items:center;justify-content:space-between;gap:8px}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head strong{display:block;font-size:15px;font-weight:770;color:#244936}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head small{display:block;color:#829487;margin-top:4px;font-size:12px}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head>span{font-size:12px;color:#819084}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-list{border:0;border-radius:0;box-shadow:none;margin:0}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-toolbar{padding:18px 19px;display:flex;gap:10px;border-bottom:1px solid #e8efe9;background:white}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-search{flex:1;min-width:0}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-search input{min-height:43px;border-radius:9px;border-color:#d7e3d9}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table{width:100%;border-collapse:collapse}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table th{padding:13px 15px;background:#f6f8f6;font-size:12px;color:#49604f;border-bottom:1px solid #e0e8e2;font-weight:700}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table td{padding:14px 15px;font-size:13px;border-bottom:1px solid #e9efe9;vertical-align:middle}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table tr:hover td{background:#f9fcf9}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .table-pager{padding:12px 19px;border-top:1px solid #e6eee9}
+#pageContent .purchasing-live-v1 .line-tabs.ws-status-tabs .tab{background:#fff;border:1px solid #dce8df;border-radius:8px;min-height:39px;padding:10px 15px;font-weight:600;font-size:12px;color:#627c69}
+#pageContent .purchasing-live-v1 .line-tabs.ws-status-tabs .tab.active{background:#e7f4ea;color:#1b6b3c;border-color:#a5cdb1;font-weight:770}
+#pageContent .purchasing-live-v1 .badge-s{border-radius:18px;padding:5px 9px;font-size:11px}
+.purchasing-po-modal .purchasing-line-title{padding:0 0 8px}
+.purchasing-po-modal .purchasing-line-editor{border:1px solid #dfe9e2;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(24,65,38,.035)}
+.purchasing-po-modal .purchasing-line-fields label.form-label{font-weight:700;color:#345742;font-size:12px}
+@media(max-width:1080px){
+ #pageContent .purchasing-live-v1 .purchasing-ref-panels{grid-template-columns:1fr}
+ #pageContent .purchasing-live-v1 .purchasing-ref-panels>.purchasing-full-panel{grid-column:auto}
+ #pageContent .purchasing-live-v1 .kpi-tiles.ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ #pageContent .purchasing-live-v1 .kpi-tiles.ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ #pageContent .purchasing-live-v1 .kpi-tile{padding:12px;min-height:110px}
+ #pageContent .purchasing-live-v1 .kpi-tile .kpi-value{font-size:24px}
+ #pageContent .purchasing-live-v1 .mo-quickbar{align-items:flex-start;flex-direction:column;gap:10px}
+ #pageContent .purchasing-live-v1 .purchasing-ref-records-head{padding:13px 15px}
+}
+
+
+
+/* PURCHASING_REFERENCE_TABLE_DISTRIBUTION_V8
+   Replaces the experimental V4-V7 spacing rules: full-width cards AND tables,
+   like the supplied applicant table screenshot. Natural, proportional columns,
+   not content-only narrow tables or equally stretched auto-sized columns.
+   Styling is Purchasing-only; table actions and backend remain unchanged. */
+#pageContent .purchasing-live-v1 .purchasing-records-card,
+#pageContent .purchasing-live-v1 .purchasing-ref-records,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-list,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox{
+  width:100%;max-width:none;margin-inline:0;
+}
+#pageContent.ref-scope .purchasing-live-v1 .ref-tablebox{
+  width:100%;overflow-x:auto;
+}
+#pageContent.ref-scope .purchasing-live-v1 .ref-tablebox .data-table,
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table{
+  width:100%;min-width:960px;max-width:none;
+  margin:0;table-layout:fixed;border-collapse:collapse;
+  font-size:13px;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table td{
+  padding:13px 12px;line-height:1.45;text-align:left;vertical-align:middle;
+  overflow-wrap:break-word;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th{
+  font-size:12px;font-weight:700;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-sub{
+  font-size:11.5px;margin-top:3px;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clamp,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clip{
+  max-width:100%;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-icons,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions{
+  gap:5px;flex-wrap:nowrap;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th:last-child,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table td:last-child{
+  white-space:nowrap;
+}
+/* Percentages describe each column's share of the same full-width table.
+   Parts Requests: 8 fields incl actions. */
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(1){width:14%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(2){width:13%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(3){width:23%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(4){width:10%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(5){width:10%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(6){width:13%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(7){width:9%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(8){width:8%}
+/* Purchase Orders: 7 fields + actions. */
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(1){width:14%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(2){width:18%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(3){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(4){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(5){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(6){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(7){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(8){width:8%}
+/* Inventory: 6 fields + actions, as in the user screenshot. */
+#pageContent .purchasing-table-inventory .data-table th:nth-child(1){width:19%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(2){width:28%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(3){width:12%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(4){width:11%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(5){width:11%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(6){width:11%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(7){width:8%}
+/* Physical counts use more columns: allow naturally even distribution. */
+#pageContent .purchasing-table-inventory:has(.data-table th:nth-child(8)) .data-table th{
+  width:auto;
+}
+/* Stock Movements: 7 fields + optional actions. */
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(1){width:16%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(2){width:21%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(3){width:11%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(4){width:8%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(5){width:21%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(6){width:11%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(7){width:12%}
+@media(max-width:1100px){
+  #pageContent.ref-scope .purchasing-live-v1 .ref-tablebox .data-table,
+  #pageContent .purchasing-live-v1 .purchasing-records-card .data-table{min-width:960px}
+}
+
+/* PURCHASING_INVENTORY_TOOLBAR_FIX_V9 */
+/* Inventory: put search and category/count filters on the SAME toolbar row,
+   removing the empty vertical gap shown in local screenshots. */
+#pageContent .purchasing-table-inventory .purchasing-inventory-toolbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 16px;margin:0;background:#fff;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .table-search{
+  flex:1 1 320px;min-width:180px;margin:0;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter{
+  display:flex;align-items:center;flex:0 0 auto;gap:8px;
+  padding:0;margin:0;min-height:0;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .form-select{
+  width:auto;min-width:150px;max-width:210px;min-height:40px;
+  margin:0;font-size:12px;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .ws-filter-reset{
+  margin:0;white-space:nowrap;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .ref-reset{
+  margin:0;
+}
+@media(max-width:650px){
+  #pageContent .purchasing-table-inventory .purchasing-inventory-toolbar{padding:10px;gap:8px}
+  #pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .table-search{flex:1 1 100%}
+  #pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .form-select{min-width:140px}
+}
+
+/* PURCHASING_UNIFIED_FILTER_TOOLBAR_V10 */
+/* One shared compact toolbar for all Purchasing record lists.
+   Filter markup is moved to the existing shared UI.table search toolbar,
+   so no extra row, duplicate controls or whitespace remains. */
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 16px;margin:0;background:#fff;min-height:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-search{
+  flex:1 1 280px;min-width:180px;margin:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters{
+  display:flex;align-items:center;flex:0 1 auto;flex-wrap:wrap;
+  gap:8px;padding:0;margin:0;min-height:0;width:auto;background:none;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{
+  width:auto;min-width:142px;max-width:205px;min-height:40px;
+  margin:0;padding-top:7px;padding-bottom:7px;font-size:12px;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters input[type="date"]{
+  min-width:145px;max-width:180px;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .ws-filter-reset,
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .ref-reset{
+  margin:0;white-space:nowrap;flex:0 0 auto;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-count{
+  white-space:nowrap;margin:0;
+}
+@media(max-width:830px){
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-search{flex:1 1 100%;min-width:0}
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters{flex:1 1 auto}
+}
+@media(max-width:500px){
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar{padding:10px;gap:8px}
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{min-width:125px;max-width:100%}
+}
+
+/* FLEETOPS_GLOBAL_RECORD_DESIGN_V1 */
+/* Shared table typography and toolbars for FleetOps pages — no forced table width,
+   so role-specific Administration, Operations, and Purchasing layouts remain intact.
+   Applies only to records rendered in #pageContent (never popups or login screens). */
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar){
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 15px;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar) .table-search{
+  flex:1 1 280px;min-width:170px;max-width:none;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar) .table-search .form-control{
+  min-height:40px;font-size:13px;border-radius:8px;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  flex:0 1 auto;width:auto;min-height:0;margin:0;padding:0;
+  background:transparent;border:0;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters :is(.form-select,.form-control){
+  min-height:39px;min-width:142px;max-width:210px;
+  width:auto;font-size:12.5px;margin:0;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters input[type=date]{
+  min-width:145px;max-width:175px;
+}
+#pageContent .fleet-unified-record-toolbar :is(.ws-filter-reset,.ref-reset,.table-count){
+  margin:0;white-space:nowrap;
+}
+/* Shared visual rhythm, preserving every module's chosen column widths. */
+#pageContent .data-table{
+  font-size:13px;line-height:1.45;
+}
+#pageContent .data-table th{
+  font-size:12px;font-weight:700;letter-spacing:0;
+  padding-block:12px;
+}
+#pageContent .data-table td{
+  font-size:13px;line-height:1.45;
+  padding-block:13px;
+}
+#pageContent .data-table .cell-sub{
+  font-size:11.5px;line-height:1.4;margin-top:3px;
+}
+#pageContent .data-table :is(.badge-s,.status-badge){
+  font-size:11.5px;
+}
+#pageContent .table-count,
+#pageContent .pager-info{
+  font-size:12px;
+}
+#pageContent :is(.ref-toolbar,.table-tools) :is(.btn,.ref-reset){
+  min-height:35px;
+}
+#pageContent .data-table .row-icons,
+#pageContent .data-table .row-actions{
+  display:inline-flex;align-items:center;gap:6px;
+}
+@media(max-width:800px){
+  #pageContent .fleet-unified-record-toolbar .table-search{flex:1 1 100%}
+  #pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{flex:1 1 auto}
+}
+
+/* PURCHASING_DASHBOARD_TYPE_SCALE_V11 */
+/* Slightly larger dashboard typography only. Existing cards, grid and spacing stay intact. */
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels > .panel .panel-title{
+  font-size:16px;
+  line-height:1.4;
+  font-weight:750;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-tools :is(.ws-seeall,button,a){
+  font-size:13px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-top,
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-top b{
+  font-size:14px;
+  line-height:1.45;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-issue{
+  font-size:12.5px;
+  line-height:1.5;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-ref{
+  font-size:12px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-side :is(.badge,.badge-s),
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-title .text-muted{
+  font-size:12px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-empty,
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .ws-panel-foot{
+  font-size:13px;
+  line-height:1.5;
+}
+#pageContent .purchasing-dashboard-ref .kpi-tile .kpi-label{font-size:13px}
+#pageContent .purchasing-dashboard-ref .kpi-tile .kpi-note{font-size:12px}
