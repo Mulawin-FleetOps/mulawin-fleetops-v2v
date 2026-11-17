@@ -413,134 +413,288 @@ App.page('admin_reports', {
   },
 });
 
-// ---------------------------------------------------------------- Analytics: topic-based, mixed visualizations
+// ---------------------------------------------------------------- Head Admin analytics — Objective 5
+// Descriptive: recorded totals and trends. Diagnostic: ranked patterns for review.
+// The same server-validated reports feed the charts; no sample numbers or new actions.
 ['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].forEach(analyticsPage => App.page(analyticsPage, {
   title: analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic Analytics' : 'Descriptive Analytics',
-  subtitle: analyticsPage === 'admin_diagnostic_analytics' ? 'Recorded patterns and areas requiring investigation.' : 'Recorded activity, totals, and trends by department.',
+  subtitle: 'Objective 5 · Company-wide historical reports and evidence-based analysis',
   render(ctx) {
     if (analyticsPage === 'admin_analytics') { App.go('admin_descriptive_analytics', ctx.query); return; }
     HM.destroyCharts();
-    const kindFilter = analyticsPage === 'admin_diagnostic_analytics' ? 'g' : 'd';
-    const d = ctx.data, q = ctx.query, per = d.period || {}, b = d.buckets || [], topic = d.topic || 'operations', sg = d.suggestions || {};
-    const unit = { day: 'day', week: 'week', month: 'month' }[per.granularity] || 'period';
-    const tag = (k) => `<span class="hm-kind hm-kind-${k}">${{ d: 'Descriptive', g: 'Diagnostic' }[k]}</span>`;
-    const panel = (cls, title, kind, body, o = {}) => kind === kindFilter ? UI.wsPanel(title, 'bi-graph-up', body, { cls, ...o }) : '';
-    const tabs = UI.statusTabs(analyticsPage, q, 'topic', [['operations', 'Operations'], ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['finance', 'Finance']], topic);
-    const sugg = (list, empty) => ({ tipHtml: HM.sug(list || [], empty || 'No supported recommendation for this view.') });
-    const has = (arr) => (arr || []).some(x => +x);
-    const C = { g: '#2f7d57', a: '#d97706', b: '#2563eb', p: '#9333ea', r: '#b91c1c', s: '#64748b' }, PAL = ['#2f7d57', '#d97706', '#2563eb', '#9333ea', '#64748b', '#0891b2', '#b91c1c', '#a16207'];
-    let html = '', draw = [];
-    if (topic === 'operations') {
-      const a = d.activity || {}, st = d.status || [], inc = d.incidents || [], dp = d.dispatch || [];
-      html = `<div class="ws-grid2 ws-report-row">
-        ${panel('ws-l1', 'Trip activity over time', 'd', has(a.created) || has(a.completed) ? HM.canvas('hmA', 'Trips created and completed per ' + unit) : HM.empty('No trip was created or completed in this period.'), sugg(sg.main, 'No trip is on hold, waiting for reschedule or resources.'))}
-        ${panel('ws-r1', 'Trip status distribution', 'd', st.length ? HM.canvas('hmB', 'Trips created in the period by current status') : HM.empty('No trip was created in this period.'))}
-        ${panel('ws-l2', 'Incidents by type', 'g', inc.length ? HM.canvas('hmC', 'Incidents by recorded type') : HM.empty('No incident was recorded in this period.'))}
-        ${panel('ws-r2', 'Completed trips by dispatcher division and shift', 'g', dp.length ? HM.canvas('hmD', 'Completed trips by division and shift') : HM.empty('No completed trip in this period, so dispatcher divisions cannot be compared.'))}</div>`;
-      draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'line', b.map(x => x.short), [{ label: 'Trips created', data: a.created, color: C.b }, { label: 'Trips completed', data: a.completed, color: C.g }], { axis: 'Trips', titles: b.map(x => x.label) }),
-        () => HM.chart(ctx.el.querySelector('#hmB'), 'bar', st.map(x => x.label), [{ label: 'Trips', data: st.map(x => +x.n), color: C.b }], { axis: 'Trips' }),
-        () => HM.chart(ctx.el.querySelector('#hmC'), 'hbar', inc.map(x => x.label), [{ label: 'Incidents', data: inc.map(x => +x.n), color: C.r }], { axis: 'Incidents' }),
-        () => HM.chart(ctx.el.querySelector('#hmD'), 'bar', dp.map(x => x.label), [{ label: 'Completed trips', data: dp.map(x => +x.n), color: C.g }], { axis: 'Trips' })];
-    } else if (topic === 'maintenance') {
-      const r = d.report || {}, tl = r.timeline || {}, mb = r.buckets || [], fq = (r.frequency || []).filter(x => +x.repairs > 0), cost = r.cost || {};
-      const cats = [{ label: 'Parts used', value: +cost.parts || 0 }, ...(cost.types || []).map(t => ({ label: t.type, value: +t.total }))].filter(x => x.value > 0);
-      html = `<div class="ws-grid2 ws-report-row">
-        ${panel('ws-l1', 'Maintenance activity timeline', 'd', has(tl.reported) || has(tl.completed) ? HM.canvas('hmA', 'Repairs reported and completed') : HM.empty('No repair was reported or completed in this period.'), sugg(sg.main, 'No repair is waiting for verification or for parts.'))}
-        ${panel('ws-r1', 'Repair frequency by truck', 'g', fq.length ? HM.canvas('hmB', 'Repairs per truck', 240) : HM.empty('No repair was reported in this period.'), sugg(sg.trucks, 'Repair counts per truck are shown as recorded; no rule applies.'))}
-        ${panel('ws-l2', 'Maintenance cost composition', 'd', cats.length ? HM.canvas('hmC', 'Maintenance cost by component') + `<div class="mr-note">Total ${UI.money(cost.total)}: parts used (release date) and recorded repair costs (date incurred).</div>` : HM.empty('No maintenance cost was recorded in this period.'))}</div>`;
-      draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'line', mb.map(x => x.short), [{ label: 'Reported', data: tl.reported, color: C.a }, { label: 'Completed', data: tl.completed, color: C.g }, ...(tl.under_repair ? [{ label: 'Under repair (end of period)', data: tl.under_repair, color: C.b }] : [])], { axis: 'Repairs', titles: mb.map(x => x.label) }),
-        () => HM.chart(ctx.el.querySelector('#hmB'), 'hbar', fq.map(x => x.plate_number), [{ label: 'Repairs', data: fq.map(x => +x.repairs), color: C.g }], { axis: 'Repairs', title: 'Repairs',
-          detail: (i) => HM.pp(fq[i].plate_number, [['Repairs in the period', UI.num(fq[i].repairs)], ['Truck type', UI.esc(fq[i].truck_type || '')]], [['maintenance?view=all&cancelled=0&vehicle_id=' + fq[i].id + '&from=' + per.from + '&to=' + per.to, 'Open repairs']]) }),
-        () => HM.chart(ctx.el.querySelector('#hmC'), 'doughnut', cats.map(x => x.label), [{ label: 'Cost', data: cats.map(x => x.value), colors: PAL }], { money: true })];
-    } else if (topic === 'purchasing') {
-      const r = d.report || {}, fl = r.flow || {}, pb = r.buckets || [], top = (r.topUsed || []).slice(0, 8), ps = r.poStatus || [], inv = d.inventory || [];
-      html = `<div class="ws-grid2 ws-report-row">
-        ${panel('ws-l1', 'Stock in vs stock out (value)', 'd', has(fl.in) || has(fl.out) ? HM.canvas('hmA', 'Stock value received and issued') : HM.empty('No stock was received or issued in this period.'))}
-        ${panel('ws-r1', 'Most used parts (value issued)', 'g', top.length ? HM.canvas('hmB', 'Parts issued, ranked by value') + '<div class="mr-note">Ranked by value (quantity × recorded unit cost); quantities keep their own units.</div>' : HM.empty('No part was issued in this period.'), sugg(sg.main, 'No part is low on stock right now.'))}
-        ${panel('ws-l2', 'Purchase order status distribution', 'd', ps.length ? HM.canvas('hmC', 'Purchase orders created in the period by status') : HM.empty('No purchase order was created in this period.'))}
-        ${panel('ws-r2', 'Inventory value by category (now)', 'd', inv.length ? HM.canvas('hmD', 'Inventory value by category') : HM.empty('No active part has stock value.'))}</div>`;
-      draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'line', pb.map(x => x.short), [{ label: 'Stock in', data: fl.in, color: C.g }, { label: 'Stock out', data: fl.out, color: C.a }], { money: true, axis: 'Value (PHP)', titles: pb.map(x => x.label) }),
-        () => HM.chart(ctx.el.querySelector('#hmB'), 'hbar', top.map(x => x.part_number), [{ label: 'Value issued', data: top.map(x => +x.value), color: C.g }], { money: true, axis: 'Value (PHP)', title: 'Part',
-          detail: (i) => HM.pp(top[i].part_number, [['Issued', UI.num(top[i].units) + ' ' + UI.esc(top[i].unit || '')], ['Value', UI.money(top[i].value)], ['Releases', UI.num(top[i].releases)], ['On hand now', UI.num(top[i].quantity_on_hand)]], [['inventory?open=' + top[i].id, 'Open part']]) }),
-        () => HM.chart(ctx.el.querySelector('#hmC'), 'bar', ps.map(x => x.status), [{ label: 'Purchase orders', data: ps.map(x => +x.n), color: C.b }], { axis: 'POs' }),
-        () => HM.chart(ctx.el.querySelector('#hmD'), 'doughnut', inv.map(x => x.label), [{ label: 'Stock value', data: inv.map(x => +x.value), colors: PAL }], { money: true })];
-    } else {
-      const ex = d.expenses || [], wks = d.weeks || [], mb = d.monthlyBudget && !Array.isArray(d.monthlyBudget) ? d.monthlyBudget : {}, ag = d.aging || [], pdue = d.payDue || [];
-      html = `<div class="ws-grid2 ws-report-row">
-        ${panel('ws-l1', 'Recorded expense distribution', 'd', ex.length ? HM.canvas('hmA', 'Recorded expenses by category') + `<div class="mr-note">Period total ${UI.money(ex.reduce((a, x) => a + +x.value, 0))}; each expense recorded once.</div>` : HM.empty('No expense was recorded in this period.'), sugg(sg.main, 'No spending concentration or receivable issue under the current rules.'))}
-        ${panel('ws-r1', 'Weekly client collections', 'd', wks.some(x => +x.amount) ? HM.canvas('hmB', 'Collections per week') : HM.empty('No client collection was recorded in this period.'))}
-        ${panel('ws-l2', 'Budget allocation', 'd', mb.id ? HM.canvas('hmC', 'Monthly Purchasing budget allocation', 120) + `<div class="mr-note">Finance's monthly Purchasing budget (${UI.date(mb.period_start)} – ${UI.date(mb.period_end)}). The weekly collection-funded allocation is not recorded yet.</div>` : HM.empty('No active budget is recorded.'))}
-        ${panel('ws-r2', 'Receivables aging and payables by due date', 'g', ag.some(x => +x.value) || pdue.some(x => +x.value) ? HM.canvas('hmD', 'Receivables aging and payables by due category') : HM.empty('No open receivable or payable.'))}</div>`;
-      draw = [() => HM.chart(ctx.el.querySelector('#hmA'), 'doughnut', ex.map(x => x.label), [{ label: 'Expenses', data: ex.map(x => +x.value), colors: PAL }], { money: true }),
-        () => HM.chart(ctx.el.querySelector('#hmB'), 'bar', wks.map(x => x.label.replace('Week of ', '')), [{ label: 'Collections', data: wks.map(x => +x.amount), color: C.g }], { money: true, axis: 'Collected (PHP)', titles: wks.map(x => x.label) }),
-        () => HM.chart(ctx.el.querySelector('#hmC'), 'stack', ['Budget'], [{ label: 'Spent', data: [+mb.spent_amount], color: C.b }, { label: 'Committed', data: [+mb.reserved_amount], color: C.a }, { label: 'Available', data: [+mb.available], color: '#cbd5e1' }], { money: true }),
-        () => HM.chart(ctx.el.querySelector('#hmD'), 'hbar', [...ag.map(x => 'Receivable: ' + x.label), ...pdue.map(x => 'Payable: ' + x.label)], [{ label: 'Balance', data: [...ag.map(x => +x.value), ...pdue.map(x => +x.value)], color: C.b }], { money: true, axis: 'Balance (PHP)' })];
-    }
-    // All report families live inside the two admin-only Analytics pages.
-    // The existing calculation owners supply the data; this layer never recomputes totals.
-    const reportKind = d.reportKind || 'management', reportData = d.reportData || {};
-    const reportTabs = [['management', 'Management'], ['general', 'Trips / Fleet / Finance'],
-      ['maintenance', 'Maintenance'], ['purchasing', 'Purchasing'], ['audit', 'Audit']];
-    const reportNav = '<nav class="line-tabs ws-status-tabs mb-3" aria-label="Analytics report categories">'
-      + reportTabs.map(([key, label]) => '<a class="btn btn-sm ' + (reportKind === key ? 'btn-primary' : 'btn-outline-secondary')
-        + '" href="#' + analyticsPage + '?topic=' + encodeURIComponent(topic) + '&report=' + encodeURIComponent(key)
-        + '&from=' + encodeURIComponent(per.from || '') + '&to=' + encodeURIComponent(per.to || '') + '">' + UI.esc(label) + '</a>').join(' ')
-      + '</nav>';
-    const reportTable = (headers, rows) => '<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr>'
-      + headers.map(x => '<th scope="col">' + UI.esc(x) + '</th>').join('') + '</tr></thead><tbody>'
-      + (rows.length ? rows.map(row => '<tr>' + row.map(x => '<td>' + UI.esc(String(x ?? '—')) + '</td>').join('') + '</tr>').join('')
-        : '<tr><td colspan="' + headers.length + '" class="text-muted">No recorded data for this period.</td></tr>')
-      + '</tbody></table></div>';
-    const overview = () => {
-      if (reportKind === 'management') {
-        const perf = reportData.performance || [], items = reportData.items || [], recent = reportData.recent || [];
-        if (kindFilter === 'd') return UI.wsPanel('Management performance and decisions', 'bi-clipboard-data',
-          reportTable(['Department', 'Measure', 'Last 30 days', 'Previous 30 days'], perf.map(p => [p.dept, p.measure, p.now, p.prev]))
-          + '<h3 class="h6 mt-3">Recent management decisions</h3>'
-          + reportTable(['Reference', 'Type', 'Status', 'Decided at'], recent.map(x => [x.ref, x.type, x.status, x.decided_at])), {});
-        return UI.wsPanel('Management exceptions requiring investigation', 'bi-search',
-          reportTable(['Department', 'Reference', 'Issue', 'Recorded reason', 'Next step'],
-            items.filter(x => x.group === 'issues').map(x => [x.dept, x.ref, x.issue, x.reason, x.next])), {});
-      }
-      if (reportKind === 'general') {
-        const sections = reportData.sections || {}, insights = reportData.insights || {};
-        if (kindFilter === 'd') return Object.entries(sections).map(([key, section]) => UI.blocks(section, { maxCharts: 3, key: 'admin-analytics-report-' + key })).join('');
-        return Object.entries(insights).map(([key, findings]) => UI.wsPanel(
-          (sections[key]?.title || key) + ' — Diagnostic observations', 'bi-search',
-          (findings || []).length ? '<ul>' + findings.map(x => '<li><b>' + UI.esc(x.title || 'Observation')
-            + '</b> ' + UI.esc(x.text || '') + '</li>').join('') + '</ul>'
-            : '<p class="text-muted">No supported diagnostic observation for this period.</p>', {})).join('');
-      }
-      if (reportKind === 'maintenance') {
-        if (kindFilter === 'd') return UI.wsPanel('Maintenance activity report', 'bi-wrench',
-          reportTable(['Metric', 'Value'], Object.entries(reportData.kpis || {}).map(([key, val]) => [key.replaceAll('_', ' '), val]))
-          + '<p class="small text-muted">Detailed repair timelines and cost charts are also available above in the Maintenance topic.</p>', {});
-        return UI.wsPanel('Maintenance investigation signals', 'bi-search',
-          reportTable(['Vehicle', 'Repairs'], (reportData.frequency || []).slice(0, 20).map(x => [x.plate_number, x.repairs]))
-          + '<p class="small text-muted">Repair frequency is an indicator for investigation, not proof of a mechanical cause.</p>', {});
-      }
-      if (reportKind === 'purchasing') {
-        if (kindFilter === 'd') return UI.wsPanel('Purchasing and inventory report', 'bi-box-seam',
-          reportTable(['Purchase order status', 'Count'], (reportData.poStatus || []).map(x => [x.status, x.n]))
-          + reportTable(['Part', 'Value issued'], (reportData.topUsed || []).slice(0, 15).map(x => [x.part_number, x.value])), {});
-        return UI.wsPanel('Purchasing investigation signals', 'bi-search',
-          reportTable(['Part', 'Units issued', 'Value issued'], (reportData.topUsed || []).slice(0, 15).map(x => [x.part_number, x.units, x.value]))
-          + '<p class="small text-muted">High use alone does not establish waste or an inventory discrepancy.</p>', {});
-      }
-      const summary = reportData.summary || {}, groups = summary.byArea || [];
-      if (kindFilter === 'd') return UI.wsPanel('Audit activity report', 'bi-journal-text',
-        '<p>Recorded events: <b>' + UI.num(summary.total || 0) + '</b></p>'
-        + reportTable(['Area', 'Events', 'With changes'], groups.map(x => [x.area, x.n, x.changes]))
-        + reportTable(['User', 'Role', 'Events'], (summary.byUser || []).map(x => [x.actor, x.role, x.n])), {});
-      return UI.wsPanel('Audit patterns to review', 'bi-search',
-        reportTable(['Area', 'Events', 'With changes'], [...groups].sort((a, b) => b.n - a.n).map(x => [x.area, x.n, x.changes]))
-        + '<p class="small text-muted">Event volume is not a performance score or evidence of wrongdoing.</p>', {});
+    const diagnostic = analyticsPage === 'admin_diagnostic_analytics';
+    const d = ctx.data || {}, q = ctx.query || {}, per = d.period || {};
+    const topic = d.topic || 'operations', kind = d.reportKind || 'general';
+    const report = d.reportData || {}, sections = report.sections || {};
+    const trips = sections.trips || {}, fleet = sections.fleet || {}, money = sections.money || {};
+    const areas = [['operations','Trip Operations','bi-signpost-split','5.1.1 / 5.2.1'],
+      ['maintenance','Maintenance','bi-wrench-adjustable','5.1.2 / 5.2.2'],
+      ['finance','Finance','bi-cash-stack','5.1.3 / 5.2.3'],
+      ['purchasing','Inventory & Stock','bi-box-seam','5.1.4 / 5.2.4']];
+    const selected = areas.find(x => x[0] === topic) || areas[0];
+    const colors = ['#24794c','#4d91ba','#eba843','#bd7163','#7775ab','#64a99a'];
+    const positive = values => (values || []).some(v => Number(v) !== 0 && Number.isFinite(Number(v)));
+    const moneyFmt = val => UI.money(Number(val || 0));
+    const cardValue = c => c.format === 'money' ? moneyFmt(c.value) : UI.num(Number(c.value || 0));
+    const go = (next) => App.go(analyticsPage, Object.assign({}, q, next));
+    const categoryGo = id => go({ topic: id, report: id === 'purchasing' ? 'purchasing' : 'general', entity: 'truck' });
+    const escape = value => UI.esc(String(value == null ? '—' : value));
+    const kpis = [];
+    const chartJobs = [];
+    const charts = [];
+    const reportTable = (heading, columns, rows, limit) => {
+      const safe = (rows || []).slice(0, limit || 10);
+      return '<div class="ax-table-wrap"><h3>' + escape(heading) + '</h3><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr>'
+        + columns.map(c => '<th scope="col">' + escape(c[0]) + '</th>').join('') + '</tr></thead><tbody>'
+        + (safe.length ? safe.map(row => '<tr>' + columns.map(c => '<td>' + escape(typeof c[1] === 'function' ? c[1](row) : row[c[1]]) + '</td>').join('') + '</tr>').join('')
+          : '<tr><td colspan="' + columns.length + '" class="text-muted">No recorded results for these filters.</td></tr>')
+        + '</tbody></table></div></div>';
     };
-    const reportLibrary = '<section aria-label="Consolidated reports" class="mt-4"><h2 class="h5">Reports</h2>'
-      + '<p class="text-muted small">Admin-only reports grouped by purpose. All figures are drawn from recorded system data.</p>'
-      + reportNav + overview() + '</section>';
-    ctx.el.innerHTML = `${tabs}${UI.wsPeriod(analyticsPage, per).replaceAll(analyticsPage + '?', analyticsPage + '?topic=' + encodeURIComponent(topic) + '&amp;')}<div class="small text-muted mb-2">${analyticsPage === 'admin_diagnostic_analytics' ? 'Diagnostic: distributions and patterns that can help identify areas to investigate; they do not establish root causes.' : 'Descriptive: recorded activity and trends; no causal claims.'}</div>${html}${reportLibrary}`;
-    UI.bindPeriod(ctx.el); UI.bindTips(ctx.el);
-    draw.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+    const recordTable = (s, title, limit) => {
+      const table = (s.tables || []).find(t => t.title === title);
+      if (!table) return '';
+      return reportTable(title, table.columns.map(c => [c[0], c[1]]), table.rows || [], limit);
+    };
+    const cardsOf = (s, labels) => {
+      const all = s.cards || [];
+      labels.forEach(label => { const match = all.find(c => c.label === label); if (match) kpis.push(match); });
+    };
+    const value = (s, label) => Number(((s.cards || []).find(c => c.label === label) || {}).value || 0);
+    const plot = (title, type, labels, datasets, opts) => {
+      const rows = (labels || []).filter(x => x != null);
+      const hasSeries = (datasets || []).some(ds => positive(ds.data));
+      const chartId = 'ax-chart-' + chartJobs.length;
+      if (rows.length && hasSeries) chartJobs.push(() => HM.chart(ctx.el.querySelector('#' + chartId), type, rows, datasets, opts || {}));
+      else chartJobs.push(() => null);
+      const body = rows.length && hasSeries ? HM.canvas(chartId, title, 225) : HM.empty('No recorded values in the selected period.');
+      charts.push('<div class="ax-chart-card">' + UI.wsPanel(title, 'bi-bar-chart-line', body + ((opts || {}).note ? '<div class="ax-caption">' + escape(opts.note) + '</div>' : ''), {}) + '</div>');
+    };
+    let supporting = '', note = '';
+    const basic = (label, n, hint, format) => kpis.push({label, value: n, hint: hint || '', format: format || ''});
+
+    if (kind === 'management') {
+      const items = report.items || [], perf = report.performance || [];
+      basic('Waiting for management', report.waiting || 0);
+      basic('Open issues', report.open || 0);
+      basic('Overdue balances', report.overdue || 0, 'Recorded outstanding balances past due date', 'money');
+      plot('Department performance · last 30 days', 'bar', perf.map(p=>p.dept), [
+        {label:'Last 30 days',data:perf.map(p=>Number(p.now)),color:colors[0]},
+        {label:'Previous 30 days',data:perf.map(p=>Number(p.prev)),color:colors[1]}],
+        {note:'Departments may use different units; compare each department to its own previous value.'});
+      const byDept = {};
+      items.filter(x => x.group === 'issues').forEach(x => { byDept[x.dept] = (byDept[x.dept] || 0) + 1; });
+      plot('Recorded issues by department', 'hbar', Object.keys(byDept), [{label:'Issues',data:Object.values(byDept),color:colors[3]}]);
+      supporting = reportTable('Management decisions and issues', [['Department','dept'],['Record','ref'],['Issue','issue'],['Recorded reason','reason'],['Next step','next']], items, 20);
+      note = 'Management report: live workflow exceptions and 30-day performance. These are not automatic root-cause conclusions.';
+    } else if (kind === 'audit') {
+      const summary = report.summary || {}, byArea = summary.byArea || [], byUser = summary.byUser || [];
+      basic('Audit events', summary.total || 0, 'Latest 20,000 event cap; check date range');
+      basic('Areas with activity', byArea.length);
+      basic('Users with activity', byUser.length);
+      plot('Audit events by area', 'hbar', byArea.slice(0,10).map(x=>x.area), [{label:'Events',data:byArea.slice(0,10).map(x=>Number(x.n)),color:colors[0]}]);
+      plot('Events with field changes by area', 'bar', byArea.slice(0,10).map(x=>x.area), [{label:'Field-change events',data:byArea.slice(0,10).map(x=>Number(x.changes)),color:colors[1]}]);
+      supporting = reportTable('Audit activity by user', [['User','actor'],['Role','role'],['Events','n']], byUser, 20);
+      note = 'Audit event volume is not a performance rating or evidence of wrongdoing.';
+    } else if (topic === 'operations') {
+      if (diagnostic) {
+        const entityOptions = [['driver','Per driver'],['helper','Per helper'],['truck','Per truck'],['client','Per client'],['dispatcher','Per dispatcher']];
+        const entity = entityOptions.some(x=>x[0] === q.entity) ? q.entity : 'truck';
+        const table = (trips.tables || []).find(t => t.title === entityOptions.find(x=>x[0]===entity)[1]);
+        const ranked = [...((table || {}).rows || [])].sort((a,b)=>Number(b.incidents)-Number(a.incidents)).slice(0,12);
+        const labels = ranked.map(x=>x.name);
+        basic('Trip groups compared', (table?.rows || []).length);
+        basic('Recorded incidents', ranked.reduce((n,x)=>n+Number(x.incidents||0),0), 'Top 12 groups shown; not unique incident count');
+        basic('Recorded delays', ranked.reduce((n,x)=>n+Number(x.delays||0),0), 'Top 12 groups shown');
+        plot('Incidents and delays by ' + entity, 'hbar', labels,
+          [{label:'Incidents',data:ranked.map(x=>Number(x.incidents)),color:colors[3]},
+           {label:'Delays',data:ranked.map(x=>Number(x.delays)),color:colors[2]}]);
+        plot('Trip exposure for the same groups', 'bar', labels,
+          [{label:'Trips',data:ranked.map(x=>Number(x.trips)),color:colors[0]}],
+          {note:'Compare incident counts with trip exposure; incident counts alone do not establish responsibility.'});
+        plot('Recorded incidents per 100 trips', 'hbar', labels,
+          [{label:'Incidents / 100 trips',data:ranked.map(x=>Number(x.trips)>0?Number((Number(x.incidents)*100/Number(x.trips)).toFixed(1)):0),color:colors[1]}],
+          {note:'Event rate, not necessarily percentage of trips affected; one trip may have multiple incidents.'});
+        supporting = '<div class="ax-subfilter"><label for="ax-entity">Compare by</label><select id="ax-entity" class="form-select form-select-sm">'
+          + entityOptions.map(x=>'<option value="'+x[0]+'"'+(x[0]===entity?' selected':'')+'>'+x[1].replace('Per ','')+'</option>').join('')+'</select></div>'
+          + reportTable('Trip and incident comparisons', [['Person / asset / client','name'],['Trips','trips'],['Completed','completed'],['Incidents','incidents'],['Delays','delays']], ranked, 12)
+          + recordTable(trips,'Delays and incidents',12);
+        note = '5.2.1 · Compare all five groups. These results indicate where investigation may be useful; they do not identify fault.';
+      } else {
+        cardsOf(trips,['Total trips','Completed trips','Cancelled trips','Trips for reschedule','Delivered units (car carrier)','Incidents']);
+        const time = d.buckets || [], activity = d.activity || {};
+        plot('Trip activity trend · created and completed', 'line', time.map(x=>x.short),
+          [{label:'Created',data:activity.created||[],color:colors[0]}, {label:'Completed',data:activity.completed||[],color:colors[1]}],
+          {note:'Activity dates are record creation/completion dates. Summary KPIs use trip scheduled dates.'});
+        plot('Trips by current status', 'bar', (d.status||[]).map(x=>x.label),
+          [{label:'Trips',data:(d.status||[]).map(x=>Number(x.n)),color:colors[0]}]);
+        const byClient = ((trips.tables||[]).find(t=>t.title==='Per client')||{}).rows||[];
+        plot('Trip volume by client', 'hbar', byClient.slice(0,9).map(x=>x.name),
+          [{label:'Trips',data:byClient.slice(0,9).map(x=>Number(x.trips)),color:colors[1]}]);
+        plot('Delivered units by client · car carrier', 'bar', byClient.slice(0,9).map(x=>x.name),
+          [{label:'Units',data:byClient.slice(0,9).map(x=>Number(x.units)),color:colors[2]}]);
+        supporting = recordTable(trips,'Trip records (delivery and return)',12);
+        note = '5.1.1 · Scheduled-date trip totals, delivered car-carrier units, and recorded incidents.';
+      }
+    } else if (topic === 'maintenance') {
+      const r = d.report || {}, tl = r.timeline || {}, buckets = r.buckets || [], top = (r.frequency||[]).slice(0,12);
+      if (diagnostic) {
+        const down = (((fleet.tables||[]).find(x=>x.title==='Highest downtime')||{}).rows||[]).slice(0,10);
+        const expensive = (((fleet.tables||[]).find(x=>x.title==='Highest maintenance expenses')||{}).rows||[]).slice(0,10);
+        basic('Trucks with downtime', down.filter(x=>Number(x.downtime_days)>0).length, 'Top 10 ranked trucks');
+        basic('Trucks with recorded costs', expensive.length, 'Top 10 ranked trucks');
+        plot('Highest truck downtime · days', 'hbar', down.map(x=>x.name),
+          [{label:'Downtime (days)',data:down.map(x=>Number(x.downtime_days)),color:colors[3]}]);
+        plot('Highest maintenance expenses · parts vs other', 'hbar', expensive.map(x=>x.name),
+          [{label:'Parts',data:expensive.map(x=>Number(x.parts)),color:colors[0]},
+           {label:'Other costs',data:expensive.map(x=>Number(x.other)),color:colors[2]}],
+          {money:true,note:'Costs are drawn from released parts and recorded maintenance expenses.'});
+        plot('Repeat repairs by truck', 'bar', top.map(x=>x.plate_number),
+          [{label:'Repairs',data:top.map(x=>Number(x.repairs)),color:colors[1]}]);
+        supporting = recordTable(fleet,'Highest downtime',10)+recordTable(fleet,'Highest maintenance expenses',10);
+        note = '5.2.2 · Truck downtime uses status-history intervals; cost rankings reflect recorded parts and other expenses.';
+      } else {
+        cardsOf(fleet,['Maintenance records','Completed','Downtime (truck-days)','Maintenance expenses']);
+        basic('Repairs reported', (tl.reported||[]).reduce((a,b)=>a+Number(b||0),0));
+        basic('Trucks in repair frequency list',top.length);
+        plot('Maintenance activity over time', 'line', buckets.map(x=>x.short),
+          [{label:'Reported',data:tl.reported||[],color:colors[0]}, {label:'Completed',data:tl.completed||[],color:colors[1]}]);
+        const costs = (r.cost||{}), cat = [{label:'Parts used',value:Number(costs.parts||0)}]
+          .concat((costs.types||[]).map(x=>({label:x.type,value:Number(x.total)}))).filter(x=>x.value>0);
+        plot('Maintenance expense composition','doughnut',cat.map(x=>x.label),
+          [{label:'Cost',data:cat.map(x=>x.value),colors:colors}],{money:true});
+        const down = (((fleet.tables||[]).find(x=>x.title==='Highest downtime')||{}).rows||[]).slice(0,10);
+        plot('Recorded downtime by truck', 'hbar', down.map(x=>x.name),
+          [{label:'Days',data:down.map(x=>Number(x.downtime_days)),color:colors[3]}]);
+        supporting = recordTable(fleet,'Maintenance records',12);
+        note = '5.1.2 · Activity, truck downtime and maintenance expenses from recorded repairs and vehicle status history.';
+      }
+    } else if (topic === 'finance') {
+      if (diagnostic) {
+        const overdue = (((money.tables||[]).find(x=>x.title==='Overdue accounts')||{}).rows||[]).slice(0,12);
+        const aging = d.aging||[];
+        basic('Outstanding receivables',value(money,'Outstanding receivables'),'All open invoices','money');
+        basic('Overdue receivables',value(money,'Overdue'),'All invoices past recorded due date','money');
+        basic('Overdue accounts',overdue.length,'Top 12 shown; see full records in Finance');
+        plot('Receivables aging by due date','bar',aging.map(x=>x.label),
+          [{label:'Balance',data:aging.map(x=>Number(x.value)),color:colors[1]}],{money:true});
+        plot('Largest overdue invoices','hbar',overdue.map(x=>x.invoice_number||x.client),
+          [{label:'Outstanding balance',data:overdue.map(x=>Number(x.balance)),color:colors[3]}],{money:true});
+        plot('Payables grouped by due date','bar',(d.payDue||[]).map(x=>x.label),
+          [{label:'Balance',data:(d.payDue||[]).map(x=>Number(x.value)),color:colors[2]}],{money:true});
+        supporting = recordTable(money,'Overdue accounts',12)+recordTable(money,'Billing by client',12);
+        note = '5.2.3 · Aging buckets and overdue rankings identify outstanding accounts, not causes of nonpayment.';
+      } else {
+        cardsOf(money,['Billed (invoices)','Collected','Expenses','Outstanding receivables']);
+        basic('Overdue accounts balance',value(money,'Overdue'),'Current overdue balance','money');
+        const financial = (money.charts||[]).find(x=>x.title==='Billed vs collected vs expenses');
+        if(financial)plot('Billed amount vs collections vs expenses','bar',financial.labels,
+          (financial.datasets||[]).map((x,i)=>({label:x.label,data:x.data,color:colors[i]})),{money:true});
+        plot('Client collections by week','line',(d.weeks||[]).map(x=>x.label),
+          [{label:'Collections',data:(d.weeks||[]).map(x=>Number(x.amount)),color:colors[0]}],{money:true});
+        plot('Operating expense distribution','doughnut',(d.expenses||[]).map(x=>x.label),
+          [{label:'Expenses',data:(d.expenses||[]).map(x=>Number(x.value)),colors:colors}],{money:true});
+        supporting = recordTable(money,'Billing by client',12);
+        note = '5.1.3 · Billed, collected and expense amounts are separate accounting measures; they are not automatically net profit.';
+      }
+    } else {
+      const purchase = d.report || {}, inventory = d.inventory || [], stock = d.stockSummary || {}, types = stock.movementTypes || [], parts = stock.perPart || [];
+      const by = type => types.find(x=>x.type===type)||{};
+      const used = (purchase.topUsed||[]).slice(0,12);
+      if (diagnostic) {
+        basic('Frequently used parts',used.length,'Top 12 ranked parts');
+        basic('Parts with stock-out',parts.filter(x=>Number(x.stock_out)>0).length,'Within first 50 parts');
+        plot('Most used parts by issued value','hbar',used.map(x=>x.part_number),
+          [{label:'Value issued',data:used.map(x=>Number(x.value)),color:colors[0]}],{money:true});
+        plot('Part use frequency · releases','bar',used.map(x=>x.part_number),
+          [{label:'Releases',data:used.map(x=>Number(x.releases)),color:colors[1]}]);
+        const shortage = (purchase.shortages||[]).slice(0,12);
+        plot('Parts with requests not fully released','hbar',shortage.map(x=>x.part_number),
+          [{label:'Requests',data:shortage.map(x=>Number(x.requests)),color:colors[3]}]);
+        supporting = reportTable('Frequently used parts', [['Part','part_number'],['Unit','unit'],['Issued quantity','units'],['Issued value',x=>moneyFmt(x.value)],['Releases','releases']],used,12);
+        note = '5.2.4 · Rankings by monetary value and issue frequency avoid adding incompatible item quantities.';
+      } else {
+        basic('Stock-in movements',Number(by('Stock In').movements||0),'Recorded stock-in events');
+        basic('Stock-out movements',Number(by('Stock Out').movements||0),'Recorded stock-out events');
+        basic('Adjustment movements',Number(by('Adjustment').movements||0),'Recorded adjustment events');
+        basic('Inventory value',Number(stock.inventoryValue||0),'Current active parts at recorded unit cost','money');
+        plot('Stock in vs stock out · value','line',(purchase.buckets||[]).map(x=>x.short),
+          [{label:'Stock in',data:(purchase.flow||{}).in||[],color:colors[0]},
+           {label:'Stock out',data:(purchase.flow||{}).out||[],color:colors[2]}],{money:true});
+        plot('Inventory value by category · now','doughnut',inventory.map(x=>x.label),
+          [{label:'Value',data:inventory.map(x=>Number(x.value)),colors:colors}],{money:true});
+        plot('Movement value by type','bar',types.map(x=>x.type),
+          [{label:'Value',data:types.map(x=>Number(x.value)),color:colors[1]}],{money:true});
+        supporting = reportTable('Stock movements per part · quantities keep their own units',
+          [['Part','part_number'],['Unit','unit'],['Stock-in','stock_in'],['Stock-out','stock_out'],['Net adjustment','adjustments'],['On hand','quantity_on_hand']],parts,15);
+        note = '5.1.4 · Quantities are shown per part and unit; top metrics count movement records to avoid mixing units.';
+      }
+    }
+    const metricHtml = '<div class="ax-kpis">' + kpis.map(c => '<div class="ax-kpi"><div class="ax-kpi-icon"><i class="bi '+escape(c.icon||'bi-graph-up')+'"></i></div><span>'+escape(c.label)+'</span><strong>'+ (c.format==='money'?moneyFmt(c.value):cardValue(c)) +'</strong><small>'+escape(c.hint||'From recorded data')+'</small></div>').join('') + '</div>';
+    const focusHtml = '<div class="ax-categories">' + areas.map(a=>'<button type="button" class="ax-category '+(topic===a[0]?'active':'')+'" data-ax-topic="'+a[0]+'"><i class="bi '+a[2]+'"></i><span>'+a[1]+'</span><small>'+ (diagnostic?a[3].split(' / ')[1]:a[3].split(' / ')[0])+'</small></button>').join('') + '</div>';
+    const baseQuery = 'topic='+encodeURIComponent(topic)+'&report='+encodeURIComponent(kind)+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'');
+    const modeNav = '<div class="ax-mode-tabs"><a href="#admin_descriptive_analytics?'+baseQuery+'" class="'+(!diagnostic?'active':'')+'"><i class="bi bi-bar-chart-line"></i> Descriptive Analytics</a>'
+      + '<a href="#admin_diagnostic_analytics?'+baseQuery+'" class="'+(diagnostic?'active':'')+'"><i class="bi bi-search"></i> Diagnostic Analytics</a></div>';
+    const reportNav = '<div class="ax-report-nav"><span>Other consolidated reports:</span>'
+      + [['management','Management'],['audit','Audit']].map(([id,name])=>'<a class="'+(kind===id?'active':'')+'" href="#'+analyticsPage+'?topic='+encodeURIComponent(topic)+'&report='+id+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'')+'">'+name+'</a>').join('')+'</div>';
+    const visuals = '<div class="ax-charts">' + charts.join('') + '</div>';
+    const css = '<style>'
+      + '.ax-shell{background:#f6f9f7;border:1px solid #e0e9e2;border-radius:16px;padding:20px;max-width:100%;}'
+      + '.ax-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:15px;}'
+      + '.ax-header h2{font-size:22px;font-weight:750;margin:4px 0 5px;letter-spacing:-.03em}.ax-header p{font-size:12px;color:#69786f;margin:0;max-width:750px;}'
+      + '.ax-objective{display:inline-block;border-radius:20px;background:#e5f2e9;color:#207549;padding:5px 10px;font-size:11px;font-weight:650;}'
+      + '.ax-mode-tabs{display:flex;gap:10px;border-bottom:1px solid #dfe7e2;margin:12px 0 18px;flex-wrap:wrap;}'
+      + '.ax-mode-tabs a{padding:11px 13px;text-decoration:none;color:#63766a;font-size:13px;font-weight:650;border-bottom:3px solid transparent;}'
+      + '.ax-mode-tabs a.active{color:#176d48;border-color:#176d48;}'
+      + '.ax-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:12px;background:#fff;border:1px solid #e5ebe7;border-radius:11px;margin-bottom:16px;}'
+      + '.ax-filters label{display:block;font-size:11px;font-weight:650;color:#536c60;margin-bottom:4px;}'
+      + '.ax-filters input{max-width:170px}.ax-categories{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px;}'
+      + '.ax-category{background:#fff;border:1px solid #dfe8e2;border-radius:12px;padding:15px 12px;display:flex;align-items:center;gap:8px;text-align:left;color:#496154;font-size:12px;font-weight:650;}'
+      + '.ax-category .bi{font-size:17px;color:#27835b;}.ax-category small{margin-left:auto;color:#8b9d90;font-weight:500;}'
+      + '.ax-category.active{border-color:#258553;box-shadow:0 0 0 1px #258553;background:#eff8f2;color:#145c3e;}'
+      + '.ax-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;}'
+      + '.ax-kpi{background:#fff;border:1px solid #e0e8e3;border-radius:12px;padding:13px 16px;display:grid;grid-template-columns:auto 1fr;column-gap:9px;align-items:center;}'
+      + '.ax-kpi-icon{grid-row:span 3;background:#eef7f1;border-radius:9px;color:#18794e;width:34px;height:34px;display:grid;place-items:center;}'
+      + '.ax-kpi span{font-size:11px;color:#63776b;}.ax-kpi strong{font-size:23px;font-weight:750;line-height:1.25;color:#203d2c;overflow-wrap:anywhere;}'
+      + '.ax-kpi small{font-size:10px;color:#849489;}.ax-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px;}'
+      + '.ax-chart-card{min-width:0;}.ax-chart-card .ws-panel{height:100%;}.ax-caption{font-size:11px;color:#738377;margin:9px 0 0;}'
+      + '.ax-table-wrap{padding:16px;background:#fff;border:1px solid #e1e9e3;border-radius:12px;margin-top:12px;overflow:auto;}'
+      + '.ax-table-wrap h3{font-size:14px;font-weight:700;color:#284634;margin:0 0 12px;}'
+      + '.ax-table-wrap table{font-size:12px;}.ax-report-nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:22px;font-size:12px;color:#728078;}'
+      + '.ax-report-nav a{padding:6px 11px;background:#fff;border:1px solid #dce6df;border-radius:16px;text-decoration:none;color:#287852;}'
+      + '.ax-report-nav a.active{background:#1d754b;color:#fff}.ax-subfilter{display:flex;align-items:center;gap:10px;margin:12px 0;}'
+      + '.ax-subfilter label{font-size:12px;white-space:nowrap}.ax-subfilter select{max-width:230px}.ax-note{font-size:11px;color:#708073;padding:10px 0 0;}'
+      + '@media(max-width:950px){.ax-categories{grid-template-columns:repeat(2,1fr)}.ax-kpis{grid-template-columns:repeat(2,1fr)}}'
+      + '@media(max-width:650px){.ax-shell{padding:12px}.ax-charts{grid-template-columns:1fr}.ax-category{font-size:11px}.ax-kpis{grid-template-columns:1fr 1fr}.ax-kpi strong{font-size:20px}.ax-mode-tabs a{font-size:12px}}'
+      + '</style>';
+    ctx.el.innerHTML = css + '<div class="ax-shell"><div class="ax-header"><div><span class="ax-objective">OBJECTIVE 5 · HEAD ADMIN ONLY</span>'
+      + '<h2>'+(diagnostic?'Diagnostic':'Descriptive')+' Analytics · '+escape(kind==='management'?'Management Reports':kind==='audit'?'Audit Reports':selected[1])+'</h2>'
+      + '<p>'+(diagnostic?'Investigate recurring issues, ranked contributors, receivables aging and part consumption.':'Recorded performance summaries, totals and trends by reporting period.')+'</p></div>'
+      + '<span class="ax-objective"><i class="bi bi-shield-lock"></i> Management access</span></div>'
+      + modeNav
+      + '<div class="ax-filters"><div><label for="ax-from">From</label><input type="date" class="form-control form-control-sm" id="ax-from" value="'+escape(per.from||'')+'"></div>'
+      + '<div><label for="ax-to">To</label><input type="date" class="form-control form-control-sm" id="ax-to" value="'+escape(per.to||'')+'"></div>'
+      + '<button type="button" class="btn btn-success btn-sm" id="ax-apply">Apply dates</button>'
+      + '<button type="button" class="btn btn-outline-secondary btn-sm" id="ax-month">This month</button>'
+      + '<button type="button" class="btn btn-outline-secondary btn-sm" id="ax-quarter">Last 3 months</button>'
+      + '</div>'
+      + focusHtml + '<h3 class="h6 mb-3">'+escape(diagnostic?'Diagnostic findings':'Performance overview')+'</h3>'
+      + metricHtml + visuals + supporting + '<p class="ax-note">'+escape(note)+'</p>' + reportNav + '</div>';
+    ctx.el.querySelectorAll('[data-ax-topic]').forEach(button => button.addEventListener('click',()=>categoryGo(button.dataset.axTopic)));
+    ctx.el.querySelector('#ax-apply')?.addEventListener('click',()=>{
+      const from=ctx.el.querySelector('#ax-from').value,to=ctx.el.querySelector('#ax-to').value;
+      if(from && to && from<=to)go({from,to});else UI.toast('Choose a valid date range.','warning');
+    });
+    ctx.el.querySelector('#ax-month')?.addEventListener('click',()=>{
+      const now=new Date(),from=new Date(now.getFullYear(),now.getMonth(),1);
+      const iso=x=>[x.getFullYear(),String(x.getMonth()+1).padStart(2,'0'),String(x.getDate()).padStart(2,'0')].join('-');
+      go({from:iso(from),to:iso(now)});
+    });
+    ctx.el.querySelector('#ax-quarter')?.addEventListener('click',()=>{
+      const now=new Date(),from=new Date(now.getFullYear(),now.getMonth()-2,1);
+      const iso=x=>[x.getFullYear(),String(x.getMonth()+1).padStart(2,'0'),String(x.getDate()).padStart(2,'0')].join('-');
+      go({from:iso(from),to:iso(now)});
+    });
+    ctx.el.querySelector('#ax-entity')?.addEventListener('change',e=>go({entity:e.target.value}));
+    chartJobs.forEach(job=>{try{job();}catch(err){console.error('Analytics chart error',err);}});
   },
 }));
