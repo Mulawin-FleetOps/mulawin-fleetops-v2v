@@ -599,3 +599,30 @@
 @media (min-width: 992px) { .ref-scope .ws-grid2 > .hm-span2 { grid-row: span 2; } }
 /* UNSUPPORTED_CLASSIFICATION_CLEANUP — workflow group rows in Executive Reports */
 .ref-scope .hm-pri tr.hm-group th { background: #f6f9f7; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--rf-muted, #6b7280); padding: 7px 12px; }
+
+
+/* MOTORPOOL_ACTION_UI_V3 — content-only action summaries. Never styles sidebar, topbar or reports. */
+#pageContent.ws-scope .mp-action-stages {
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;
+}
+#pageContent.ws-scope .mp-action-stage {
+  min-width:0; display:flex; align-items:center; gap:10px;
+  padding:14px 13px; border:1px solid #dfebe2; border-radius:12px;
+  color:#21432e; background:#fff; text-align:left;
+  box-shadow:0 1px 2px rgba(16,60,34,.04);
+}
+#pageContent.ws-scope button.mp-action-stage {cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+#pageContent.ws-scope button.mp-action-stage:hover {background:#f2f8f3;border-color:#a9d4b5;transform:translateY(-1px)}
+#pageContent.ws-scope button.mp-action-stage:focus-visible {outline:2px solid #267849;outline-offset:2px}
+#pageContent.ws-scope .mp-action-stage-icon {
+  display:grid;place-items:center;flex:0 0 36px;height:36px;
+  border-radius:10px;background:#edf6ef;color:#287448;font-size:18px
+}
+#pageContent.ws-scope .mp-action-stage-content {display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+#pageContent.ws-scope .mp-action-stage-content b {font-size:13px;line-height:1.2}
+#pageContent.ws-scope .mp-action-stage-content small {font-size:11px;line-height:1.3;color:#698071}
+#pageContent.ws-scope .mp-action-stage-count {font-size:22px;line-height:1;font-variant-numeric:tabular-nums;color:#1b5938}
+#pageContent.ws-scope .mp-parts-summary {grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1199px) {#pageContent.ws-scope .mp-action-stages {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px) {#pageContent.ws-scope .mp-action-stages,#pageContent.ws-scope .mp-parts-summary {grid-template-columns:1fr}
+#pageContent.ws-scope .mp-action-stage {padding:12px}}
