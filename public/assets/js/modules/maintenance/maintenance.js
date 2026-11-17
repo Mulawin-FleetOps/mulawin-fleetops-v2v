@@ -529,11 +529,13 @@ App.page('maintenance', {
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     const label = TABS.find(t => t[0] === tab)[1];
-    box.classList.add('mp-reference-table');
-    if (tab === 'done') box.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
-    else if (tab === 'all') box.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
+    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Repair Records</strong><small>${UI.num(shownJobs.length)} matching record${shownJobs.length === 1 ? '' : 's'}</small></div><small>Truck maintenance and verification</small></div>`);
+    const tableBody = document.createElement('div'); box.append(tableBody);
+    if (tab === 'done') tableBody.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
+    else if (tab === 'all') tableBody.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
     else { const rows = view ? open.filter(view[1]) : open.filter(j => j.status !== 'Completed');
-      box.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
+      tableBody.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
     if (once.open) MaintUI.open(once.open);
