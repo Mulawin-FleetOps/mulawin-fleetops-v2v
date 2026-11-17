@@ -1010,3 +1010,42 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .mp-records-heading{padding:14px 15px;align-items:flex-start}
  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-tools{padding:12px}
 }
+
+/* PURCHASING_LIVE_WIREFRAME_V1 */
+/* Actual Purchasing workspace, scoped only to its own pages. Existing UI.table actions and server state remain intact. */
+#pageContent .purchasing-live-v1{--purch-line:#dfe9e2;--purch-ink:#203e2d;--purch-muted:#728576;color:var(--purch-ink)}
+#pageContent .purchasing-live-v1 .ws-kpi4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:17px}
+#pageContent .purchasing-live-v1 .ws-kpi4 > *{min-width:0;border:1px solid var(--purch-line);border-radius:13px;box-shadow:0 1px 3px rgba(12,54,28,.04);background:#fff}
+#pageContent .purchasing-live-v1 .ws-grid2{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
+#pageContent .purchasing-live-v1 .ws-grid2 > .panel{border:1px solid var(--purch-line);border-radius:13px;overflow:hidden;box-shadow:0 1px 3px rgba(12,54,28,.04);background:#fff}
+#pageContent .purchasing-live-v1 .ws-grid2 .panel-head{padding:17px 18px;border-bottom:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .purchasing-records-card{background:#fff;border:1px solid var(--purch-line);border-radius:13px;overflow:hidden;margin-top:17px;box-shadow:0 1px 3px rgba(12,54,28,.04)}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-tools,
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-toolbar{padding:16px 19px;background:#fff}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-search .form-control{min-height:44px;border-radius:9px;border-color:#d5e2d9}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table th{padding:13px 15px;background:#f5f8f6;color:#455f4d;font-size:12px;font-weight:700;border-bottom:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table td{padding:14px 15px;line-height:1.45;border-color:#e9eee9;vertical-align:middle}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table tbody tr:hover td{background:#f7faf8}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-pager{padding:12px 17px;border-top:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .ws-status-tabs{gap:8px;margin:15px 0}
+#pageContent .purchasing-live-v1 .ws-status-tabs .tab{background:#fff;border:1px solid #d9e7dd;border-radius:8px;padding:10px 14px;min-height:38px}
+#pageContent .purchasing-live-v1 .ws-status-tabs .tab.active{background:#e7f4ea;border-color:#a1cdb0;color:#1a6a3d;font-weight:700}
+.purchasing-po-modal .modal-content{border:1px solid #d8e6dc;border-radius:17px;overflow:hidden;background:#fafdFB;box-shadow:0 20px 65px rgba(9,48,26,.18)}
+.purchasing-po-modal .modal-header{background:#eef8f1;padding:21px 25px;border-bottom:1px solid #e0eae3}
+.purchasing-po-modal .modal-title{font-size:19px;font-weight:750;color:#1a5535}
+.purchasing-po-modal .modal-body{padding:22px 25px;background:#fafdFB}
+.purchasing-po-modal .modal-footer{background:#fff;padding:15px 25px;border-top:1px solid #e0eae3}
+.purchasing-po-modal .modal-footer .btn{border-radius:9px;padding:9px 15px}
+.purchasing-po-modal .purchasing-line-editor{background:#fff;border:1px solid #dce8df;border-radius:12px;padding:16px 18px;margin-top:14px}
+.purchasing-po-modal .purchasing-line-title{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.purchasing-po-modal .purchasing-line-title strong{display:block;font-size:14px;color:#28543a}
+.purchasing-po-modal .purchasing-line-title small{display:block;font-size:12px;color:#788b7d;margin-top:3px}
+.purchasing-po-modal .purchasing-line{display:flex;gap:8px;align-items:end;padding:12px 0;border-top:1px solid #edf2ee;flex-wrap:wrap}
+.purchasing-po-modal .purchasing-line:first-child{border-top:0}
+.purchasing-po-modal .purchasing-line-fields{display:grid;grid-template-columns:minmax(0,1fr) 91px 124px;gap:10px;flex:1;min-width:0}
+.purchasing-po-modal .purchasing-line .form-control,.purchasing-po-modal .purchasing-line .form-select{min-height:40px}
+.purchasing-po-modal .purchasing-line-amount{min-width:108px;font-weight:700;font-size:12px;color:#376348;text-align:right;padding-bottom:11px}
+.purchasing-po-modal .purchasing-remove{height:40px;min-width:40px;border-radius:9px}
+.purchasing-po-modal .purchasing-line-total{text-align:right;padding:12px 0 4px;font-size:15px;font-weight:750;color:#1e5835;border-top:1px solid #e6eee8}
+@media(max-width:1100px){#pageContent .purchasing-live-v1 .ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr))}#pageContent .purchasing-live-v1 .ws-grid2{grid-template-columns:1fr}}
+@media(max-width:680px){#pageContent .purchasing-live-v1 .ws-kpi4{grid-template-columns:1fr 1fr}.purchasing-po-modal .purchasing-line-fields{grid-template-columns:minmax(0,1fr) 90px}.purchasing-po-modal .purchasing-line-fields>div:last-child{grid-column:1/-1}.purchasing-po-modal .modal-body,.purchasing-po-modal .modal-header,.purchasing-po-modal .modal-footer{padding:16px}.purchasing-po-modal .purchasing-line-editor{padding:12px}}
