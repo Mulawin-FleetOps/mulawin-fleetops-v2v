@@ -288,6 +288,7 @@ const App = {
         'Client & Commercial': 'bi-buildings',
         'Financial Oversight': 'bi-graph-up-arrow',
         'Management Control': 'bi-shield-check',
+        'Analytics': 'bi-graph-up',
       };
       const menuGroups=[];
       const ungrouped=[];
