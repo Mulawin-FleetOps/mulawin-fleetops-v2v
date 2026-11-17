@@ -365,6 +365,27 @@ PurUI.list = (title, icon, items, empty, more) => `<section class="panel"><div c
   <div class="panel-body flush">${items.length ? `<ul class="mo-list mo-scroll">${items.join('')}</ul>` : `<div class="mo-empty">${UI.esc(empty)}</div>`}</div></section>`;
 PurUI.item = (go, top, sub, side) => `<li class="mo-item clickable" data-go="${UI.esc(go)}" role="link" tabindex="0"><div class="mo-item-main"><div class="mo-item-top">${top}</div>${sub ? `<div class="mo-item-issue">${sub}</div>` : ''}</div><div class="mo-item-side">${side}</div></li>`;
 
+const PurCompact = {
+  filterExtra(page, opts) {
+    const available = opts.filter(o=>o && o.value !== undefined);
+    return `<div class="purchasing-more-filter"><label class="visually-hidden" for="purch-status-extra">Other statuses</label>
+      <select id="purch-status-extra" class="form-select form-select-sm" data-purch-extra>
+        <option value="">More statuses…</option>${available.map(o=>`<option value="${UI.esc(o.value)}">${UI.esc(o.label)}</option>`).join('')}
+      </select></div>`;
+  }
+};
+if (!PurCompact._wired) {
+  PurCompact._wired = true;
+  document.addEventListener('change', e => {
+    if (!e.target.matches('[data-purch-extra]')) return;
+    const val = e.target.value;
+    if (!val) return;
+    const page = App.current?.page;
+    const key = page === 'stock_movements' ? 'type' : 'tab';
+    if (['parts_requests','purchase_orders','stock_movements'].includes(page))
+      App.go(page, { ...App.current?.query, [key]: val });
+  });
+}
 const PurRef = {
   cards(items) { return UI.kpiTiles(items, 'ws-kpi4 purchasing-page-kpis'); },
   recordBox(box,title,subtitle,count) {
@@ -469,7 +490,10 @@ App.page('parts_requests', {
       {label:'Awaiting Stock Check',value:cnt('todo'),note:'From Motorpool',icon:'bi-search',go:'parts_requests?tab=todo'},
       {label:'Needs Follow-up',value:cnt('followup'),note:'Shortage or partial',icon:'bi-exclamation-triangle',go:'parts_requests?tab=followup'},
       {label:'Released',value:cnt('released'),note:'Fully fulfilled',icon:'bi-check2-circle',go:'parts_requests?tab=released'}
-    ])}${UI.statusTabs('parts_requests', q, 'tab', Object.entries(TABS).map(([key, [label]]) => [key, label, cnt(key)]), tab)}
+    ])}${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')],
+        ...(tab === 'cancelled' ? [['cancelled','Cancelled',cnt('cancelled')]] : []),
+        ...(tab === 'all' ? [['all','All',cnt('all')]] : [])], tab)}
+      ${PurCompact.filterExtra('parts_requests', [{ value:'all',label:'All requests'},{value:'cancelled',label:'Cancelled' }])}
       ${UI.generalFilters(ctx, [{ name: 'truck', label: 'Trucks', options: trucks }, { name: 'po', label: 'PO link', all: 'With or without PO', options: [['linked', 'Has a linked PO'], ['none', 'No linked PO']] }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Parts Request Records','Motorpool requests and release progress',rows.length);
@@ -512,7 +536,11 @@ App.page('purchase_orders', {
       {label:'Awaiting Approval',value:cnt('approval'),note:'Finance / Admin',icon:'bi-clock',go:'purchase_orders?tab=approval'},
       {label:'To Receive',value:cnt('receive'),note:'Goods not fully received',icon:'bi-box-arrow-in-down',go:'purchase_orders?tab=receive'},
       {label:'Completed',value:cnt('done'),note:'Received and settled',icon:'bi-check-circle',go:'purchase_orders?tab=done'}
-    ])}${UI.statusTabs('purchase_orders', q, 'tab', Object.entries(TABS).map(([key, [label]]) => [key, key === 'approval' && mine.length ? label + ' (' + mine.length + ' for you)' : label, cnt(key)]), tab)}
+    ])}${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
+        ...(tab === 'payment' ? [['payment','Awaiting payment',cnt('payment')]] : []),
+        ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
+        ...(tab === 'all' ? [['all','All',cnt('all')]] : [])], tab)}
+      ${PurCompact.filterExtra('purchase_orders', [{value:'all',label:'All orders'},{value:'payment',label:'Awaiting payment'},{value:'rejected',label:'Rejected'}])}
       ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }, { name: 'payment', label: 'Payment statuses', options: [...new Set(all.map(o => o.payment_status).filter(Boolean))].sort() }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Purchase Order Records','Approval and receiving status',rows.length);
@@ -618,7 +646,10 @@ App.page('stock_movements', {
     // UI_REFERENCE_V1: movement-type tabs (?type=) with counts, filters with Reset, and a one-line total that follows the filters.
     const base = all.filter(m => (!q.part || m.part_number === q.part) && (!q.from || String(m.created_at).slice(0, 10) >= q.from) && (!q.to || String(m.created_at).slice(0, 10) <= q.to));
     const types = ['Stock In', 'Stock Out', 'Adjustment'];
-    ctx.el.innerHTML = `${UI.statusTabs('stock_movements', q, 'type', [['', 'All', base.length], ...types.map(t => [t, t, base.filter(m => m.movement_type === t).length])], types.includes(q.type) ? q.type : '')}
+    ctx.el.innerHTML = `${UI.statusTabs('stock_movements', q, 'type', [['', 'All', base.length], ['Stock In', 'Stock In', base.filter(m => m.movement_type === 'Stock In').length],
+        ['Stock Out','Stock Out',base.filter(m => m.movement_type === 'Stock Out').length],
+        ...(q.type === 'Adjustment' ? [['Adjustment','Adjustment',base.filter(m => m.movement_type === 'Adjustment').length]] : [])], types.includes(q.type) ? q.type : '')}
+      ${PurCompact.filterExtra('stock_movements',[{value:'Adjustment',label:'Adjustments'}])}
       ${UI.generalFilters(ctx, [{ name: 'part', label: 'Parts', options: parts }, { name: 'from', label: 'From date', type: 'date' }, { name: 'to', label: 'To date', type: 'date' }])}
       <div class="small text-muted mb-2">Shown: stock in <b>${UI.num(sum('Stock In'))}</b> units (${UI.money(val('Stock In'))}) · stock out <b>${UI.num(sum('Stock Out'))}</b> units (${UI.money(val('Stock Out'))})
         · ${UI.num(rows.filter(m => m.movement_type === 'Adjustment').length)} adjustment(s). Values use the unit cost recorded on each movement.</div>`;
