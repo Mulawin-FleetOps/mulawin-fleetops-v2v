@@ -415,3 +415,34 @@
 #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group:has(.head-nav-items > .nav-item-link.active) > summary > .bi:first-child {
   color:#efbc37 !important;
 }
+
+/* Compact-only adjustment: keep every previously visible submenu icon,
+   but remove the tree strokes and center the child icon in the 76px rail. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items::before,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link::after {
+    content:none !important;
+    display:none !important;
+    border:0 !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    margin-left:0 !important;
+    padding:0 !important;
+    gap:0 !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > .bi,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > svg.bi {
+    display:block !important;
+    flex:0 0 18px !important;
+    width:18px !important;
+    height:18px !important;
+    font-size:15px !important;
+    line-height:18px !important;
+    margin:0 !important;
+    text-align:center !important;
+  }
+}
