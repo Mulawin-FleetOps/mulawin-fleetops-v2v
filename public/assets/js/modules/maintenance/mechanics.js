@@ -73,8 +73,8 @@ App.page('mechanics', {
       ${AV.map(a => tab('mechanics?availability=' + a, a === 'Assigned' ? 'On a repair' : a, active.filter(m => m.availability === a).length, key === a)).join('')}
       ${tab('mechanics?inactive=1', 'Inactive', inactive.length, key === 'inactive')}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
-    box.classList.add('mp-reference-table');
-    box.innerHTML = UI.table([
+    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.innerHTML = `<div class="mp-records-heading"><div><strong>Mechanic Records</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Skills, duty status and repair assignments</small></div>` + UI.table([
       ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}</div>`],
       ['Specialization', 'specialization'],
       ['Attendance', 'timed_in', (v, m) => +v ? `<span class="badge-s green">Timed in</span><div class="cell-sub">${UI.datetime(m.last_time_in)}</div>` : (m.last_time_out ? `<span class="badge-s amber">Timed out</span><div class="cell-sub">${UI.datetime(m.last_time_out)}</div>` : '<span class="text-muted">Not timed in</span>')],
