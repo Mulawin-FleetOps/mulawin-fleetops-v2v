@@ -64,12 +64,28 @@ try {
             $statement->execute([$id]);
         }
     }
+    // CI verifies the same approved-hash process used on the live branch,
+    // but only against an isolated database and an ephemeral checkout.
+    $approvalPath=dirname(__DIR__) . '/database/migrations/approved.json';
+    $approvalOriginal=file_get_contents($approvalPath);
+    $approvedHashes=[];
+    foreach ($targets as $id) {
+        $file=dirname(__DIR__) . '/database/migrations/' . $id . '.sql';
+        $approvedHashes[basename($file)]=hash_file('sha256',$file);
+    }
+    file_put_contents($approvalPath,json_encode(['files'=>$approvedHashes],JSON_PRETTY_PRINT));
+    $autoDir=sys_get_temp_dir() . '/fleetops_auto_mysql_ci_' . bin2hex(random_bytes(8));
+    mkdir($autoDir,0700);
     $env = array_merge($_ENV, [
         'DB_HOST'=>'127.0.0.1', 'DB_PORT'=>'3306', 'DB_NAME'=>$name,
         'DB_USER'=>$user, 'DB_PASS'=>$pass,
         'MIGRATIONS_ENABLED'=>'1', 'MIGRATIONS_EXPECTED_DB'=>$name,
         'MIGRATIONS_BACKUP_VERIFIED'=>'1', // disposable fixture, not production
-        'MIGRATIONS_APPROVED_IDS'=>implode(',', $targets)
+        'MIGRATIONS_APPROVED_IDS'=>implode(',', $targets),
+        'MIGRATIONS_AUTO_PRIVATE_DIR'=>$autoDir,
+        'MIGRATIONS_CI_FAST_STABILITY'=>'1',
+        'MYSQL_TEST_ALLOW_CREATE'=>'1',
+        'CI'=>'true'
     ]);
     $run = static function(string $mode) use ($env): array {
         $p = proc_open([PHP_BINARY, dirname(__DIR__) . '/scripts/migrate.php', $mode], [1=>['pipe','w'],2=>['pipe','w']], $pipes, dirname(__DIR__), $env);
@@ -80,8 +96,12 @@ try {
     };
     [$code,$out,$err] = $run('--status');
     if ($code !== 0 || substr_count($out, 'Pending:') !== 3) throw new RuntimeException("Status: $out $err");
-    [$code,$out,$err] = $run('--apply');
-    if ($code !== 0 || !str_contains($out, 'Successfully applied 3')) throw new RuntimeException("Apply: $out $err");
+    [$code,$out,$err] = $run('--auto');
+    if ($code !== 0 || !str_contains($out, 'settling')) throw new RuntimeException("First auto gate: $out $err");
+    [$code,$out,$err] = $run('--auto');
+    if ($code !== 0 || !str_contains($out, 'Verified private backup') ||
+        !str_contains($out, 'Successfully applied 3')) throw new RuntimeException("Auto apply: $out $err");
+    echo "PASS: content-approved auto migration after settling and private backup\n";
     $applied = (int)$db->query("SELECT COUNT(*) FROM schema_migrations WHERE id IN ('" . implode("','", $targets) . "')")->fetchColumn();
     $column = (int)$db->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='dispatcher_truck_types'")->fetchColumn();
     $table = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='driver_truck_authorizations'")->fetchColumn();
@@ -94,6 +114,13 @@ try {
     if ($code !== 0 || !str_contains($out, 'already up to date')) throw new RuntimeException("Repeat: $out $err");
     echo "PASS: all three migrations, backfill, history and repeat idempotence\n";
 } finally {
+    if (isset($approvalPath, $approvalOriginal) && is_string($approvalOriginal)) {
+        file_put_contents($approvalPath,$approvalOriginal);
+    }
+    if (isset($autoDir) && is_dir($autoDir)) {
+        foreach (glob($autoDir . '/*') ?: [] as $file) if (is_file($file)) unlink($file);
+        rmdir($autoDir);
+    }
     if (preg_match('/^fleetops_ci_[a-f0-9]{16}$/', $name)) {
         $admin->exec("DROP DATABASE " . $name);
     }
