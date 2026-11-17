@@ -367,9 +367,22 @@ const App = {
     if (ws) {
       const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
       if (u.role === 'motorpool') {
-        // MOTORPOOL_UI_V2: six direct links, no accordion groups (Dashboard first). Items come only from the
-        // server-authorized workspace menu (UI.WS_MENUS.motorpool filtered by me.nav).
-        nav = ws.groups.flatMap(g => g.items).map(wsLink).join('');
+        // MOTORPOOL_OPERATIONS_NAV_V9: only server-authorized links; Operations-style groups.
+        // The shared dashboard extraction below keeps Dashboard as one direct top-level link.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['maintenance_overview']).map(wsLink).join('');
+        const motorpoolGroups = [
+          { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
+          { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
+          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','maintenance_reports'] }
+        ];
+        nav += motorpoolGroups.map(g => UI.sidebarGroup({
+          title:g.title, icon:g.icon, key:'motorpool-'+g.title,
+          items:take(g.ids).map(wsLink).join('')
+        })).join('');
       } else if (u.role === 'purchasing') {
         // Same executive navigation as Admin and Motorpool. Use only routes
         // already provided by the server-authorized Purchasing workspace.
@@ -992,10 +1005,10 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
    me.nav (Access::navFor) lists it, so no unauthorized page can be shown. Other permitted pages are grouped below
    under short headings (Fleet & trips, Maintenance, Purchasing, Accounting, Records). Other roles keep the old menu. */
 UI.WS_MENUS = {
-  // MOTORPOOL_UI_V2: flat menu (no "Maintenance" group), Reports and Truck Masterlist removed (fleet status is on the Dashboard).
+  // MOTORPOOL_OPERATIONS_NAV_V9: grouped display is rendered by the Motorpool branch above; routes are unchanged.
   motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
-    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['maint_history', 'Repair History', 'bi-journal-check'],
-    ['mechanics', 'Mechanics', 'bi-person-gear'], ['mechanic_attendance', 'Mechanic Attendance', 'bi-person-check']] },
+    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['maint_history', 'Maintenance History', 'bi-journal-check'],
+    ['mechanics', 'Mechanics', 'bi-person-gear'], ['mechanic_attendance', 'Attendance', 'bi-person-check']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
     ['purchasing_reports', 'Reports', 'bi-graph-up']] },
