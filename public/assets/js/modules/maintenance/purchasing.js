@@ -223,8 +223,12 @@ PurUI.countForm = (d, part) => {
   const wrap = UI.modal('Record stock count', `<div class="stock-count-form">
     <p class="modal-intro">Record the physical count for a part. Stock remains unchanged until the Admin reviews and posts the adjustment.</p>
     <div class="stock-count-section-label">Part to count</div>
-    ${UI.fields([{ name: 'part_id', label: 'Part ID and Name', type: 'select', required: true, col: 12, value: sel,
-      options: parts.map(p => [p.id, p.part_number + ' · ' + p.description]) }])}
+    ${UI.fields([{ name: 'part_id', label: 'Part Name', type: 'select', required: true, col: 6, value: sel,
+      placeholder: 'Select an existing part…',
+      options: [...parts].sort((a, b) => a.description.localeCompare(b.description)).map(p => [p.id, p.description]) },
+      { name: 'part_code_display', label: 'Part ID', col: 6, value: part?.part_number || '',
+        placeholder: 'Auto-filled on selection', attrs: 'readonly aria-readonly="true" tabindex="-1"',
+        help: 'Automatically linked to the selected part.' }])}
     <div class="sc-figures" data-fig aria-live="polite"></div>
     <div class="stock-count-section-label">Physical count details</div>
     ${UI.fields([{ name: 'counted_qty', label: 'Actual quantity counted', type: 'number', required: true, col: 12,
@@ -241,6 +245,7 @@ PurUI.countForm = (d, part) => {
   const f = (n) => wrap.querySelector(`[name="${n}"]`), fig = wrap.querySelector('[data-fig]');
   const show = () => {
     const p = parts.find(x => String(x.id) === f('part_id').value), raw = f('counted_qty').value;
+    f('part_code_display').value = p ? p.part_number : '';
     if (!p) { fig.innerHTML = ''; return; }
     const open = (d.counts || []).find(c => +c.part_id === +p.id && c.status === 'Submitted');
     const diff = raw === '' ? null : Math.trunc(+raw) - +p.quantity_on_hand;
