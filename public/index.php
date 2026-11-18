@@ -30,7 +30,7 @@ if (isset($_GET['api'])) {
     try {
         // Security S1: login, logout and the password-change workflow remain reachable;
         // a user who must still replace a temporary password cannot call document, backup, map, or other APIs directly.
-        if (!in_array($api, ['whoami','login','logout','me','Admin.password_change_force','Admin.password_change_request','Admin.password_change_confirm'], true)
+        if (!in_array($api, ['whoami','login','logout','me','password_recovery_request','password_recovery_confirm','Admin.password_change_force','Admin.password_change_request','Admin.password_change_confirm'], true)
             && !empty($_SESSION['uid'])) {
             $setupUser = currentUser();
             core('SecurityPasswordChange');
@@ -39,6 +39,14 @@ if (isset($_GET['api'])) {
         switch ($api) {
             case 'whoami':
                 jsonOut(['ok' => true, 'signedIn' => (bool)($_SESSION['uid'] ?? false), 'csrf' => $_SESSION['csrf']]);
+            case 'password_recovery_request':
+            case 'password_recovery_confirm':
+                must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
+                $d = inputData();
+                checkCsrf($d['csrf'] ?? '');
+                core('PasswordRecovery');
+                jsonOut(['ok' => true, 'data' => $api === 'password_recovery_request'
+                    ? PasswordRecovery::request($d) : PasswordRecovery::confirm($d)]);
             case 'login':
                 // Username (or email) + password. A correct password signs the user in; there is no second step.
                 must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
@@ -131,9 +139,9 @@ if (isset($_GET['api'])) {
 // ---------------- HTML shell ----------------
 // Each module script is separate: if one file fails, the other pages still work.
 // Screen files naka-grupo ayon sa department (public/assets/js/modules/<department>/<file>.js).
-$jsModules = ['general/dashboard', 'operations/trips', 'operations/fleet', 'operations/clients', 'operations/routes', 'maintenance/mechanics', 'maintenance/maintenance',
+$jsModules = ['general/dashboard', 'operations/trips', 'operations/trip-planner', 'operations/fleet', 'operations/clients', 'operations/routes', 'maintenance/mechanics', 'maintenance/maintenance', 'maintenance/history',
               'maintenance/purchasing', 'accounting/funds', 'accounting/billing', 'accounting/finance', 'general/documents', 'general/reports',
-              'general/notifications', 'administration/admin'];
+              'general/notifications', 'administration/admin', 'administration/head-management', 'administration/audit', 'administration/oversight', 'operations/ops-head', 'operations/dispatcher-monitoring', 'operations/trip-approvals', 'operations/dispatcher', 'operations/ops-reports', 'operations/dispatcher-turnover', 'general/approvals'];
 $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filemtime(__DIR__ . '/' . $f) : '1';
 ?><!doctype html>
 <html lang="en">
@@ -149,6 +157,17 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link rel="stylesheet" href="assets/css/layout.css?v=<?= $v('assets/css/layout.css') ?>">
   <link rel="stylesheet" href="assets/css/login.css?v=<?= $v('assets/css/login.css') ?>">
   <link rel="stylesheet" href="assets/css/app.css?v=<?= $v('assets/css/app.css') ?>">
+  <link rel="stylesheet" href="assets/css/workspace.css?v=<?= $v('assets/css/workspace.css') ?>">
+  <link rel="stylesheet" href="assets/css/account-navigation.css?v=<?= $v('assets/css/account-navigation.css') ?>">
+  <link rel="stylesheet" href="assets/css/sidebar-hover-pin.css?v=<?= $v('assets/css/sidebar-hover-pin.css') ?>">
+  <link rel="stylesheet" href="assets/css/ops-head.css?v=<?= $v('assets/css/ops-head.css') ?>">
+  <link rel="stylesheet" href="assets/css/records.css?v=<?= $v('assets/css/records.css') ?>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/dispatcher.css?v=<?= $v('assets/css/dispatcher.css') ?>">
+  <link rel="stylesheet" href="assets/css/system-typography.css?v=<?= $v('assets/css/system-typography.css') ?>">
+  <link rel="stylesheet" href="assets/css/kpi-icons.css?v=<?= $v('assets/css/kpi-icons.css') ?>">
 </head>
 <body>
   <div id="app"><div class="text-center p-5 text-muted">Loading Mulawin FleetOps…</div></div>
@@ -157,11 +176,14 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <script src="assets/vendor/chartjs/chart.umd.min.js"></script>
   <script src="assets/vendor/leaflet/leaflet.js"></script>
   <script src="assets/js/core.js?v=<?= $v('assets/js/core.js') ?>"></script>
+  <script src="assets/js/components/records.js?v=<?= $v('assets/js/components/records.js') ?>"></script>
+  <script src="assets/js/components/forms.js?v=<?= $v('assets/js/components/forms.js') ?>"></script>
   <script src="assets/js/map.js?v=<?= $v('assets/js/map.js') ?>"></script>
   <script src="assets/js/attendance.js?v=<?= $v('assets/js/attendance.js') ?>"></script>
 <?php foreach ($jsModules as $m): ?>
   <script src="assets/js/modules/<?= $m ?>.js?v=<?= $v('assets/js/modules/' . $m . '.js') ?>"></script>
 <?php endforeach; ?>
+  <script src="assets/js/kpi-palette.js?v=<?= $v('assets/js/kpi-palette.js') ?>"></script>
   <script>App.start();</script>
 </body>
 </html>

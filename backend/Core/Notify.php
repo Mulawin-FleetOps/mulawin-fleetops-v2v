@@ -16,6 +16,17 @@ declare(strict_types=1);
 final class Notify {
     public const STATES = ['Unread', 'Read', 'Resolved', 'Archived'];
 
+    /** Account-addressed operational tasks; planning shifts remain historical metadata. */
+    public static function tripRoles(PDO $p, array $trip, array $roles, string $category, string $message, ?string $page = null, ?string $key = null): void {
+        $dispatcher=$trip['dispatcher_role']??null;
+        self::roles($p,array_values(array_filter($roles,fn($r)=>!roleIsDispatcher($r))),$category,$message,$page,$key);
+        if(!$dispatcher||!in_array($dispatcher,$roles,true))return;
+        try{$owner=one($p,'SELECT current_dispatcher_id FROM trip_responsibilities WHERE trip_id=?',[$trip['id']??0]);}
+        catch(Throwable $e){$owner=null;}
+        if($owner)self::user($p,(int)$owner['current_dispatcher_id'],$category,$message,$page,$key);
+        else self::roles($p,['operations_head'],'Initial Dispatcher responsibility',($trip['trip_ref']??'Trip').': assign an initial responsible account before Dispatcher processing.','trips',$key);
+    }
+
     /** Send to every active user with one of the roles. */
     public static function roles(PDO $p, array $roles, string $category, string $message, ?string $page = null, ?string $key = null): void {
         try {
@@ -57,9 +68,9 @@ final class Notify {
     /** Bell data for one user: active list (Unread + Read) and the unread count. */
     public static function forUser(PDO $p, int $userId): array {
         return [
-            'items' => many($p, "SELECT id, category, message, page, state, created_at, read_at FROM notifications WHERE user_id=? AND state IN ('Unread','Read') ORDER BY (state='Unread') DESC, id DESC LIMIT 30", [$userId]),
-            'unread' => (int)one($p, "SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND state='Unread'", [$userId])['n'],
-            'active' => (int)one($p, "SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND state IN ('Unread','Read')", [$userId])['n'],
+            'items' => many($p, "SELECT id, category, message, page, state, created_at, read_at FROM notifications WHERE user_id=? AND (dedupe_key IS NULL OR dedupe_key NOT LIKE 'trip-review-%') AND state IN ('Unread','Read') ORDER BY (state='Unread') DESC, id DESC LIMIT 30", [$userId]),
+            'unread' => (int)one($p, "SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND (dedupe_key IS NULL OR dedupe_key NOT LIKE 'trip-review-%') AND state='Unread'", [$userId])['n'],
+            'active' => (int)one($p, "SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND (dedupe_key IS NULL OR dedupe_key NOT LIKE 'trip-review-%') AND state IN ('Unread','Read')", [$userId])['n'],
         ];
     }
 
@@ -83,7 +94,7 @@ final class Notify {
                 self::roles($p, ['admin', 'operations_head'], 'Driver license', $c['full_name'] . ' license expires on ' . $c['license_expiry'], 'crew', 'lic-' . $c['id'] . '-' . $today);
             }
             foreach (many($p, 'SELECT id, part_number, description, quantity_on_hand, reorder_level FROM parts WHERE active=1 AND reorder_level > 0 AND quantity_on_hand <= reorder_level') as $pt) {
-                self::roles($p, ['purchasing'], 'Low stock', $pt['part_number'] . ' ' . $pt['description'] . ': ' . $pt['quantity_on_hand'] . ' left (reorder level ' . $pt['reorder_level'] . ')', 'purchasing', 'stock-' . $pt['id'] . '-' . $today);
+                self::roles($p, ['purchasing'], 'Low stock', $pt['part_number'] . ' ' . $pt['description'] . ': ' . $pt['quantity_on_hand'] . ' left (reorder level ' . $pt['reorder_level'] . ')', 'inventory', 'stock-' . $pt['id'] . '-' . $today);
             }
         } catch (Throwable $e) { error_log('dailyReminders failed: ' . $e->getMessage()); }
     }

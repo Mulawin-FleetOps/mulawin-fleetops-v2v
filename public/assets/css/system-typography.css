@@ -1,0 +1,48 @@
+/* SYSTEM_TYPOGRAPHY_V1 — shared across all pages and authenticated roles.
+   Poppins: headings and summary/KPI numeric values.
+   Manrope: all other interface and document text.
+   Typography-only: no changes to layout, spacing, colors or workflows. */
+:root{
+  --font-sans:"Manrope","Segoe UI",Arial,sans-serif;
+  --font-heading:"Poppins","Manrope",sans-serif;
+  --bs-body-font-family:var(--font-sans);
+}
+html,body,button,input,select,textarea,option{
+  font-family:var(--font-sans);
+}
+#appShell,
+#appShell :is(button,input,select,textarea),
+#pageContent,
+.modal,.offcanvas,.dropdown-menu,.tooltip,.popover,
+.leaflet-container,.print-report,.pf{
+  font-family:var(--font-sans);
+}
+/* Page/section/card headings — text labels not all controls or badges. */
+:is(h1,h2,h3,h4,h5,h6),
+#pageContent :is(
+  .page-title,.panel-title,.ws-panel-title,.record-workspace-heading h2,
+  .rpm-panel-title,.rpm-section-title,.head-report-title,
+  .oh-panel-title,.ds-panel-title,.chart-title,
+  .bil-v2-panel-title,.modal-title,.card-title,
+  .mo-quickbar-title,.mp-panel-title
+),
+#appShell .sidebar-brand-title{
+  font-family:var(--font-heading);
+}
+/* Numeric totals: KPIs, dashboard metrics and prominent summary counts. */
+#pageContent :is(
+  .kpi-value,.metric-value,.rpm-kpi-value,.head-fleet-kpi-value>strong,
+  .head-kpi-value,.stat-value,.ax-kpi-value,.ax-kpi-number,
+  .rpm-exec-kpi-value,.rpm-exec-performance-value,
+  .mp-action-stage-count,.ds-card-copy>strong,
+  .oh-metric-value,.summary-number,.summary-value,.amount-total,
+  .record-workspace-kpis .metric-value
+){
+  font-family:var(--font-heading);
+  font-variant-numeric:tabular-nums;
+}
+/* Scope dispatcher summary numbers even where a separate card markup is used. */
+#pageContent .dispatcher-record-kpi-grid .ds-card-copy strong,
+#pageContent .ds-summary-card .ds-card-copy strong{
+  font-family:var(--font-heading);
+}

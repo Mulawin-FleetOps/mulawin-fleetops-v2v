@@ -5,11 +5,11 @@
  * =====================================================================
  *  Proteksyon ng accounts (login = username/email + password lamang; walang email OTP):
  *  1. Lock ng account: 5 maling password (kahit saang computer) = naka-lock nang 15 minuto.
- *  2. Recovery code ng Admin: isang code na ipi-print at itatago. Kapag nakalimutan o na-hack ang
- *     Admin password, gamitin ito sa login page ("Forgot the Admin password?"). Isang beses lang gumagana.
- *  3. Kapag napalitan ang password (ng user, ng Admin o gamit ang recovery code), lahat ng lumang
- *     login session ng account na iyon ay mala-log out.
- *  Huling paraan (IT / developer, may access sa server): php scripts/reset_password.php USERNAME
+ *  2. Forgot Password: one-time 6-digit code sent to the account's registered email.
+ *     Five-minute expiry, attempt limits; the code is stored only as a hash.
+ *  3. Kapag napalitan ang password, lahat ng lumang login session ay mala-log out.
+ *  Emergency fallback kapag unavailable ang email: authorized server IT can use
+ *     php scripts/reset_password.php USERNAME (CLI only, audited).
  * =====================================================================
  */
 declare(strict_types=1);
@@ -39,12 +39,20 @@ final class AccountSecurity {
                 audit(db(), $id, 'Access', 'user ' . $id, 'account locked', self::MAX_TRIES . ' wrong passwords; locked for ' . self::LOCK_MINUTES . ' minutes');
             }
             return true;
-        } catch (Throwable $e) { error_log('Account lock unavailable: ' . $e->getMessage()); return false; }
+        } catch (Throwable $e) {
+            // Do not allow authentication to proceed when failed attempts
+            // cannot be counted reliably. The API error handler masks details.
+            error_log('Account lock unavailable: ' . $e->getMessage());
+            throw new RuntimeException('Account security verification unavailable.', 0, $e);
+        }
     }
 
     public static function success(int $id): void {
         try { run(db(), 'UPDATE users SET failed_logins=0, locked_until=NULL WHERE id=?', [$id]); }
-        catch (Throwable $e) { error_log('Account lock unavailable: ' . $e->getMessage()); }
+        catch (Throwable $e) {
+            error_log('Account lock reset unavailable: ' . $e->getMessage());
+            throw new RuntimeException('Account security verification unavailable.', 0, $e);
+        }
     }
 
     /** Itala kung kailan napalitan ang password (para ma-log out ang lumang sessions). */
@@ -57,9 +65,19 @@ final class AccountSecurity {
 
     /** True kapag napalitan ang password pagkatapos mag-login ang session na ito. */
     public static function sessionOutdated(int $id): bool {
-        try { $pc = one(db(), 'SELECT password_changed_at FROM users WHERE id=?', [$id])['password_changed_at'] ?? null; }
-        catch (Throwable $e) { return false; }
-        return $pc !== null && strtotime((string)$pc) > (int)($_SESSION['login_at'] ?? 0);
+        try {
+            $row = one(db(), 'SELECT password_changed_at FROM users WHERE id=?', [$id]);
+            if (!$row) throw new RuntimeException('Session account no longer exists.');
+            $pc = $row['password_changed_at'] ?? null;
+            if ($pc === null) return false;
+            $changed = strtotime((string)$pc);
+            // An unreadable security timestamp must not validate an old session.
+            if ($changed === false) throw new RuntimeException('Invalid password-change timestamp.');
+            return $changed > (int)($_SESSION['login_at'] ?? 0);
+        } catch (Throwable $e) {
+            error_log('Session revocation verification unavailable: ' . $e->getMessage());
+            throw new RuntimeException('Session security verification unavailable.', 0, $e);
+        }
     }
 
     /**

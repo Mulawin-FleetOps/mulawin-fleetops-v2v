@@ -15,16 +15,18 @@ final class SignatureAccess {
         $role = (string)($viewer['role'] ?? '');
         switch ($recordType) {
             case 'purchase_order':
-                if (!Access::canOpen($viewer, 'purchasing')) return false;
+                if (!Access::canOpen($viewer, 'purchase_orders')) return false;
                 return self::exists('SELECT id FROM purchase_orders WHERE id=? AND (requested_by=? OR decided_by=?) LIMIT 1', [$recordId, $signerId, $signerId]);
             case 'part_request':
-                if (!Access::canOpen($viewer, 'purchasing')) return false;
+                // Purchasing fulfils requests; Motorpool prints the request form of its own repairs.
+                if (!Access::canOpen($viewer, 'parts_requests') && $role !== 'motorpool') return false;
                 return self::exists('SELECT id FROM part_requests WHERE id=? AND (requested_by=? OR processed_by=?) LIMIT 1', [$recordId, $signerId, $signerId]);
             case 'fund_request':
                 if (!Access::canOpen($viewer, 'funds')) return false;
                 if (roleIsDispatcher($role)) {
-                    return self::exists('SELECT f.id FROM fund_requests f JOIN trips t ON t.id=f.trip_id WHERE f.id=? AND (f.requested_by=? OR f.approved_by=? OR f.released_by=?) AND (t.dispatcher_role=? OR f.requested_by=?) LIMIT 1',
-                        [$recordId, $signerId, $signerId, $signerId, $role, $self]);
+                    core('DispatcherScope');[$scope,$args]=DispatcherScope::tripSql($viewer);
+                    return self::exists('SELECT f.id FROM fund_requests f JOIN trips t ON t.id=f.trip_id WHERE f.id=? AND (f.requested_by=? OR f.approved_by=? OR f.released_by=?) '.$scope.' LIMIT 1',
+                        [$recordId, $signerId, $signerId, $signerId, ...$args]);
                 }
                 return self::exists('SELECT id FROM fund_requests WHERE id=? AND (requested_by=? OR approved_by=? OR released_by=?) LIMIT 1', [$recordId, $signerId, $signerId, $signerId]);
             case 'billing':
@@ -36,8 +38,9 @@ final class SignatureAccess {
             case 'incident':
                 if (!Access::canOpen($viewer, 'trips')) return false;
                 if (roleIsDispatcher($role)) {
-                    return self::exists('SELECT i.id FROM incidents i JOIN trips t ON t.id=i.trip_id WHERE i.id=? AND (i.reported_by=? OR i.assessed_by=?) AND (t.dispatcher_role=? OR t.created_by=?) LIMIT 1',
-                        [$recordId, $signerId, $signerId, $role, $self]);
+                    core('DispatcherScope');[$scope,$args]=DispatcherScope::tripSql($viewer);
+                    return self::exists('SELECT i.id FROM incidents i JOIN trips t ON t.id=i.trip_id WHERE i.id=? AND (i.reported_by=? OR i.assessed_by=?) '.$scope.' LIMIT 1',
+                        [$recordId, $signerId, $signerId, ...$args]);
                 }
                 return self::exists('SELECT id FROM incidents WHERE id=? AND (reported_by=? OR assessed_by=?) LIMIT 1', [$recordId, $signerId, $signerId]);
             default:

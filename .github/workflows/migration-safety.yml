@@ -1,0 +1,91 @@
+name: PHP Migration Safety
+on:
+  push:
+    branches: [luis]
+    paths:
+      - 'scripts/migrate.php'
+      - 'backend/Modules/Accounting/Finance.php'
+      - 'public/assets/js/modules/accounting/finance.js'
+      - 'scripts/lib/migration_sql.php'
+      - 'scripts/lib/migration_release.php'
+      - 'tests/migration_auto_checks.php'
+      - 'database/migrations/approved.json'
+      - 'scripts/approve_migration.php'
+      - 'scripts/lib/migration_backup.php'
+      - 'scripts/lib/migration_auto.php'
+      - 'database/migrations/**'
+      - 'tests/migration_safety_checks.php'
+      - 'tests/migration_mysql_integration.php'
+      - 'tests/migration_release_checks.php'
+      - '.github/workflows/migration-safety.yml'
+  pull_request:
+    paths:
+      - 'scripts/migrate.php'
+      - 'backend/Modules/Accounting/Finance.php'
+      - 'public/assets/js/modules/accounting/finance.js'
+      - 'scripts/lib/migration_sql.php'
+      - 'scripts/lib/migration_release.php'
+      - 'tests/migration_auto_checks.php'
+      - 'database/migrations/approved.json'
+      - 'scripts/approve_migration.php'
+      - 'scripts/lib/migration_backup.php'
+      - 'scripts/lib/migration_auto.php'
+      - 'database/migrations/**'
+      - 'tests/migration_safety_checks.php'
+      - 'tests/migration_mysql_integration.php'
+      - 'tests/migration_release_checks.php'
+      - '.github/workflows/migration-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-migration-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+          coverage: none
+      - name: PHP syntax lint
+        run: |
+          php -l scripts/migrate.php
+          php -l backend/Modules/Accounting/Finance.php
+          node --check public/assets/js/modules/accounting/finance.js
+          php -l scripts/approve_migration.php
+          php -l scripts/lib/migration_sql.php
+          php -l scripts/lib/migration_release.php
+          php -l tests/migration_auto_checks.php
+          php -l scripts/lib/migration_backup.php
+          php -l scripts/lib/migration_auto.php
+          php -l tests/migration_safety_checks.php
+          php -l tests/migration_mysql_integration.php
+          php -l tests/migration_release_checks.php
+      - name: Offline migration regression tests (no DB credentials)
+        run: |
+          php tests/migration_safety_checks.php
+          php tests/migration_release_checks.php
+          php tests/migration_auto_checks.php
+      - name: Isolated MySQL integration checks
+        env:
+          CI: 'true'
+          MYSQL_TEST_ALLOW_CREATE: '1'
+          MYSQL_TEST_HOST: 127.0.0.1
+          MYSQL_TEST_USER: root
+          MYSQL_TEST_PASS: ''
+        run: php tests/migration_mysql_integration.php

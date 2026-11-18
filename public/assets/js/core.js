@@ -12,6 +12,16 @@
 'use strict';
 
 const UI = {};
+/** One expandable sidebar component for all authorized role menus. */
+UI.sidebarGroup = ({title,icon='bi-grid-3x3-gap',items='',key='',variant=''}) => {
+  if (!items) return '';
+  const name=UI.esc(title);
+  return '<details class="head-nav-group'+(variant?' '+UI.esc(variant):'')+'" data-sidebar-group="'+UI.esc(key||title)+'">'
+    +'<summary><i class="bi '+UI.esc(icon)+'" aria-hidden="true"></i><span>'+name+'</span>'
+    +'<i class="bi bi-chevron-down head-nav-chevron" aria-hidden="true"></i></summary>'
+    +'<div class="head-nav-items">'+items+'</div></details>';
+};
+
 const App = {
   pages: {}, me: null, csrf: '', current: null, timer: null,
 
@@ -26,7 +36,7 @@ const App = {
     try { data = await res.json(); }
     catch { throw new Error('The server returned an invalid answer. Check the PHP error log.'); }
     if (res.status === 401 && this.me) { this.me = null; clearInterval(this.timer); this.loginScreen(data.error); throw new Error(data.error || 'Please log in.'); }
-    if (!res.ok || !data.ok) throw new Error(data.error || 'Request failed.');
+    if (!res.ok || !data.ok) { const error = new Error(data.error || 'Request failed.'); error.status = res.status; throw error; }
     return data;
   },
   async api(action, payload = {}) {
@@ -106,9 +116,10 @@ const App = {
           <div class="input-group"><input class="form-control" type="password" id="lgP" name="password" autocomplete="current-password" required>
           <button class="btn btn-outline-secondary" type="button" id="lgEye" aria-label="Show password"><i class="bi bi-eye"></i></button></div></div>
         <button class="btn btn-primary w-100 auth-btn" type="submit">Sign in</button>
-        <div class="auth-links"><span>Forgot your password? Contact the Admin or authorized IT support.</span></div>
+        <div class="auth-links"><button type="button" id="forgotPasswordLink" class="btn btn-link p-0">Forgot password?</button></div>
       </form>`);
     document.getElementById(username ? 'lgP' : 'lgU').focus();
+    document.getElementById('forgotPasswordLink').onclick = () => this.forgotPasswordScreen('', 'request', username); 
     document.getElementById('lgEye').onclick = (e) => { const p = document.getElementById('lgP'); p.type = p.type === 'password' ? 'text' : 'password'; e.currentTarget.innerHTML = `<i class="bi bi-eye${p.type === 'password' ? '' : '-slash'}"></i>`; };
     document.getElementById('loginForm').onsubmit = async (e) => {
       e.preventDefault();
@@ -117,6 +128,49 @@ const App = {
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking credentials…';
       try { await this.postAuth('login', f); location.hash = ''; await this.loadMe(); }
       catch (err) { this.loginScreen(err.message, f.username || ''); }
+    };
+  },
+
+  /** Email-only password recovery for locked-out users; no current password required. */
+  forgotPasswordScreen(message = '', stage = 'request', email = '', ok = false) {
+    const first = stage === 'request';
+    this.authFrame(`
+      <div class="auth-head"><h1>Forgot password</h1><p>${first
+        ? 'Enter your registered email to receive a one-time verification code.'
+        : 'Enter the 6-digit code emailed to you and choose a new password.'}</p></div>
+      ${this.authAlert(message, ok)}
+      <form id="forgotPasswordForm" novalidate>
+        ${first ? `<div class="mb-3"><label for="forgotEmail" class="form-label">Registered email address</label>
+          <input class="form-control" id="forgotEmail" name="email" type="email" autocomplete="email" required value="${UI.esc(email)}"></div>`
+        : `<div class="mb-3"><label for="forgotCode" class="form-label">6-digit verification code</label>
+          <input class="form-control" id="forgotCode" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div>
+          <div class="mb-3"><label for="forgotNewPassword" class="form-label">New password</label>
+          <input class="form-control" id="forgotNewPassword" name="new_password" type="password" autocomplete="new-password" required></div>
+          <div class="mb-3"><label for="forgotConfirm" class="form-label">Confirm new password</label>
+          <input class="form-control" id="forgotConfirm" name="confirm" type="password" autocomplete="new-password" required></div>`}
+        <button class="btn btn-primary w-100 auth-btn" type="submit">${first ? 'Send verification code' : 'Verify and reset password'}</button>
+        ${!first ? '<button type="button" class="btn btn-link w-100 mt-2" id="forgotResend">Request a new code</button>' : ''}
+        <button type="button" id="forgotBack" class="btn btn-link w-100 mt-2">Back to sign in</button>
+      </form>`);
+    document.getElementById('forgotBack').onclick = () => this.loginScreen();
+    if (!first) {
+      this.securityPasswordEyes('forgotPasswordForm');
+      document.getElementById('forgotResend').onclick = () => this.forgotPasswordScreen('', 'request', email);
+    }
+    document.getElementById(first ? 'forgotEmail' : 'forgotCode').focus();
+    document.getElementById('forgotPasswordForm').onsubmit = async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.currentTarget));
+      if (first && !f.email) return this.forgotPasswordScreen('Enter your registered email address.', stage, email);
+      if (!first && f.new_password !== f.confirm) return this.forgotPasswordScreen('New passwords do not match.', stage, email);
+      const btn = e.currentTarget.querySelector('[type="submit"]');
+      btn.disabled = true;
+      try {
+        const r = await this.postAuth(first ? 'password_recovery_request' : 'password_recovery_confirm',
+          first ? { email: f.email } : { ...f, email });
+        if (first) this.forgotPasswordScreen(r.data?.message || 'If your email is registered, check your inbox.', 'confirm', f.email, true);
+        else this.loginScreen('Password reset successfully. Sign in with your new password.', email, true);
+      } catch(err) { this.forgotPasswordScreen(err.message, stage, first ? f.email : email); }
     };
   },
 
@@ -241,69 +295,294 @@ const App = {
       operations_head: ['dashboard', 'trips', 'trucks', 'crew', 'clients', 'routes', 'funds'],
       car_carrier_dispatcher: ['dashboard', 'trips', 'funds'],
       container_wingvan_dispatcher: ['dashboard', 'trips', 'funds'],
-      motorpool: ['dashboard', 'maintenance', 'trucks', 'mechanics', 'purchasing'],
-      purchasing: ['dashboard', 'purchasing'],
-      finance: ['dashboard', 'funds', 'finance', 'purchasing'],
+      // MOTORPOOL_WORKSPACE_PHASE1: the Motorpool workspace in work order (server me.nav still decides what is allowed).
+      motorpool: ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maint_history', 'trucks'],
+      purchasing: ['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports'],
+      finance: ['dashboard', 'funds', 'finance', 'purchase_orders', 'purchasing_reports'],
       billing: ['dashboard', 'billing', 'clients', 'routes'],
       audit: ['dashboard', 'reports', 'admin'],
     };
     const shortNames = {
       trips: 'Trips', trucks: 'Trucks', crew: 'Drivers', clients: 'Clients',
-      routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance',
-      purchasing: 'Parts & purchasing', funds: 'Trip funds', billing: 'Billing',
+      routes: 'Client routes', mechanics: 'Mechanics', maintenance: 'Maintenance', maintenance_overview: 'Maintenance overview',
+      funds: 'Trip funds', billing: 'Billing',
       finance: 'Finance', reports: 'Reports', admin: 'Users & settings',
+      maint_history: 'Maintenance history', mp_parts_requests: 'Parts requests', mechanic_attendance: 'Mechanic attendance',
+      purchasing_overview: 'Purchasing overview', parts_requests: 'Parts requests', purchase_orders: 'Purchase orders',
+      inventory: 'Inventory', stock_movements: 'Stock movements', purchasing_reports: 'Purchasing reports',
     };
+    // Role-specific menu wording (labels only).
+    const roleShortNames = { motorpool: { maintenance: 'Repair management', trucks: 'Truck masterlist', mechanics: 'Mechanic masterlist' } };
+    const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
     const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
-    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : shortNames[n.id] || n.label)}</span></a>`;
-    let nav = `<div class="nav-section">My workspace</div>${primary.map(link).join('')}`;
-    if (extra.length) nav += `<details class="sidebar-more" id="sidebarMore"><summary><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>More tools</span><i class="bi bi-chevron-down sidebar-more-chevron" aria-hidden="true"></i></summary><div class="sidebar-more-items">${extra.map(link).join('')}</div></details>`;
+    const link = n => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}"><i class="bi ${n.icon}" aria-hidden="true"></i><span>${UI.esc(n.id === 'admin' && u.role === 'audit' ? 'Activity log' : n.id === 'funds' && ['car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role) ? 'My Trip Funds' : nameOf(n.id) || n.label)}</span></a>`;
+    const operationsRole = ['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher'].includes(u.role);
+    const tripLink = (label, icon, query) => `<a href="#trips?${query}" class="nav-item-link" data-nav="trips" data-trip-section="${query}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`;
+    let nav;
+    if (u.role === 'admin') {
+      // Admin-only executive hierarchy. The server-provided me.nav remains the
+      // authoritative list of permitted destinations and existing route IDs.
+      const sectionIcons = {
+        'Management Control': 'bi-shield-check',
+        'Client & Commercial': 'bi-buildings',
+        'Financial Oversight': 'bi-graph-up-arrow',
+        'Operational Oversight': 'bi-activity',
+        'Analytics': 'bi-bar-chart-line'
+      };
+      const adminSectionOrder = [
+        'Management Control',
+        'Client & Commercial',
+        'Financial Oversight',
+        'Operational Oversight',
+        'Analytics'
+      ];
+      const normalizedSection = section =>
+        section === 'Operations Oversight' ? 'Operational Oversight' : section;
+      const menuGroups = new Map();
+      const ungrouped = [];
+      for (const item of allowed) {
+        const section = normalizedSection(item.section);
+        if (!section || section === 'General') {
+          ungrouped.push(item);
+          continue;
+        }
+        if (!menuGroups.has(section)) menuGroups.set(section, []);
+        menuGroups.get(section).push(item);
+      }
+      const adminLink = item => '<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.id === 'dashboard' ? 'Dashboard' : item.label)+'</span></a>';
+      const renderSection = title => UI.sidebarGroup({
+        title,
+        icon: sectionIcons[title] || 'bi-folder2',
+        items: menuGroups.get(title).map(adminLink).join('')
+      });
+      nav = ungrouped.map(adminLink).join('')
+        + adminSectionOrder.filter(title => menuGroups.has(title)).map(renderSection).join('')
+        + [...menuGroups.keys()].filter(title => !adminSectionOrder.includes(title)).map(renderSection).join('');
+    } else if (u.role === 'operations_head') {
+      // Collapsible, role-specific sidebar: render only entries authorized by
+      // the server-provided navigation, preserving every existing route target.
+      const groups = [
+        {name:'Overview',icon:'bi-grid-1x2',ids:['dashboard','approvals']},
+        {name:'Trip Operations',icon:'bi-signpost-split',ids:['trips','dispatcher-monitoring','funds']},
+        {name:'Masterlists',icon:'bi-truck',ids:['trucks','crew','routes','mechanics']},
+        {name:'Monitoring & Records',icon:'bi-clipboard-data',ids:['maintenance','reports','documents']}
+      ];
+      const used = new Set();
+      const labels = {
+        'dispatcher-monitoring':'Dispatch Monitoring',
+        'funds':'Fund Approvals',
+        'trucks':'Trucks',
+        'crew':'Drivers & Helpers',
+        'routes':'Client Routes',
+        'maintenance':'Incidents & Repairs'
+      };
+      const renderGroup = group => {
+        const entries=group.ids.map(id=>allowed.find(item=>item.id===id))
+          .filter(item=>item && !used.has(item.id));
+        if(!entries.length)return '';
+        entries.forEach(item=>used.add(item.id));
+        return UI.sidebarGroup({
+          title:group.name,icon:group.icon,variant:'ops-head-nav-group',
+          items:entries.map(item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'">'
+            +'<i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(labels[item.id]||item.label)+'</span></a>').join('')
+        });
+      };
+      nav=groups.map(renderGroup).join('');
+      const remaining=allowed.filter(item=>!used.has(item.id));
+      if(remaining.length)nav+=renderGroup({name:'Other Tools',icon:'bi-grid-3x3-gap',ids:remaining.map(item=>item.id)});
+    } else {
+      // Dispatcher retains the existing deep links, but uses the same accessible
+      // groups as Admin/Operations Head. Other roles continue through wsNav.
+      if (operationsRole) {
+        const overview=primary.filter(n=>n.id==='dashboard').map(link).join('');
+        const tripItems=tripLink('New Trip','bi-plus-circle','new=1')
+          +tripLink('Active Trips','bi-signpost-split','tab=active')
+          +tripLink('Trip History','bi-clock-history','tab=history')
+          +tripLink('Incidents','bi-exclamation-triangle','tab=incidents')
+          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('');
+        nav=UI.sidebarGroup({title:'Overview',icon:'bi-grid-1x2',items:overview})
+          +UI.sidebarGroup({title:'Trip Operations',icon:'bi-signpost-split',items:tripItems})
+          +UI.sidebarGroup({title:'Reference & Records',icon:'bi-folder2-open',items:extra.map(link).join('')});
+      } else {
+        nav=UI.sidebarGroup({title:'My Workspace',icon:'bi-grid-1x2',items:primary.map(link).join('')})
+          +UI.sidebarGroup({title:'More Tools',icon:'bi-grid-3x3-gap',items:extra.map(link).join('')});
+      }
+    }
+    // WS_SHELL_V1: Maintenance and Accounting roles (Motorpool, Purchasing, Finance, Billing, Audit) get one grouped
+    // workspace menu with the profile at the bottom. Links come only from me.nav (server-side permissions); nothing is added.
+    const ws = UI.wsNav(u.role);
+    // The account button opens an actual live-user profile, not a second action menu.
+    // Password/email/signature controls remain accessible inside the profile modal.
+    if (ws) {
+      const wsLink = (n) => `<a href="#${n.id}" class="nav-item-link" data-nav="${n.id}" title="${UI.esc(n.label)}"><i class="bi ${UI.esc(n.icon)}" aria-hidden="true"></i><span>${UI.esc(n.label)}</span></a>`;
+      if (u.role === 'motorpool') {
+        // Same navigation pattern as Head Management: direct Overview,
+        // categorized accordion groups, and icon-only collapsed flyouts.
+        // Only use the existing authorized Motorpool menu items.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['maintenance_overview','approvals']).map(wsLink).join('');
+        const groups = [
+          { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
+          { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
+          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','maintenance_reports'] }
+        ];
+        nav += groups.map(group => {
+          const entries = take(group.ids);
+          return entries.length ? UI.sidebarGroup({
+            title:group.title, icon:group.icon,
+            items:entries.map(wsLink).join('')
+          }) : '';
+        }).join('');
+        const remaining = items.filter(n => !shown.has(n.id));
+        if (remaining.length) nav += UI.sidebarGroup({
+          title:'Other Tools', icon:'bi-grid-3x3-gap',
+          items:remaining.map(wsLink).join('')
+        });
+      } else if (u.role === 'purchasing') {
+        // Same executive navigation as Admin and Motorpool. Use only routes
+        // already provided by the server-authorized Purchasing workspace.
+        const items = ws.groups.flatMap(g => g.items);
+        const shown = new Set();
+        const take = ids => ids.map(id => items.find(n => n.id === id))
+          .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
+        nav = take(['purchasing_overview','approvals']).map(wsLink).join('');
+        const groups = [
+          { title:'Purchasing Operations', icon:'bi-cart-check', ids:['parts_requests','purchase_orders'] },
+          { title:'Inventory Control', icon:'bi-boxes', ids:['inventory','stock_movements'] }
+        ];
+        nav += groups.map(group => {
+          const entries = take(group.ids);
+          return entries.length ? UI.sidebarGroup({
+            title:group.title, icon:group.icon,
+            items:entries.map(wsLink).join('')
+          }) : '';
+        }).join('');
+        // Purchasing has one reporting destination: show it directly as a
+        // primary sidebar link instead of a one-item "Records & Reports" group.
+        nav += take(['purchasing_reports']).map(n => wsLink({ ...n, label:'Reports' })).join('');
+        const remaining = items.filter(n => !shown.has(n.id));
+        if (remaining.length) nav += UI.sidebarGroup({
+          title:'Other Tools', icon:'bi-grid-3x3-gap',
+          items:remaining.map(wsLink).join('')
+        });
+      } else if (u.role === 'billing') {
+        // BILLING_WIREFRAME_NAV_V2 — curated visible menu matching the
+        // Billing interactive wireframe; authorization and deep links stay
+        // server-owned (me.routes), not restricted by this sidebar.
+        const items = ws.groups.flatMap(g => g.items);
+        const lookup = id => items.find(n => n.id === id);
+        const home = lookup('billing_overview');
+        nav = home ? wsLink({ ...home, label: 'Dashboard' }) : '';
+        const ordered = ['approvals', 'billing', 'billing_collections', 'billing_receivables', 'reports']
+          .map(lookup).filter(Boolean);
+        // BILLING_FLAT_NAV_V3: four primary links, no expandable Billing parent.
+        if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports'
+          ? { ...n, label: 'Billing Reports' } : n)).join('');
+        // Clients, routes, trips and documents are supporting pages, opened
+        // from authorized record links, not primary Billing menu entries.
+      } else {
+        nav = ws.groups.map((g,i)=>UI.sidebarGroup({
+          title:g.title,
+          icon:i===0?'bi-grid-1x2':i===1?'bi-folder2-open':'bi-collection',
+          items:g.items.map(wsLink).join('')
+        })).join('');
+      }
+    }
+    // A dashboard is always ONE direct navigation destination, never a
+    // parent accordion with a duplicate dashboard child. This applies to
+    // all authenticated roles while retaining each role's authorized route.
+    {
+      const dashboardId = this.homePage();
+      const menu = document.createElement('template');
+      menu.innerHTML = nav;
+      const dashboardLinks = [...menu.content.querySelectorAll('a.nav-item-link[data-nav]')]
+        .filter(link => link.dataset.nav === dashboardId);
+      if (dashboardLinks.length) {
+        const dashboardLink = dashboardLinks[0];
+        dashboardLinks.forEach(link => link.remove());
+        // Remove only groups left empty by extracting the dashboard.
+        menu.content.querySelectorAll('.head-nav-group').forEach(group => {
+          if (!group.querySelector('.head-nav-items .nav-item-link')) group.remove();
+        });
+        if (u.role !== 'admin') {
+          const label = dashboardLink.querySelector('span');
+          if (label) label.textContent = 'Dashboard';
+          dashboardLink.title = 'Dashboard';
+        }
+        // Match the approved three-tile Dashboard icon for every role.
+        // Keep this as the existing single direct link, not an Overview submenu.
+        const oldDashboardIcon = dashboardLink.querySelector('i.bi');
+        if (oldDashboardIcon) {
+          oldDashboardIcon.outerHTML = '<svg class="bi" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            + '<rect x="7" y="2.5" width="10" height="6" rx="1"/>'
+            + '<rect x="2" y="13" width="9" height="8" rx="1"/>'
+            + '<rect x="13" y="13" width="9" height="8" rx="1"/></svg>';
+        }
+        menu.content.prepend(dashboardLink);
+        nav = menu.innerHTML;
+      }
+    }
+    // The role remains visible in the topbar profile; do not duplicate it above Logout.
+    document.body.classList.toggle('ws-body', !!ws);   // drawers and modals live outside #appShell
+    document.body.classList.toggle('ref-body', !!(ws && ws.exclusive));   // REF_FIDELITY_V1: Motorpool / Purchasing drawers
+    // Every authenticated role uses the same sidebar shell (Admin, Operations,
+    // both Dispatchers, Motorpool, Purchasing, Finance, Billing and Audit).
+    // The server-provided me.nav still exclusively controls available links.
+    const executiveSidebar = true;
+    // Shared desktop navigation: expanded by default, click to minimize.
+    // A fresh preference key intentionally ignores the old hover/pin choice.
+    const pinKey = 'fleetops-sidebar-minimized-v3-' + u.role;
+    let pinned = true;
+    try { pinned = localStorage.getItem(pinKey) !== '1'; } catch { /* storage unavailable */ }
+    const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
-    <div class="app-shell" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar sidebar-manual-toggle${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
-        <a href="#dashboard" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span><span class="brand-product">Mulawin FleetOps</span><span class="brand-company">R.P. Mulawin Trucking</span></span></a>
+        <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
+          ${ws || executiveSidebar ? (ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : '') : ''}</div>
         <nav class="sidebar-nav">${nav}</nav>
-        <div class="sidebar-foot">${UI.esc(u.role_label)}${u.shift ? ' · ' + UI.esc(u.shift) + ' shift' : ''}</div>
+        <div class="sidebar-logout-wrap no-print">
+          <button type="button" class="sidebar-logout-button" id="sidebarLogout" aria-label="Log out" title="Log out">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Log out</span>
+          </button>
+        </div>
       </aside>
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <div class="main">
         <header class="topbar no-print">
+          <button type="button" class="sb-border-toggle sb-desktop" id="sbCollapse" aria-label="${pinned ? 'Minimize sidebar' : 'Expand sidebar'}" title="${pinned ? 'Minimize sidebar' : 'Expand sidebar'}" aria-expanded="${pinned}" aria-controls="appSidebar"><i class="bi ${pinned ? 'bi-chevron-left' : 'bi-chevron-right'}" aria-hidden="true"></i></button>
           <button class="icon-btn d-lg-none" id="menuBtn" type="button" aria-label="Open the menu"><i class="bi bi-list"></i></button>
           <div class="crumbs" id="crumbs"></div>
           <div class="topbar-actions">
             <div class="dropdown">
-              <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
+              <button class="icon-btn bell updated-bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Notifications" id="bellBtn"><i class="bi bi-bell-fill" aria-hidden="true"></i><span class="bell-count d-none" id="bellBadge">0</span></button>
               <div class="dropdown-menu dropdown-menu-end bell-menu">
                 <div class="bell-head"><span>Notifications</span><button type="button" class="btn btn-link btn-sm p-0" id="bellReadAll">Mark all as read</button></div>
                 <div id="bellList" class="bell-list"></div>
                 <a href="#notifications" class="bell-foot" id="bellAll">View all notifications</a>
               </div>
             </div>
-            <div class="dropdown">
-              <button class="profile-btn" type="button" data-bs-toggle="dropdown"><span class="avatar">${UI.esc(initials)}</span>
-                <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name)}</span><span class="profile-role">${UI.esc(u.role_label)}</span></span><i class="bi bi-chevron-down"></i></button>
-              <div class="dropdown-menu dropdown-menu-end">
-                <div class="dropdown-header">${UI.esc(u.username)} · ${UI.esc(u.email || '')}</div>
-                <button class="dropdown-item" id="mySig"><i class="bi bi-pen"></i> My e-signature${u.has_signature ? '' : ' <span class="badge-s amber">not set</span>'}</button>
-                <button class="dropdown-item" id="chgPw"><i class="bi bi-key"></i> Change password</button>
-                <button class="dropdown-item" id="chgEmail"><i class="bi bi-envelope-check"></i> Change email</button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item text-danger" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>
-              </div>
-            </div>
+            <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
+              <span class="avatar">${UI.esc(initials)}</span>
+              <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name || u.username)}</span><span class="profile-role">${UI.esc(u.role_label || u.role)}</span></span>
+            </button>
           </div>
         </header>
         <main class="content" id="pageContent"></main>
       </div>
     </div><div id="printArea"></div>`;
-    // RPM STICKY PAGE NAV V1 START: keep the page heading visible and offer an accessible way back.
+    // Maintain the shared back-to-top control without making page titles sticky.
     if (this._rpmScrollNavigation) window.removeEventListener('scroll', this._rpmScrollNavigation);
     this._rpmScrollNavigation = () => {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
-      document.querySelector('#pageContent .page-head')?.classList.toggle('rpm-page-head-scrolled', y > 90);
+      // Page heading stays in document flow; only the Back to top control changes.
       const topButton = document.getElementById('rpmBackToTop');
       if (topButton) { topButton.hidden = y <= 90; topButton.setAttribute('aria-label', 'Back to top'); }
     };
@@ -315,17 +594,220 @@ const App = {
       window.scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
     });
     this._rpmScrollNavigation();
-    // RPM STICKY PAGE NAV V1 END
+    // Shared page navigation setup complete.
     const sb = document.getElementById('appSidebar'), bd = document.getElementById('sidebarBackdrop');
     document.getElementById('menuBtn').onclick = () => { sb.classList.add('open'); bd.classList.add('show'); };
     bd.onclick = () => { sb.classList.remove('open'); bd.classList.remove('show'); };
-    document.getElementById('logoutBtn').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
-    document.getElementById('chgPw').onclick = () => this.passwordScreen();
-    document.getElementById('chgEmail').onclick = () => this.emailScreen();
-    document.getElementById('mySig').onclick = () => UI.signatureModal();
+    document.getElementById('sbClose')?.addEventListener('click', () => bd.onclick());
+    const pinButton = document.getElementById('sbCollapse');
+    const appShell = document.getElementById('appShell');
+    const resetCollapsedNavScroll = () => {
+      if (appShell.classList.contains('sb-collapsed') && !appShell.classList.contains('sb-hover-open')) {
+        const nav = sb.querySelector('.sidebar-nav');
+        if (nav) nav.scrollTop = 0;
+      }
+    };
+    const syncPinButton = () => {
+      const on = appShell.classList.contains('sb-pinned');
+      if (!pinButton) return;
+      pinButton.setAttribute('aria-expanded', String(on));
+      pinButton.setAttribute('aria-label', on ? 'Minimize sidebar' : 'Expand sidebar');
+      pinButton.title = on ? 'Minimize sidebar' : 'Expand sidebar';
+      pinButton.querySelector('i')?.classList.toggle('bi-chevron-left', on);
+      pinButton.querySelector('i')?.classList.toggle('bi-chevron-right', !on);
+    };
+    pinButton?.addEventListener('click', () => {
+      const next = !appShell.classList.contains('sb-pinned');
+      appShell.classList.toggle('sb-pinned', next);
+      appShell.classList.toggle('sb-collapsed', !next);
+      // Both desktop states reserve their own width; never expand on hover.
+      appShell.classList.remove('sb-hover-open');
+      try { localStorage.setItem(pinKey, next ? '0' : '1'); } catch { /* storage unavailable */ }
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+      syncPinButton();
+      resetCollapsedNavScroll();
+    });
+    syncPinButton();
+    // Debounce hover intent so quickly crossing the icon rail does not cause
+    // a cascade of width / menu changes. Timers belong to this shell instance.
+    if (this._sidebarHoverTimers) {
+      clearTimeout(this._sidebarHoverTimers.enter);
+      clearTimeout(this._sidebarHoverTimers.leave);
+    }
+    const hoverTimers = this._sidebarHoverTimers = { enter: null, leave: null };
+    const desktopSidebar = () => window.matchMedia('(min-width: 992px)').matches;
+    const enterHover = (immediate = false) => {
+      clearTimeout(hoverTimers.leave);
+      clearTimeout(hoverTimers.enter);
+      if (appShell.classList.contains('sidebar-manual-toggle') || document.hidden || !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
+      const show = () => {
+        if (this._sidebarHoverTimers !== hoverTimers || document.hidden ||
+            !desktopSidebar() || appShell.classList.contains('sb-pinned')) return;
+        appShell.classList.add('sb-hover-open');
+      };
+      if (immediate) show();
+      else hoverTimers.enter = setTimeout(show, 95);
+    };
+    const leaveHover = () => {
+      clearTimeout(hoverTimers.enter);
+      clearTimeout(hoverTimers.leave);
+      if (!appShell.classList.contains('sb-pinned')) {
+        hoverTimers.leave = setTimeout(() => {
+          if (this._sidebarHoverTimers === hoverTimers && !appShell.classList.contains('sb-pinned'))
+            { appShell.classList.remove('sb-hover-open'); resetCollapsedNavScroll(); }
+        }, 110);
+      }
+    };
+    sb.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'touch') enterHover();
+    });
+    sb.addEventListener('pointerleave', leaveHover);
+    sb.addEventListener('focusin', event => {
+      // Keyboard focus must also be able to reveal the sidebar. Pointer focus
+      // is already handled by pointerenter and should not bypass its delay.
+      if (event.target.matches(':focus-visible')) enterHover(true);
+    });
+    sb.addEventListener('focusout', event => {
+      if (!sb.contains(event.relatedTarget) && !sb.matches(':hover')) leaveHover();
+    });
+    // Hover is transient. Browser tab switching often skips pointerleave,
+    // leaving the old overlay open indefinitely. Reset ONLY the hover state
+    // when this tab is hidden; never change the user's persisted pin setting.
+    this._sidebarVisibilityAbort?.abort();
+    this._sidebarVisibilityAbort = new AbortController();
+    const resetTransientSidebar = () => {
+      if (document.getElementById('appShell') !== appShell) return;
+      clearTimeout(hoverTimers.enter);
+      clearTimeout(hoverTimers.leave);
+      appShell.classList.remove('sb-hover-open');
+      resetCollapsedNavScroll();
+      document.querySelector('.executive-sidebar-flyout')?.remove();
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) resetTransientSidebar();
+    }, { signal: this._sidebarVisibilityAbort.signal });
+    window.addEventListener('pagehide', resetTransientSidebar, {
+      signal: this._sidebarVisibilityAbort.signal
+    });
+    // When the page is revisited, do not reopen from a stale :hover or focus
+    // state. A fresh pointer entry or keyboard focus is required.
+    window.addEventListener('pageshow', resetTransientSidebar, {
+      signal: this._sidebarVisibilityAbort.signal
+    });
+    this._executiveSidebarAbort?.abort();
+    this._executiveSidebarAbort = new AbortController();
+    sb.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sb.classList.contains('open')) { bd.onclick(); document.getElementById('menuBtn')?.focus(); } });
+    // Submenu items belong inside the expanded sidebar, never in a detached
+    // popup while the icon rail is compact. The native details elements keep
+    // their state and remain usable on hover, pin and keyboard focus.
+    document.querySelector('.executive-sidebar-flyout')?.remove();
+    sb.querySelectorAll('[data-sidebar-tool]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.sidebarTool;
+        const destinations = {
+          'billing-accounts': [
+            ['Receivables','billing_receivables','bi-hourglass-split'],
+            ['Collections','billing_collections','bi-cash-stack']
+          ],
+          'po-finance': [
+            ['PO approvals','purchase_orders?tab=approval','bi-check2-square'],
+            ['PO payments','finance?tab=po','bi-wallet2']
+          ],
+          'workflow-billing': [
+            ['Billing overview','billing_overview','bi-grid-1x2'],
+            ['Completed trips','trips?tab=history&status=Completed','bi-truck'],
+            ['Invoice processing','billing','bi-receipt'],
+            ['Collections','billing_collections','bi-cash-stack'],
+            ['Receivables','billing_receivables','bi-hourglass-split']
+          ],
+          'workflow-finance': [
+            ['Finance overview','finance_overview','bi-grid-1x2'],
+            ['Fund approvals & release','funds?tab=release','bi-wallet2'],
+            ['Fund liquidation','funds?tab=liquidate','bi-coin'],
+            ['Purchase order approvals','purchase_orders?tab=approval','bi-cart-check'],
+            ['Payments','finance?tab=po','bi-wallet2'],
+            ['Budgets & expenses','finance_budgets','bi-piggy-bank']
+          ],
+          'forms-billing': [
+            ['Invoice forms & printouts','billing','bi-receipt'],
+            ['Trip records & printouts','trips?tab=history','bi-truck'],
+            ['Uploaded documents','documents','bi-file-earmark-text']
+          ],
+          'forms-finance': [
+            ['Fund documents & vouchers','funds','bi-wallet2'],
+            ['Purchase order printouts','purchase_orders','bi-cart-check'],
+            ['Payment records & vouchers','finance?tab=vouchers','bi-file-earmark-text'],
+            ['Uploaded documents','documents','bi-folder2-open']
+          ]
+        };
+        const choices = (destinations[action] || []).filter(([,spec]) => UI.canGo(spec));
+        if (!choices.length) return;
+        const title = button.textContent.trim();
+        const body = '<div class="d-grid gap-2">'
+          + choices.map(([label,spec,icon]) =>
+            '<button type="button" class="btn btn-outline-success text-start" data-workspace-destination="'
+            + UI.esc(spec) + '"><i class="bi ' + UI.esc(icon)
+            + ' me-2" aria-hidden="true"></i>' + UI.esc(label) + '</button>'
+          ).join('') + '</div>';
+        UI.modal(UI.esc(title), body, null, {
+          size:'modal-sm',
+          onShow: wrap => {
+            wrap.querySelectorAll('[data-workspace-destination]').forEach(link => {
+              link.addEventListener('click', () => {
+                const spec = link.dataset.workspaceDestination;
+                wrap.addEventListener('hidden.bs.modal', () => UI.goTo(spec), {once:true});
+                bootstrap.Modal.getInstance(wrap)?.hide();
+              });
+            });
+          }
+        });
+      });
+    });
+    document.getElementById('sidebarLogout').onclick = () => UI.confirm('Log out', 'Log out of Mulawin FleetOps?', () => this.logout(), { submit: 'Log out' });
+    document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
     this.renderBell();
+  },
+
+  /** Show real account details for the authenticated user, not demo identities. */
+  showMyProfile() {
+    const u = this.me?.user;
+    if (!u) return;
+    const fields = [
+      ['FULL NAME', u.full_name || u.username || '—'],
+      ['USERNAME', u.username || '—'],
+      ['EMAIL', u.email || 'Not set'],
+      ['ROLE', u.role_label || u.role || '—'],
+      ['SHIFT', u.shift || 'Not assigned'],
+      ['E-SIGNATURE', u.has_signature ? 'Saved' : 'Not set']
+    ];
+    const body = '<div class="my-profile-grid">' + fields.map(([label, value]) =>
+      '<div class="my-profile-field"><span>' + UI.esc(label) + '</span><strong>' + UI.esc(String(value)) + '</strong></div>'
+    ).join('') + '</div><div class="my-profile-actions">' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="signature"><i class="bi bi-pen" aria-hidden="true"></i> My e-signature</button>' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="password"><i class="bi bi-key" aria-hidden="true"></i> Change password</button>' +
+      '<button type="button" class="btn btn-outline-success btn-sm" data-myprofile="email"><i class="bi bi-envelope-check" aria-hidden="true"></i> Change email</button>' +
+      '</div>';
+    UI.modal('My Profile', body, null, {
+      size: 'modal-lg',
+      onShow: wrap => {
+        wrap.classList.add('my-profile-modal');
+        wrap.querySelectorAll('[data-myprofile]').forEach(button => {
+          button.addEventListener('click', () => {
+            const action = button.dataset.myprofile;
+            // Wait until Bootstrap removes the current modal/backdrop before
+            // opening another modal or a full-screen account-security workflow.
+            wrap.addEventListener('hidden.bs.modal', () => {
+              if (action === 'signature') UI.signatureModal();
+              else if (action === 'password') this.passwordScreen();
+              else if (action === 'email') this.emailScreen();
+            }, { once: true });
+            bootstrap.Modal.getInstance(wrap)?.hide();
+          });
+        });
+      }
+    });
   },
 
   renderBell() {
@@ -366,6 +848,15 @@ const App = {
   },
 
   // ---------------------------------------------------------------- router (#page?x=y)
+  /** Landing page per role. The server's me.nav decides what exists; this only picks the first page to show. */
+  homePage() {
+    const landing = { motorpool: 'maintenance_overview', purchasing: 'purchasing_overview', finance: 'finance_overview', billing: 'billing_overview', audit: 'audit_overview' }[this.me?.user?.role] || 'dashboard';
+    const nav = this.me?.nav || [];
+    return nav.some(n => n.id === landing) ? landing : (nav[0]?.id || 'dashboard');
+  },
+  legacyPurchasingPage() {
+    return { motorpool: 'mp_parts_requests', purchasing: 'parts_requests' }[this.me?.user?.role] || 'purchase_orders';
+  },
   go(page, query = {}) {
     const qs = new URLSearchParams(query).toString();
     const hash = '#' + page + (qs ? '?' + qs : '');
@@ -373,9 +864,20 @@ const App = {
   },
   async route() {
     if (!this.me) return;
-    const [page, qs] = (location.hash.slice(1) || 'dashboard').split('?');
+    let [page, qs] = (location.hash.slice(1) || this.homePage()).split('?');
+    // Old notification / bookmark links to the former combined "Parts & Purchasing" page.
+    if (page === 'purchasing') { page = this.legacyPurchasingPage(); history.replaceState(null, '', '#' + page + (qs ? '?' + qs : '')); }
     const query = Object.fromEntries(new URLSearchParams(qs || ''));
-    const nav = this.me.nav.find(n => n.id === page);
+    // WS_NAV_STATE_V1: on workspace pages, ?open= / ?new= / ?report= are one-shot requests (open this record / form once).
+    // They are taken out of the URL and the query before the page renders, so tab, filter and card links built from the
+    // query never carry them, and Back / Forward / Reload never reopen a record the user already closed.
+    // Operations pages keep their own query handling (e.g. trips?new is a page state there).
+    const once = {};
+    if (UI.WS_PAGES.has(page)) ['open', 'new', 'report'].forEach(k => { if (query[k] !== undefined) { once[k] = query[k]; delete query[k]; } });
+    const canon = '#' + page + (Object.keys(query).length ? '?' + new URLSearchParams(query) : '');
+    if (Object.keys(once).length) history.replaceState(null, '', canon);
+    const entry = (this.me.routes || this.me.nav).find(n => n.id === page);
+    const nav = entry ? {...entry,label:UI.operationsLabel(entry.label)} : null;
     // FLEETOPS_ACCESS_ANALYTICS_V1: render an explicit denial without requesting restricted page data.
     // The server independently enforces Access::canOpen() and returns HTTP 403 for forbidden data.
     if (!nav) {
@@ -395,32 +897,87 @@ const App = {
           <div class="panel-body" style="padding:28px">
             <h1 class="page-title"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Access denied</h1>
             <p class="text-muted mt-2">Your account does not have permission to open this page. Contact your administrator if you need access.</p>
-            <button type="button" class="btn btn-primary mt-2" id="accessReturnHome"><i class="bi bi-house me-1" aria-hidden="true"></i> Return to dashboard</button>
+            <button type="button" class="btn btn-primary mt-2" id="accessReturnHome"><i class="bi bi-house me-1" aria-hidden="true"></i> Return to my home page</button>
           </div></section>`;
-        content.querySelector('#accessReturnHome')?.addEventListener('click', () => this.go('dashboard'));
+        content.querySelector('#accessReturnHome')?.addEventListener('click', () => this.go(this.homePage()));
       }
       return;
     }
     this.current = { page, query };
-    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === page));
+    const routeState = this.current;
+    document.querySelectorAll('[data-nav]').forEach(a => {
+      const tripSection = query.new || query.batch ? 'new=1' : 'tab=' + (query.tab || (query.q || query.status || query.from ? 'history' : 'active'));
+      const active = a.dataset.nav === page && (a.dataset.dispatchSection
+        ? a.dataset.dispatchSection === (page === 'trucks' ? 'trucks' : page === 'crew' ? (query.view === 'attendance' ? 'attendance' : 'personnel') : query.new || query.batch || ['requests','new-request'].includes(query.view) ? 'requests' : query.tab === 'incidents' || query.view === 'incidents' ? 'incidents' : query.tab === 'history' ? 'history' : 'management')
+        : a.dataset.opsSection
+        ? a.dataset.opsSection === (query.view === 'approvals' ? 'approvals' : query.new || query.batch ? 'planning' : query.tab === 'incidents' ? 'incidents' : 'management')
+        : (!a.dataset.tripSection || a.dataset.tripSection === tripSection));
+      a.classList.toggle('active', active);
+      if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
     // Expand the supporting-tools group only when the current route is inside it.
     const secondary = document.querySelector('#sidebarMore [data-nav="' + page + '"]');
     if (secondary) document.getElementById('sidebarMore').open = true;
+    // Native details keep manual expand/collapse behavior. On direct links or
+    // page changes, reveal the section containing the active Head page.
+    const headGroup = [...document.querySelectorAll('.head-nav-group')]
+      .find(group => [...group.querySelectorAll('[data-nav]')].some(link => link.dataset.nav === page));
+    if (headGroup) headGroup.open = true;
     document.getElementById('appSidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('show');
     if (this._rpmScrollNavigation) requestAnimationFrame(this._rpmScrollNavigation);
-    document.getElementById('crumbs').innerHTML = `${nav.section ? `<span class="crumb-sec">${UI.esc(nav.section)}</span><i class="bi bi-chevron-right"></i>` : ''}<span class="crumb-page">${UI.esc(nav.label)}</span>`;
-    document.title = nav.label + ' · Mulawin FleetOps';
+    const wsItem = UI.wsNavItem(page);   // WS_SHELL_V1: workspace group + short label, same as the menu
+    const crumbSec = wsItem ? wsItem.group : nav.section, crumbLabel = wsItem ? wsItem.label : nav.label;
+    document.getElementById('crumbs').innerHTML = `${crumbSec ? `<span class="crumb-sec">${UI.esc(crumbSec)}</span><i class="bi bi-chevron-right"></i>` : ''}<span class="crumb-page">${UI.esc(crumbLabel)}</span>`;
+    document.title = crumbLabel + ' · Mulawin FleetOps';
     const el = document.getElementById('pageContent');
+    // STAGE_B_WORKSPACE_UI: compact table styling only on Maintenance and Accounting pages (Operations pages unchanged).
+    el.classList.toggle('ws-scope', UI.WS_PAGES.has(page) || (page === 'admin' && UI.role('audit')));
+    // Billing-only compact presentation; never leak styles into other roles or pages.
+    el.classList.toggle('billing-design-v2', UI.role('billing') && ['billing_overview','billing','billing_collections','billing_receivables','reports'].includes(page));
+    el.classList.toggle('ref-scope', UI.REF_PAGES.has(page) && document.body.classList.contains('ref-body'));
     const def = this.pages[page];
     if (!def) {
       el.innerHTML = `<div class="page-head"><div><h1 class="page-title">${UI.esc(nav.label)}</h1></div></div>
         <div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>This page's screen file (assets/js/modules/${UI.esc(nav.js)}.js) did not load. The other pages still work. Reload the page or check the file.</div></div>`;
       return;
     }
-    el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(def.title || nav.label)}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
+    // Use the same short label as the active sidebar/breadcrumb, not a role-specific
+    // module title (e.g. Purchasing Dashboard). Every role's home is Dashboard.
+    const pageHeading = page === this.homePage() || page === 'dashboard' ? 'Dashboard' : UI.operationsLabel(crumbLabel);
+    el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(pageHeading)}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
         <div class="page-actions no-print" id="pageTools"></div>
         <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
+    // Add only an access indicator to the existing header, without replacing
+    // the page shell or the page-body DOM structure used by every module.
+    if (!['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
+      const header = el.querySelector('.page-head');
+      const actions = header?.querySelector('#pageTools');
+      if (header && actions) {
+        const access = document.createElement('span');
+        access.className = 'page-access-tag';
+        const badgeIcon = document.createElement('i');
+        badgeIcon.className = 'bi bi-shield-check';
+        badgeIcon.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        const currentUser = this.me.user;
+        label.textContent = currentUser.role === 'admin' ? 'Management access'
+          : (currentUser.role_label || currentUser.role.replace(/_/g, ' ')) + ' access';
+        access.append(badgeIcon, label);
+        header.insertBefore(access, actions);
+      }
+    }
+    // A drawer or dialog belongs to the list it was opened from: close it when the user moves to another page, or
+    // (workspace pages) to another tab / filter of the same page. A plain reload of the same view keeps it.
+    const moved = this._lastPage !== page || (UI.WS_PAGES.has(page) && canon !== this._lastCanon);
+    if (moved) this.navSeq = (this.navSeq || 0) + 1;
+    if (moved && UI.WS_PAGES.has(page)) document.querySelectorAll('.modal.show').forEach(m => bootstrap.Modal.getInstance(m)?.hide());
+    if (moved) {
+      document.querySelectorAll('.offcanvas.app-drawer').forEach(o => { bootstrap.Offcanvas.getInstance(o)?.hide(); o.remove(); });
+      document.querySelectorAll('.offcanvas-backdrop').forEach(x => x.remove());
+      document.body.style.removeProperty('overflow'); document.body.style.removeProperty('padding-right');
+    }
+    this._lastCanon = canon;
     if (this._lastPage !== page) {
       window.scrollTo(0, 0);
       // A details drawer belongs to its page: close it when the user moves to another page.
@@ -430,21 +987,62 @@ const App = {
     }
     this._lastPage = page;
     const body = document.getElementById('pageBody');
-    const ctx = { page, query, el: body, tools: document.getElementById('pageTools'), me: this.me, data: null,
+    const ctx = { page, query, once, el: body, tools: document.getElementById('pageTools'), me: this.me, data: null,
       reload: () => this.route(), go: (p, q) => this.go(p, q), setQuery: (q) => this.go(page, { ...query, ...q }),
-      setTitle: (t, s) => { document.getElementById('pageTitle').textContent = t; const st = document.getElementById('pageSubtitle'); if (st) st.textContent = s || ''; } };
+      setTitle: (t, s) => { t=UI.operationsLabel(t);if(UI.role('operations_head')||UI.isDispatcher()){document.title=t+' \u00b7 Mulawin FleetOps';const crumbs=document.getElementById('crumbs');if(crumbs)crumbs.textContent=t;} document.getElementById('pageTitle').textContent = t; const st = document.getElementById('pageSubtitle'); if (st) st.textContent = s || ''; } };
     try {
       ctx.data = def.noData ? {} : await this.data(page, query);
-      if (this.current.page !== page) return;
+      if (this.current !== routeState) return;
       body.innerHTML = '';
       await def.render(ctx);
+      // Keep access information alone in the page header. On screens with
+      // summary KPIs, put the EXISTING action buttons immediately below the
+      // KPI row. Moving the node preserves its listeners and role permissions.
+      if (this.current === routeState && ctx.tools?.children.length) {
+        const kpiSelectors = [
+          '.mp-action-stages', '.kpi-tiles', '.rpm-dashboard-kpis',
+          '.rpm-kpi-grid', '.head-trip-kpis', '.head-fleet-kpis',
+          '.oh-metrics', '.ds-summary', '.ax-kpis', '.pr-sum'
+        ];
+        const sections = Array.from(body.children);
+        const kpiSection = sections.find(node =>
+          kpiSelectors.some(selector => node.matches?.(selector)));
+        if (kpiSection) {
+          // On records pages, align the action beside the status tabs rather
+          // than leaving an isolated button row between KPIs and the tabs.
+          // Keep tablist semantics intact by using a separate flex wrapper.
+          const tabs = sections.find(node => node.matches?.('.line-tabs.ws-status-tabs'));
+          if (tabs && (kpiSection.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+            const toolbar = document.createElement('div');
+            toolbar.className = 'page-kpi-tab-toolbar no-print';
+            tabs.insertAdjacentElement('beforebegin', toolbar);
+            toolbar.append(tabs, ctx.tools);
+            ctx.tools.classList.add('page-kpi-tab-actions');
+          } else {
+            // Without a following tab row, retain the normal KPI action row.
+            ctx.tools.classList.add('page-kpi-actions');
+            kpiSection.insertAdjacentElement('afterend', ctx.tools);
+          }
+        }
+      }
       UI.activate(body);
       if (ctx.data && ctx.data._errors && Object.keys(ctx.data._errors).length) {
-        body.insertAdjacentHTML('afterbegin', `<div class="alert alert-warning">${Object.values(ctx.data._errors).map(UI.esc).join('<br>')}</div>`);
+        const warnings = [...new Set(Object.values(ctx.data._errors).map(String))];
+        // Avoid repeating generic partial-data boilerplate on views which
+        // already render a specific unavailable-data state when needed.
+        const tripSection = query.tab === 'incidents' ? 'incidents' : query.tab === 'history' ? 'history' : 'active';
+        const hasOwnState = page === 'crew' || (page === 'trips'
+          && Array.isArray(ctx.data[tripSection]));
+        const shown = hasOwnState
+          ? warnings.filter(message => !/^This part is temporarily unavailable\. The rest of the page still works\.$/i.test(message.trim()))
+          : warnings;
+        if (shown.length) body.insertAdjacentHTML('afterbegin', `<div class="alert alert-warning">${shown.map(UI.esc).join('<br>')}</div>`);
       }
     } catch (e) {
       console.error(e);
-      body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}<div class="small mt-1">Only this page is affected. You can keep using the other pages.</div></div></div>`;
+      if (this.current !== routeState) return;
+      body.innerHTML = UI.state(e.status === 403 ? 'denied' : 'error', { title: e.message, message: 'Only this page is affected. You can keep using the other pages.', actionHtml: e.status === 403 ? '' : '<button type="button" class="btn btn-outline-secondary mt-2" data-page-retry>Try again</button>' });
+      body.querySelector('[data-page-retry]')?.addEventListener('click', () => ctx.reload());
     }
   },
 };
@@ -452,6 +1050,237 @@ const App = {
 // =====================================================================
 //  UI HELPERS
 // =====================================================================
+/** Pages of the Maintenance (Motorpool, Purchasing) and Accounting (Finance, Billing, Audit) workspaces. */
+UI.WS_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maintenance_reports',
+  'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports', 'approvals',
+  'admin_overview', 'admin_approvals', 'approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics',
+  'finance_overview', 'finance', 'finance_budgets', 'funds', 'billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'audit_overview', 'audit_logs', 'audit_history', 'audit_reports']);
+
+/** REF_FIDELITY_V1 — Motorpool and Purchasing pages drawn like docs/ui-reference/maintenance_reference.html. */
+UI.REF_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maintenance_reports',
+  'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports',
+  // HEAD_MANAGEMENT_V1: the Admin workspace pages, plus Users & Roles ('admin') and Audit Trail ('audit_logs') for the Admin
+  'admin_overview', 'admin_approvals', 'approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics', 'admin', 'audit_logs']);
+UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classList.contains('ref-body');
+
+/* WS_SHELL_V1 — workspace menus of the in-scope roles. Presentation only: a page appears only when the server's
+   me.nav (Access::navFor) lists it, so no unauthorized page can be shown. Other permitted pages are grouped below
+   under short headings (Fleet & trips, Maintenance, Purchasing, Accounting, Records). Other roles keep the old menu. */
+UI.WS_MENUS = {
+  motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
+    ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+  purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
+    ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
+    ['purchasing_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+  finance: { dept: 'Finance', items: [['finance_overview', 'Overview', 'bi-speedometer2'], ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['approvals', 'Approvals', 'bi-check2-square'],
+    ['funds', 'Trip Funds', 'bi-cash-coin'], ['finance', 'Payables & Payments', 'bi-wallet2'], ['finance_budgets', 'Budgets & Expenses', 'bi-piggy-bank']] },
+  billing: { dept: 'Billing', items: [['billing_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['billing', 'Billing & Invoices', 'bi-receipt'],
+    ['billing_collections', 'Collections', 'bi-cash-stack'], ['billing_receivables', 'Receivables', 'bi-hourglass-split'], ['reports', 'Billing Reports', 'bi-bar-chart-line']] },
+  // HEAD_MANAGEMENT_V1: the Admin's own sidebar (exclusive: no extra groups). Other pages the Admin may open stay reachable
+  // from the Records shortcuts of each monitoring page; permissions are unchanged (me.nav / Access::canOpen).
+  admin: { dept: 'Head Management', section: 'Management', exclusive: true, items: [['admin_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'],
+    ['admin_operations', 'Operations', 'bi-signpost-split'], ['admin_maintenance', 'Maintenance', 'bi-wrench-adjustable'], ['admin_purchasing', 'Purchasing', 'bi-cart-check'],
+    ['admin_finance', 'Financial Oversight', 'bi-cash-coin'], ['admin_reports', 'Executive Reports', 'bi-clipboard-check'], ['admin_analytics', 'Analytics', 'bi-graph-up'],
+    ['admin', 'Users & Roles', 'bi-people'], ['audit_logs', 'Audit Trail', 'bi-journal-text']] },
+  audit: { dept: 'Audit', items: [['audit_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['audit_logs', 'Audit Logs', 'bi-journal-text'],
+    ['audit_history', 'Transaction History', 'bi-clock-history'], ['audit_reports', 'Audit Reports', 'bi-clipboard-data']] },
+};
+UI.WS_GROUPS = [
+  ['Fleet & trips', ['trips', 'trucks', 'crew', 'clients', 'routes']],
+  ['Maintenance', ['maintenance_overview', 'maintenance', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maint_history', 'maintenance_reports']],
+  ['Purchasing', ['parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports']],
+  ['Accounting', ['funds', 'finance', 'finance_budgets', 'billing', 'billing_collections', 'billing_receivables']],
+];
+/** Grouped menu for the role, or null when the role keeps the standard menu. */
+UI.wsNav = (role) => {
+  if (role === 'admin' || role === 'operations_head') return null; // Keep the approved executive and Operations sidebars.
+  const menu = UI.WS_MENUS[role]; if (!menu || !App.me) return null;
+  const allowed = (App.me.nav || []).filter(n => n.id !== 'notifications');
+  const byId = Object.fromEntries(allowed.map(n => [n.id, n]));
+  const used = new Set();
+  const main = menu.items.filter(([id]) => byId[id]).map(([id, label, icon]) => (used.add(id), { id, label, icon }));
+  const groups = [{ title: menu.section || menu.dept, main: true, items: main }];
+  // REF_FIDELITY_V1: Motorpool and Purchasing show ONLY their approved workspace items (no Fleet & trips / Records groups).
+  // Presentation only: other permitted pages (e.g. a truck record linked from a repair) stay reachable through
+  // in-page links, because UI.canGo and the server still use me.nav / Access::canOpen.
+  if (menu.exclusive) return { dept: menu.dept, exclusive: true, groups };
+  const rest = allowed.filter(n => !used.has(n.id));
+  UI.WS_GROUPS.forEach(([title, ids]) => {
+    const items = rest.filter(n => ids.includes(n.id) && !used.has(n.id));
+    items.forEach(n => used.add(n.id));
+    if (items.length) groups.push({ title: title === menu.dept ? title + ' records' : title, items: items.map(n => ({ id: n.id, label: n.label, icon: n.icon })) });
+  });
+  const records = rest.filter(n => !used.has(n.id));
+  if (records.length) groups.push({ title: 'Records', items: records.map(n => ({ id: n.id, label: n.label, icon: n.icon })) });
+  return { dept: menu.dept, groups };
+};
+/** {group, label} of a page in the current workspace menu (for the breadcrumb); null outside workspace menus. */
+UI.wsNavItem = (page) => {
+  const ws = App.me && UI.wsNav(App.me.user.role); if (!ws) return null;
+  for (const g of ws.groups) { const it = g.items.find(n => n.id === page); if (it) return { group: g.main ? ws.dept : g.title, label: it.label }; }
+  return null;
+};
+/**
+ * Quick actions row for workspace overviews. items: [{label, icon, go: 'page?x=y'} | {label, icon, act: 'key', primary}]
+ * A "go" item is shown only when the user may open the page; "act" items are bound by the page (data-qa="key").
+ */
+UI.quickBar = (items) => {
+  const shown = (items || []).filter(it => it && (it.act || UI.canGo(it.go)));
+  if (!shown.length) return '';
+  return `<div class="mo-quickbar" role="group" aria-label="Quick actions"><span class="mo-quickbar-title">Quick actions</span><div class="mo-quickbar-row">${shown.map(it =>
+    `<button type="button" class="btn btn-sm ${it.primary ? 'btn-primary' : 'btn-outline-secondary'}" ${it.act ? `data-qa="${UI.esc(it.act)}"` : `data-go="${UI.esc(it.go)}"`}><i class="bi ${UI.esc(it.icon)}" aria-hidden="true"></i> ${UI.esc(it.label)}</button>`).join('')}</div></div>`;
+};
+
+/* UI_REFERENCE_V1 — building blocks of the approved Motorpool / Purchasing wireframe (docs/ui-reference).
+   Presentation only: every value and link comes from the page's authorized data; links show only when UI.canGo allows. */
+/** Status tabs that change the URL (?key=value). Other filters are kept; a one-time ?open= never travels with them. */
+UI.statusTabs = (page, q, key, tabs, active) => `<div class="line-tabs ws-status-tabs no-print" role="tablist">${tabs.map(([v, label, n]) => {
+  const next = { ...q, [key]: v }; delete next.open;
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(next).filter(([, x]) => x !== '' && x != null))).toString();
+  const on = String(v) === String(active);
+  return `<button type="button" role="tab" aria-selected="${on}" class="tab ${on ? 'active' : ''}" data-go="${UI.esc(page + (qs ? '?' + qs : ''))}">${UI.esc(label)}${n === undefined || n === null ? '' : ` <span class="tab-count">${UI.num(n)}</span>`}</button>`; }).join('')}</div>`;
+/** Overview / report panel: title, optional count, optional lightbulb suggestion (tipHtml), optional "See all" link. */
+UI.wsPanel = (title, icon, body, o = {}) => {
+  const go = o.go && UI.canGo(o.go);
+  return `<section class="panel ws-panel${o.cls ? ' ' + o.cls : ''}"><div class="panel-head"><h2 class="panel-title"><i class="bi ${UI.esc(icon)}" aria-hidden="true"></i>${UI.esc(title)}${o.count === undefined ? '' : ` <span class="text-muted fw-normal">${UI.num(o.count)}</span>`}</h2>
+    <div class="panel-tools">${o.tipHtml ? `<button type="button" class="ws-tip-btn" data-ws-tip aria-expanded="false" aria-haspopup="dialog" aria-label="Suggestion: ${UI.esc(title)}"><i class="bi bi-lightbulb" aria-hidden="true"></i> Suggestion</button>` : ''}${go ? `<button type="button" class="ws-seeall" data-go="${UI.esc(o.go)}">${UI.esc(o.goLabel || 'See all')} <i class="bi bi-arrow-right" aria-hidden="true"></i></button>` : ''}</div></div>
+    ${o.tipHtml ? `<template class="ws-tip-tpl">${o.tipHtml}</template>` : ''}
+    <div class="panel-body flush">${body}</div>${o.foot ? `<div class="ws-panel-foot">${o.foot}</div>` : ''}</section>`;
+};
+/* POPOVER_SUGGESTIONS_V1 — the lightbulb opens ONE floating popover attached to <body> (position: fixed), so no card
+   resizes and no overflow container clips it. Hover opens it on hover-capable devices; click / tap / Enter / Space
+   pins it. It closes on Escape, outside click, page navigation, or when another suggestion opens. No backdrop. */
+UI.tipPop = { el: null, btn: null, pinned: false, timer: 0, rect: null };
+UI.closeTip = (focusBack = false) => {
+  const s = UI.tipPop; clearTimeout(s.timer);
+  if (s.el) s.el.remove();
+  if (s.btn) { s.btn.setAttribute('aria-expanded', 'false'); s.btn.classList.remove('active'); if (focusBack) s.btn.focus(); }
+  s.el = null; s.btn = null; s.pinned = false; s.rect = null;
+};
+UI.placeTip = () => {
+  const { el, btn, rect } = UI.tipPop; if (!el || !btn) return;
+  if (!document.body.contains(btn)) return UI.closeTip();
+  const r = rect ? rect() : btn.getBoundingClientRect(), m = 8, vw = document.documentElement.clientWidth, vh = window.innerHeight;
+  const w = el.offsetWidth, h = el.offsetHeight;
+  // a point anchor (chart) centres the popover on the point; a button anchor aligns it to the button's right edge
+  let left = Math.min(Math.max(m, rect ? (r.left + r.right) / 2 - w / 2 : r.right - w), vw - w - m);
+  let top = r.bottom + 6;
+  if (top + h > vh - m && r.top - h - 6 > m) top = r.top - h - 6;      // flip above when there is no room below
+  top = Math.max(m, Math.min(top, vh - h - m));
+  el.style.left = left + 'px'; el.style.top = top + 'px';
+};
+UI.openTip = (btn, pinned) => {
+  const s = UI.tipPop;
+  if (s.btn === btn) { if (pinned) s.pinned = true; return; }
+  UI.closeTip();
+  const tpl = btn.closest('.ws-panel')?.querySelector('.ws-tip-tpl'); if (!tpl) return;
+  const el = document.createElement('div');
+  el.className = 'ws-popover'; el.id = 'wsTipPop'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', btn.getAttribute('aria-label') || 'Suggestion');
+  el.innerHTML = `<div class="ws-popover-head"><i class="bi bi-lightbulb" aria-hidden="true"></i> Suggested action<button type="button" class="ws-popover-x" aria-label="Close">&times;</button></div><div class="ws-popover-body">${tpl.innerHTML}</div>`;
+  document.body.append(el);
+  UI.bindGo(el);
+  el.querySelectorAll('[data-go]').forEach(x => x.addEventListener('click', () => UI.closeTip()));
+  el.querySelector('.ws-popover-x').onclick = () => UI.closeTip(true);
+  el.addEventListener('mouseenter', () => clearTimeout(s.timer));
+  el.addEventListener('mouseleave', () => { if (!s.pinned) s.timer = setTimeout(() => UI.closeTip(), 250); });
+  Object.assign(s, { el, btn, pinned: !!pinned });
+  btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-controls', 'wsTipPop'); btn.classList.add('active');
+  UI.placeTip();
+};
+UI.bindTips = (root) => root.querySelectorAll('[data-ws-tip]').forEach(b => {
+  const hover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  b.addEventListener('click', (e) => { e.stopPropagation(); const s = UI.tipPop; if (s.btn === b && s.pinned) UI.closeTip(); else UI.openTip(b, true); });
+  if (hover) {
+    b.addEventListener('mouseenter', () => { clearTimeout(UI.tipPop.timer); if (UI.tipPop.btn !== b && !UI.tipPop.pinned) UI.openTip(b, false); });
+    b.addEventListener('mouseleave', () => { const s = UI.tipPop; if (s.btn === b && !s.pinned) s.timer = setTimeout(() => UI.closeTip(), 250); });
+  }
+});
+/** MOTORPOOL_REPORTS_V2 — the same single floating popover, anchored to a point (e.g. a chart point) of an owner element. */
+UI.openPointPop = (owner, rectFn, label, bodyHtml) => {
+  UI.closeTip();
+  const s = UI.tipPop, el = document.createElement('div');
+  el.className = 'ws-popover ws-popover-wide'; el.id = 'wsTipPop'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', label);
+  el.innerHTML = `<button type="button" class="ws-popover-x ws-popover-x-abs" aria-label="Close">&times;</button>${bodyHtml}`;
+  document.body.append(el);
+  UI.bindGo(el);
+  el.querySelectorAll('[data-go]').forEach(x => x.addEventListener('click', () => UI.closeTip()));
+  el.querySelector('.ws-popover-x').onclick = () => UI.closeTip(true);
+  Object.assign(s, { el, btn: owner, pinned: true, rect: rectFn });
+  UI.placeTip();
+  return el;
+};
+document.addEventListener('click', (e) => { const s = UI.tipPop; if (s.el && !s.el.contains(e.target) && !e.target.closest('[data-ws-tip]') && !(s.rect && s.btn && s.btn.contains(e.target))) UI.closeTip(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && UI.tipPop.el) { e.stopPropagation(); UI.closeTip(true); } }, true);
+window.addEventListener('hashchange', () => UI.closeTip());
+window.addEventListener('resize', () => UI.placeTip());
+window.addEventListener('scroll', () => UI.placeTip(), true);
+/** Short list entry for overview panels: title, sub-line, status chip on the right; the whole row opens `go`. */
+UI.wsEntry = (go, title, sub, side) => { const ok = go && UI.canGo(go);
+  return `<li class="mo-item${ok ? ' clickable' : ''}"${ok ? ` data-go="${UI.esc(go)}" role="link" tabindex="0"` : ''}><div class="mo-item-main"><div class="mo-item-top">${title}</div>${sub ? `<div class="mo-item-issue">${sub}</div>` : ''}</div><div class="mo-item-side">${side || ''}</div></li>`; };
+UI.wsList = (items, empty) => items.length ? `<ul class="mo-list mo-scroll">${items.join('')}</ul>` : `<div class="mo-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i> ${UI.esc(empty)}</div>`;
+/** "2026-09" -> "Sep 2026". */
+UI.ym = (ym) => { const [y, m] = String(ym).split('-'); return new Date(+y, +m - 1, 1).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }); };
+UI.compactMoney = (v) => { const n = +v || 0, a = Math.abs(n); return '₱' + (a >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : UI.num(n)); };
+/** Grouped vertical bars (CSS only) from recorded values. series: [{label, data: [..]}]; fmt formats one value. */
+UI.wsBars = (labels, series, fmt = (v) => UI.num(v), empty = 'No records in this period.') => {
+  const max = Math.max(0, ...series.flatMap(s => s.data.map(x => +x || 0)));
+  if (!labels.length || !max) return `<div class="mo-empty"><i class="bi bi-bar-chart" aria-hidden="true"></i> ${UI.esc(empty)}</div>`;
+  return `<div class="ws-chart"><div class="ws-chart-legend">${series.map((s, i) => `<span><i class="sw-${i}" aria-hidden="true"></i>${UI.esc(s.label)}</span>`).join('')}</div>
+    <div class="ws-bars">${labels.map((l, j) => `<div class="ws-barset">${series.map((s, i) => { const v = +s.data[j] || 0;
+      return `<div class="ws-bar-col"><span class="ws-bar-v">${UI.esc(fmt(v))}</span><div class="ws-bar sw-${i}" style="height:${Math.round(v / max * 100)}%" role="img" aria-label="${UI.esc(s.label + ', ' + l + ': ' + fmt(v))}" title="${UI.esc(s.label + ' · ' + l + ': ' + fmt(v))}"></div></div>`; }).join('')}
+      <span class="ws-bar-label">${UI.esc(l)}</span></div>`).join('')}</div></div>`;
+};
+/** Ranking bars. rows: [{label, sub, value, display, go}] (value drives the bar; display is the shown figure). */
+UI.wsRank = (rows, empty) => {
+  if (!rows.length) return `<div class="mo-empty"><i class="bi bi-info-circle" aria-hidden="true"></i> ${UI.esc(empty)}</div>`;
+  const max = Math.max(...rows.map(r => +r.value || 0)) || 1;
+  return `<div class="ws-rank">${rows.map(r => { const ok = r.go && UI.canGo(r.go);
+    return `<div class="ws-rank-row${ok ? ' clickable' : ''}"${ok ? ` data-go="${UI.esc(r.go)}" role="link" tabindex="0"` : ''}><div class="ws-rank-name"><b>${UI.esc(r.label)}</b>${r.sub ? `<span>${UI.esc(r.sub)}</span>` : ''}</div>
+      <div class="ws-rank-track" aria-hidden="true"><span style="width:${Math.round((+r.value || 0) / max * 100)}%"></span></div><div class="ws-rank-val">${UI.esc(r.display ?? UI.num(r.value))}</div></div>`; }).join('')}</div>`;
+};
+/** Report period selector (presets + custom dates), same URL keys as before (?from=&to=). */
+UI.wsPeriod = (page, per) => {
+  const iso = (x) => { const y = new Date(x); y.setMinutes(y.getMinutes() - y.getTimezoneOffset()); return y.toISOString().slice(0, 10); };
+  const now = new Date(), today = iso(now);
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const lastMonthStart = iso(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const lastMonthEnd = iso(new Date(now.getFullYear(), now.getMonth(), 0));
+  const presets = [
+    ['Today', today, today],
+    ['This week', iso(monday), today],
+    ['This month', iso(new Date(now.getFullYear(), now.getMonth(), 1)), today],
+    ['Last month', lastMonthStart, lastMonthEnd],
+    ['Last 3 months', iso(new Date(now.getFullYear(), now.getMonth() - 2, 1)), today],
+    ['This year', iso(new Date(now.getFullYear(), 0, 1)), today]
+  ];
+  const chosen = presets.find(([,from,to]) => per.from === from && per.to === to);
+  const buttons = presets.map(([label,from,to]) => {
+    const dest = page + '?' + new URLSearchParams({from,to});
+    const selected = chosen && chosen[0] === label;
+    return '<button type="button" class="btn btn-sm ' + (selected ? 'btn-success active' : 'btn-outline-secondary')
+      + '" data-ws-period="' + UI.esc(dest) + '" aria-pressed="' + (selected ? 'true' : 'false') + '">' + UI.esc(label) + '</button>';
+  }).join('');
+  return '<div class="ws-period-toolbar ws-period no-print" role="group" aria-label="Reporting period">'
+    + '<div class="ws-period-presets"><span class="ws-period-label">Period:</span>' + buttons
+    + '<span class="ws-period-summary"><strong>' + UI.date(per.from) + ' – ' + UI.date(per.to) + '</strong></span></div>'
+    + '<details class="ws-period-details"' + (chosen ? '' : ' open') + '><summary class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</summary>'
+    + '<div class="ws-period-date-controls"><label>From <input type="date" class="form-control form-control-sm" data-gf="from" value="' + UI.esc(per.from) + '" aria-label="Start date"></label>'
+    + '<label>To <input type="date" class="form-control form-control-sm" data-gf="to" value="' + UI.esc(per.to) + '" aria-label="End date"></label></div></details>'
+    + '<span class="ws-period-hint">' + (chosen ? 'Showing ' + UI.esc(chosen[0].toLowerCase()) + ' records.' : 'Showing custom date range.') + '</span></div>';
+};
+UI.bindPeriod = (root) => root.querySelectorAll('[data-ws-period]').forEach(button =>
+  button.addEventListener('click', () => { if (button.dataset.wsPeriod) UI.goTo(button.dataset.wsPeriod); }));
+UI.operationsLabel = label => {
+  const role=App.me?.user?.role;if(!['operations_head','car_carrier_dispatcher','container_wingvan_dispatcher'].includes(role))return label;
+  const names={'Trip Management':'Trips','Dispatcher Monitoring':'Dispatch Monitoring','Trip Fund Approvals':'Fund Approvals','Truck Masterlist':'Trucks','Truck Master List':'Trucks','Driver & Helper Masterlist':'Drivers & Helpers','Client Masterlist':'Clients','Incidents & Maintenance':'Incidents & Repairs','Plate Number':'Plate No.','Plate number':'Plate No.','Personnel Name':'Name','Personnel Role':'Role','Permanent Truck':'Fixed Truck','Current Availability':'Availability','Operational Status':'Status','View Details':'View','Action Required Summary':'Needs Action','Workflow Progress Timeline':'Progress','Eligibility & Readiness Panel':'Readiness'};
+  if(label==='Trip Funds')return role==='operations_head'?'Fund Approvals':'Funds & Fuel';
+  if(role==='operations_head'){
+    const headNames={'Truck & Crew':'Truck & Personnel','Trip Funds & Fuel':'Funds & Fuel','Incident & Maintenance Coordination':'Incident & Repairs','Incidents & Corrective Maintenance':'Incidents & Repairs','Maintenance Record':'Repair Record','Maintenance Status':'Repair Status','Helper Replacement Reason':'Replacement Reason','Truck type':'Truck Type','Truck & Crew Assignment':'Truck & Personnel','Regular driver':'Fixed Driver','Regular helper':'Regular Helper','Plate / unit':'Plate No. / Unit','Add truck':'Add Truck','Add client':'Add Client','Add Client Profile':'Add Client','Client profile':'Client Profile','Truck / unit number':'Unit No.','MV file no.':'MV File No.','Chassis no.':'Chassis No.','Engine no.':'Engine No.','OR no.':'OR No.','CR no.':'CR No.','New truck':'Add Truck','Vehicle documents':'Truck Documents','Trip history':'Trip History','Status history':'Status History','Maintenance history':'Repair History','Recorded Activity':'Activity','Request Information':'Request','Trip Information':'Trip','Expense Breakdown':'Expenses','Recorded Progress':'Progress','Assignment & Activity History':'Activity','Trip Summary':'Overview','Trip Overview':'Overview','Planning Dispatcher Shift':'Dispatcher Shift','Recorded Approved Rate':'Approved Rate','Delivery Details / Instructions':'Delivery Instructions','View Related Trip':'View Trip','View Fund Request':'View Fund','Approve Request':'Approve','Close Details':'Close','Related Trip':'Trip','Requested By':'Requested By','Request Date':'Requested','Requested Amount':'Amount','Personnel Role':'Role','No authorized availability records match.':'No matching records found.'};
+    if(Object.hasOwn(headNames,label))return headNames[label];
+  }
+  return names[label]||label;
+};
 UI.esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 UI.money = (v) => (v === null || v === undefined || v === '') ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 UI.num = (v, d = 0) => (v === null || v === undefined || v === '') ? '—' : Number(v).toLocaleString('en-PH', { maximumFractionDigits: d });
@@ -497,18 +1326,38 @@ UI.fmt = (type, v, row) => {
   }
 };
 
-/** Toast message (bottom right). type: '' (success), 'error', 'warn', 'info'. */
+/** Shared visible notifications, including validation errors inside modals. */
 UI.toast = (msg, type = '') => {
   if (!msg) return;
-  const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
-  const el = document.createElement('div'); el.className = 'app-toast ' + type; el.setAttribute('role', type === 'error' ? 'alert' : 'status');
-  el.innerHTML = `<i class="bi ${icon}"></i><span></span><button type="button" class="toast-x" aria-label="Close">&times;</button>`;
-  el.querySelector('span').textContent = msg;
-  el.querySelector('.toast-x').onclick = () => el.remove();
-  document.getElementById('toastZone').append(el); setTimeout(() => el.remove(), type ? 9000 : 5000);
+  const zone = document.getElementById('toastZone');
+  if (!zone) return;
+  // Normalize notification whitespace without modifying status names,
+  // identifiers, or validation decisions supplied by other modules.
+  const message = String(msg).replace(/\s+/g, ' ').trim();
+  if (!message) return;
+  // Avoid piling up repeated validation errors on consecutive submissions.
+  const duplicate = [...zone.querySelectorAll('.app-toast')].find(el =>
+    el.dataset.kind === type && el.querySelector('span')?.textContent === message);
+  if (duplicate) return;
+  const icon = { error: 'bi-x-circle-fill', warn: 'bi-exclamation-triangle-fill', warning:'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-check-circle-fill';
+  const el = document.createElement('div');
+  el.className = 'app-toast ' + (type === 'warning' ? 'warn' : type);
+  el.dataset.kind = type;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span></span><button type="button" class="toast-x" aria-label="Dismiss notification">&times;</button>`;
+  el.querySelector('span').textContent = message;
+  let timer;
+  const dismiss = () => { clearTimeout(timer); el.remove(); };
+  el.querySelector('.toast-x').onclick = dismiss;
+  zone.prepend(el);
+  while (zone.children.length > 3) zone.lastElementChild.remove();
+  timer = setTimeout(dismiss, type === 'error' ? 14000 : type ? 10000 : 5000);
 };
 /** Shows the result of a backend action (message + warning). */
-UI.result = (r) => { UI.toast(r.message || 'Saved.'); if (r.warning) UI.toast(r.warning, 'warn'); };
+UI.result = (r) => {
+  UI.toast(r.message || 'Changes saved successfully.');
+  if (r.warning) UI.toast(r.warning, 'warn');
+};
 
 /** Company logo (redrawn from the reference forms). */
 UI.logoTag = (cls = '') => `<img src="assets/img/logo.svg" alt="RPM" class="${cls}">`;
@@ -516,25 +1365,108 @@ UI.logoTag = (cls = '') => `<img src="assets/img/logo.svg" alt="RPM" class="${cl
 /** A button in the page header (top right). */
 UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-' + cls;
-  b.innerHTML = (icon ? `<i class="bi ${icon}"></i> ` : '') + UI.esc(label); b.onclick = fn; ctx.tools.append(b); return b;
+  b.innerHTML = (icon ? `<i class="bi ${icon}"></i> ` : '') + UI.esc(UI.operationsLabel(label)); b.onclick = fn; ctx.tools.append(b); return b;
 };
 
 /**
  * Metric strip: one bordered panel divided into segments (label, value, note).
  * items: [{label, value, note, color: green|blue|amber|red, go: 'page?x=y', format: 'money'}]
  */
-UI.statusStrip = (items) => `<div class="metric-strip">${(items || []).map(c => { const go = c.go && UI.canGo(c.go);
-  return `<div class="metric ${c.color || ''} ${go ? 'clickable' : ''}" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
-    <div class="metric-label">${c.color ? '<span class="dot"></span>' : ''}${UI.esc(c.label)}</div>
+/* Shared semantic KPI icon color: independent of numeric count, including zero.
+   Keep legacy tone classes for card state/border styling; only icon background changes. */
+UI.kpiIconColor = (label, requestedColor = '') => {
+  // Explicit meaningful colors stay fixed, including when a KPI reads zero.
+  if (['green','blue','amber','red','purple'].includes(requestedColor)) return requestedColor;
+  const text = String(label || '').toLowerCase();
+  const rules = [
+    [/overdue|over 60|incident|cancel|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
+    [/not timed in|inactive|archived|draft|no action/, 'gray'],
+    [/under maintenance|under repair|low stock|follow.up|pending|awaiting|to approve|for approval|for billing|to bill|for review|needs attention|approval|verification|verify|to release|to liquidate/, 'amber'],
+    [/collected|completed|complete|available|paid|delivered|resolved|successful|released|received|on duty/, 'green'],
+    [/on trip|ongoing|in progress|active|dispatch|to receive|new parts|requests|trips|truck|vehicle|fleet|route|delivery/, 'blue'],
+    [/outstanding|balance|cash|revenue|receivable|billing|invoice|finance|budget|expenses|expense|cost|payment|fund|rate|amount|money/, 'purple'],
+    [/stock|inventory|parts|purchase|order|warehouse|document|report|record/, 'blue'],
+    [/driver|helper|personnel|mechanic|employee|staff|user|client|customer/, 'green']
+  ];
+  const matching = rules.find(([pattern]) => pattern.test(text));
+  if (matching) return matching[1];
+  return ['green','blue','amber','red','purple'].includes(requestedColor) ? requestedColor : 'blue';
+};
+// Presentation-only icon mapping. Counts, data sources, and navigation are unchanged.
+UI.metricVisual = (card) => {
+  const label = String(card.label || '').toLowerCase();
+  const rules = [
+    [/overdue|incident|cancelled|canceled|critical|failed|shortage|out of stock|unavailable|rejected|problem/, 'bi-exclamation-triangle', 'red'],
+    [/under maintenance|repair|needs attention|low stock|pending|awaiting|for approval|for review|follow.up|verification|verify/, 'bi-tools', 'amber'],
+    [/completed|complete|finished|resolved|collected|paid|delivered|available|success/, 'bi-check-circle', 'green'],
+    [/ongoing|in progress|in transit|on trip|active trip|dispatched|dispatch|route|to bill|for billing/, 'bi-truck', 'blue'],
+    [/finance|revenue|receivable|invoice|billing|expense|cost|budget|amount|payment|fund|rate|money/, 'bi-wallet2', 'purple'],
+    [/fuel|diesel|liter|consumption/, 'bi-fuel-pump', 'blue'],
+    [/driver|helper|personnel|mechanic|employee|staff|user/, 'bi-people', 'green'],
+    [/client|customer|contract/, 'bi-buildings', 'purple'],
+    [/inventory|stock|parts|purchase|warehouse|order/, 'bi-box-seam', 'blue'],
+    [/truck|vehicle|fleet|trip|delivery/, 'bi-truck', 'blue'],
+    [/document|report|record/, 'bi-file-earmark-text', 'blue'],
+    [/inactive|archived|draft|not timed in/, 'bi-clock-history', 'gray']
+  ];
+  const matched = rules.find(([pattern]) => pattern.test(label));
+  const icon = UI.kpiGlyph(card.label, card.icon || matched?.[1]);
+  const color = UI.kpiIconColor(card.label, card.color || matched?.[2] || 'blue');
+  return {icon,color};
+};
+UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
+  const go = c.go && UI.canGo(c.go);
+  const visual = UI.metricVisual(c);
+  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
+    <span class="metric-icon metric-icon-${visual.color}" aria-hidden="true"><i class="bi ${visual.icon}"></i></span>
+    <div class="metric-content"><div class="metric-label">${UI.esc(UI.operationsLabel(c.label))}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
-    ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div>`; }).join('')}</div>`;
+    ${c.note ? `<div class="metric-note">${UI.esc(c.note)}</div>` : ''}</div></div>`; }).join('')}</div>`;
+/**
+ * STAGE_A_WORKSPACE_UI — KPI tiles for the role workspaces (Motorpool, Purchasing).
+ * items: [{label, value, note, icon: 'bi-...', tone: amber|blue|green|red|gray, go: 'page?x=y'}]
+ * A tile is a link only when the user may open its page (UI.canGo); otherwise it is plain, non-interactive text.
+ */
+/* Consistent, meaningful KPI glyphs for reports and other role workspaces.
+   Respect explicit icon choices; never show a generic empty circle for missing icons. */
+UI.kpiGlyph = (label, icon) => {
+  if (/^bi-[a-z0-9-]+$/.test(String(icon || '')) && icon !== 'bi-circle') return icon;
+  const text = String(label || '').toLowerCase();
+  const rules = [
+    [/maintenance cost|maintenance expense|repair cost|repair expense|expenses|expense|cost|spending/, 'bi-cash-stack'],
+    [/completed repairs|completed repair|repairs completed|repairs finished/, 'bi-check-circle'],
+    [/ongoing repairs|under repair|repairs in progress/, 'bi-tools'],
+    [/trucks serviced|vehicles serviced|serviced trucks/, 'bi-truck-front'],
+    [/downtime|out of service/, 'bi-clock-history'],
+    [/cancelled|canceled|incident|critical|overdue|shortage/, 'bi-exclamation-triangle'],
+    [/fuel|diesel|consumption|liters|litres/, 'bi-fuel-pump'],
+    [/stock.in|stock out|stock level|inventory|warehouse/, 'bi-box-seam'],
+    [/payment|collected|collection|revenue|receivable|amount|balance|billed|billing/, 'bi-wallet2'],
+    [/invoice|to bill|for billing/, 'bi-receipt'],
+    [/driver|helper|mechanic|staff|personnel|employee|users/, 'bi-people'],
+    [/clients|customers/, 'bi-buildings'],
+    [/completed|complete|delivered|resolved|verified|successful|released/, 'bi-check-circle'],
+    [/ongoing|in progress|active|on trip|trips|trucks|vehicle|fleet|delivery|dispatch/, 'bi-truck'],
+    [/pending|awaiting|for review|approval|verification|follow.up/, 'bi-hourglass-split'],
+    [/purchase|parts|order|request/, 'bi-box-seam'],
+    [/report|records|documents/, 'bi-file-earmark-text']
+  ];
+  return rules.find(([pattern]) => pattern.test(text))?.[1] || 'bi-bar-chart-line';
+};
+UI.kpiTiles = (items, cls = '') => `<div class="kpi-tiles${cls ? ' ' + UI.esc(cls) : ''}">${(items || []).map(c => { const go = c.go && UI.canGo(c.go); const iconColor = UI.kpiIconColor(c.label, c.tone);
+  return `<div class="kpi-tile tone-${UI.esc(c.tone || 'gray')} kpi-color-${UI.esc(iconColor)}${go ? ' clickable' : ''}" data-kpi-color="${UI.esc(iconColor)}"${go ? ` data-go="${UI.esc(c.go)}" role="link" tabindex="0" aria-label="${UI.esc(c.label)}: ${UI.esc(c.value)}"` : ''}>
+    <div class="kpi-icon"><i class="bi ${UI.esc(UI.kpiGlyph(c.label, c.icon))}"></i></div>
+    <div class="kpi-body"><div class="kpi-value">${UI.esc(c.value)}</div><div class="kpi-label">${UI.esc(c.label)}</div>${c.note ? `<div class="kpi-note">${UI.esc(c.note)}</div>` : ''}</div>
+    ${go ? '<i class="bi bi-chevron-right kpi-go" aria-hidden="true"></i>' : ''}</div>`; }).join('')}</div>`;
+/** Back link to a workspace page; empty when the user cannot open that page. */
+UI.crumb = (page, label) => UI.canGo(page) ? `<nav class="ws-crumb" aria-label="Back"><button type="button" class="ws-crumb-link" data-go="${UI.esc(page)}"><i class="bi bi-arrow-left"></i> ${UI.esc(label)}</button></nav>` : '';
 /** Dashboard / report cards use the same metric strip. */
-UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
+UI.cards = (cards) => UI.statusStrip((cards || []).map(c => ({ label: c.label, value: c.value, note: c.hint, icon: c.icon, color: c.color && c.color !== 'gray' ? c.color : '', go: c.page, format: c.format })));
 UI.goParts = (spec) => {
   const [main, mem] = String(spec || '').split('#'); const [page, qs] = main.split('?');
   return { page, query: Object.fromEntries(new URLSearchParams(qs || '')), tabs: [...new URLSearchParams(mem || '')] };
 };
-UI.canGo = (spec) => !!spec && !!App.me && (App.me.nav || []).some(n => n.id === UI.goParts(spec).page);
+UI.canGo = (spec) => !!spec && !!App.me && (App.me.routes || App.me.nav || []).some(n => n.id === UI.goParts(spec).page);
 UI.goTo = (spec) => {
   const g = UI.goParts(spec);
   g.tabs.forEach(([k, v]) => sessionStorage.setItem('tab:' + g.page + (k === '_' ? '' : ':' + k), v));
@@ -544,7 +1476,7 @@ UI.goTo = (spec) => {
 UI.bindGo = (root) => root.querySelectorAll('[data-go]').forEach(x => { x.onclick = () => UI.goTo(x.dataset.go); x.onkeydown = (e) => { if (e.key === 'Enter') UI.goTo(x.dataset.go); }; });
 
 /** Panel with a title row (used by tables, charts and sections). */
-UI.card = (title, body, tools = '') => `<section class="panel">${title || tools ? `<div class="panel-head"><h2 class="panel-title">${title}</h2><div class="panel-tools">${tools}</div></div>` : ''}<div class="panel-body flush">${body}</div></section>`;
+UI.card = (title, body, tools = '') => `<section class="panel">${title || tools ? `<div class="panel-head"><h2 class="panel-title">${UI.operationsLabel(title)}</h2><div class="panel-tools">${tools}</div></div>` : ''}<div class="panel-body flush">${body}</div></section>`;
 
 /**
  * Data table with search and paging; bulk CSV export is intentionally unavailable.
@@ -588,6 +1520,9 @@ UI.overviewColumns = (columns, opts = {}) => {
 UI.overviewActions = (id, row) => {
   const t = UI._tables[id];
   let html = t.opts.actions ? (t.opts.actions(row) || '') : '';
+  // STAGE_B_WORKSPACE_UI: tables that pass directActions show their (already role/state-filtered) icon buttons in the row,
+  // instead of collapsing them behind a "Manage" chooser.
+  if (t.opts.directActions) return `<div class="row-icons">${html}</div>`;
   const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(html);
   if (t.columns.length < t.allColumns.length && !hasView) html += '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details><i class="bi bi-eye" aria-hidden="true"></i> View</button>';
   const n = (html.match(/<button\b/gi) || []).length;
@@ -604,8 +1539,13 @@ UI.overviewDetails = (id, row) => {
 UI.table = (columns, rows, opts = {}) => {
   const id = opts.id || 'tbl' + Math.random().toString(36).slice(2, 8);
   const visibleColumns = UI.overviewColumns(columns, opts);
-  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: opts.limit || (opts.plain ? 8 : 15), page: 0, filter: '' };
+  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(5, Math.max(1, Number(opts.limit) || 5)), page: 0, filter: '' };
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
+  if (UI.refPage()) {   // REF_FIDELITY_V1: search + Reset toolbar, then the bordered table (reference list layout)
+    return `<div class="ref-list"><div class="ref-toolbar no-print"><div class="table-search ref-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" type="search" placeholder="Search records..." aria-label="Search records" data-tsearch="${id}"></div>
+      <button type="button" class="btn ref-reset" data-treset="${id}" title="Clear the search, tab and filters">Reset</button><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}</div>
+      <div class="ref-tablebox"><div class="table-wrap" data-tbody="${id}"></div></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
+  }
   const head = `<div class="table-tools">
       <div class="table-search"><i class="bi bi-search"></i><input class="form-control" type="search" placeholder="Search this list" aria-label="Search this list" data-tsearch="${id}"></div>
       <div class="table-tools-right"><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}</div></div>`;
@@ -613,6 +1553,33 @@ UI.table = (columns, rows, opts = {}) => {
   return opts.title ? UI.card(opts.title, html) : `<section class="panel"><div class="panel-body flush">${html}</div></section>`;
 };
 UI._tables = {};
+/** Presentation metadata only; callers keep their existing paging, filtering and permissions. */
+UI.recordPager = ({total,page=1,pages=1,pageSize=10,previous='data-prev',next='data-next',note=''}) => {
+  const first=total?(page-1)*pageSize+1:0,last=total?Math.min(page*pageSize,total):0;
+  return `<span class="pager-info">Showing ${first}${total?'\u2013'+last:''} of ${total} records${note?` <small>${UI.esc(note)}</small>`:''}</span><nav class="pager-pages" aria-label="Record pages"><button type="button" class="pg" ${previous} ${page<=1?'disabled':''} aria-label="Previous page">Previous</button><span>Page ${page} of ${pages}</span><button type="button" class="pg" ${next} ${page>=pages?'disabled':''} aria-label="Next page">Next</button></nav>`;
+};
+/** Decorate existing nodes: never clone records/actions or infer a data scope. */
+UI.standardTable = (root, meta = {}) => {
+  if(!root)return;
+  root.classList.add('fleet-data-table');root.dataset.standardTable='';
+  let toolbar=meta.toolbar||root.querySelector(':scope > .fleet-table-toolbar, :scope > .table-tools, :scope > .ds-record-controls');
+  if(!toolbar&&meta.total!=null){toolbar=document.createElement('div');toolbar.className='fleet-table-toolbar';root.prepend(toolbar);}
+  if(toolbar){toolbar.classList.add('fleet-table-toolbar');
+    let count=toolbar.querySelector('[data-tcount], [data-standard-count]')||meta.count;
+    if(!count){count=document.createElement('span');count.dataset.standardCount='';toolbar.prepend(count);}
+    if(meta.total!=null)count.textContent=meta.total+' record'+(meta.total===1?'':'s');
+    const toggle=toolbar.querySelector('.rpm-record-controls');
+    // Count, working view switch, then the original search/tools (if this page uses them).
+    toolbar.prepend(count);if(toggle)count.after(toggle);
+  }
+  root.querySelectorAll('th.actions-col .visually-hidden').forEach(label=>{label.classList.remove('visually-hidden');label.textContent='Action';});
+  root.querySelectorAll('button').forEach(button=>{
+    if(['View','View Details'].includes(button.textContent.trim())){
+      button.classList.add('fleet-view');
+      if(!button.querySelector('.bi-eye'))button.insertAdjacentHTML('afterbegin','<i class="bi bi-eye" aria-hidden="true"></i>');
+    }
+  });
+};
 UI.tableRows = (id) => {
   const t = UI._tables[id]; if (!t) return [];
   const f = t.filter.toLowerCase();
@@ -621,6 +1588,7 @@ UI.tableRows = (id) => {
 /** Draws one page of a table, with page numbers. */
 /** Consistent, formal labels across every table in FleetOps. */
 UI.columnLabel = (label, type = '') => {
+  label=UI.operationsLabel(label);
   const text = String(label || '');
   if (text === 'When') return 'Date and time';
   if (text === 'Schedule' || text === 'Scheduled') return type === 'datetime' ? 'Scheduled date and time' : 'Scheduled date';
@@ -633,7 +1601,7 @@ UI.columnLabel = (label, type = '') => {
 };
 /** Date input labels use dates, not ambiguous 'from/to/when'. */
 UI.formLabel = (field) => {
-  const label = String(field.label || '');
+  const label = String(UI.operationsLabel(field.label || ''));
   if (!['date', 'datetime'].includes(field.type)) return label;
   if (label === 'From') return 'Start date';
   if (label === 'To') return 'End date';
@@ -650,15 +1618,28 @@ UI.drawTable = (id) => {
   if (count) count.textContent = rows.length === t.rows.length ? `${rows.length} record${rows.length === 1 ? '' : 's'}` : `${rows.length} of ${t.rows.length}`;
   const pager = box.parentElement.querySelector(`[data-tpager="${id}"]`);
   if (pager) pager.innerHTML = '';
-  if (!rows.length) { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; return; }
+  if (!rows.length) {
+    if((!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
+      const message=t.filter?'No records match the current search or filters.':t.opts.empty||'No records found.';
+      box.innerHTML='<table class="data-table"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
+      if(pager&&!t.opts.dsServerPaged)pager.innerHTML=UI.recordPager({total:0});
+    } else { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; }
+    return;
+  }
   const pages = Math.ceil(rows.length / t.limit);
   t.page = Math.min(Math.max(t.page, 0), pages - 1);
   const first = t.page * t.limit, shown = rows.slice(first, first + t.limit);
   const num = (f) => f === 'money' || f === 'num';
   const cellClass = (f) => f === 'money' ? 'num money-col' : f === 'num' ? 'count-col' : (f === 'badge' || f === 'yes') ? 'status-col' : '';
-  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f]) => `<th class="${cellClass(f)}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
-    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f]) => `<td class="${cellClass(f)}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
-  if (pager && pages > 1) {
+  // COMPACT_TABLES_V1: on reference pages, columns hug their content; only long-text columns (cell-clip / cell-clamp) take the spare width.
+  const grow = UI.refPage() ? t.columns.map(([, k, f]) => typeof f === 'function' && shown.some(r => /cell-cl(?:ip|amp)/.test(String(f(r[k], r) || '')))) : [];
+  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
+    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
+  if(pager&&t.opts.dsServerPaged){pager.innerHTML='';}
+  else if(pager&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
+    pager.innerHTML=UI.recordPager({total:rows.length,page:t.page+1,pages:Math.max(1,pages),pageSize:t.limit,previous:'data-tpg="'+(t.page-1)+'"',next:'data-tpg="'+(t.page+1)+'"'});
+    pager.querySelectorAll('[data-tpg]').forEach(button=>button.onclick=()=>{t.page=Number(button.dataset.tpg);UI.drawTable(id);});
+  } else if (pager && pages > 1) {
     const nums = [];
     for (let i = 0; i < pages; i++) if (i === 0 || i === pages - 1 || Math.abs(i - t.page) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
     pager.innerHTML = `<span class="pager-info">${first + 1}–${first + shown.length} of ${rows.length}</span><nav class="pager-pages" aria-label="Pages">
@@ -769,7 +1750,34 @@ UI.mountMasterlistQuickToolbar = (root) => {
 };
 
 /** Call after inserting table HTML into the page (the router calls it for the page body). */
+/* GLOBAL_RECORD_TOOLBAR_V1 */
+/** Pair a page's adjacent generalFilters bar with its one shared UI.table toolbar.
+ *  Do not relocate custom/modals, multi-table filters, or already-integrated Purchasing filters. */
+UI.unifyRecordToolbars = root => {
+  const scope = root?.querySelectorAll ? root : null;
+  if (!scope) return;
+  const roots = [scope, ...scope.querySelectorAll('.ws-filters')];
+  for (const filters of roots) {
+    if (!filters.classList?.contains('ws-filters') || filters.classList.contains('purchasing-inline-filters')) continue;
+    if (filters.closest('.modal, .offcanvas, .purchasing-unified-toolbar, .purchasing-inventory-toolbar')) continue;
+    // Only an immediately-adjacent list is safe: no intervening explanatory panels.
+    const sibling = filters.nextElementSibling;
+    if (!sibling) continue;
+    const table = sibling.matches('.ref-list, .table-tools, .fleet-data-table, .purchasing-records-card, .purchasing-ref-records')
+      ? sibling : sibling.matches('.panel, .mp-reference-table') ? sibling : null;
+    if (!table) continue;
+    const toolbar = table.matches('.table-tools, .ref-toolbar') ? table : table.querySelector('.ref-toolbar, .table-tools');
+    if (!toolbar || toolbar.contains(filters) || toolbar.querySelector('.ws-filters')) continue;
+    // Keep the source element, all data-gf attributes and existing delegated listeners.
+    const search = toolbar.querySelector('.table-search');
+    toolbar.classList.add('fleet-unified-record-toolbar');
+    filters.classList.add('fleet-inline-record-filters');
+    if (search) search.insertAdjacentElement('afterend', filters);
+    else toolbar.prepend(filters);
+  }
+};
 UI.activate = (root) => {
+  UI.unifyRecordToolbars(root);
   root.querySelectorAll('[data-tbody]').forEach(b => { if (!b.dataset.drawn) { b.dataset.drawn = '1'; UI.drawTable(b.dataset.tbody); } });
   root.querySelectorAll('[data-tsearch]').forEach(inp => { if (inp.dataset.bound) return; inp.dataset.bound = '1';
     inp.addEventListener('input', () => { const t = UI._tables[inp.dataset.tsearch]; t.filter = inp.value.trim(); t.page = 0; UI.drawTable(inp.dataset.tsearch); }); });
@@ -783,8 +1791,11 @@ UI.activate = (root) => {
   });
   UI.mountMasterlistQuickToolbar(root);
 };
+/** STAGE_B_WORKSPACE_UI — compact icon action for table rows: tooltip + accessible label, same data-act contract as UI.btn. */
+UI.ibtn = (act, label, icon, cls = 'outline-secondary') =>
+  `<button type="button" class="btn btn-sm btn-${cls} icon-act" data-act="${UI.esc(act)}" title="${UI.esc(label)}" aria-label="${UI.esc(label)}"><i class="bi ${UI.esc(icon)}" aria-hidden="true"></i></button>`;
 UI.btn = (act, label, cls = 'outline-secondary', icon = '') => {
-  const text = label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label;
+  const text = UI.operationsLabel(label === 'Open' ? 'View' : label === 'Open trip' ? 'View trip' : label);
   const isView = act === 'view' || (act === 'trip' && text === 'View trip');
   const variant = isView && cls === 'outline-secondary' ? 'outline-primary' : cls;
   const viewIcon = isView && !icon ? 'bi-eye' : icon;
@@ -900,6 +1911,7 @@ UI.confirmProceed = (title, message, label = 'Yes, proceed') => {
 };
 
 UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
+  title=UI.operationsLabel(title);if(opts.submit)opts={...opts,submit:UI.operationsLabel(opts.submit)};
   const wrap = document.createElement('div');
   wrap.className = 'modal fade'; wrap.tabIndex = -1; wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('role', 'dialog');
   wrap.innerHTML = `<div class="modal-dialog ${opts.size ?? 'modal-lg'} modal-dialog-scrollable modal-dialog-centered"><form class="modal-content" novalidate>
@@ -927,7 +1939,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
       err.textContent = invalid.validity.valueMissing || (invalid.type === 'checkbox' && !invalid.checked)
         ? 'Complete the required field: ' + fieldLabel
         : 'Please enter a valid value for: ' + fieldLabel;
-      err.style.display = 'block'; invalid.focus(); return;
+      err.style.display = 'block'; UI.toast(err.textContent, 'error'); invalid.focus(); return;
     }
     // Validate first, ask user inside the app, then execute the save/API request.
     // Existing explicit confirm-action modals opt out to avoid double prompts.
@@ -943,7 +1955,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
     }
     const btn = form.querySelector('button[type=submit]'); const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing…';
     try { await onSubmit(UI.formData(form), form, wrap); saveCompleted = true; m.hide(); }
-    catch (x) { err.textContent = x.message; err.style.display = 'block'; }
+    catch (x) { err.textContent = x.message; err.style.display = 'block'; UI.toast(x.message, 'error'); }
     finally { btn.disabled = false; btn.innerHTML = label; }
   };
    // Checklist #18: in-app discard dialog; never call window.confirm.
@@ -951,46 +1963,24 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
    let initialValues = null;
    let saveCompleted = false;
    let allowDiscard = false;
-   const showDiscardDialog = () => {
-     if (wrap.querySelector('[data-unsaved-dialog]')) return;
-     const dialog = document.createElement('div');
-     dialog.className = 'unsaved-dialog-layer';
-     dialog.dataset.unsavedDialog = '1';
-     dialog.style.cssText = 'position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.42);';
-     dialog.innerHTML = `<section role="alertdialog" aria-modal="true" aria-labelledby="unsavedTitle"
-       aria-describedby="unsavedMessage" class="bg-white shadow-lg rounded-3 border p-4"
-       style="width:min(100%,430px);max-height:90%;overflow:auto">
-       <h5 id="unsavedTitle" class="mb-2"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Unsaved changes</h5>
-       <p id="unsavedMessage" class="text-muted mb-3">You have unsaved changes. Discard them and close this form?</p>
-       <div class="d-flex justify-content-end gap-2 flex-wrap">
-         <button type="button" class="btn btn-sm btn-outline-secondary" data-unsaved-keep>Keep editing</button>
-         <button type="button" class="btn btn-sm btn-danger" data-unsaved-discard>Discard changes</button>
-       </div>
-     </section>`;
-     // Keep Escape and backdrop clicks from closing the parent while asking.
-     const escGuard = (e) => {
-       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); dialog.querySelector('[data-unsaved-keep]').click(); }
-     };
-     dialog.addEventListener('keydown', escGuard, true);
-     const closeDialog = () => { dialog.remove(); };
-     dialog.querySelector('[data-unsaved-keep]').onclick = () => {
-       closeDialog();
-       form.querySelector('input:not([type=hidden]),select,textarea')?.focus();
-     };
-     dialog.querySelector('[data-unsaved-discard]').onclick = () => {
-       allowDiscard = true;
-       closeDialog();
-       m.hide();
-     };
-     wrap.append(dialog);
-     dialog.querySelector('[data-unsaved-keep]').focus();
-   };
+   let discardPending = false;
    wrap.addEventListener('hide.bs.modal', (event) => {
-     if (confirmPending) { event.preventDefault(); return; }
+     if (confirmPending || discardPending) { event.preventDefault(); return; }
      if (allowDiscard || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
      if (UI.modalEditSnapshot(form) === initialValues) return;
      event.preventDefault();
-     showDiscardDialog();
+     discardPending = true;
+     // Reuse the high-z-index confirmation layer, which stays above Leaflet
+     // maps and their map controls, instead of stacking an absolute child
+     // under the map. Approving the discard must actually close the modal.
+     UI.askWithinModal(wrap, 'Unsaved changes',
+       'You have unsaved changes. Discard them and close this form?',
+       'Discard changes').then(accepted => {
+       discardPending = false;
+       if (!accepted) return;
+       allowDiscard = true;
+       m.hide();
+     }).catch(() => { discardPending = false; });
    });
    wrap.addEventListener('hidden.bs.modal', () => wrap.remove());
    m.show();
@@ -1017,21 +2007,35 @@ UI.confirm = (title, text, onYes, opts = {}) => UI.modal(UI.esc(title), `<p clas
  * Tabs: tabs = [[key, label(html), htmlFn]]. Remembers the last tab of each page.
  * opts.key = separate memory when a page has more than one tab group; opts.pills = small pills.
  */
+/** Hide display-only record counts in navigation labels; preserve counts in KPIs and tables. */
+UI.tabLabel = label => String(label ?? '').replace(/\s*\(\d[\d,]*\)\s*$/, '').trim();
 UI.tabs = (root, tabs, active, opts = {}) => {
   if (!tabs.length) return;
   const id = 'tabs' + Math.random().toString(36).slice(2, 6);
-  const mem = 'tab:' + App.current.page + (opts.key ? ':' + opts.key : '');
+  const mem = 'tab:' + (App.current?.page || 'record') + (opts.key ? ':' + opts.key : '');
   active = active || tabs[0][0];
-  root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
+  root.insertAdjacentHTML('beforeend', `<div class="${opts.pills ? 'pill-tabs' : 'line-tabs'} no-print" id="${id}" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${k === active ? 'active' : ''}" data-tab="${k}">${UI.tabLabel(l)}</button>`).join('')}</div><div id="${id}body" class="tab-body"></div>`);
   const body = document.getElementById(id + 'body');
+  const retained = new Map();
+  const buttons = [...document.querySelectorAll(`#${id} > [data-tab]`)];
+  buttons.forEach((button, index) => { button.id = id + '-tab-' + index; button.setAttribute('aria-controls', opts.retainPanels ? id + '-panel-' + index : body.id); });
+  if (!opts.retainPanels) body.setAttribute('role', 'tabpanel');
   const show = (k) => {
-    document.querySelectorAll(`#${id} > [data-tab]`).forEach(b => { const on = b.dataset.tab === k; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); });
+    buttons.forEach(b => { const on = b.dataset.tab === k; b.classList.toggle('active', on); b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; if(on) body.setAttribute('aria-labelledby', b.id); });
     const t = tabs.find(x => x[0] === k);
-    try { body.innerHTML = ''; const out = t[2](body); if (typeof out === 'string') body.innerHTML = out; UI.activate(body); }
+    try {
+      if (opts.retainPanels) {
+        // Move existing nodes once. Keep hidden panels mounted so handlers, inputs and audit text survive.
+        tabs.forEach(([key, , render], index) => {
+          if (!retained.has(key)) { const panel = document.createElement('section'); panel.id = id + '-panel-' + index; panel.setAttribute('role','tabpanel'); panel.setAttribute('aria-labelledby',buttons[index].id); panel.tabIndex=0; body.append(panel); const out=render(panel); if(typeof out==='string')panel.innerHTML=out; retained.set(key,panel); UI.activate(panel); }
+          retained.get(key).hidden=key!==k;
+        });
+      } else { body.innerHTML = ''; const out = t[2](body); if (typeof out === 'string') body.innerHTML = out; UI.activate(body); }
+    }
     catch (e) { console.error(e); body.innerHTML = `<div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>${UI.esc(e.message)}</div></div>`; }
     sessionStorage.setItem(mem, k);
   };
-  document.querySelectorAll(`#${id} > [data-tab]`).forEach(b => b.onclick = () => show(b.dataset.tab));
+  buttons.forEach((b,index) => { b.onclick = () => show(b.dataset.tab); b.onkeydown = event => { let next; if(event.key==='ArrowRight')next=(index+1)%buttons.length;else if(event.key==='ArrowLeft')next=(index+buttons.length-1)%buttons.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=buttons.length-1;else return;event.preventDefault();buttons[next].click();buttons[next].focus(); }; });
   const remembered = sessionStorage.getItem(mem);
   show(opts.forceActive && tabs.some(t => t[0] === active) ? active : (tabs.some(t => t[0] === remembered) ? remembered : active));
 };
@@ -1169,37 +2173,115 @@ UI.breakdown = (lines, total, totalLabel = 'Total') => `<table class="breakdown 
 /**
  * Fund Request form (PDF #12 Scenario A step 4 / B step 4).
  * The dispatcher picks the preset categories and may add other categories.
- * The total is shown while choosing; the server still takes the real preset amounts.
- * opts: { title, categories:[{name, amount}], selected:[names], extra:[{name, amount}], notes, action, payload, intro }
+ * The total reflects editable request amounts when editablePresets is enabled.
+ * opts: { title, categories, selected, presetAmounts, editablePresets, extra, notes, action, payload, intro }
  */
 UI.fundForm = (opts) => {
   const sel = new Set(opts.selected || []);
-  const extra = (opts.extra || []).concat(Array(Math.max(0, 3 - (opts.extra || []).length)).fill({ name: '', amount: '' }));
-  const cats = (opts.categories || []).map((c, i) => `<label class="d-flex justify-content-between border rounded px-2 py-1 mb-1">
-      <span><input type="checkbox" class="form-check-input me-2 fund-cat" data-name="${UI.esc(c.name)}" data-amount="${+c.amount}" ${sel.has(c.name) ? 'checked' : ''}>${UI.esc(c.name)}</span>
-      <span class="num">${UI.money(c.amount)}</span></label>`).join('') || '<div class="text-muted small">No preset categories yet. Ask the Admin to add them in Administration > Settings.</div>';
+  const extra = (opts.extra && opts.extra.length) ? opts.extra : [{ name: '', amount: '' }];
+  const cats = (opts.categories || []).map((c, i) => {
+    const checked = sel.has(c.name);
+    const amount = opts.presetAmounts?.[c.name] ?? c.amount;
+    const amountControl = opts.editablePresets
+      ? `<span class="d-flex align-items-center gap-1"><span aria-hidden="true">₱</span><input type="number" class="form-control form-control-sm fund-preset-amount text-end" aria-label="Amount for ${UI.esc(c.name)}" min="0.01" step="0.01" value="${UI.esc(String(amount))}" ${checked ? '' : 'disabled'} required></span>`
+      : `<span class="num">${UI.money(c.amount)}</span>`;
+    return `<label class="d-flex justify-content-between align-items-center gap-2 border rounded px-2 py-1 mb-1">
+      <span><input type="checkbox" class="form-check-input me-2 fund-cat" data-name="${UI.esc(c.name)}" data-amount="${+c.amount}" ${checked ? 'checked' : ''}>${UI.esc(c.name)}</span>
+      ${amountControl}</label>`;
+  }).join('') || '<div class="text-muted small">No preset categories yet. Ask the Admin to add them in Administration > Settings.</div>';
   const rows = extra.map((l, i) => `<div class="row g-2 mb-1 fund-extra">
       <div class="col-8"><input class="form-control form-control-sm" maxlength="80" placeholder="Other expense category" value="${UI.esc(l.name || '')}"></div>
       <div class="col-4"><input class="form-control form-control-sm" type="number" min="0" step="0.01" placeholder="Amount" value="${l.amount === '' ? '' : +l.amount}"></div></div>`).join('');
   const body = `${opts.intro ? `<p class="small text-muted">${opts.intro}</p>` : ''}
     <h6>Fund categories (preset amounts)</h6>${cats}
     <h6 class="mt-3">Other expense categories (optional)</h6>${rows}
+    ${opts.optionalDieselPo ? `<div class="fund-diesel-attachment" data-fund-diesel-attachment>
+      <label class="d-flex gap-2 align-items-center mb-2"><input type="checkbox" data-po-enabled ${opts.dieselPo?'checked':''}><strong>Include Diesel Purchase Order</strong> <small>(Optional)</small></label>
+      <div data-po-fields ${opts.dieselPo?'':'hidden'}>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6"><label class="form-label">P.O. Number</label><input class="form-control form-control-sm" name="po_number" maxlength="60" value="${UI.esc(opts.dieselPo?.po_number||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Date</label><input class="form-control form-control-sm" type="date" name="po_date" value="${UI.esc(opts.dieselPo?.po_date||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Vehicle</label><input class="form-control form-control-sm" name="po_vehicle" maxlength="100" value="${UI.esc(opts.dieselPo?.vehicle||opts.dieselPoVehicle||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Plate Number</label><input class="form-control form-control-sm" name="po_plate" maxlength="40" value="${UI.esc(opts.dieselPo?.plate_number||opts.dieselPoPlate||'')}"></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>No. of Liters</th><th>Amount per Liter</th><th>Total</th><th></th></tr></thead><tbody data-po-lines></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center"><button class="btn btn-sm btn-outline-success" type="button" data-po-add>Add Another Line</button><strong data-po-total>₱0.00</strong></div>
+        <p class="form-help mt-2">This optional purchase order does not change the cash fund total.</p>
+      </div>
+    </div>` : ''}
     <div class="mt-2"><label class="form-label small">Notes</label><input class="form-control form-control-sm" name="notes" maxlength="255" value="${UI.esc(opts.notes || '')}"></div>
     <div class="fs-6 mt-3 text-end">Total requested fund: <b id="fundTotal">₱0.00</b></div>`;
   UI.modal(opts.title, body, async (d, form) => {
-    const categories = [...form.querySelectorAll('.fund-cat:checked')].map(c => c.dataset.name);
+    const checkedPresets = [...form.querySelectorAll('.fund-cat:checked')];
+    const categories = checkedPresets.map(c => c.dataset.name);
+    const presetAmounts = {};
+    if (opts.editablePresets) {
+      for (const checkbox of checkedPresets) {
+        const input = checkbox.closest('label').querySelector('.fund-preset-amount');
+        if (!input || !/^\d+(?:\.\d{1,2})?$/.test(input.value) || Number(input.value) <= 0 || !input.checkValidity()) {
+          input?.setCustomValidity('Enter a positive amount with at most two decimal places.');
+          input?.reportValidity();
+          throw new Error('Enter a valid amount for each selected preset expense.');
+        }
+        input.setCustomValidity('');
+        presetAmounts[checkbox.dataset.name] = input.value;
+      }
+    }
     const extraLines = [...form.querySelectorAll('.fund-extra')].map(r => { const [n, a] = r.querySelectorAll('input'); return { name: n.value.trim(), amount: a.value }; }).filter(x => x.name || x.amount);
     if (!categories.length && !extraLines.length) throw new Error('Choose at least one fund category.');
-    const r = await App.api(opts.action, { ...opts.payload, categories, extra: extraLines, notes: d.notes || '' });
+    let dieselPo=null;
+    if(opts.optionalDieselPo&&form.querySelector('[data-po-enabled]')?.checked){
+      const value=name=>form.querySelector('[name='+name+']')?.value.trim()||'';
+      const lines=[...form.querySelectorAll('[data-po-line]')].map(row=>({
+        liters:row.querySelector('[data-po-liters]').value.trim(),
+        unit_price:row.querySelector('[data-po-rate]').value.trim()
+      })).filter(line=>line.liters||line.unit_price);
+      if(!value('po_number')||!value('po_date')||!value('po_vehicle')||!value('po_plate'))throw new Error('Complete the P.O. number, date, vehicle and plate number.');
+      if(!lines.length||lines.some(line=>!/^\d{1,6}(?:\.\d{1,3})?$/.test(line.liters)||+line.liters<=0||!/^\d{1,7}(?:\.\d{1,2})?$/.test(line.unit_price)||+line.unit_price<=0))throw new Error('Enter positive liters and price per liter for every PO line.');
+      dieselPo={po_number:value('po_number'),po_date:value('po_date'),vehicle:value('po_vehicle'),plate_number:value('po_plate'),lines};
+    }
+    const r = await App.api(opts.action, { ...opts.payload, categories, ...(opts.editablePresets ? { preset_amounts: presetAmounts } : {}), extra: extraLines, notes: d.notes || '', ...(dieselPo ? { diesel_po: dieselPo } : {}) });
     UI.result(r); if (opts.after) opts.after(r); else App.route();
   }, { submit: 'Submit Fund Request', onShow(w) {
     const total = () => {
       let t = 0;
-      w.querySelectorAll('.fund-cat:checked').forEach(c => t += +c.dataset.amount);
+      w.querySelectorAll('.fund-cat').forEach(c => {
+        const input = c.closest('label').querySelector('.fund-preset-amount');
+        if (input) {
+          input.disabled = !c.checked;
+          if (!input.disabled) input.setCustomValidity('');
+        }
+        if (c.checked) t += input ? (+input.value || 0) : +c.dataset.amount;
+      });
       w.querySelectorAll('.fund-extra').forEach(r => { const a = +r.querySelectorAll('input')[1].value; if (a > 0) t += a; });
       w.querySelector('#fundTotal').textContent = UI.money(t);
     };
     w.addEventListener('input', total); w.addEventListener('change', total); total();
+    const po=w.querySelector('[data-fund-diesel-attachment]');
+    if(po){
+      const enabled=po.querySelector('[data-po-enabled]'),fields=po.querySelector('[data-po-fields]'),tbody=po.querySelector('[data-po-lines]');
+      const update=()=>{
+        let sum=0;tbody.querySelectorAll('[data-po-line]').forEach(row=>{
+          const liters=+row.querySelector('[data-po-liters]').value||0,rate=+row.querySelector('[data-po-rate]').value||0;
+          const amount=Math.round(liters*rate*100)/100;
+          row.querySelector('[data-po-subtotal]').textContent=UI.money(amount);sum+=amount;
+        });po.querySelector('[data-po-total]').textContent=UI.money(sum);
+      };
+      const addLine=(line={})=>{
+        if(tbody.children.length>=12)return;
+        const row=document.createElement('tr');row.dataset.poLine='1';
+        row.innerHTML='<td><input type="number" min="0.001" step="0.001" class="form-control form-control-sm" data-po-liters aria-label="Liters"></td>'
+          +'<td><input type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-po-rate aria-label="Price per liter"></td>'
+          +'<td class="text-nowrap" data-po-subtotal>₱0.00</td><td><button class="btn btn-sm btn-outline-danger" type="button" data-po-remove>Remove</button></td>';
+        row.querySelector('[data-po-liters]').value=line.liters||'';
+        row.querySelector('[data-po-rate]').value=line.unit_price||'';tbody.append(row);update();
+      };
+      const saved=opts.dieselPo?.lines;(Array.isArray(saved)&&saved.length?saved:[{}]).forEach(addLine);
+      enabled.addEventListener('change',()=>{fields.hidden=!enabled.checked;});
+      po.querySelector('[data-po-add]').addEventListener('click',()=>addLine());
+      po.addEventListener('click',event=>{const btn=event.target.closest('[data-po-remove]');if(btn&&tbody.children.length>1){btn.closest('tr').remove();update();}});
+      po.addEventListener('input',update);update();
+    }
   } });
 };
 
@@ -1244,6 +2326,8 @@ UI.list = (arr) => (arr || []).map(x => [x, x]);
  */
 UI.takeQuery = (ctx, ...keys) => {
   const out = {}; let changed = false;
+  // WS_NAV_STATE_V1: one-shot keys already taken out by route() on workspace pages.
+  keys.forEach(k => { if (ctx.once && ctx.once[k] !== undefined) { out[k] = ctx.once[k]; delete ctx.once[k]; } });
   keys.forEach(k => { if (ctx.query[k] !== undefined) { out[k] = ctx.query[k]; delete ctx.query[k]; changed = true; } });
   if (changed) {
     const qs = new URLSearchParams(ctx.query).toString();
@@ -1273,6 +2357,7 @@ UI.filterModal = (ctx, fields, opts = {}) => {
   const reset = () => { const q = { ...ctx.query }; keys.forEach(k => delete q[k]); App.go(ctx.page, q); };
   const open = () => {
     const wrap = UI.modal('Filter records', UI.fields(fields.map(f => ({ ...f, value: ctx.query[f.name] ?? '' }))) + (opts.note ? `<div class="form-help mt-2">${UI.esc(opts.note)}</div>` : ''), async (d) => {
+      if (d.from && d.to && d.from > d.to) throw new Error('End date must be on or after the start date.');
       const q = { ...ctx.query }; keys.forEach(k => { if (d[k]) q[k] = d[k]; else delete q[k]; });
       App.go(ctx.page, q);
     }, { size: '', submit: 'Apply filters', confirmBeforeSubmit: false, extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-freset>Clear filters</button>' });
@@ -1280,9 +2365,35 @@ UI.filterModal = (ctx, fields, opts = {}) => {
   };
   const label = (k) => { const f = fields.find(x => x.name === k); const o = (f.options || []).find(o => String(Array.isArray(o) ? o[0] : o) === String(ctx.query[k])); return `${f.label}: ${o ? (Array.isArray(o) ? o[1] : o) : ctx.query[k]}`; };
   UI._filters[id] = { open, reset };
-  return `<div class="filter-summary" data-fid="${id}"><button type="button" class="btn btn-sm btn-outline-secondary" data-fopen><i class="bi bi-funnel"></i> Filter${active.length ? ` <span class="badge bg-warning text-dark">${active.length}</span>` : ''}</button>
+  return `<div class="filter-summary ui-filter-toolbar" data-fid="${id}"><button type="button" class="btn btn-sm btn-outline-secondary" data-fopen><i class="bi bi-funnel"></i> Filter${active.length ? ` <span class="badge bg-warning text-dark">${active.length}</span>` : ''}</button>
     ${active.length ? active.map(k => `<span class="filter-chip">${UI.esc(label(k))}</span>`).join('') + '<button type="button" class="btn btn-link btn-sm p-0 ms-1" data-fclear>Reset</button>' : `<span>${UI.esc(opts.hint || 'Showing all records.')}</span>`}</div>`;
 };
+
+/**
+ * STAGE_B_WORKSPACE_UI — general filters shown directly on the page (Truck Masterlist style): selects and dates that
+ * change the page URL query at once, plus Reset. fields: [{name, label, options: [[value, label]] | [value], type: 'select'|'date'}].
+ * Options must come from real loaded data. Works together with status tabs and the table search.
+ */
+UI.generalFilters = (ctx, fields) => {
+  const keys = fields.map(f => f.name), active = keys.filter(k => ctx.query[k]);
+  const ctl = (f) => {
+    const v = ctx.query[f.name] ?? '';
+    if (f.type === 'date') return `<input type="date" class="form-control form-control-sm" data-gf="${UI.esc(f.name)}" value="${UI.esc(v)}" aria-label="${UI.esc(f.label)}" title="${UI.esc(f.label)}">`;
+    const opts = (f.options || []).map(o => Array.isArray(o) ? o : [o, o]);
+    return `<select class="form-select form-select-sm" data-gf="${UI.esc(f.name)}" aria-label="${UI.esc(f.label)}"><option value="">${UI.esc(f.all || 'All ' + f.label.toLowerCase())}</option>
+      ${opts.map(([val, lab]) => `<option value="${UI.esc(val)}" ${String(val) === String(v) ? 'selected' : ''}>${UI.esc(lab)}</option>`).join('')}</select>`;
+  };
+  return `<div class="ws-filters no-print" role="group" aria-label="Filters">${fields.map(ctl).join('')}${active.length ? `<button type="button" class="btn btn-link btn-sm ws-filter-reset" data-gf-reset="${UI.esc(keys.join(','))}"><i class="bi bi-x-circle"></i> Reset filters</button>` : ''}</div>`;
+};
+document.addEventListener('change', (e) => {
+  const c = e.target.closest('[data-gf]'); if (!c || !App.current) return;
+  const q = { ...App.current.query }; if (c.value) q[c.dataset.gf] = c.value; else delete q[c.dataset.gf];
+  App.go(App.current.page, q);
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-gf-reset]'); if (!b || !App.current) return;
+  const q = { ...App.current.query }; b.dataset.gfReset.split(',').forEach(k => delete q[k]); App.go(App.current.page, q);
+});
 
 UI._filters = {};
 // One listener for every filter bar (works even when the bar is drawn later inside a tab).
@@ -1297,7 +2408,7 @@ UI.drawer = (title, html, opts = {}) => {
   // Re-use the open drawer (refresh its content) so backdrops never stack up.
   let el = document.querySelector('.offcanvas.app-drawer');
   const head = `<div><h5 class="offcanvas-title mb-0">${title}</h5>${opts.subtitle ? `<div class="small text-muted">${opts.subtitle}</div>` : ''}</div>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>`;
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close details"></button>`;
   if (el) {
     el.querySelector('.offcanvas-header').innerHTML = head;
     el.querySelector('.offcanvas-body').innerHTML = html;
@@ -1322,7 +2433,7 @@ UI.steps = (stages, current, opts = {}) => `<div class="wf-steps ${opts.compact 
     <span class="dot">${i < current ? '<i class="bi bi-check"></i>' : i + 1}</span><span class="lbl">${UI.esc(s)}</span></div>`).join('')}</div>`;
 
 /** Label / value grid. pairs = [[label, html], ...] (values are already escaped / formatted). */
-UI.kv = (pairs) => `<dl class="kv">${pairs.filter(Boolean).map(([k, v]) => `<dt>${UI.esc(k)}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd>`).join('')}</dl>`;
+UI.kv = (pairs) => `<dl class="kv">${pairs.filter(Boolean).map(([k, v]) => `<dt>${UI.esc(UI.operationsLabel(k))}</dt><dd>${v === null || v === undefined || v === '' ? '—' : v}</dd>`).join('')}</dl>`;
 UI.e = (v) => (v === null || v === undefined || v === '') ? '—' : UI.esc(v);
 
 /* CHECKLIST_25_INLINE_DOCUMENT_PREVIEW_V1 */
@@ -1369,7 +2480,91 @@ if (!UI._documentPreviewBound) {
 }
 
 /** Section heading inside drawers. */
-UI.h = (text, extra = '') => `<div class="drawer-h"><span>${UI.esc(text)}</span>${extra}</div>`;
+UI.h = (text, extra = '') => `<div class="drawer-h"><span>${UI.esc(UI.operationsLabel(text))}</span>${extra}</div>`;
+
+// Shared presentation only: callers supply already-authorized records and server decisions.
+UI.state = (kind, opts = {}) => {
+  const states = { empty:['bi-inbox','No records found.'], loading:['bi-hourglass-split','Loading records…'], error:['bi-exclamation-triangle','Unable to load records.'], denied:['bi-shield-lock','Access denied.'], success:['bi-check-circle','Saved successfully.'] };
+  const [icon, title] = states[kind] || states.error;
+  return `<div class="ui-state ui-state-${UI.esc(kind)}" role="${['error','denied'].includes(kind)?'alert':'status'}"${kind==='loading'?' aria-busy="true"':''}><i class="bi ${icon}" aria-hidden="true"></i><div><strong>${UI.esc(opts.title||title)}</strong>${opts.message?`<p>${UI.esc(opts.message)}</p>`:''}${opts.actionHtml||''}</div></div>`;
+};
+UI.actionSummary = (items, opts = {}) => {
+  const visible = (items||[]).filter(item => item && (item.count == null || Number(item.count)>0));
+  return `<section class="ui-action-summary" aria-label="${UI.esc(opts.title||'Action required')}"><h2>${UI.esc(opts.title||'Action required')}</h2>${visible.length?'<div class="ui-action-list">'+visible.map(item=>{
+    const go=item.go&&UI.canGo(item.go),tag=go?'a':'div';
+    const level=['danger','warning','success'].includes(item.level)?item.level:'info';
+    return `<${tag} class="ui-action-item ui-action-${level}"${go?` href="#${UI.esc(item.go.replace(/^#/,''))}"`:''}><span>${UI.esc(item.label||item.text)}</span>${item.count!=null?`<strong>${UI.num(item.count)}</strong>`:''}${go?'<i class="bi bi-chevron-right" aria-hidden="true"></i>':''}</${tag}>`;
+  }).join('')+'</div>':UI.state('empty',{title:opts.empty||'No action items in the available records.'})}</section>`;
+};
+UI.workflow = (milestones, opts = {}) => `<section class="ui-workflow" aria-label="${UI.esc(opts.label||'Recorded workflow progress')}">${opts.status?`<div class="ui-workflow-status">${UI.badge(opts.status)}</div>`:''}<ol>${(milestones||[]).map(m=>{
+  const state=['complete','current','pending','exception'].includes(m.state)?m.state:'pending';
+  return `<li class="ui-workflow-${state}"><span class="ui-workflow-dot" aria-hidden="true">${state==='complete'?'✓':state==='exception'?'!':'•'}</span><div><b>${UI.esc(m.label)}</b><small>${UI.esc({complete:'Recorded',current:'Current',pending:'Not recorded',exception:'Needs attention'}[state])}${m.at?' · '+UI.datetime(m.at):''}</small>${m.note?`<span>${UI.esc(m.note)}</span>`:''}</div></li>`;
+}).join('')}</ol></section>`;
+UI.activity = (records, opts = {}) => !(records||[]).length?UI.state('empty',{title:opts.empty||'No recorded activity.'}):`<ol class="timeline ui-activity">${records.map(e=>`<li><div class="when">${e.created_at||e.completed_at?UI.datetime(e.created_at||e.completed_at):'Time not recorded'}${e.actor?' · '+UI.esc(e.actor):''}</div><b>${UI.esc(e.event_type||e.update_type||e.action||e.to_status||e.kind||'Recorded activity')}</b>${e.from_status!==e.to_status&&e.to_status?`<div>${UI.esc(e.from_status||'Not recorded')} → ${UI.esc(e.to_status)}</div>`:''}${e.notes||e.note||e.details?`<p>${UI.esc(e.notes||e.note||e.details)}</p>`:''}${e.mechanic?`<small>Mechanic: ${UI.esc(e.mechanic)}</small>`:''}${e.reference?`<small>${UI.esc(e.reference)}</small>`:''}</li>`).join('')}</ol>`;
+UI.readiness = (checks, opts = {}) => `<section class="ui-readiness" aria-label="${UI.esc(opts.title||'Recorded readiness')}"><h3>${UI.esc(opts.title||'Recorded readiness')}</h3>${(checks||[]).length?'<ul>'+checks.map(c=>`<li class="ui-check-${c.state==='complete'?'complete':c.state==='blocked'?'blocked':'unknown'}"><i class="bi ${c.state==='complete'?'bi-check-circle':c.state==='blocked'?'bi-exclamation-circle':'bi-info-circle'}" aria-hidden="true"></i><span><b>${UI.esc(c.label)}</b>${c.detail?`<small>${UI.esc(c.detail)}</small>`:''}</span></li>`).join('')+'</ul>':'<p>No validation details are available.</p>'}<p class="ui-readiness-note">${UI.esc(opts.note||'Informational only. The server checks eligibility and permissions again when an action is submitted.')}</p></section>`;
+UI.documentChecklist = (documents, requirements, opts = {}) => `<section class="ui-document-checklist" aria-label="Document readiness"><h3>${UI.esc(opts.title||'Document readiness')}</h3><ul>${(requirements||[]).map(rule=>{
+  const files=(documents||[]).filter(d=>d.category===rule.category);
+  const expired=files.length&&rule.expiryField&&opts.asOf&&files.every(d=>d[rule.expiryField]&&String(d[rule.expiryField]).slice(0,10)<opts.asOf);
+  const state=rule.applicable===false?'Not Applicable':expired?'Expired':files.length?'Attached':'Missing';
+  return `<li><span>${UI.esc(rule.label||rule.category)} <small>${rule.required?'Required': 'Optional'}</small></span><b class="${state==='Attached'?'text-success':rule.required&&state!=='Not Applicable'?'text-danger':'text-muted'}">${state}</b>${state==='Missing'?`<small>${UI.esc(rule.required?'Required for '+(rule.for||'the existing workflow')+'.':'Optional attachment; does not block completion.')}</small>`:''}${rule.applicable===false&&rule.reason?`<small>${UI.esc(rule.reason)}</small>`:''}</li>`;
+}).join('')}</ul></section>`;
+UI.tripDocuments = documents => UI.documentChecklist(documents,[
+  ...['Waybill','Acknowledgement Receipt','Delivery Receipt'].map(category=>({category,required:true,for:'trip completion'})),
+  {category:'Diesel PO',required:false},{category:'Supplier SOA',required:false}
+]);
+UI.fundProgress = fund => UI.workflow([
+  {label:'Submitted',at:fund.created_at,state:fund.created_at?'complete':'pending'},
+  {label:fund.status==='Rejected'?'Rejected':'Approved',at:fund.approved_at,state:fund.status==='Rejected'?'exception':fund.approved_at?'complete':'pending',note:fund.rejected_reason},
+  {label:'Released',at:fund.released_at,state:fund.released_at?'complete':'pending'},
+  {label:'Liquidated',at:fund.liquidated_at,state:fund.liquidated_at?'complete':'pending'}
+],{status:fund.status,label:'Recorded fund progress'});
+UI.tripProgress = (trip, data = {}) => {
+  const attempt=Number(trip.attempt_number||1);
+  const inspections=(data.inspections||[]).filter(i=>Number(i.attempt_number)===attempt&&Number(i.vehicle_id)===Number(trip.vehicle_id));
+  const pre=inspections.find(i=>i.kind==='Pre-Dispatch'&&i.completed_at),arrival=inspections.find(i=>i.kind==='Arrival'&&i.completed_at);
+  const exceptional=['Cancelled','Rejected','On Hold - Incident Reported','For Reschedule'].includes(trip.status);
+  const milestones=[
+    {label:'Created',at:trip.created_at,state:trip.created_at?'complete':'pending'},
+    {label:'Resource assignment',state:trip.vehicle_id&&trip.driver_id?'complete':'pending',note:trip.vehicle_id&&trip.driver_id?'Assigned resources are recorded; previous attempts remain in history.':null},
+    {label:'Pre-dispatch · attempt '+attempt,at:pre?.completed_at,state:pre?(Number(pre.has_not_ok)?'exception':'complete'):'pending'},
+    {label:'Dispatched',at:trip.dispatched_at,state:trip.dispatched_at?'complete':'pending'},
+    {label:'Completed',at:trip.completed_at,state:trip.completed_at?'complete':'pending'},
+    {label:'Arrival inspection / Truck release',at:arrival?.completed_at,state:arrival?(Number(arrival.has_not_ok)||Number(trip.awaiting_arrival)?'exception':'complete'):'pending',note:'Applies to the recorded Truck and attempt.'}
+  ];
+  // Never infer past completion merely from the current status. Preserve full multi-attempt history separately.
+  if(exceptional){const first=milestones.find(m=>m.state==='pending');if(first)first.state='exception';}
+  else { const current = {'Awaiting Resources':1,'Pre-Assigned':2,'Ready for Dispatch':3,'Dispatched':4,'In Transit':4,'Completed':5}[trip.status]; if(current!=null&&milestones[current].state==='pending')milestones[current].state='current'; }
+  return UI.workflow(milestones,{status:trip.status,label:'Recorded trip milestones'});
+};
+/** Organize existing drawer nodes with UI.tabs; never clone actions, forms or document handlers. */
+UI.drawerSections = (drawer, definitions, opts = {}) => {
+  const body=drawer.querySelector('.offcanvas-body');if(!body||body.querySelector('[data-record-sections]'))return;
+  const groups=definitions.map(([key,label,titles])=>({key,label,titles,nodes:[]}));
+  const selector=opts.selector||'.drawer-h';let current=groups[0];
+  [...body.childNodes].forEach(node=>{
+    if(node.nodeType===1&&node.matches(selector)){const title=(node.querySelector(opts.titleSelector||'span')?.textContent||'').trim();current=groups.find(g=>g.titles.some(t=>title===UI.operationsLabel(t)||title.startsWith(UI.operationsLabel(t)+' (')))||groups[0];}
+    current.nodes.push(node);
+  });
+  const host=document.createElement('div');host.dataset.recordSections='';host.className='ui-record-sections';body.replaceChildren(host);
+  UI.tabs(host,groups.filter(g=>g.nodes.some(n=>n.nodeType===1||n.textContent.trim())).map(g=>[g.key,UI.esc(UI.operationsLabel(g.label)),panel=>panel.append(...g.nodes)]),groups[0].key,{key:opts.key||'record-details',forceActive:true,retainPanels:true});
+};
+/** Standardize an existing search/filter form while preserving its submit/change contract. */
+UI.searchToolbar = (form) => {
+  const search=form.querySelector('input[type=search]');if(!search||form.dataset.uiToolbar)return;form.dataset.uiToolbar='';
+  form.classList.add('ui-search-form','oh-compact-filter');const label=search.closest('label');if(!label)return;
+  const others=[...form.children].filter(node=>node!==label);
+  [...label.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim()).forEach(node=>{const span=document.createElement('span');span.className='visually-hidden';span.textContent=node.textContent;node.replaceWith(span);});
+  const toolbar=document.createElement('div');toolbar.className='ui-search-toolbar oh-record-toolbar';label.classList.add('oh-search');
+  if(!label.querySelector('.bi-search'))label.insertAdjacentHTML('afterbegin','<i class="bi bi-search" aria-hidden="true"></i>');
+  toolbar.append(label);toolbar.insertAdjacentHTML('beforeend','<button type="submit" class="btn btn-primary">Search</button><button type="button" class="btn btn-outline-success" data-toggle-record-filters aria-expanded="false">Filters</button>');
+  const panel=document.createElement('div');panel.className='ui-search-filters oh-record-filter-panel';panel.id='filters-'+UI.uuid();panel.hidden=true;panel.append(...others);panel.insertAdjacentHTML('beforeend','<button type="button" class="btn btn-primary" data-apply-record-filters>Apply Filters</button>');
+  const toggle=toolbar.querySelector('[data-toggle-record-filters]');toggle.setAttribute('aria-controls',panel.id);toggle.onclick=()=>{panel.hidden=!panel.hidden;toggle.setAttribute('aria-expanded',String(!panel.hidden));};
+  const chips=document.createElement('div');chips.className='ui-filter-indicators';chips.setAttribute('aria-label','Active filters');
+  const refresh=()=>{chips.replaceChildren();[...form.elements].filter(e=>e.name&&e!==search&&e.value&&e.type!=='hidden').forEach(e=>{const chip=document.createElement('span');chip.className='filter-chip';const caption=e.closest('label')?.firstChild?.textContent?.trim()||e.name;chip.textContent=caption+': '+(e.tagName==='SELECT'?e.selectedOptions[0]?.textContent:e.value);chips.append(chip);});};
+  const apply=()=>{refresh();form.dispatchEvent(new Event('change',{bubbles:true}));};
+  panel.querySelector('[data-apply-record-filters]').onclick=apply;
+  form.onsubmit=event=>{event.preventDefault();apply();};form.append(toolbar,panel,chips);form.addEventListener('change',refresh);refresh();
+};
 
 /**
  * Printable form with the company header used on every printout (PDF #13 formats).
@@ -1468,7 +2663,8 @@ UI.signatureModal = () => {
   const savePref = (value) => {
     try { localStorage.setItem(prefKey(), value); } catch (_) { /* private browsing */ }
   };
-  const eligible = (opts) => !opts.plain && opts.viewSwitch !== false && App.current?.page !== 'dashboard';
+  // WS_DESIGN_V1: Maintenance / Accounting workspace pages always show one table (no manual List/Card switch).
+  const eligible = (opts) => !opts.plain && opts.viewSwitch !== false && App.current?.page !== 'dashboard' && !UI.WS_PAGES.has(App.current?.page) && !UI.refPage();
 
   UI.table = (columns, rows, opts = {}) => {
     if (!eligible(opts)) return oldTable(columns, rows, opts);
@@ -1476,7 +2672,7 @@ UI.signatureModal = () => {
     const actions = `<div class="rpm-record-controls no-print" data-rpm-controls="${marker}" aria-label="Record view and page size">
       <div class="rpm-record-toggle" role="group" aria-label="View records as">
         <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">List</span></button>
-        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">Cards</span></button>
+        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">${UI.role('operations_head')||UI.isDispatcher()?'Grid':'Cards'}</span></button>
       </div>
       <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
     </div>`;
@@ -1507,7 +2703,7 @@ UI.signatureModal = () => {
       const size = control.querySelector('[data-rpm-size]');
       if (size) size.value = String(t.limit);
     }
-    if (t.rpmView !== 'cards') return;
+    if (t.rpmView !== 'cards' || !UI.tableRows(id).length) return;
     const table = container.querySelector('table.data-table');
     if (!table) return; // empty list is handled by existing table renderer
     const grid = document.createElement('div');
@@ -1522,7 +2718,7 @@ UI.signatureModal = () => {
       const fields = document.createElement('div');
       fields.className = 'rpm-record-fields';
       columns.forEach(([label, , format], idx) => {
-        if (idx >= 4) return; // RPM CARD COMPACT V2: hide secondary fields; full details through View action. // Keep cards concise; the View action opens full details.
+        if (idx >= 4 && !(UI.role('operations_head')||UI.isDispatcher())) return; // RPM CARD COMPACT V2: hide secondary fields; full details through View action. // Keep cards concise; the View action opens full details.
         const td = cells[idx];
         if (!td) return;
         const field = document.createElement('div');
@@ -1593,6 +2789,15 @@ UI.signatureModal = () => {
   };
 })();
 /* RPM SHARED RECORD VIEW SWITCH V1 END */
+// Standard record presentation is opt-in by caller role, not an authorization decision.
+(() => {
+  const draw=UI.drawTable,activate=UI.activate;
+  const scoped=()=>UI.role('operations_head')||UI.isDispatcher();
+  const decorate=id=>{const box=document.querySelector('[data-tbody="'+id+'"]'),t=UI._tables[id];if(box&&t&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))){UI.standardTable(box.parentElement,{total:UI.tableRows(id).length});box.closest('.panel')?.classList.add('fleet-data-shell');}};
+  UI.drawTable=id=>{draw(id);if(scoped())decorate(id);};
+  UI.activate=root=>{activate(root);if(scoped())root.querySelectorAll('[data-tbody]').forEach(box=>decorate(box.dataset.tbody));};
+})();
+
 
 // Maps (UI.Map, UI.mapPicker, UI.routeMap) moved to assets/js/map.js (Checklist #5: OpenStreetMap + server-side road distance).
 
@@ -1612,3 +2817,16 @@ if (typeof Chart !== 'undefined') {
   Chart.defaults.color = '#57606a';
   Chart.defaults.borderColor = '#e6e8eb';
 }
+
+/* REF_FIDELITY_V1 — Reset on reference lists clears the search and returns to the page's default tab and filters;
+   Escape closes an open record drawer (as in the reference), unless a dialog is open on top of it. */
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-treset]'); if (!b || !App.current) return;
+  const input = document.querySelector(`[data-tsearch="${b.dataset.treset}"]`);
+  if (input && input.value) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
+  if (Object.keys(App.current.query || {}).length) App.go(App.current.page, {});
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || document.querySelector('.modal.show')) return;
+  if (document.querySelector('.offcanvas.app-drawer.show')) UI.closeDrawer();
+});

@@ -6,26 +6,30 @@
 
 const RPMDashboard = {
   roles: {
-    admin: { title: 'Head Management Dashboard', detail: 'Fleet, operations, finance and approvals', icon: 'bi-buildings', links: ['reports', 'trips', 'trucks', 'maintenance', 'billing', 'admin'] },
-    operations_head: { title: 'Operations Head Dashboard', detail: 'Trip oversight, fleet availability and dispatch readiness', icon: 'bi-diagram-3', links: ['trips', 'trucks', 'crew', 'clients', 'routes', 'reports'] },
+    admin: { title: 'Head Management Dashboard', detail: 'Fleet, operations, finance and approvals', icon: 'bi-buildings', links: ['reports', 'head-trips', 'head-fleet', 'head-approvals', 'clients', 'billing'] },
+    operations_head: { title: 'Operations Head Dashboard', detail: 'Trip oversight, fleet availability and dispatch readiness', icon: 'bi-diagram-3', links: ['trips', 'trucks', 'crew', 'routes', 'reports'] },
     car_carrier_dispatcher: { title: 'Car Carrier Dispatcher Dashboard', detail: 'Car Carrier trips, dispatch preparation and follow-ups', icon: 'bi-truck', links: ['trips', 'funds', 'trucks', 'crew'] },
     container_wingvan_dispatcher: { title: 'Container / Wing Van Dispatcher Dashboard', detail: 'Container and Wing Van trips, dispatch and checklists', icon: 'bi-truck-flatbed', links: ['trips', 'funds', 'trucks', 'crew'] },
-    motorpool: { title: 'Motorpool Custodian Dashboard', detail: 'Truck condition, active repairs and mechanics', icon: 'bi-tools', links: ['maintenance', 'trucks', 'mechanics', 'purchasing', 'reports'] },
-    purchasing: { title: 'Purchasing Officer Dashboard', detail: 'Parts requests, stock and purchase orders', icon: 'bi-box-seam', links: ['purchasing', 'trucks', 'reports'] },
-    finance: { title: 'Finance Dashboard', detail: 'Fund releases, payables, budget and expenses', icon: 'bi-cash-stack', links: ['funds', 'finance', 'purchasing', 'reports'] },
+    motorpool: { title: 'Motorpool Custodian Dashboard', detail: 'Truck condition, active repairs and mechanics', icon: 'bi-tools', links: ['maint_overview', 'maintenance', 'trucks', 'mechanics', 'maint_history'] },
+    purchasing: { title: 'Purchasing Officer Dashboard', detail: 'Parts requests, stock and purchase orders', icon: 'bi-box-seam', links: ['purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory'] },
+    finance: { title: 'Finance Dashboard', detail: 'Fund releases, payables, budget and expenses', icon: 'bi-cash-stack', links: ['funds', 'finance', 'purchase_orders', 'reports'] },
     billing: { title: 'Billing & Collection Dashboard', detail: 'Billing preparation, receivables and collections', icon: 'bi-receipt', links: ['billing', 'trips', 'clients', 'routes', 'reports'] },
-    audit: { title: 'Audit Dashboard', detail: 'Read-only records, trends and activity review', icon: 'bi-clipboard-data', links: ['reports', 'admin', 'trips', 'maintenance', 'billing', 'finance'] },
+    audit: { title: 'Audit Dashboard', detail: 'Records, trends and activity review', icon: 'bi-clipboard-data', links: ['reports', 'admin', 'trips', 'maintenance', 'billing', 'finance'] },
   },
   navLabels: {
     trips: 'View trips', trucks: 'Fleet records', crew: 'Personnel', clients: 'Client records',
+    'head-trips': 'Trip monitoring', 'head-fleet': 'Fleet & personnel status', 'head-approvals': 'Approvals & exceptions',
     routes: 'Client routes', maintenance: 'Maintenance records', mechanics: 'Mechanics',
-    purchasing: 'Parts & purchasing', funds: 'Trip funds', billing: 'Billing & collection',
+    maint_overview: 'Maintenance overview', maint_history: 'Maintenance history', purchasing_overview: 'Purchasing overview', parts_requests: 'Parts requests',
+    purchase_orders: 'Purchase orders', inventory: 'Inventory', funds: 'Trip funds', billing: 'Billing & collection',
     finance: 'Finance records', reports: 'Reports', admin: 'Activity / administration',
   },
   navIcons: {
     trips: 'bi-signpost-split', trucks: 'bi-truck', crew: 'bi-people', clients: 'bi-buildings',
+    'head-trips': 'bi-signpost-split', 'head-fleet': 'bi-people', 'head-approvals': 'bi-clipboard-check',
     routes: 'bi-geo-alt', maintenance: 'bi-wrench-adjustable', mechanics: 'bi-person-gear',
-    purchasing: 'bi-box-seam', funds: 'bi-wallet2', billing: 'bi-receipt', finance: 'bi-cash-stack',
+    maint_overview: 'bi-speedometer2', maint_history: 'bi-clock-history', purchasing_overview: 'bi-speedometer2', parts_requests: 'bi-box-arrow-up',
+    purchase_orders: 'bi-cart-check', inventory: 'bi-box-seam', funds: 'bi-wallet2', billing: 'bi-receipt', finance: 'bi-cash-stack',
     reports: 'bi-bar-chart-line', admin: 'bi-person-gear',
   },
   icon(name, fallback = 'bi-graph-up') {
@@ -37,7 +41,8 @@ const RPMDashboard = {
   },
   tile(c) {
     const go = c.page && UI.canGo(c.page);
-    return `<div class="rpm-kpi rpm-kpi-${['green', 'amber', 'red'].includes(c.color) ? c.color : 'normal'}${go ? ' rpm-kpi-link' : ''}"
+    const iconColor = UI.kpiIconColor(c.label, c.color);
+    return `<div class="rpm-kpi rpm-kpi-${['green', 'amber', 'red'].includes(c.color) ? c.color : 'normal'} rpm-kpi-color-${UI.esc(iconColor)}${go ? ' rpm-kpi-link' : ''}"
       ${go ? `data-go="${UI.esc(c.page)}" role="link" tabindex="0"` : ''}>
       <span class="rpm-kpi-icon"><i class="bi ${this.icon(c.icon)}" aria-hidden="true"></i></span>
       <div class="rpm-kpi-body"><div class="rpm-kpi-label">${UI.esc(c.label)}</div>
@@ -55,6 +60,102 @@ const RPMDashboard = {
       ${rest.length ? `<details class="rpm-more-metrics"><summary>Show ${rest.length} more metrics</summary>
         <div class="rpm-kpi-grid">${rest.map(c => this.tile(c)).join('')}</div></details>` : ''}
     </section>`;
+  },
+  executive(d) {
+    const cards=d.cards||[],alerts=d.alerts||[],tables=d.tables||[],exec=d.executive||{};
+    const lookup=new Map(cards.map(c=>[c.label,c]));
+    const get=label=>lookup.get(label)||null;
+    const read=(section,key)=>exec[section]&&!exec._errors?.[section]
+      && exec[section][key]!==null && exec[section][key]!==undefined
+      ?Number(exec[section][key]):null;
+    const approvals=['rates','funds','purchase_orders'].map(key=>read('approvals',key));
+    const pending=approvals.every(Number.isFinite)?approvals.reduce((n,v)=>n+v,0):null;
+    const activeTrip=get('Ongoing trips');
+    const available=get('Available trucks');
+    const receivable=get('Outstanding receivables');
+    const headline=[
+      activeTrip&&{...activeTrip,label:'Active Trips',page:'head-trips'},
+      available&&{...available,page:'head-fleet'},
+      pending===null?null:{label:'Pending Approvals',value:pending,icon:'bi-clipboard-check',color:'amber',page:'head-approvals'},
+      receivable
+    ];
+    const names=['Active Trips','Available Trucks','Pending Approvals','Outstanding Receivables'];
+    const icons=['bi-signpost-split','bi-truck','bi-clipboard-check','bi-cash-stack'];
+    const kpi=headline.map((item,i)=>this.tile(item||{label:names[i],value:'Unavailable',icon:icons[i]})).join('');
+    const fact=(label,value,fmt)=>value===null||value===undefined?''
+      :'<span class="rpm-dept-fact">'+UI.esc(label)+' <strong>'
+        +(fmt==='money'?UI.money(value):UI.esc(String(value)))+'</strong></span>';
+    const value=label=>get(label)?.value??null;
+    let diesel=null;
+    if(exec.fuel&&!exec._errors?.fuel&&exec.fuel.value_json){
+      try {
+        const amount=JSON.parse(exec.fuel.value_json).value;
+        if(amount!==null&&amount!==''&&Number.isFinite(Number(amount)))diesel=Number(amount);
+      }catch{}
+    }
+    const departments=[
+      {title:'Operations',icon:'bi-signpost-split',page:'head-trips',facts:[
+        fact('Ongoing',value('Ongoing trips')),fact('Completed this month',value('Completed trips this month'))]},
+      {title:'Fleet & Personnel',icon:'bi-truck',page:'head-fleet',facts:[
+        fact('Total trucks',value('Total trucks')),fact('Available drivers',value('Available drivers'))]},
+      {title:'Maintenance',icon:'bi-tools',page:'maintenance',facts:[
+        fact('Open repairs',value('Open repair requests')),fact('Under maintenance',value('Trucks under corrective maintenance'))]},
+      {title:'Client & Commercial',icon:'bi-buildings',page:'clients',facts:[
+        fact('Active clients',read('clients','active')),fact('Approved routes',read('routes','approved'))]},
+      {title:'Finance',icon:'bi-wallet2',page:'finance',facts:[
+        fact('Expenses this month',value('Expenses this month'),'money')]},
+      {title:'Billing & Collections',icon:'bi-receipt',page:'billing',facts:[
+        fact('Billed this month',value('Billed this month'),'money'),
+        fact('Receivables',value('Outstanding receivables'),'money')]},
+      {title:'Fuel & Operating Costs',icon:'bi-fuel-pump',page:'fuel-adjustment',facts:[fact('Diesel per liter',diesel,'money')]},
+      {title:'Management Control',icon:'bi-shield-check',page:'head-approvals',facts:[
+        fact('Pending approvals',pending),fact('Open incidents',read('incidents','open'))]}
+    ];
+    const departmentsHtml=departments.map(d=>
+      '<article class="rpm-dept-card"><div class="rpm-dept-heading">'
+      +'<span class="rpm-dept-icon"><i class="bi '+d.icon+'" aria-hidden="true"></i></span>'
+      +'<h3>'+UI.esc(d.title)+'</h3></div><div class="rpm-dept-facts">'
+      +(d.facts.filter(Boolean).join('')||'<span class="rpm-dept-unavailable">Open module to review current records</span>')
+      +'</div>'+(UI.canGo(d.page)?'<button type="button" class="rpm-dept-link" data-go="'+d.page+'">'
+      +'View details <i class="bi bi-arrow-up-right" aria-hidden="true"></i></button>':'')+'</article>').join('');
+    const performance=(title,labels)=>{
+      const items=labels.map(get).filter(Boolean);
+      return '<article class="rpm-exec-performance-card"><h3>'+UI.esc(title)+'</h3>'
+        +(items.length?items.map(c=>'<div class="rpm-exec-performance-row"><span>'+UI.esc(c.label)
+          +'</span><strong>'+this.number(c)+'</strong></div>').join('')
+          :'<p class="rpm-dept-unavailable">No verified summary available.</p>')+'</article>';
+    };
+    const verifiedChart=(title,labels,format)=>{
+      const facts=labels.map(get).filter(c=>c&&Number.isFinite(Number(c.value)));
+      if(!facts.length||!facts.some(c=>Number(c.value)!==0))return '';
+      return UI.chartHtml({title,type:'bar',format,labels:facts.map(c=>c.label),
+        datasets:[{label:title,data:facts.map(c=>Number(c.value))}]});
+    };
+    const chartHtml=[
+      verifiedChart('Trip and repair activity',['Ongoing trips','Completed trips this month','Open repair requests']),
+      verifiedChart('Billing, collections and expenses',['Billed this month','Collected this month','Expenses this month'],'money')
+    ].filter(Boolean).join('');
+    const recent=tables.filter(t=>(t.rows||[]).length>0).slice(0,2);
+    const recentHtml=recent.length?recent.map(t=>UI.blockTable({...t,limit:5})).join('')
+      :'<div class="rpm-exec-empty"><i class="bi bi-inbox" aria-hidden="true"></i>'
+       +'<p>No recent operational records in the available summaries.</p></div>';
+    const breakdown=this.breakdown(cards,'admin');
+    return '<div class="rpm-executive-command">'
+      +'<section class="rpm-exec-headline"><h2>Company Overview</h2><p>Company-wide indicators from recorded operations.</p>'
+      +'<div class="rpm-exec-kpis">'+kpi+'</div></section>'
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Department Overview</h2>'
+      +'<span>Open each department for detailed records</span></div>'
+      +'<div class="rpm-exec-departments">'+departmentsHtml+'</div></section>'
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Company Performance</h2></div>'
+      +'<div class="rpm-exec-performance">'
+      +performance('Operations & Maintenance',['Ongoing trips','Completed trips this month','Open repair requests'])
+      +performance('Financial Summary',['Billed this month','Collected this month','Expenses this month'])
+      +'</div>'+(chartHtml?'<div class="rpm-exec-charts">'+chartHtml+'</div>':'')+'</section>'
+      +'<section class="rpm-exec-section rpm-exec-alerts">'+this.alerts(alerts)+'</section>'
+      +(breakdown?'<section class="rpm-exec-section rpm-exec-fleet-breakdown">'+breakdown+'</section>':'')
+      +'<section class="rpm-exec-section"><div class="rpm-exec-section-head"><h2>Recent Operational Records</h2>'
+      +'<span>Latest records provided by authorized modules</span></div>'
+      +'<div class="rpm-dashboard-tables">'+recentHtml+'</div></section></div>';
   },
   // A breakdown is shown only when there are genuinely comparable counts.
   breakdown(cards, role) {
@@ -88,16 +189,7 @@ const RPMDashboard = {
     </section>`;
   },
   alerts(alerts) {
-    const list = (alerts || []).slice(0, 4);
-    return `<section class="rpm-summary-panel rpm-alert-panel"><h2 class="rpm-panel-title">Needs attention <span class="rpm-alert-count">${(alerts || []).length}</span></h2>
-      ${list.length ? `<ul class="rpm-alert-list">${list.map(a => {
-        const go = a.page && UI.canGo(a.page);
-        const level = ['danger', 'warning', 'success'].includes(a.level) ? a.level : 'info';
-        return `<li class="rpm-alert-${level}"><span class="rpm-alert-mark"><i class="bi ${level === 'danger' ? 'bi-exclamation-circle' : level === 'success' ? 'bi-check-circle' : 'bi-info-circle'}" aria-hidden="true"></i></span>
-          <span>${UI.esc(a.text)}</span>${go ? `<button type="button" data-go="${UI.esc(a.page)}" class="rpm-alert-link" aria-label="Open related module"><i class="bi bi-chevron-right"></i></button>` : ''}</li>`;
-      }).join('')}</ul>${(alerts || []).length > 4 ? `<p class="rpm-alert-more">${(alerts || []).length - 4} more notices. See Notifications for details.</p>` : ''}`
-        : '<p class="rpm-all-clear"><i class="bi bi-check-circle"></i> No pending dashboard alerts right now.</p>'}
-    </section>`;
+    return UI.actionSummary((alerts||[]).map(a=>({label:a.text,go:a.page,level:a.level})),{title:'Needs attention',empty:'No pending dashboard alerts right now.'});
   },
   links(role) {
     const cfg = this.roles[role];
@@ -117,7 +209,7 @@ App.page('dashboard', {
     // The app shell already provides a page header: use it rather than duplicate it.
     const pageTitle = document.querySelector('.page-title');
     const pageSubtitle = document.querySelector('.page-subtitle');
-    if (pageTitle) pageTitle.textContent = cfg.title;
+    if (pageTitle) pageTitle.textContent = 'Dashboard';
     if (pageSubtitle) pageSubtitle.textContent = cfg.detail;
     const time = new Intl.DateTimeFormat('en-PH', {
       timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short', hour12: true,
@@ -131,8 +223,19 @@ App.page('dashboard', {
     btn.innerHTML = '<i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh';
     btn.onclick = () => ctx.reload();
     ctx.tools.append(stamp, btn);
+    if (role === 'operations_head' || UI.isDispatcher()) {
+      const create = document.createElement('button'); create.type = 'button'; create.className = 'btn btn-sm btn-primary';
+      create.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i> New Trip';
+      create.onclick = () => App.go('trips', { new: 1 }); ctx.tools.append(create);
+    }
 
     const cards = d.cards || [], alerts = d.alerts || [], charts = d.charts || [], tables = d.tables || [];
+    if (role === 'admin') {
+      ctx.el.classList.add('rpm-dashboard','rpm-executive-dashboard');
+      ctx.el.innerHTML=RPMDashboard.executive(d);
+      UI.activate(ctx.el);
+      return;
+    }
     const breakdown = RPMDashboard.breakdown(cards, role);
     const summary = RPMDashboard.alerts(alerts);
     // One primary table, capped to five rows, avoids a wall of records on arrival.

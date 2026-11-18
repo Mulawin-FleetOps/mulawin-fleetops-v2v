@@ -1,0 +1,1562 @@
+/* FleetOps sidebar: one consistent desktop geometry for compact, hover and pin.
+   Hover overlays content; Pin changes content width. Only existing authorized
+   nav links and native <details> groups are used. No data/API behavior. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar {
+    --sidebar-rail:76px;
+    --sidebar-expanded:260px;
+    --sidebar-w:var(--sidebar-rail);
+  }
+  #appShell.hover-pin-sidebar.sb-pinned { --sidebar-w:var(--sidebar-expanded); }
+  #appShell.hover-pin-sidebar.sb-collapsed { --sidebar-w:var(--sidebar-rail); }
+
+  #appShell.hover-pin-sidebar > .sidebar {
+    position:fixed; inset:0 auto 0 0;
+    width:var(--sidebar-w) !important;
+    height:100vh; display:flex; flex-direction:column;
+    z-index:1030; overflow:hidden;
+    background:linear-gradient(175deg,#176238,#207444);
+    color:#e8f7ec; border-right:1px solid rgba(255,255,255,.1);
+    box-shadow:none;
+    transition:width 240ms cubic-bezier(.22,1,.36,1),box-shadow 240ms ease !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed.sb-hover-open > .sidebar {
+    width:var(--sidebar-expanded) !important;
+    box-shadow:11px 0 30px rgba(11,42,25,.2);
+    z-index:1040;
+  }
+  #appShell.hover-pin-sidebar > .main {
+    flex:1 1 auto; min-width:0; width:auto;
+    margin-left:var(--sidebar-w) !important;
+    transition:margin-left 240ms cubic-bezier(.22,1,.36,1) !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed.sb-hover-open > .main {
+    margin-left:var(--sidebar-rail) !important;
+  }
+
+  /* The header never rotates from column to row. Same logo position in all states. */
+  #appShell.hover-pin-sidebar .sidebar-top {
+    position:relative;flex:0 0 79px;
+    display:flex !important;flex-direction:row !important;
+    align-items:center !important;justify-content:flex-start !important;
+    height:79px !important;min-height:79px !important;
+    width:100%;padding:13px 12px !important;gap:10px !important;
+    margin:0 !important;overflow:hidden;
+    border-bottom:1px solid rgba(255,255,255,.15);
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .sidebar-brand {
+    display:flex !important;flex:none !important;
+    align-items:center !important;justify-content:flex-start !important;
+    gap:10px !important;min-width:0;width:auto !important;
+    padding:0 !important;margin:0 !important;border:0 !important;
+    white-space:nowrap;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .sidebar-logo {
+    width:43px !important;max-width:43px !important;
+    flex:0 0 43px !important;height:auto;
+    object-fit:contain;margin:0 !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text {
+    display:flex !important;flex-direction:column;
+    flex:0 0 150px;min-width:0;
+    white-space:nowrap;overflow:hidden;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .brand-product {color:#fff;}
+  #appShell.hover-pin-sidebar .sidebar-top .brand-company {color:#d1e7d5;}
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse {
+    position:absolute;top:23px;right:11px;z-index:2;
+    display:grid !important;place-items:center;
+    width:32px;height:32px;padding:0;
+    border:0;border-radius:8px;
+    background:transparent;color:#eaf8ef;
+    cursor:pointer;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:hover,
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse:focus-visible {
+    background:rgba(255,255,255,.16) !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top #sbCollapse .bi {font-size:19px;}
+  #appShell.hover-pin-sidebar.sb-pinned .sidebar-top #sbCollapse {
+    background:rgba(255,255,255,.12);
+  }
+
+  /* Same column, icon x-position and row heights at every width. */
+  #appShell.hover-pin-sidebar .sidebar-nav {
+    flex:1 1 auto;min-width:0;width:100%;
+    display:flex !important;flex-direction:column;
+    align-items:stretch;gap:6px !important;
+    padding:16px 12px !important;
+    overflow-y:auto;overflow-x:hidden;
+    scrollbar-width:none;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav::-webkit-scrollbar {display:none;}
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group,
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-group {
+    flex:0 0 auto;width:100% !important;max-width:none !important;
+    min-width:0;margin:0 !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > summary,
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link {
+    display:flex !important;align-items:center !important;
+    justify-content:flex-start !important;flex-direction:row !important;
+    width:100% !important;height:48px !important;
+    min-height:48px !important;max-height:48px !important;
+    gap:11px !important;padding:0 14px !important;margin:0 !important;
+    border:0 !important;border-radius:11px !important;
+    white-space:nowrap;overflow:hidden;
+    color:#d8f1dd;
+    transition:background-color 120ms ease,color 120ms ease !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group {
+    height:auto !important;overflow:visible !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link > .bi,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > summary > .bi:first-child,
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link > .bi {
+    flex:0 0 24px !important;width:24px !important;
+    display:block !important;text-align:center !important;
+    font-size:20px !important;line-height:1.2;
+    margin:0 !important;color:inherit;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link:hover,
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > summary:hover {
+    background:rgba(255,255,255,.12) !important;color:#fff !important;
+  }
+  /* Only destination links have active backgrounds; parent groups do not. */
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active {
+    background:rgba(205,246,216,.15) !important;color:#fff !important;
+    box-shadow:inset 3px 0 #9ce4af !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before {
+    display:none !important;
+  }
+
+  /* Existing native details controls determine whether sub-icons appear.
+     Keep children in a single vertical list, no block/flex flip on hover. */
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group > .head-nav-items {
+    display:none !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group[open] > .head-nav-items {
+    display:flex !important;flex-direction:column !important;
+    align-items:stretch !important;gap:3px !important;
+    padding:5px 0 7px !important;margin:0 !important;
+    width:100% !important;min-width:0;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link {
+    display:flex !important;align-items:center !important;
+    justify-content:flex-start !important;gap:11px !important;
+    width:100% !important;max-width:none !important;
+    height:40px !important;min-height:40px !important;
+    padding:0 14px !important;margin:0 !important;
+    border:0 !important;border-radius:9px !important;
+    overflow:hidden;white-space:nowrap;
+    background:transparent !important;color:#c5e9ce !important;
+    text-decoration:none;
+    transition:background-color 120ms ease,color 120ms ease !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link > .bi {
+    display:block !important;flex:0 0 24px !important;
+    width:24px !important;margin:0 !important;
+    font-size:17px !important;line-height:1.2;
+    text-align:center !important;color:inherit !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link:hover,
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link:focus-visible {
+    background:rgba(255,255,255,.12) !important;color:#fff !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link.active {
+    background:rgba(205,246,216,.17) !important;color:#fff !important;
+    box-shadow:inset 3px 0 #9ce4af !important;
+  }
+  #appShell.hover-pin-sidebar .head-nav-items > .nav-item-link.active::before {
+    display:none !important;
+  }
+
+  /* Hide text without display:none so the icon grid does not relayout.
+     Fade only the labels, beginning after the width has room for them. */
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text,
+  #appShell.hover-pin-sidebar .sidebar-nav .nav-item-link > span,
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary > span,
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-chevron,
+  #appShell.hover-pin-sidebar .sidebar-logout-button > span {
+    display:inline-block !important;
+    opacity:1;visibility:visible;white-space:nowrap;
+    transition:opacity 130ms ease 95ms,visibility 0s linear 0s !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text {display:flex !important;}
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-chevron {
+    margin-left:auto !important;flex:0 0 auto;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-top .brand-text,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .nav-item-link > span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-group > summary > span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-chevron,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-logout-button > span {
+    opacity:0 !important;visibility:hidden !important;
+    transition:opacity 85ms ease,visibility 0s linear 85ms !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-top #sbCollapse {
+    display:none !important;
+  }
+
+  /* Permanent logout stays aligned with the same x-position as menu icons. */
+  #appShell.hover-pin-sidebar .sidebar-logout-wrap {
+    flex:0 0 auto;padding:12px 12px 18px !important;
+    border-top:1px solid rgba(255,255,255,.15);
+  }
+  #appShell.hover-pin-sidebar .sidebar-logout-button {
+    display:flex !important;justify-content:flex-start !important;
+    align-items:center !important;width:100% !important;
+    height:48px !important;min-height:48px !important;
+    padding:0 14px !important;margin:0 !important;
+    gap:11px !important;border-radius:11px !important;
+    background:rgba(255,255,255,.08) !important;
+    color:#eefaf1 !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-logout-button > .bi {
+    flex:0 0 24px !important;width:24px !important;
+    font-size:20px !important;text-align:center;
+    color:inherit;
+  }
+
+  /* Keyboard users can expand via focus; active submenu is still accessible
+     in the compact view. No detached flyout or page shift on hover. */
+}
+@media (max-width: 991.98px) {
+  #appShell.hover-pin-sidebar > .main {margin-left:0 !important;}
+  #appShell.hover-pin-sidebar > .sidebar {
+    width:min(280px,88vw) !important;
+  }
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > .head-nav-items {
+    display:block;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  #appShell.hover-pin-sidebar > .sidebar,
+  #appShell.hover-pin-sidebar > .main {transition:none !important;}
+  #appShell.hover-pin-sidebar .sidebar-nav .nav-item-link > span,
+  #appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary > span,
+  #appShell.hover-pin-sidebar .sidebar-top .brand-text {transition:none !important;}
+}
+
+/* Highlight the actual active page only, never its accordion parent.
+   An open group is a navigation container, not the selected destination. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open]:has(.nav-item-link.active) > summary {
+  background:transparent !important;
+  color:#d8f1dd !important;
+  box-shadow:none !important;
+  border:0 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary > .bi {
+  color:inherit !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:hover,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:focus-visible {
+  background:rgba(255,255,255,.12) !important;
+  color:#fff !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  background:rgba(205,246,216,.17) !important;
+  color:#fff !important;
+  box-shadow:inset 3px 0 #9ce4af !important;
+}
+
+/* Universal role guarantee: parent accordion remains neutral even if an
+   authorized child page is active; only the active destination is highlighted. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group[open] > summary,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group:has(.nav-item-link.active) > summary {
+  background:transparent !important;
+  box-shadow:none !important;
+  color:#d8f1dd !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:hover,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-group > summary:focus-visible {
+  background:rgba(255,255,255,.12) !important;
+  color:#fff !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active {
+  background:rgba(205,246,216,.17) !important;
+  color:#fff !important;
+  box-shadow:inset 3px 0 #9ce4af !important;
+}
+/* Prevent role-specific legacy workspace palette from changing these common
+   navigation colors. All authenticated roles use green sidebar styling. */
+#appShell.hover-pin-sidebar .sidebar .sidebar-brand .brand-product {color:#fff !important;}
+#appShell.hover-pin-sidebar .sidebar .sidebar-brand .brand-company {color:#d1e7d5 !important;}
+
+/* Submenu refinement: slightly smaller icons, indented children and a
+   crisp white selected page with a narrow yellow leading indicator.
+   Shared across all authenticated roles; parent headings stay neutral. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link {
+  width:calc(100% - 8px) !important;
+  margin-left:8px !important;
+  padding-left:16px !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link > .bi {
+  font-size:14px !important;
+  width:18px !important;
+  flex:0 0 18px !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  position:relative;
+  background:#fff !important;
+  color:#175a32 !important;
+  box-shadow:none !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active > .bi {
+  color:#175a32 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active::before {
+  content:"" !important;
+  display:block !important;
+  position:absolute;
+  left:0 !important;
+  top:7px !important;
+  bottom:7px !important;
+  width:4px !important;
+  border-radius:0 3px 3px 0;
+  background:#efbc37 !important;
+}
+
+/* All-role selection state: a selected destination looks the same whether
+   it is a top-level link, a legacy grouped link or a submenu link.
+   Expanding an accordion alone never marks its heading as selected. */
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active {
+  position:relative !important;
+  background:#fff !important;
+  color:#175a32 !important;
+  box-shadow:none !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active > .bi,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active > .bi {
+  color:#175a32 !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active::before {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  left:0 !important;
+  top:7px !important;
+  bottom:7px !important;
+  width:4px !important;
+  border-radius:0 3px 3px 0 !important;
+  background:#efbc37 !important;
+}
+
+/* OPTION A — subtle tree connectors across all authenticated role menus.
+   Keep the sidebar scroll container intact for long navigation lists. */
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items {
+  position:relative;
+  isolation:isolate;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items::before {
+  content:"";
+  position:absolute;
+  left:8px;
+  top:8px;
+  bottom:18px;
+  width:1px;
+  background:rgba(232,247,236,.28);
+  pointer-events:none;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link {
+  position:relative;
+  overflow:visible !important;
+  margin-left:20px !important;
+  width:calc(100% - 20px) !important;
+  padding-left:13px !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link::after {
+  content:"";
+  position:absolute;
+  left:-12px;
+  top:0;
+  height:50%;
+  width:12px;
+  border-bottom:1px solid rgba(232,247,236,.32);
+  border-left:1px solid rgba(232,247,236,.32);
+  border-bottom-left-radius:5px;
+  pointer-events:none;
+}
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link:last-child::after {
+  background:transparent;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav .head-nav-items > .nav-item-link.active::before {
+  left:-8px !important;
+  width:5px !important;
+  border-radius:3px !important;
+}
+
+/* Main navigation: keep the outward yellow selection marker visible,
+   matching submenu links without changing the active white background. */
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active {
+  overflow:visible !important;
+}
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-item-link.active::before,
+#appShell.hover-pin-sidebar .sidebar-nav > .nav-group > .nav-item-link.active::before {
+  z-index:1;
+}
+/* A main category icon receives the same gold accent only when its
+   child page is selected; merely opening the category is not selection. */
+#appShell.hover-pin-sidebar .sidebar-nav > .head-nav-group:has(.head-nav-items > .nav-item-link.active) > summary > .bi:first-child {
+  color:#efbc37 !important;
+}
+
+/* Compact-only adjustment: keep every previously visible submenu icon,
+   but remove the tree strokes and center the child icon in the 76px rail. */
+@media (min-width: 992px) {
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items::before,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link::after {
+    content:none !important;
+    display:none !important;
+    border:0 !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    margin-left:0 !important;
+    padding:0 !important;
+    gap:0 !important;
+  }
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > .bi,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > svg.bi {
+    display:block !important;
+    flex:0 0 18px !important;
+    width:18px !important;
+    height:18px !important;
+    font-size:15px !important;
+    line-height:18px !important;
+    margin:0 !important;
+    text-align:center !important;
+  }
+}
+
+/* Collapse must remove submenu label widths from flex layout.
+   Visibility:hidden alone left each invisible label taking up space,
+   pushing the visible icon to the left of center. */
+@media (min-width:992px) {
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > span,
+  #appShell.hover-pin-sidebar.sb-collapsed:not(.sb-hover-open) .sidebar-nav .head-nav-items > .nav-item-link > .nav-label {
+    display:none !important;
+    width:0 !important;
+    flex:none !important;
+  }
+}
+
+
+/* 2026-11-18 shared FleetOps header/navigation refresh.
+   Scoped to the authenticated shell only; account navigation and module workflows are unchanged. */
+#appShell.sidebar-manual-toggle > .main > .topbar {
+  position:sticky;
+  top:0;
+  z-index:1050;
+  background:#12553F !important;
+  background-image:none !important;
+  border-bottom:2px solid #448B6A !important;
+  box-shadow:0 2px 9px rgba(7,61,40,.13);
+  color:#fff !important;
+  backdrop-filter:none;
+  overflow:visible;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs a,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .bi,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumb-page {
+  color:#fff !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs,
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .crumb-sec {
+  opacity:1 !important;
+  color:#E8FFF2 !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .crumb-page {
+  color:#FFFFFF !important;
+  font-weight:700;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs .bi {color:#D5F1E2 !important;opacity:1 !important;}
+#appShell.sidebar-manual-toggle > .main > .topbar .crumbs a:hover { color:#e7fff1 !important; }
+#appShell.sidebar-manual-toggle > .main > .topbar .icon-btn,
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
+  color:#fff !important;
+  border-color:rgba(255,255,255,.22) !important;
+  background:rgba(255,255,255,.07) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .icon-btn:hover,
+#appShell.sidebar-manual-toggle > .main > .topbar .icon-btn:focus-visible {
+  background:rgba(255,255,255,.17) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn {
+  background:rgba(255,255,255,.96) !important;
+  border:1px solid rgba(255,255,255,.74) !important;
+  color:#154A33 !important;
+  border-radius:11px;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn:hover {
+  background:#fff !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-name {color:#164B35 !important;}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-role {color:#617D6E !important;}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .avatar {
+  color:#17633F !important;
+  background:#E5F2E7 !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell-count {
+  border-color:#12553F !important;
+}
+@media (min-width:992px) {
+  #appShell.sidebar-manual-toggle > .main > .topbar { position:sticky; }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {
+    position:absolute !important;
+    left:0;
+    top:50%;
+    transform:translate(-50%,-50%);
+    z-index:1060;
+    display:inline-flex !important;
+    align-items:center;
+    justify-content:center;
+    width:28px;
+    height:28px;
+    padding:0;
+    border-radius:50%;
+    background:#fff !important;
+    border:1px solid #DCE8DE !important;
+    box-shadow:0 1px 5px rgba(11,51,30,.17);
+    color:#126844 !important;
+    cursor:pointer;
+  }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle:hover {
+    background:#EAF6EE !important;
+    box-shadow:0 2px 7px rgba(11,51,30,.2);
+  }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle:focus-visible {
+    outline:3px solid #B5DDC5;
+    outline-offset:3px;
+  }
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle .bi {font-size:13px;line-height:1;}
+  #appShell.sidebar-manual-toggle.sb-collapsed.sb-hover-open > .sidebar {width:var(--sidebar-rail) !important;box-shadow:none;}
+  #appShell.sidebar-manual-toggle.sb-collapsed.sb-hover-open > .main {margin-left:var(--sidebar-rail) !important;}
+  #appShell.sidebar-manual-toggle .sidebar-top #sbCollapse {display:none !important;}
+}
+@media (max-width:991.98px) {
+  #appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {display:none !important;}
+  #appShell.sidebar-manual-toggle > .main > .topbar {padding-left:12px;}
+}
+
+/* Shared header sizing and navigation edge detail: all authenticated roles. */
+#appShell.sidebar-manual-toggle {
+  --topbar-h:64px;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar {
+  height:64px !important;
+  min-height:64px !important;
+}
+#appShell.sidebar-manual-toggle > .sidebar {
+  border-right:2px solid #448B6A !important;
+}
+#appShell.sidebar-manual-toggle > .sidebar .sidebar-top {
+  border-bottom:1px solid rgba(181,221,196,.36) !important;
+}
+@media (max-width:991.98px) {
+  #appShell.sidebar-manual-toggle > .main > .topbar {
+    height:64px !important;
+    min-height:64px !important;
+  }
+}
+
+
+/* Shared premium gold detailing. Uses the same authenticated shell for every role.
+   Decorative styling only: no changes to routing, permissions or workflow controls. */
+#appShell.sidebar-manual-toggle {
+  --nav-gold:#D5AE45;
+  --nav-gold-glow:rgba(235,190,66,.22);
+}
+#appShell.sidebar-manual-toggle > .sidebar {
+  border-right:1px solid var(--nav-gold) !important;
+  box-shadow:2px 0 7px var(--nav-gold-glow) !important;
+}
+#appShell.sidebar-manual-toggle > .sidebar .sidebar-top {
+  border-bottom:1px solid rgba(235,190,66,.42) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar {
+  border-bottom:1px solid var(--nav-gold) !important;
+  box-shadow:0 2px 8px var(--nav-gold-glow) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
+  background:#1F7052 !important;
+  border:1px solid rgba(235,210,129,.67) !important;
+  color:#FFFFFF !important;
+  box-shadow:0 0 6px rgba(235,190,66,.17) !important;
+  border-radius:10px;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell:hover,
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell:focus-visible {
+  background:#2A8060 !important;
+  color:#FFFFFF !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell .bell-count {
+  background:#E7BD4C !important;
+  color:#173E2E !important;
+  border:2px solid #12553F !important;
+  box-shadow:0 1px 3px rgba(4,35,22,.18);
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn {
+  background:#206A50 !important;
+  border:1px solid var(--nav-gold) !important;
+  color:#FFFFFF !important;
+  box-shadow:0 0 7px rgba(239,199,83,.20) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn:hover,
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn:focus-visible {
+  background:#27775A !important;
+  border-color:#E9C66A !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-name {
+  color:#FFFFFF !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-role {
+  color:#D8F0E1 !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .avatar {
+  background:#E7F2E9 !important;
+  color:#19573F !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {
+  border:1px solid var(--nav-gold) !important;
+  box-shadow:0 0 6px var(--nav-gold-glow) !important;
+}
+/* Add a soft border only to major surface cards, not to every nested input,
+   dropdown, modal, table cell or dialog. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .record-workspace-panel,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .chart-panel,
+  .rpm-exec-performance-card,
+  .rpm-summary-panel,
+  .fleet-route-panel,
+  .head-trip-detail-card,
+  .head-fuel-combined-card,
+  .ds-summary-card,
+  .ds-filter-panel,
+  .oh-dispatch-shift-card,
+  .oh-dispatch-filter-panel,
+  .card
+) {
+  border:1px solid #dfe9e2 !important;
+  box-shadow:none !important;
+}
+@media (prefers-reduced-motion:reduce) {
+  #appShell.sidebar-manual-toggle > .main > .topbar .profile-btn,
+  #appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
+    transition:none !important;
+  }
+}
+
+
+/* Safe global page-header card. No styles are applied to #pageContent itself,
+   the page-body, data tables, charts, forms or drawers. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+  position:static !important;
+  display:flex !important;
+  align-items:center !important;
+  flex-wrap:wrap !important;
+  gap:10px 14px !important;
+  padding:16px 18px !important;
+  margin:0 0 16px !important;
+  border:1px solid #dfe9e2 !important;
+  border-radius:14px !important;
+  background:#F8FBF9 !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-head-text {
+  flex:1 1 230px !important;
+  min-width:0;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-title {
+  color:#194B34 !important;
+  font-size:20px !important;
+  font-weight:750 !important;
+  line-height:1.3 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-subtitle {
+  color:#5B7565 !important;
+  margin-top:4px !important;
+  font-size:12.5px !important;
+  line-height:1.45 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-access-tag {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 1 auto;
+  max-width:100%;
+  gap:6px;
+  padding:6px 10px;
+  border:1px solid #D5E8DB;
+  border-radius:999px;
+  background:#E8F4EC;
+  color:#1B704B;
+  font-size:11px;
+  font-weight:650;
+  white-space:normal;
+  text-align:center;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag {
+  margin-left:auto;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-actions:not(:empty) {
+  flex:1 1 100%;
+  justify-content:flex-end;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+    padding:13px !important;
+    gap:8px !important;
+  }
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag { margin-left:0; }
+}
+
+
+/* Single outer workspace border, matching Objective 5 Analytics.
+   The current page-head and pageBody remain siblings in their existing DOM.
+   Scope excludes Analytics, which already renders its own .ax-shell wrapper. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
+  box-sizing:border-box;
+  min-width:0;
+  background:#F6F9F7 !important;
+  border:1px solid #dfe9e2 !important;
+  border-radius:16px !important;
+  box-shadow:none !important;
+  padding:20px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+  padding:0 0 16px !important;
+  margin:0 0 18px !important;
+  background:transparent !important;
+  border:0 !important;
+  border-bottom:1px solid #DFE7E0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-body {
+  min-width:0;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
+    padding:14px !important;
+    border-radius:12px !important;
+  }
+}
+
+
+/* Unified Objective-5-style card outlines, including the Analytics workspace.
+   Preserve existing DOM, page hierarchy, layout sizing and interactive behavior.
+   Gold is a soft outline, not a fill or thick glow. */
+#appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) > .page-body > .ax-shell,
+#appShell.sidebar-manual-toggle #pageContent .ax-shell {
+  border:1px solid #dfe9e2 !important;
+  border-radius:16px !important;
+  box-shadow:none !important;
+}
+/* Major boxes across every account, including Objective 5's inline-styled
+   analytics cards. Do not outline individual controls, tables or chart plots. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .ax-filters,
+  .ax-kpi,
+  .ax-category,
+  .ax-chart,
+  .ax-table-wrap,
+  .ax-insight,
+  .ax-findings,
+  .kpi-tile,
+  .ws-panel,
+  .rpm-feature-card,
+  .rpm-exec-headline,
+  .rpm-dashboard-shortcuts,
+  .record-workspace-panel,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .chart-panel,
+  .rpm-exec-performance-card,
+  .rpm-summary-panel,
+  .fleet-route-panel,
+  .head-trip-detail-card,
+  .head-fuel-combined-card,
+  .ds-summary-card,
+  .ds-filter-panel,
+  .oh-dispatch-shift-card,
+  .oh-dispatch-filter-panel,
+  .card
+) {
+  border-color:#dfe9e2 !important;
+  border-style:solid !important;
+  border-width:1px !important;
+  box-shadow:none !important;
+}
+/* The previous header-only card styling was overridden by the full workspace.
+   Keep heading/subtitle/access inside the SAME outer panel with no second card. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+  background:transparent !important;
+  border-top:0 !important;
+  border-left:0 !important;
+  border-right:0 !important;
+  border-bottom:1px solid #DFE7E0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+
+
+/* Approved unified Receivables-style workspace (all authenticated accounts).
+   Only surface decoration: preserve the existing page DOM, dimensions,
+   internal data controls, charts, active selection and workflow behavior. */
+#appShell.sidebar-manual-toggle {
+  --workspace-gold:#dfe9e2;
+  --workspace-gold-border:#dfe9e2;
+  --workspace-gold-shadow:transparent;
+}
+/* One continuous outer panel per page. Analytics already has an .ax-shell. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
+  background:#FAFCFB !important;
+  border:1px solid var(--workspace-gold-border) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px var(--workspace-gold-shadow) !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ax-shell {
+  background:#FAFCFB !important;
+  border:1px solid var(--workspace-gold-border) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px var(--workspace-gold-shadow) !important;
+}
+/* All major cards, KPI boxes, filter containers and report panels use
+   the same restrained golden outline. Avoid nested table rows and inputs. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .ax-kpi,
+  .ax-filters,
+  .ax-category,
+  .ax-table-wrap,
+  .kpi-tile,
+  .ws-kpi,
+  .ws-panel,
+  .panel,
+  .ref-tablebox,
+  .ref-toolbar,
+  .data-table-wrap,
+  .stat-card,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .rpm-feature-card,
+  .rpm-exec-performance-card,
+  .rpm-exec-headline,
+  .rpm-dashboard-shortcuts,
+  .rpm-summary-panel,
+  .record-workspace-panel,
+  .fleet-route-panel,
+  .head-trip-detail-card,
+  .head-fuel-combined-card,
+  .ds-summary-card,
+  .ds-filter-panel,
+  .oh-dispatch-shift-card,
+  .oh-dispatch-filter-panel,
+  .card
+) {
+  border:1px solid var(--workspace-gold-border) !important;
+  box-shadow:0 0 7px var(--workspace-gold-shadow) !important;
+}
+/* A chosen filter/tab stays green, as in the approved Analytics reference. */
+#appShell.sidebar-manual-toggle #pageContent .ax-category.active {
+  border:1px solid #258553 !important;
+  box-shadow:0 0 0 1px #258553 !important;
+}
+@media (prefers-reduced-motion:reduce) {
+  #appShell.sidebar-manual-toggle #pageContent .ax-category.active {transition:none !important;}
+}
+
+
+
+
+/* BILLING_REFERENCE_UNIFIED_V3
+   Approved Billing Dashboard / Receivables visual format across all roles.
+   ONE outer page panel contains the title, subtitle, access and existing body.
+   Styling only: do not change page DOM, role logic, data or control behavior. */
+#appShell.sidebar-manual-toggle {
+  --billing-ui-outline:#dfe9e2;
+  --billing-ui-soft:#dfe9e2;
+  --billing-ui-surface:#fff;
+}
+/* This is the shared outer wrapper on every normal page. Unlike the previous
+   experiment, no independent border is placed on the heading or body. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle #pageContent.billing-design-v2:not(:has(.ax-shell)) {
+  box-sizing:border-box !important;
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  margin:0 !important;
+  padding:20px !important;
+  background:var(--billing-ui-surface) !important;
+  border:1px solid var(--billing-ui-outline) !important;
+  border-radius:13px !important;
+  box-shadow:0 2px 10px rgba(29,77,44,.035) !important;
+}
+/* An Objective-5 Analytics view already has a real inner .ax-shell;
+   retain that as its single outer box rather than wrapping it twice. */
+#appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) {
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ax-shell {
+  border:1px solid var(--billing-ui-outline) !important;
+  border-radius:13px !important;
+  background:#fff !important;
+  box-shadow:0 2px 10px rgba(29,77,44,.035) !important;
+}
+/* Same Billing header on all routes, including Motorpool, Purchasing, Finance,
+   Ops Head and Dispatcher. Preserve #pageTools and the access badge. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head,
+#appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)) > .page-head,
+#appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)) > .page-head,
+#appShell.sidebar-manual-toggle .dispatcher-role #pageContent:not(:has(.ax-shell)) > .page-head {
+  position:static !important;
+  display:flex !important;
+  flex-direction:row !important;
+  flex-wrap:wrap !important;
+  align-items:flex-start !important;
+  justify-content:space-between !important;
+  gap:8px 14px !important;
+  padding:0 0 15px !important;
+  margin:0 0 14px !important;
+  border:0 !important;
+  border-bottom:1px solid #E2E9E4 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-head-text {
+  min-width:0 !important;
+  flex:1 1 245px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-title {
+  color:#203A2B !important;
+  font-size:21px !important;
+  font-weight:750 !important;
+  letter-spacing:-.02em !important;
+  line-height:1.24 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-subtitle {
+  color:#65786B !important;
+  font-size:12.5px !important;
+  line-height:1.45 !important;
+  margin-top:4px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag {
+  margin-left:auto !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-actions:not(:empty) {
+  flex:0 1 auto !important;
+  justify-content:flex-end !important;
+  max-width:100% !important;
+}
+/* Billing previously had its own border on .page-body. Removing only that
+   second frame keeps the heading and every widget inside one outer panel. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-body,
+#appShell.sidebar-manual-toggle #pageContent.billing-design-v2 > .page-body,
+#appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)) > .page-body {
+  min-width:0 !important;
+  max-width:none !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+/* Billing-look internal surfaces: actual component families from the modules.
+   No styling of nested table rows, badges, form controls or drawer content. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .panel,
+  .ws-panel,
+  .kpi-tile,
+  .stat-card,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .rpm-summary-panel,
+  .rpm-feature-card,
+  .rpm-exec-performance-card,
+  .rpm-exec-headline,
+  .chart-panel,
+  .chart-card,
+  .data-table-wrap,
+  .record-workspace-panel,
+  .record-panel,
+  .table-panel,
+  .ref-tablebox,
+  .pr-sum-card,
+  .head-fleet-kpi,
+  .head-kpi,
+  .oh-panel,
+  .oh-metric,
+  .oh-trip-quick-card,
+  .oh-trip-progress-card,
+  .oh-trip-route-card,
+  .oh-dashboard-activity,
+  .oh-record-filter-panel,
+  .ds-panel,
+  .ds-records,
+  .ds-summary-card,
+  .ds-filterbar,
+  .ds-trip-overview-readiness,
+  .ds-trip-overview-info-card,
+  .ds-trip-fund-details,
+  .ds-trip-subsection,
+  .ds-trip-ops-status,
+  .ds-trip-ops-next,
+  .bil-v2-panel,
+  .bil-v2-record-panel,
+  .ax-kpi,
+  .ax-filters,
+  .ax-category,
+  .ax-table-wrap
+) {
+  border-color:var(--billing-ui-soft) !important;
+  border-style:solid !important;
+  border-width:1px !important;
+  box-shadow:none !important;
+}
+/* Filter blocks that are not already panels receive the same visual boundary. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .ws-filters,
+  .purchasing-unified-toolbar,
+  .purchasing-inventory-toolbar,
+  .oh-record-toolbar
+) {
+  border:1px solid var(--billing-ui-soft) !important;
+  border-radius:9px !important;
+  background:#fff;
+}
+/* Preserve semantic green selected states, e.g. Analytics category tabs. */
+#appShell.sidebar-manual-toggle #pageContent .ax-category.active {
+  border-color:#258553 !important;
+  box-shadow:0 0 0 1px #258553 !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)) {
+    padding:13px !important;
+    border-radius:11px !important;
+  }
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-title {
+    font-size:19px !important;
+  }
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag {
+    margin-left:0 !important;
+  }
+}
+
+
+/* HTML-reference sizing: keep the gold workspace centered and content-height,
+   rather than stretching edge-to-edge or filling unused viewport height. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle #pageContent.billing-design-v2:not(:has(.ax-shell)) {
+  width:calc(100% - 16px) !important;
+  max-width:1440px !important;
+  margin:0 auto !important;
+  flex:0 0 auto !important;
+  align-self:center !important;
+  height:auto !important;
+  min-height:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) {
+  width:100% !important;
+  max-width:1440px !important;
+  margin:0 auto !important;
+  flex:0 0 auto !important;
+  align-self:center !important;
+  height:auto !important;
+  min-height:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ax-shell { min-height:0 !important; height:auto !important; }
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle #pageContent.billing-design-v2:not(:has(.ax-shell)) {
+    width:100% !important;
+  }
+}
+
+
+/* Uniform desktop viewport breathing room across ALL role workspaces.
+   Fill the available area with a small consistent gutter, without
+   touching component layout, pagination or page content. */
+#appShell.sidebar-manual-toggle > .main > #pageContent,
+#appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
+#appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
+#appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2 {
+  box-sizing:border-box !important;
+  width:calc(100% - 40px) !important;
+  max-width:none !important;
+  min-width:0 !important;
+  margin:24px auto 36px !important;
+  align-self:center !important;
+  flex:0 0 auto !important;
+}
+/* Workspace and Analytics wrappers both retain their single gold border. */
+#appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+  width:calc(100% - 40px) !important;
+  max-width:none !important;
+  margin:24px auto 36px !important;
+}
+@media(max-width:991.98px) {
+  #appShell.sidebar-manual-toggle > .main > #pageContent,
+  #appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2,
+  #appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+    width:calc(100% - 32px) !important;
+    margin:20px auto 28px !important;
+  }
+}
+@media(max-width:575.98px) {
+  #appShell.sidebar-manual-toggle > .main > #pageContent,
+  #appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2,
+  #appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+    width:calc(100% - 20px) !important;
+    margin:14px auto 22px !important;
+  }
+}
+
+
+/* INTEGRATED_RECORD_FILTERS_V1
+   Filters and results belong to ONE gold-bordered records section, matching
+   the supplied Motorpool Parts Request Records example. Keep form controls,
+   their focus styling, pagination and record handlers unchanged. */
+#appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table {
+  border:1px solid var(--billing-ui-outline,#dfe9e2) !important;
+  border-radius:12px !important;
+  background:#fff !important;
+  overflow:hidden;
+}
+/* Motorpool's UI.table() renders a nested panel/ref-list inside the already
+   bordered records section; only the outer .mp-ops-table gets an outline. */
+#appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table :is(
+  .ref-list,
+  .ref-tablebox,
+  .ref-toolbar,
+  .table-tools,
+  .table-wrap,
+  .panel,
+  .panel-body.flush
+) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin-block:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table :is(
+  .ref-toolbar,
+  .table-tools
+) {
+  padding:14px 19px !important;
+  border-bottom:1px solid #E5EBE6 !important;
+}
+/* Other shared record screens can use the ref-list itself as the single box,
+   with filters on top and results inside, not separate gold rectangles. */
+#appShell.sidebar-manual-toggle #pageContent .ref-list:not(.mp-ops-table .ref-list):not(.purchasing-ref-records .ref-list):not(.purchasing-records-card .ref-list) {
+  border:1px solid var(--billing-ui-soft,#dfe9e2) !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  overflow:hidden;
+}
+#appShell.sidebar-manual-toggle #pageContent .ref-list > .ref-toolbar,
+#appShell.sidebar-manual-toggle #pageContent .ref-list > .ref-tablebox {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ref-list > .ref-toolbar {
+  border-bottom:1px solid #E5EBE6 !important;
+}
+/* Filter bars already housed inside a records panel do not get a second box. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .purchasing-ref-records,
+  .purchasing-records-card,
+  .record-workspace-panel,
+  .oh-panel,
+  .ds-panel
+) :is(.purchasing-unified-toolbar,.purchasing-inventory-toolbar,.ws-filters,.ref-toolbar) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+
+
+/* FLEETOPS_RECORDS_ONE_PANEL_V2
+   Approved "Open invoices" records pattern: title row, searchable filters,
+   slim divider, and records/empty-state in ONE gold-bordered container.
+   Apply only to list/table surfaces, never KPIs, charts or active inputs. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table.mp-reference-table,
+  .purchasing-ref-records,
+  .purchasing-records-card,
+  .ref-list:not(.mp-ops-table .ref-list):not(.purchasing-ref-records .ref-list):not(.purchasing-records-card .ref-list),
+  .panel:has(> .panel-body.flush > .table-tools),
+  .oh-panel:has(.oh-record-search),
+  .ds-panel:has(.ds-filterbar)
+) {
+  border:1px solid var(--billing-ui-outline,#dfe9e2) !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  box-shadow:0 1px 4px rgba(29,77,44,.035) !important;
+  overflow:hidden;
+}
+/* All real records headings share the plain Billing section-header line. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table .mp-records-heading,
+  .purchasing-ref-records .purchasing-ref-records-head,
+  .panel:has(> .panel-body.flush > .table-tools) > .panel-head,
+  .oh-panel:has(.oh-record-search) > .oh-panel-head,
+  .ds-panel:has(.ds-filterbar) > .ds-panel-head
+) {
+  background:#fff !important;
+  border:0 !important;
+  border-bottom:1px solid #E7ECE8 !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+  padding:13px 15px !important;
+}
+/* Search/filter row sits INSIDE the parent panel, without its own rectangle. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table .ref-toolbar,
+  .mp-ops-table .table-tools,
+  .purchasing-ref-records .ref-toolbar,
+  .purchasing-records-card .ref-toolbar,
+  .ref-list > .ref-toolbar,
+  .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush > .table-tools,
+  .oh-panel:has(.oh-record-search) .oh-record-search,
+  .ds-panel:has(.ds-filterbar) .ds-filterbar
+) {
+  border-top:0 !important;
+  border-left:0 !important;
+  border-right:0 !important;
+  border-bottom:1px solid #E7ECE8 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+  padding:12px 15px !important;
+}
+/* The table's own wrapping surfaces must not create a second gold outline. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table .ref-list,
+  .mp-ops-table .ref-tablebox,
+  .mp-ops-table .panel,
+  .purchasing-ref-records .ref-list,
+  .purchasing-ref-records .ref-tablebox,
+  .purchasing-records-card .ref-list,
+  .purchasing-records-card .ref-tablebox,
+  .ref-list > .ref-tablebox,
+  .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush
+) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+}
+/* Unify empty-state positioning and allow the record section to grow naturally. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table,
+  .purchasing-ref-records,
+  .ref-list,
+  .panel:has(> .panel-body.flush > .table-tools)
+) .table-empty {
+  min-height:120px;
+  padding:26px 14px;
+  box-sizing:border-box;
+}
+/* Do not disturb expanded inline filters, which still need their own focusable
+   field layout. Only the search BAR loses the extra external border. */
+#appShell.sidebar-manual-toggle #pageContent .oh-panel:has(.oh-record-search) .oh-record-filter-panel {
+  box-shadow:none !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent :is(
+    .mp-ops-table .ref-toolbar,
+    .purchasing-ref-records .ref-toolbar,
+    .ref-list > .ref-toolbar,
+    .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush > .table-tools
+  ) { padding:10px 12px !important; }
+}
+
+
+/* KPI_GOLD_OUTLINE_V1
+   Billing-reference gold edge on actual KPI tile surfaces across roles.
+   Avoid KPI grid containers, inner icons, semantic status chips and tables. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .kpi-tile,
+  .rpm-kpi,
+  .metric-icon-card,
+  .head-fleet-kpi,
+  .head-kpi,
+  .metric,
+  .stat-card,
+  .oh-metric,
+  .ds-summary-card,
+  .ax-kpi,
+  .ws-kpi-card
+) {
+  border:1px solid #E7B447 !important;
+  border-radius:10px !important;
+  box-shadow:none !important;
+}
+/* Keep existing tile backgrounds; preserve selected/semantic KPI states. */
+#appShell.sidebar-manual-toggle #pageContent :is(.mp-action-stage,.oh-metric,.ds-summary-card).active,
+#appShell.sidebar-manual-toggle #pageContent :is(.mp-action-stage,.oh-metric,.ds-summary-card).selected,
+#appShell.sidebar-manual-toggle #pageContent .ax-category.active {
+  border-color:#258553 !important;
+}
+
+
+/* REPORT_PERIOD_INLINE_V1: Billing Reports-style inline period chips with
+   optional custom date controls; no stand-alone gold filter box. */
+#appShell.sidebar-manual-toggle #pageContent .ws-period-toolbar {
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  margin:0 0 16px;
+  padding:0 0 12px;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  color:#486355;
+  font-size:12px;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-presets {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  flex:1 1 100%;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-label {font-size:12px;color:#60796A;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-presets .btn {
+  border-radius:7px;
+  padding:6px 10px;
+  font-size:12px;
+  line-height:1.3;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-presets .btn.active {
+  background:#1E784A;
+  border-color:#1E784A;
+  color:#fff;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-summary {
+  margin-left:7px;
+  font-size:12px;
+  color:#294D37;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-details {position:relative;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-details > summary {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  list-style:none;
+  cursor:pointer;
+  color:#265F42;
+  border:1px solid #D4E1D7;
+  border-radius:7px;
+  background:#fff;
+  padding:6px 11px;
+  font-size:12px;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-details > summary::-webkit-details-marker {display:none;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:10px;
+  padding:10px 0 2px;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls label {
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  font-size:11px;
+  color:#60796A;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls input {width:160px;max-width:100%;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-hint {color:#718579;font-size:11.5px;}
+/* Plain standalone Finance/Audit filter rows should not gain a gold wrapper.
+   Record-search toolbars inside actual gold panels are deliberately excluded. */
+#appShell.sidebar-manual-toggle #pageContent > .page-body > .ws-filters:not(.ws-period-toolbar) {
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+@media(max-width:575.98px) {
+  #appShell.sidebar-manual-toggle #pageContent .ws-period-summary {flex:1 1 100%;margin-left:0;}
+  #appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls input {width:140px;}
+}
+
+
+/* ACTIONS_BELOW_KPIS_V1
+   The same authorized action buttons are moved by the shared renderer after
+   the first summary KPI row. Keep the heading's right side for access only. */
+#appShell.sidebar-manual-toggle #pageContent .page-body > #pageTools.page-kpi-actions {
+  display:flex !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  margin:0 0 14px !important;
+  padding:0 !important;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .page-body > #pageTools.page-kpi-actions .btn {
+  flex:0 0 auto;
+  max-width:100%;
+  white-space:normal;
+}
+@media(max-width:575.98px) {
+  #appShell.sidebar-manual-toggle #pageContent .page-body > #pageTools.page-kpi-actions {
+    justify-content:flex-start !important;
+  }
+}
+
+
+/* MECHANIC_ATTENDANCE_SESSION_OUTLINE_V1
+   One Billing-style gold border around the complete session history:
+   heading -> optional date filters -> record-search bar -> table/empty state.
+   No second gold outline on nested UI.table wrappers. */
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section {
+  border:1px solid var(--billing-ui-outline,#dfe9e2) !important;
+  border-radius:11px !important;
+  padding:0 !important;
+  margin-top:16px !important;
+  overflow:hidden !important;
+  background:#fff !important;
+  box-shadow:0 1px 4px rgba(29,77,44,.035) !important;
+}
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section > h2 {
+  padding:15px 18px !important;
+  margin:0 !important;
+  background:#fff !important;
+  border-bottom:1px solid #E6ECE7 !important;
+}
+/* Filters are part of the section, not a separate bordered rectangle. */
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section > .ws-filters {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  padding:11px 16px !important;
+  margin:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  border-bottom:1px solid #E6ECE7 !important;
+  background:#fff !important;
+  box-shadow:none !important;
+}
+/* UI.table creates a panel or ref-list and inner toolbar/table. Keep their
+   regular controls, but remove container-on-container outlines. */
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section :is(
+  .panel,.panel-body.flush,.ref-list,.ref-tablebox,.table-wrap,.table-card,.plain-table
+) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section :is(.table-tools,.ref-toolbar) {
+  border:0 !important;
+  border-radius:0 !important;
+  border-bottom:1px solid #E6ECE7 !important;
+  background:#fff !important;
+  box-shadow:none !important;
+  margin:0 !important;
+  padding:12px 16px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section .table-pager {
+  border-top:1px solid #E6ECE7;
+}
+
+
+/* MOTORPOOL_ACTION_TAB_ROW_V1
+   Keep actions beside the status-tabs row, not in their own line underneath
+   the KPI tiles. The tablist and original action buttons remain interactive. */
+#appShell.sidebar-manual-toggle #pageContent .page-body > .page-kpi-tab-toolbar {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px 14px;
+  width:100%;
+  margin:0 0 12px;
+  padding:0;
+}
+#appShell.sidebar-manual-toggle #pageContent .page-kpi-tab-toolbar > .line-tabs.ws-status-tabs {
+  display:flex;
+  flex:1 1 auto;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  min-width:0;
+  margin:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .page-kpi-tab-toolbar > #pageTools.page-kpi-tab-actions {
+  display:flex !important;
+  flex:0 0 auto !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  margin:0 0 0 auto !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent .page-kpi-tab-toolbar > #pageTools.page-kpi-tab-actions {
+    margin-left:0 !important;
+  }
+}

@@ -1,0 +1,1781 @@
+/* =====================================================================
+   workspace.css — WS_DESIGN_V1
+   Design system of the Maintenance (Motorpool, Purchasing) and Accounting (Finance, Billing, Audit) workspaces.
+   Loaded after app.css. Every rule is scoped:
+     .ws-app                 shell of the five in-scope roles (core.js shell())
+     #pageContent.ws-scope   workspace pages (core.js route(), UI.WS_PAGES)
+     .ws-body                drawers / modals opened by an in-scope role
+   Operations pages and other roles keep their existing look.
+   Existing tokens only: RPM green, neutral surfaces, the shared status colours.
+   ===================================================================== */
+.ws-app, .ws-scope, .ws-body {
+  --ws-ink: #183d29; --ws-text: #1f3628; --ws-muted: #5f7466; --ws-soft: #6a7c70;
+  --ws-line: #e3ece5; --ws-line-2: #eef3ef; --ws-hover: #f2f8f3; --ws-head: #f6faf7;
+  --ws-radius: 12px; --ws-shadow: 0 1px 2px rgba(16, 60, 34, .05);
+}
+
+/* ------------------------------------------------------------------ sidebar */
+.ws-app { --sidebar-w: 236px; }
+.ws-app .sidebar { width: var(--sidebar-w); background: #fff; color: var(--ws-ink); border-right: 1px solid var(--ws-line); box-shadow: none;
+  transition: width .16s ease, transform .18s ease; }
+.ws-app .main { transition: margin-left .16s ease; }
+.ws-app .sidebar-top { display: flex; align-items: center; gap: 6px; min-height: 64px; padding: 12px 10px 12px 14px; border-bottom: 1px solid var(--ws-line); }
+.ws-app .sidebar .sidebar-brand { flex: 1; min-width: 0; gap: 10px; padding: 0; border: 0; }
+.ws-app .sidebar-logo { width: 38px; border-radius: 6px; }
+.ws-app .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.ws-app .sidebar .brand-product { color: var(--rpm-brand-strong); font-size: 15px; font-weight: 800; letter-spacing: .12em; }
+.ws-app .sidebar .brand-company { color: var(--ws-muted); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-app .sb-collapse { flex: none; width: 32px; height: 32px; place-items: center; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--ws-muted); font-size: 16px; }
+.ws-app .sb-collapse:hover { background: var(--ws-hover); border-color: var(--ws-line); color: var(--ws-ink); }
+.ws-app .sidebar-nav { padding: 4px 10px 14px; scrollbar-color: #cfdcd2 transparent; }
+/* Shared accessible sidebar groups: light workspace color tokens. */
+.ws-app .sidebar .head-nav-group{margin:5px 0}
+.ws-app .sidebar .head-nav-group>summary{
+  color:var(--ws-ink);background:transparent;gap:10px;
+  min-height:41px;padding:9px 10px;border-radius:8px;
+}
+.ws-app .sidebar .head-nav-group>summary>.bi:first-child{color:var(--rpm-brand);width:20px}
+.ws-app .sidebar .head-nav-group>summary:hover,
+.ws-app .sidebar .head-nav-group[open]>summary{
+  background:var(--ws-hover);color:var(--ws-ink)
+}
+.ws-app .sidebar .head-nav-group>summary:focus-visible{
+  outline:2px solid var(--rpm-brand);outline-offset:2px
+}
+.ws-app .sidebar .head-nav-items{padding:3px 0 5px 10px}
+.ws-app .sidebar .head-nav-chevron{color:var(--ws-muted)}
+.ws-app .sidebar .nav-item-link { min-height: 38px; gap: 11px; padding: 8px 10px; margin-bottom: 2px; border-radius: 8px; color: #2c4536; font-size: 14px; font-weight: 500; }
+.ws-app .sidebar .nav-item-link .bi { flex: none; width: 20px; color: var(--ws-muted); font-size: 16px; }
+.ws-app .sidebar .nav-item-link span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.ws-app .sidebar .nav-item-link:hover { background: var(--ws-hover); color: var(--ws-ink); }
+.ws-app .sidebar .nav-item-link:hover .bi { color: var(--rpm-brand); }
+.ws-app .sidebar .nav-item-link.active { background: var(--rpm-brand-light); color: var(--rpm-brand-strong); font-weight: 650; }
+.ws-app .sidebar .nav-item-link.active .bi { color: var(--rpm-brand); }
+.ws-app .sidebar .nav-item-link.active::before { left: -10px; top: 8px; bottom: 8px; width: 3px; background: var(--rpm-brand); }
+.ws-app .sidebar .nav-item-link:focus-visible, .ws-app .sb-collapse:focus-visible { outline: 2px solid var(--rpm-brand); outline-offset: 1px; box-shadow: none; }
+.ws-app .topbar { background: #fff; border-bottom-color: var(--ws-line); }
+.ws-app .crumb-sec { color: var(--ws-muted); font-weight: 500; }
+.ws-app .crumb-page { color: var(--ws-ink); font-weight: 650; }
+
+@media (min-width: 992px) {
+  .ws-app.sb-collapsed { --sidebar-w: 70px; }
+  .ws-app.sb-collapsed .brand-text, .ws-app.sb-collapsed .nav-item-link span { display: none; }
+  .ws-app.sb-collapsed .sidebar-top { flex-direction: column; gap: 8px; padding: 12px 8px; }
+  .ws-app.sb-collapsed .sidebar .sidebar-brand { flex: none; }
+  .ws-app.sb-collapsed .sidebar .head-nav-group>summary{
+    justify-content:center;padding:9px 3px;
+  }
+  .ws-app.sb-collapsed .sidebar .head-nav-group>summary span,
+  .ws-app.sb-collapsed .sidebar .head-nav-chevron,
+  .ws-app.sb-collapsed .sidebar .head-nav-items{display:none}
+  .ws-app.sb-collapsed .sidebar .head-nav-group>summary>.bi:first-child{width:20px}
+  .ws-app.sb-collapsed .sidebar .nav-item-link { justify-content: center; padding: 9px 0; }
+}
+@media (max-width: 991.98px) {
+  .ws-app { --sidebar-w: 280px; }
+  .ws-app .main { margin-left: 0; }
+  .ws-app .sidebar { box-shadow: var(--shadow-lg); }
+}
+@media (prefers-reduced-motion: reduce) { .ws-app .sidebar, .ws-app .main { transition: none; } }
+
+/* ------------------------------------------------------------------ page header */
+#pageContent.ws-scope .page-head { padding: 2px 0 14px; margin: 0 0 16px; background: var(--bg); border: 0; border-bottom: 1px solid #e1ebe3; border-radius: 0; }
+#pageContent.ws-scope .page-head.rpm-page-head-scrolled { padding-top: 8px; padding-bottom: 10px; background: rgba(245, 249, 245, .97); box-shadow: 0 6px 10px -8px rgba(16, 60, 34, .2); }
+#pageContent.ws-scope .page-title { color: #163d27; font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+#pageContent.ws-scope .page-subtitle { max-width: 760px; margin-top: 4px; color: #5d7064; font-size: 14px; }
+#pageContent.ws-scope .page-actions { gap: 8px; }
+#pageContent.ws-scope .page-actions .btn { padding: 7px 14px; border-radius: 8px; font-size: 14px; }
+.ws-app #pageContent.ws-scope .ws-crumb { display: none; }   /* the sidebar and breadcrumb already show the place */
+
+/* ------------------------------------------------------------------ panels and list panels */
+.ws-scope .panel { overflow: hidden; border-color: var(--ws-line); border-radius: var(--ws-radius); box-shadow: var(--ws-shadow); }
+.ws-scope .panel-head { min-height: 48px; padding: 10px 14px; background: #fff; border-bottom-color: #eaf1ec; }
+.ws-scope .panel-title { gap: 9px; color: #1b3b28; font-size: 15px; font-weight: 650; }
+.ws-scope .panel-title > .bi:first-child { display: inline-grid; flex: none; place-items: center; width: 28px; height: 28px; margin: 0 !important;
+  border-radius: 8px; background: var(--rpm-brand-light); color: var(--rpm-brand); font-size: 14px; }
+.ws-scope .panel-title .text-muted.fw-normal { padding: 1px 8px; border-radius: 999px; background: #f1f5f2; color: #4f6356 !important; font-size: 12.5px; font-weight: 600 !important; }
+.ws-scope .panel-head .btn-link { font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.ws-scope .mo-item { padding: 10px 14px; border-bottom-color: var(--ws-line-2); transition: background .12s ease; }
+.ws-scope .mo-item.clickable { cursor: pointer; }
+.ws-scope .mo-item.clickable:hover, .ws-scope .mo-item.clickable:focus-visible, .ws-scope .mo-act.clickable:hover { background: #f6faf7; outline: none; }
+.ws-scope .mo-item-top { font-size: 14px; }
+.ws-scope .mo-item-issue, .ws-scope .mo-item-next, .ws-scope .mo-act { font-size: 13.5px; }
+.ws-scope .mo-item-next { color: #1d5a35; }
+.ws-scope .mo-empty { display: flex; align-items: center; gap: 8px; padding: 18px 16px; color: var(--ws-soft); font-size: 14px; }
+.ws-scope .mo-empty .bi { color: var(--green); font-size: 16px; }
+.ws-scope .mo-list.mo-scroll { max-height: 236px; overflow-y: auto; }          /* short scrollable lists (UI reference) */
+.ws-scope .mo-acts.mo-scroll, .ws-scope .ws-trucks.mo-scroll { max-height: 236px; overflow-y: auto; }
+.ws-scope .mo-grid { gap: 14px; }
+.ws-scope .mo-main, .ws-scope .mo-side { gap: 14px; }
+
+/* ------------------------------------------------------------------ KPI cards */
+.ws-scope .kpi-tiles { grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.ws-scope .kpi-tile { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 10px; padding: 13px 14px;
+  border: 1px solid var(--ws-line); border-radius: var(--ws-radius); box-shadow: var(--ws-shadow); }
+.ws-scope .kpi-tile .kpi-icon { grid-row: 1; grid-column: 2; width: 32px; height: 32px; border-radius: 9px; font-size: 15px; }
+.ws-scope .kpi-tile .kpi-body { display: flex; grid-row: 1; grid-column: 1; flex-direction: column; }
+.ws-scope .kpi-tile .kpi-label { order: 1; margin: 0; color: #4b5f52; font-size: 13px; font-weight: 600; }
+.ws-scope .kpi-tile .kpi-value { order: 2; margin-top: 6px; color: #15331f; font-size: 27px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.ws-scope .kpi-tile .kpi-note { order: 3; margin-top: 3px; color: var(--ws-soft); font-size: 12.5px; }
+.ws-scope .kpi-tile .kpi-go { display: none; }
+.ws-scope .kpi-tile.tone-amber, .ws-scope .kpi-tile.tone-red { padding-top: 11px; border-top: 3px solid var(--tone); }
+.ws-scope .kpi-tile.clickable:hover { transform: none; border-color: #b9d6c1; box-shadow: 0 3px 10px rgba(16, 60, 34, .08); }
+.ws-scope .kpi-tile.tone-amber.clickable:hover, .ws-scope .kpi-tile.tone-red.clickable:hover { border-top-color: var(--tone); }
+.ws-scope .kpi-tile.clickable:hover .kpi-label { color: var(--rpm-brand-strong); }
+.ws-scope .kpi-tile.clickable:focus-visible { outline: 2px solid var(--rpm-brand); outline-offset: 1px; box-shadow: none; }
+
+/* ------------------------------------------------------------------ quick actions */
+.ws-scope .mo-quickbar { display: block; padding: 0; margin: 4px 0 18px; background: none; border: 0; box-shadow: none; }
+.ws-scope .mo-quickbar-title { display: block; margin: 0 0 9px; color: var(--ws-ink); font-size: 14px; font-weight: 700; }
+.ws-scope .mo-quickbar-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ws-scope .mo-quickbar .btn { padding: 7px 13px; border-radius: 8px; font-size: 13.5px; font-weight: 600; }
+.ws-scope .mo-quickbar .btn-outline-secondary { background: #fff; border-color: #d3e2d8; color: #2a5c41; }
+.ws-scope .mo-quickbar .btn-outline-secondary:hover { background: var(--rpm-brand-light); border-color: #b4d5bf; color: var(--rpm-brand-strong); }
+
+/* ------------------------------------------------------------------ tabs and filters */
+/* UI_REFERENCE_V1: compact status tabs (bordered pills) instead of underlined tabs. */
+.ws-scope .line-tabs { flex-wrap: wrap; gap: 7px; margin: 0 0 12px; border-bottom: 0; overflow: visible; }
+.ws-scope .line-tabs .tab { padding: 6px 12px; border: 1px solid #d9e6dc; border-radius: 8px; background: #fff; color: #4f6a58; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.ws-scope .line-tabs .tab:hover { background: var(--ws-hover); color: var(--rpm-brand-strong); }
+.ws-scope .line-tabs .tab.active { background: #e7f4eb; border-color: #b0d8bb; color: #196841; }
+.ws-scope .line-tabs .tab.active::after { display: none; }
+.ws-scope .line-tabs .tab .text-muted { color: inherit !important; opacity: .75; }
+.ws-scope .tab-count { font-size: 12px; }
+.ws-scope .line-tabs .tab .tab-count { background: #eef4f0; color: #4f6a58; }
+.ws-scope .line-tabs .tab.active .tab-count { background: var(--rpm-brand); color: #fff; }
+.ws-scope .ws-filters { padding: 8px 10px; background: #fff; border: 1px solid var(--ws-line); border-radius: 10px; }
+.ws-scope .filter-summary { font-size: 13.5px; }
+
+/* ------------------------------------------------------------------ tables */
+.ws-scope .table-tools { padding: 9px 12px; border-bottom-color: #eaf1ec; }
+.ws-scope .table-search .form-control { min-height: 34px; border-radius: 8px; font-size: 14px; }
+.ws-scope .table-count { color: var(--ws-soft); font-size: 13px; }
+.ws-scope .data-table { font-size: 14px; }
+.ws-scope .data-table th { background: var(--ws-head); color: #4b5f52; font-size: 13px; border-bottom: 1px solid var(--ws-line); }
+.ws-scope .data-table td { border-bottom-color: var(--ws-line-2); color: var(--ws-text); }
+.ws-scope .data-table tbody tr:hover td { background: #f7fbf8; }
+.ws-scope .data-table .badge-s { font-size: 12.5px; }
+.ws-scope .table-pager { padding: 8px 12px; }
+.ws-scope .row-icons .btn { border-radius: 8px; }
+.ws-scope .table-empty { padding: 28px 16px; font-size: 14px; }
+
+/* ------------------------------------------------------------------ drawers (record details) */
+.ws-body .app-drawer .offcanvas-title { font-size: 17px; font-weight: 700; }
+.ws-body .app-drawer .drawer-h { margin-top: 18px; border-bottom-color: var(--ws-line); color: #4b5f52; font-size: 12px; }
+.ws-body .app-drawer .kv dt { color: #5d7064; }
+.ws-body .app-drawer .ws-next { border-radius: 10px; }
+
+/* ------------------------------------------------------------------ narrow screens */
+@media (max-width: 767.98px) {
+  #pageContent.ws-scope .page-title { font-size: 19px; }
+  #pageContent.ws-scope .page-subtitle { font-size: 13.5px; }
+  .ws-scope .kpi-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ws-scope .kpi-tile { padding: 10px 11px; }
+  .ws-scope .kpi-tile .kpi-value { font-size: 20px; }
+  .ws-scope .kpi-tile .kpi-icon { width: 28px; height: 28px; font-size: 13px; }
+  .ws-scope .mo-quickbar-title { flex-basis: 100%; }
+}
+@media (max-width: 419.98px) { .ws-scope .kpi-tile .kpi-note { display: none; } }
+.ws-app .sb-collapse { display: inline-grid; }
+@media (min-width: 992px) { .ws-app .sb-collapse.sb-mobile { display: none; } }
+@media (max-width: 991.98px) { .ws-app .sb-collapse.sb-desktop { display: none; } }
+
+/* Account dropdown in the top bar (restored position), styled to match the workspace. */
+.ws-app .profile-btn { border: 1px solid transparent; border-radius: 10px; padding: 4px 8px 4px 4px; }
+.ws-app .profile-btn:hover, .ws-app .profile-btn[aria-expanded="true"] { background: var(--ws-hover); border-color: var(--ws-line); }
+.ws-app .profile-btn:focus-visible { outline: 2px solid var(--rpm-brand); outline-offset: 1px; box-shadow: none; }
+.ws-app .profile-name { color: var(--ws-ink); font-weight: 650; }
+.ws-app .profile-role { color: var(--ws-muted); }
+.ws-app .topbar .dropdown-menu { min-width: 232px; border-radius: 10px; box-shadow: 0 8px 24px rgba(16, 60, 34, .12); }
+
+/* Stock count form: system / counted / discrepancy figures */
+.ws-body .sc-figures { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.ws-body .sc-fig { flex: 1 1 120px; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--ws-line); border-radius: 10px; background: #fafcfa; }
+.ws-body .sc-fig span { color: var(--ws-muted); font-size: 12.5px; font-weight: 600; }
+.ws-body .sc-fig b { font-size: 18px; color: var(--ws-ink); font-variant-numeric: tabular-nums; }
+.ws-body .sc-fig small { color: var(--ws-soft); }
+.ws-body .sc-fig.is-short { border-color: var(--red-bd); background: var(--red-bg); } .ws-body .sc-fig.is-short b { color: var(--red); }
+.ws-body .sc-fig.is-over { border-color: var(--amber-bd); background: var(--amber-bg); } .ws-body .sc-fig.is-over b { color: var(--amber); }
+
+/* Purchasing Reports: recommendation list (rule explanation + link to the record) */
+.ws-scope .rec-list { list-style: none; margin: 0; padding: 0; }
+.ws-scope .rec-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid var(--ws-line-2); }
+.ws-scope .rec-item:last-child { border-bottom: 0; }
+.ws-scope .rec-item > .bi { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: var(--gray-bg); color: var(--gray); }
+.ws-scope .rec-item.tone-amber > .bi { background: var(--amber-bg); color: var(--amber); } .ws-scope .rec-item.tone-red > .bi { background: var(--red-bg); color: var(--red); }
+.ws-scope .rec-item.tone-blue > .bi { background: var(--blue-bg); color: var(--blue); }
+.ws-scope .rec-main { flex: 1; min-width: 0; } .ws-scope .rec-title { font-size: 14px; }
+.ws-scope .rec-why { margin-top: 2px; color: var(--ws-soft); font-size: 13px; }
+.ws-scope .rec-act { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+@media (max-width: 575.98px) { .ws-scope .rec-item { flex-wrap: wrap; } .ws-scope .rec-act { width: 100%; } }
+
+/* ------------------------------------------------------------------ UI_REFERENCE_V1 (docs/ui-reference/maintenance_reference.html) */
+.ws-scope .ws-panel .panel-tools { display: flex; align-items: center; gap: 6px; }
+.ws-scope .ws-seeall, .ws-scope .ws-tip-btn { border: 0; background: none; padding: 4px 6px; border-radius: 7px; color: #20714b; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.ws-scope .ws-seeall:hover, .ws-scope .ws-tip-btn:hover, .ws-scope .ws-tip-btn.active { background: var(--rpm-brand-light); }
+.ws-scope .ws-seeall:focus-visible, .ws-scope .ws-tip-btn:focus-visible { outline: 2px solid var(--rpm-brand); outline-offset: 1px; }
+.ws-scope .ws-tip-btn .bi { color: #b7860b; }
+.ws-scope .ws-tip { margin: 10px 14px 4px; padding: 10px 12px; border: 1px solid #cfe6d5; border-radius: 9px; background: #ecf7ed; color: #2d523b; font-size: 13.5px; }
+.ws-scope .ws-tip-title { margin-bottom: 4px; font-weight: 700; }
+.ws-scope .ws-tip-title .bi { color: #b7860b; }
+.ws-scope .ws-tip ul { margin: 0; padding-left: 18px; }
+.ws-scope .ws-tip li + li { margin-top: 4px; }
+.ws-scope .ws-tip .btn-link { padding: 0 2px; font-size: 13px; font-weight: 600; vertical-align: baseline; }
+.ws-scope .ws-panel-foot { padding: 8px 14px 10px; border-top: 1px solid var(--ws-line-2); color: var(--ws-soft); font-size: 13px; }
+.ws-scope .ws-two { display: grid; grid-template-columns: minmax(0, 1.14fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.ws-scope .ws-two > .ws-stack { display: grid; gap: 14px; min-width: 0; }
+.ws-scope .ws-two > .ws-stack > .panel { margin: 0; }
+@media (max-width: 991.98px) { .ws-scope .ws-two { grid-template-columns: 1fr; } }
+.ws-scope .ws-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.ws-scope .ws-period .form-select, .ws-scope .ws-period .form-control { width: auto; min-width: 140px; }
+
+/* bar chart (recorded values only) */
+.ws-scope .ws-chart { padding: 10px 14px 12px; }
+.ws-scope .ws-chart-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 8px; color: var(--ws-muted); font-size: 12.5px; }
+.ws-scope .ws-chart-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 3px; vertical-align: -1px; }
+.ws-scope .sw-0 { background: #4f9a6e; }
+.ws-scope .sw-1 { background: #a9cdb6; }
+.ws-scope .sw-2 { background: #d9a441; }
+.ws-scope .ws-bars { display: flex; align-items: stretch; gap: 14px; height: 200px; overflow-x: auto; }
+.ws-scope .ws-barset { position: relative; display: flex; flex: 1 0 70px; align-items: flex-end; justify-content: center; gap: 4px; padding-bottom: 22px; }
+.ws-scope .ws-bar-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; width: 32px; }
+.ws-scope .ws-bar { width: 100%; min-height: 2px; border-radius: 5px 5px 0 0; }
+.ws-scope .ws-bar-v { margin-bottom: 3px; color: var(--ws-muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ws-scope .ws-bar-label { position: absolute; left: 0; right: 0; bottom: 0; color: #6f8276; font-size: 12px; text-align: center; white-space: nowrap; }
+
+/* ranking */
+.ws-scope .ws-rank { padding: 6px 10px 10px; }
+.ws-scope .ws-rank-row { display: grid; grid-template-columns: minmax(96px, 150px) minmax(60px, 1fr) auto; gap: 12px; align-items: center; padding: 9px 6px; border-radius: 8px; font-size: 13.5px; }
+.ws-scope .ws-rank-row.clickable { cursor: pointer; }
+.ws-scope .ws-rank-row.clickable:hover, .ws-scope .ws-rank-row.clickable:focus-visible { background: #f6faf7; outline: none; }
+.ws-scope .ws-rank-name { min-width: 0; }
+.ws-scope .ws-rank-name b, .ws-scope .ws-rank-name span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-scope .ws-rank-name span { color: var(--ws-soft); font-size: 12px; }
+.ws-scope .ws-rank-track { height: 10px; overflow: hidden; border-radius: 9px; background: #e7f0ea; }
+.ws-scope .ws-rank-track span { display: block; height: 100%; border-radius: 9px; background: #549b74; }
+.ws-scope .ws-rank-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* summary key figures */
+.ws-scope .ws-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 12px 14px; }
+.ws-scope .ws-sum > div { padding: 9px 11px; border: 1px solid var(--ws-line-2); border-radius: 9px; background: #fafcfa; }
+.ws-scope .ws-sum span { display: block; color: var(--ws-muted); font-size: 12.5px; }
+.ws-scope .ws-sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.ws-scope .kpi-tiles.ws-kpi4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 991.98px) { .ws-scope .kpi-tiles.ws-kpi4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 575.98px) { .ws-scope .ws-rank-row { grid-template-columns: minmax(80px, 1fr) minmax(50px, 1fr) auto; gap: 8px; } }
+
+/* =====================================================================
+   REF_FIDELITY_V1 — Motorpool and Purchasing drawn like docs/ui-reference/maintenance_reference.html
+   Scope: .ref-app (shell of these two roles), #pageContent.ref-scope (their pages), .ref-body (their drawers).
+   Values follow the reference stylesheet (ink #20342d, accent #216650, line #e3eae6, muted #687b73, bg #f5f7f6).
+   ===================================================================== */
+.ref-app, .ref-scope, .ref-body { --rf-accent: #216650; --rf-dark: #174d3e; --rf-bg: #f5f7f6; --rf-line: #e3eae6; --rf-muted: #687b73; --rf-ink: #20342d; }
+.ref-app .main, .ref-app .content, .ref-body { background: var(--rf-bg); }
+
+/* ---------- sidebar (213px, white, role label, flat links, inset active bar) */
+.ref-app { --sidebar-w: 213px; }
+.ref-app .sidebar { border-right: 1px solid var(--rf-line); }
+.ref-app .sidebar-top { min-height: 0; padding: 16px 10px 20px 15px; border-bottom: 0; }
+.ref-app .sidebar-logo { width: 34px; height: 34px; border-radius: 9px; object-fit: contain; }
+.ref-app .sidebar .brand-product { color: var(--rf-ink); font-size: 14px; font-weight: 800; letter-spacing: .7px; }
+.ref-app .sidebar .brand-company { color: var(--rf-muted); font-size: 11px; }
+.ref-app .sidebar-nav { padding: 0 10px 14px; }
+.ref-app .nav-group + .nav-group { border-top: 0; }
+.ref-app .sidebar .nav-section { padding: 0 12px 9px; color: #8ba094; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+.ref-app .sidebar .nav-item-link { min-height: 0; gap: 10px; padding: 11px 10px; margin-bottom: 3px; border-radius: 8px; color: #55695e; font-size: 13px; font-weight: 500; }
+.ref-app .sidebar .nav-item-link .bi { width: 20px; color: inherit; font-size: 16px; text-align: center; }
+.ref-app .sidebar .nav-item-link:hover { background: #f3f7f4; color: #55695e; }
+.ref-app .sidebar .nav-item-link.active { background: #e9f4ed; color: #17663f; font-weight: 750; box-shadow: inset 3px 0 0 #25744f; }
+.ref-app .sidebar .nav-item-link.active .bi { color: #17663f; }
+.ref-app .sidebar .nav-item-link.active::before { display: none; }
+@media (min-width: 992px) { .ref-app.sb-collapsed { --sidebar-w: 64px; } .ref-app.sb-collapsed .sidebar .nav-section { display: none; } }
+
+/* ---------- top bar (58px, breadcrumb left, account right) */
+.ref-app .topbar { min-height: 58px; padding: 0 24px; background: #fff; border-bottom: 1px solid var(--rf-line); }
+.ref-app .crumb-sec { color: #74867b; font-size: 12px; font-weight: 400; }
+.ref-app .crumb-page { color: #30473c; font-size: 12px; font-weight: 700; }
+
+/* ---------- page container and header */
+#pageContent.ref-scope { max-width: none; margin: 0; padding: 24px; color: var(--rf-ink); font-size: 14px; }
+#pageContent.ref-scope .page-head, #pageContent.ref-scope .page-head.rpm-page-head-scrolled { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 0; margin: 0 0 19px; background: none; border: 0; box-shadow: none; position: static; }
+#pageContent.ref-scope .page-title { margin: 0 0 5px; color: var(--rf-ink); font-size: 24px; font-weight: 700; letter-spacing: -.6px; }
+#pageContent.ref-scope .page-subtitle { margin: 0; color: var(--rf-muted); font-size: 13px; }
+#pageContent.ref-scope .page-actions .btn, .ref-scope .ref-toolbar .btn { padding: 9px 12px; border-radius: 8px; font-size: 12px; font-weight: 650; }
+.ref-scope .btn-primary { background: var(--rf-accent); border-color: var(--rf-accent); }
+.ref-scope .btn-primary:hover { background: var(--rf-dark); border-color: var(--rf-dark); }
+.ref-scope .btn-outline-secondary, .ref-scope .btn-outline-primary { background: #fff; border-color: #d6e2da; color: #315b45; }
+.ref-scope .btn-outline-secondary:hover, .ref-scope .btn-outline-primary:hover { background: #eaf5ed; border-color: #d6e2da; color: #315b45; }
+
+/* ---------- KPI cards (label ↗, big number, hint; no icon chip, no coloured top border) */
+.ref-scope .kpi-tiles, .ref-scope .kpi-tiles.ws-kpi4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; margin-bottom: 19px; }
+.ref-scope .kpi-tile, .ref-scope .kpi-tile.tone-amber, .ref-scope .kpi-tile.tone-red { display: block; padding: 16px; border: 1px solid var(--rf-line); border-top-width: 1px; border-radius: 11px; background: #fff; box-shadow: none; }
+.ref-scope .kpi-tile .kpi-icon, .ref-scope .kpi-tile .kpi-go { display: none; }
+.ref-scope .kpi-tile .kpi-body { display: flex; flex-direction: column; }
+.ref-scope .kpi-tile .kpi-label { order: 1; color: #718579; font-size: 12px; font-weight: 400; }
+.ref-scope .kpi-tile.clickable .kpi-label::after { content: " \2197"; }
+.ref-scope .kpi-tile .kpi-value { order: 2; margin: 8px 0 5px; color: var(--rf-ink); font-size: 29px; font-weight: 780; letter-spacing: 0; line-height: 1.1; }
+.ref-scope .kpi-tile.tone-red .kpi-value { color: #a3361f; } .ref-scope .kpi-tile.tone-amber .kpi-value { color: #91600b; }
+.ref-scope .kpi-tile .kpi-note { order: 3; margin: 0; color: #84968a; font-size: 11px; }
+.ref-scope .kpi-tile.clickable:hover { border-color: #9ac6a8; box-shadow: none; transform: none; }
+.ref-scope .kpi-tile.clickable:hover .kpi-label { color: #718579; }
+
+/* ---------- Quick Actions (section title, then plain buttons) */
+.ref-scope .mo-quickbar { margin: 0 0 20px; }
+.ref-scope .mo-quickbar-title { margin: 8px 0 11px; color: var(--rf-ink); font-size: 13px; font-weight: 750; }
+.ref-scope .mo-quickbar-row { gap: 9px; }
+.ref-scope .mo-quickbar .btn { padding: 9px 12px; border-radius: 8px; font-size: 12px; font-weight: 650; }
+.ref-scope .mo-quickbar .btn .bi { margin-right: 2px; }
+
+/* ---------- two-column dashboard and panels (padding 16, title 14, "See all →", short scroll lists) */
+.ref-scope .ws-two { grid-template-columns: minmax(0, 1.14fr) minmax(0, 1fr); gap: 14px; }
+.ref-scope .ws-two > .ws-stack { gap: 14px; }
+.ref-scope .panel.ws-panel { padding: 16px; border: 1px solid var(--rf-line); border-radius: 11px; background: #fff; box-shadow: none; overflow: visible; }
+.ref-scope .ws-panel .panel-head { min-height: 0; padding: 0; margin-bottom: 11px; background: none; border: 0; }
+.ref-scope .ws-panel .panel-title { gap: 6px; color: var(--rf-ink); font-size: 14px; font-weight: 700; }
+.ref-scope .ws-panel .panel-title > .bi:first-child { display: none; }
+.ref-scope .ws-panel .panel-title .text-muted.fw-normal { padding: 0 7px; font-size: 11px; }
+.ref-scope .ws-seeall, .ref-scope .ws-tip-btn { padding: 0; background: none !important; color: #20714b; font-size: 12px; font-weight: 700; }
+.ref-scope .ws-panel .panel-body.flush { padding: 0; }
+.ref-scope .ws-panel-foot { padding: 10px 0 0; margin-top: 4px; border-top: 1px solid #eff3f0; color: #7c8d82; font-size: 11px; }
+.ref-scope .ws-panel .mo-list.mo-scroll, .ref-scope .ws-panel .mo-acts.mo-scroll, .ref-scope .ws-panel .ws-trucks.mo-scroll { max-height: 210px; overflow-y: auto; }
+.ref-scope .ws-panel .mo-list, .ref-scope .ws-panel .mo-acts, .ref-scope .ws-panel .ws-trucks { margin: 0; padding: 0; list-style: none; }
+.ref-scope .ws-panel .mo-item, .ref-scope .ws-panel .mo-act, .ref-scope .ws-panel .ws-trucks li { display: flex; justify-content: space-between; align-items: center; gap: 9px;
+  padding: 11px 0; border: 0; border-top: 1px solid #eff3f0; background: none; }
+.ref-scope .ws-panel .mo-act { display: block; }
+.ref-scope .ws-panel .mo-item:first-child, .ref-scope .ws-panel .mo-act:first-child, .ref-scope .ws-panel .ws-trucks li:first-child { border-top: 0; }
+.ref-scope .ws-panel .mo-item.clickable:hover, .ref-scope .ws-panel .mo-act.clickable:hover, .ref-scope .ws-panel .ws-trucks li.clickable:hover { background: #fbfdfb; }
+.ref-scope .ws-panel .mo-item-top, .ref-scope .ws-panel .mo-act-label, .ref-scope .ws-panel .ws-trucks b { color: var(--rf-ink); font-size: 12px; }
+.ref-scope .ws-panel .mo-item-top b, .ref-scope .ws-panel .mo-act-label { font-weight: 700; }
+.ref-scope .ws-panel .mo-item-issue, .ref-scope .ws-panel .mo-item-next, .ref-scope .ws-panel .mo-act-what, .ref-scope .ws-panel .mo-act-details,
+.ref-scope .ws-panel .mo-act-when, .ref-scope .ws-panel .cell-sub, .ref-scope .ws-panel .mo-ref { margin-top: 4px; color: #7c8d82; font-size: 11px; }
+.ref-scope .ws-panel .mo-item-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.ref-scope .ws-panel .mo-item-side .btn { padding: 4px 9px; font-size: 11px; }
+.ref-scope .ws-panel .mo-empty { padding: 14px 0; font-size: 12px; }
+
+/* ---------- status chips (small, 6px radius, no dot) */
+.ref-scope .badge-s, .ref-body .badge-s { padding: 5px 7px; border: 0; border-radius: 6px; font-size: 10px; font-weight: 750; line-height: 1; white-space: nowrap; }
+.ref-scope .badge-s::before, .ref-body .badge-s::before { display: none; }
+
+/* ---------- lists: tabs, toolbar (search + Reset), bordered table, icon actions */
+.ref-scope .line-tabs { gap: 7px; margin: 10px 0; }
+.ref-scope .line-tabs .tab { padding: 8px 13px; border: 1px solid #d9e6dc; border-radius: 7px; background: #fff; color: #57705e; font-size: 12px; font-weight: 500; }
+.ref-scope .line-tabs .tab.active { background: #e7f4eb; border-color: #b0d8bb; color: #196841; font-weight: 750; }
+.ref-scope .line-tabs .tab .tab-count { padding: 1px 6px; border-radius: 6px; font-size: 11px; }
+.ref-scope .ws-filters, .ref-scope .filter-summary { padding: 0; margin: 0 0 6px; background: none; border: 0; box-shadow: none; }
+.ref-scope .ws-filters .form-select, .ref-scope .ws-filters .form-control { padding-top: 7px; padding-bottom: 7px; border-color: #dbe5df; border-radius: 8px; font-size: 13px; }
+.ref-scope .ref-list { margin-bottom: 16px; }
+.ref-scope .ref-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 15px 0; }
+.ref-scope .ref-search { position: relative; flex: 1; min-width: 180px; max-width: none; }
+.ref-scope .ref-search .bi { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #8a9b90; }
+.ref-scope .ref-search .form-control { width: 100%; min-height: 0; padding: 10px 10px 10px 32px; border: 1px solid #dbe5df; border-radius: 8px; background: #fff; color: #30463a; font-size: 13px; }
+.ref-scope .ref-reset { background: #fff; border: 1px solid #d6e2da; color: #315b45; }
+.ref-scope .ref-reset:hover { background: #eaf5ed; }
+.ref-scope .ref-toolbar .table-count { color: #839388; font-size: 11px; }
+.ref-scope .ref-tablebox { overflow: auto; border: 1px solid var(--rf-line); border-radius: 10px; background: #fff; }
+.ref-scope .ref-tablebox .table-wrap { margin: 0; border: 0; overflow: visible; }
+.ref-scope .ref-tablebox .data-table { width: max-content; min-width: 100%; margin: 0; border-collapse: collapse; font-size: 14px; }
+.ref-scope .ref-tablebox .data-table th { padding: 10px 8px; background: #f9fbf9; color: #65786d; font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; border-bottom: 1px solid var(--rf-line); }
+.ref-scope .ref-tablebox .data-table td { padding: 11px 8px; border-bottom: 1px solid #edf1ee; color: var(--rf-ink); vertical-align: middle; }
+.ref-scope .ref-tablebox .data-table tr:last-child td { border-bottom: 0; }
+.ref-scope .ref-tablebox .data-table th:first-child, .ref-scope .ref-tablebox .data-table td:first-child { padding-left: 14px; }
+.ref-scope .ref-tablebox .data-table th:last-child, .ref-scope .ref-tablebox .data-table td:last-child { padding-right: 14px; }
+.ref-scope .ref-tablebox .data-table tbody tr:hover td { background: #fbfdfb; }
+.ref-scope .ref-tablebox .data-table td:first-child > b { color: #207048; font-weight: 700; cursor: pointer; }
+.ref-scope .ref-tablebox .cell-sub { color: #7c8d82; font-size: 11px; }
+.ref-scope .row-icons { display: flex; gap: 4px; flex-wrap: nowrap; }
+.ref-scope .row-icons .btn { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid #dce6df; border-radius: 7px; background: #fff; color: #256a49; }
+.ref-scope .row-icons .btn:hover { background: #e9f4ec; }
+.ref-scope .row-icons .btn.btn-outline-danger { color: #a3361f; }
+.ref-scope .table-pager { padding: 8px 2px; }
+.ref-scope .table-empty { padding: 34px; color: #829587; text-align: center; }
+
+/* ---------- record drawer (white, header with ✕, "label above value" rows) */
+.ref-body .app-drawer { --bs-offcanvas-width: min(440px, 94vw); background: #fff; box-shadow: -10px 0 30px rgba(25, 47, 37, .13); }
+.ref-body .app-drawer .offcanvas-header { padding: 24px 24px 15px; margin: 0 0 0; border-bottom: 1px solid var(--rf-line); }
+.ref-body .app-drawer .offcanvas-title { color: var(--rf-ink); font-size: 16px; font-weight: 700; }
+.ref-body .app-drawer .offcanvas-header .btn-close { width: 34px; height: 34px; border: 1px solid #d6e2da; border-radius: 8px; background-size: 10px; opacity: .8; }
+.ref-body .app-drawer .offcanvas-body { padding: 4px 24px 24px; }
+.ref-body .app-drawer dl.kv { display: block; margin: 0; }
+.ref-body .app-drawer dl.kv dt { padding-top: 14px; margin: 0; color: #809184; font-size: 11px; font-weight: 400; }
+.ref-body .app-drawer dl.kv dd { padding: 5px 0 14px; margin: 0; border-bottom: 1px solid #eef2ef; color: var(--rf-ink); font-size: 14px; font-weight: 600; }
+.ref-body .app-drawer dl.kv dd .cell-sub, .ref-body .app-drawer dl.kv dd .text-muted { font-weight: 400; }
+.ref-body .app-drawer .drawer-h { margin: 22px 0 6px; padding: 0; border: 0; color: #4b5f52; font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+.ref-body .app-drawer .ws-next, .ref-body .app-drawer .alert-info { margin: 14px 0; padding: 12px; border: 1px solid #cfe6d5; border-radius: 9px; background: #ecf7ed; color: #315640; font-size: 12px; }
+.ref-body .app-drawer .btn { border-radius: 8px; font-size: 12px; font-weight: 650; }
+.ref-body .app-drawer .btn-primary, .ref-body .app-drawer .btn-success { background: var(--rf-accent); border-color: var(--rf-accent); color: #fff; }
+
+/* ---------- reports (period select, chart, ranking, lightbulb tip) */
+.ref-scope .ws-period { padding: 0; margin: 0 0 15px; background: none; border: 0; }
+.ref-scope .ws-period label { color: var(--rf-ink) !important; font-size: 14px; }
+.ref-scope .ws-period .form-select, .ref-scope .ws-period .form-control { padding: 9px 10px; border-color: #dbe5df; border-radius: 8px; font-size: 13px; }
+.ref-scope .ws-chart { padding: 0; }
+.ref-scope .ws-bars { height: 165px; gap: 15px; }
+.ref-scope .sw-0 { background: #62a27b; } .ref-scope .sw-1 { background: #b8d6c2; }
+.ref-scope .ws-bar { border-radius: 5px 5px 0 0; }
+.ref-scope .ws-rank { padding: 0; }
+.ref-scope .ws-rank-row { grid-template-columns: minmax(78px, 130px) 1fr auto; margin: 6px 0; padding: 7px 0; font-size: 12px; }
+.ref-scope .ws-rank-track span { background: #549b74; }
+.ref-scope .ws-tip { margin: 0 0 12px; padding: 12px; border: 1px solid #cfe6d5; border-radius: 9px; background: #ecf7ed; color: #315640; font-size: 12px; }
+.ref-scope .ws-sum { padding: 0; }
+.ref-scope .ws-sum > div { background: #fff; }
+
+/* ---------- other page blocks used on these pages */
+.ref-scope .panel:not(.ws-panel) { border-color: var(--rf-line); border-radius: 11px; box-shadow: none; }
+.ref-scope .mech-card { border-color: var(--rf-line); border-radius: 11px; box-shadow: none; }
+
+@media (max-width: 991.98px) { .ref-app { --sidebar-w: 260px; } }
+@media (max-width: 850px) { .ref-scope .kpi-tiles, .ref-scope .kpi-tiles.ws-kpi4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ref-scope .ws-two { grid-template-columns: 1fr; } #pageContent.ref-scope { padding: 16px; } }
+@media (max-width: 620px) { #pageContent.ref-scope { padding: 12px; } #pageContent.ref-scope .page-title { font-size: 20px; } .ref-scope .kpi-tile { padding: 12px; } .ref-scope .kpi-tile .kpi-value { font-size: 24px; }
+  #pageContent.ref-scope .page-head { flex-direction: column; } }
+.ref-scope .ref-h { margin: 0 0 8px; color: var(--rf-ink); font-size: 14px; font-weight: 750; }
+.ref-scope .ref-tablebox th.actions-col .visually-hidden { position: static !important; width: auto !important; height: auto !important; margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: nowrap; }
+.ref-scope .ws-panel .mo-list.mo-scroll { max-height: 236px; }
+
+/* =====================================================================
+   LAYOUT_REFINEMENT_V1 — Motorpool / Purchasing: fluid width, aligned panel rows, floating suggestions, compact tables
+   ===================================================================== */
+/* 1. fluid content: no max-width, ~22px side padding on desktop */
+#pageContent.ref-scope { max-width: none; margin: 0; padding: 20px 22px 28px; }
+
+/* 2. KPI row: equal-height cards; Quick actions directly below */
+.ref-scope .kpi-tiles, .ref-scope .kpi-tiles.ws-kpi4 { align-items: stretch; gap: 12px; margin-bottom: 14px; }
+.ref-scope .kpi-tile { height: 100%; }
+.ref-scope .mo-quickbar { margin: 0 0 14px; }
+.ref-scope .mo-quickbar-title { margin: 0 0 8px; }
+
+/* 2. Overview / Reports: one 2x2 grid, so panels in the same row share one height */
+.ref-scope .ws-grid2 { display: grid; grid-template-columns: minmax(0, 1.14fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.ref-scope .ws-grid2 > .panel.ws-panel { display: flex; flex-direction: column; min-width: 0; margin: 0; }
+.ref-scope .ws-grid2 > .panel.ws-panel > .panel-body { flex: 1 1 auto; min-height: 0; }
+.ref-scope .ws-grid2 > .panel.ws-panel > .ws-panel-foot { margin-top: auto; }
+/* list panels: about 4 rows visible, scrollbar only when the list overflows */
+.ref-scope .ws-grid2 .mo-list.mo-scroll, .ref-scope .ws-grid2 .mo-acts.mo-scroll, .ref-scope .ws-grid2 .ws-trucks.mo-scroll { max-height: 232px; overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: auto; }
+.ref-scope .ws-grid2 .mo-list:not(.mo-scroll) { overflow: visible; }
+/* long text never grows a row: one line with ellipsis (title attribute / drawer keep the full text) */
+.ref-scope .ws-panel .mo-item-main { min-width: 0; flex: 1 1 auto; }
+.ref-scope .ws-panel .mo-item-top, .ref-scope .ws-panel .mo-item-issue, .ref-scope .ws-panel .mo-item-next,
+.ref-scope .ws-panel .mo-act-what, .ref-scope .ws-panel .mo-act-details, .ref-scope .ws-panel .ws-trucks li > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-scope .ws-panel .ws-trucks li > div { min-width: 0; flex: 1 1 auto; }
+.ref-scope .ws-panel .mo-item-side { max-width: 45%; }
+.ref-scope .ws-panel .mo-item-side .badge-s { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* 3. reports row: chart and ranking equal height, chart sized to the data, ranking compact */
+.ref-scope .ws-report-row { margin-bottom: 14px; }
+.ref-scope .ws-report-row .ws-bars { height: 150px; }
+.ref-scope .ws-report-row .ws-barset { flex: 0 1 120px; }
+.ref-scope .ws-report-row .ws-rank-row { margin: 2px 0; padding: 6px 0; }
+.ref-scope .ws-panel .ws-sum { gap: 8px; }
+.ref-scope .ws-panel .ws-sum > div { padding: 8px 10px; }
+.ref-scope .mt-3 > .panel.ws-panel { margin: 0; }
+@media (max-width: 991.98px) {
+  .ref-scope .ws-grid2 { grid-template-columns: minmax(0, 1fr); }
+  .ref-scope .ws-grid2 > .ws-l1 { order: 1; } .ref-scope .ws-grid2 > .ws-l2 { order: 2; }
+  .ref-scope .ws-grid2 > .ws-r1 { order: 3; } .ref-scope .ws-grid2 > .ws-r2 { order: 4; }
+}
+@media (max-width: 767.98px) { #pageContent.ref-scope { padding: 14px 12px 20px; } }
+
+/* 4. floating suggestion popover (attached to <body>, fixed position: never resizes a card, never clipped) */
+.ref-scope .ws-tip-btn.active { color: #17663f; }
+.ref-body .ws-popover { position: fixed; z-index: 1080; width: min(340px, calc(100vw - 16px)); max-height: min(60vh, 420px); overflow: auto;
+  padding: 10px 12px 12px; border: 1px solid #cfe6d5; border-radius: 10px; background: #fff; color: #2d523b; font-size: 13px; line-height: 1.45;
+  box-shadow: 0 10px 28px rgba(18, 41, 28, .18); }
+.ref-body .ws-popover-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #20342d; font-size: 12.5px; font-weight: 750; }
+.ref-body .ws-popover-head .bi { color: #b7860b; }
+.ref-body .ws-popover-x { margin-left: auto; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: none; color: #687b73; font-size: 18px; line-height: 1; }
+.ref-body .ws-popover-x:hover, .ref-body .ws-popover-x:focus-visible { background: #eef4f0; outline: none; }
+.ref-body .ws-popover ul { margin: 0; padding-left: 16px; }
+.ref-body .ws-popover li + li { margin-top: 6px; }
+.ref-body .ws-popover .cell-sub { display: block; color: #7c8d82; font-size: 11.5px; }
+.ref-body .ws-popover .btn-link { padding: 0 2px; font-size: 12px; font-weight: 650; color: #20714b; text-decoration: none; vertical-align: baseline; }
+
+/* 5. compact tables: 14px text, ~7px cell padding, columns hug content, long text max 2 lines */
+.ref-scope .ref-tablebox .data-table { font-size: 14px; }
+.ref-scope .ref-tablebox .data-table th, .ref-scope .ref-tablebox .data-table td { padding-left: 7px; padding-right: 7px; }
+.ref-scope .ref-tablebox .data-table th { width: 1%; white-space: nowrap; }
+.ref-scope .ref-tablebox .data-table th.col-grow { width: auto; }
+.ref-scope .ref-tablebox .data-table td { padding-top: 9px; padding-bottom: 9px; }
+.ref-scope .ref-tablebox .cell-clip, .ref-scope .ref-tablebox .cell-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  min-width: 160px; max-width: 520px; white-space: normal; }
+.ref-scope .ref-tablebox td.actions-col { width: 1%; white-space: nowrap; }
+.ref-scope .ws-grid2 .mo-list.mo-scroll, .ref-scope .ws-grid2 .mo-acts.mo-scroll, .ref-scope .ws-grid2 .ws-trucks.mo-scroll { max-height: 248px; }
+.ref-scope .ws-report-row .ws-bars { justify-content: center; }
+.ref-scope .ws-report-row .ws-barset { flex: 0 1 180px; }
+.ref-scope .ws-report-row .ws-bar-col { width: 44px; }
+.ref-scope .ws-sum b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ref-scope .ref-tablebox .data-table td { white-space: nowrap; }
+.ref-scope .ref-tablebox .data-table td.col-grow { white-space: normal; }
+.ref-scope .ref-tablebox .data-table td .cell-sub { white-space: normal; min-width: 120px; }
+
+/* MOTORPOOL_REPORTS_V2 — Maintenance Reports & Analytics */
+.ref-scope .mr-timeline { margin: 0; }
+.ref-scope .mr-chart { position: relative; height: 290px; }
+.ref-scope .mr-chart canvas:focus-visible { outline: 2px solid var(--rpm-brand); outline-offset: 2px; border-radius: 6px; }
+.ref-scope .mr-note { margin-top: 8px; color: #7c8d82; font-size: 11.5px; line-height: 1.45; }
+.ref-scope .mr-cost { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+.ref-scope .mr-donut { position: relative; width: 170px; height: 170px; flex: none; }
+.ref-scope .mr-donut-total { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; }
+.ref-scope .mr-donut-total span { color: #7c8d82; font-size: 11px; } .ref-scope .mr-donut-total b { color: var(--rf-ink); font-size: 15px; }
+.ref-scope .mr-legend { flex: 1 1 220px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.ref-scope .mr-legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 40px; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #eff3f0; font-size: 13px; }
+.ref-scope .mr-legend li:first-child { border-top: 0; }
+.ref-scope .mr-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.ref-scope .mr-legend b { font-variant-numeric: tabular-nums; } .ref-scope .mr-legend small { color: #7c8d82; text-align: right; }
+.ref-scope .mr-legend .mr-legend-note { display: block; color: #7c8d82; font-size: 12px; }
+.ref-scope .mr-freq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ref-scope .mr-freq h3 { margin: 0 0 4px; color: #4b5f52; font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.ref-scope .mr-freq ul { margin: 0; padding: 0; list-style: none; }
+.ref-scope .mr-truck { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 4px; border-top: 1px solid #eff3f0; font-size: 13px; }
+.ref-scope .mr-truck:first-child { border-top: 0; }
+.ref-scope .mr-truck > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-scope .mr-truck small { display: block; color: #7c8d82; font-size: 11px; }
+.ref-scope .mr-truck.clickable { cursor: pointer; border-radius: 6px; } .ref-scope .mr-truck.clickable:hover, .ref-scope .mr-truck.clickable:focus-visible { background: #f6faf7; outline: none; }
+@media (max-width: 575.98px) { .ref-scope .mr-freq { grid-template-columns: 1fr; } .ref-scope .mr-chart { height: 240px; } .ref-scope .mr-donut { width: 140px; height: 140px; } }
+/* suggestion lists and the period popover */
+.ref-body .ws-sug { margin: 0; padding-left: 16px; } .ref-body .ws-sug li + li { margin-top: 6px; }
+.ref-body .ws-sug-empty { color: #7c8d82; font-size: 12.5px; }
+.ref-body .ws-popover-wide { width: min(330px, calc(100vw - 16px)); padding: 12px 14px; }
+.ref-body .ws-popover-x-abs { position: absolute; top: 6px; right: 6px; margin: 0; }
+.ref-body .ws-pp-sec { padding: 8px 0; border-top: 1px solid #eef2ef; } .ref-body .ws-pp-sec:first-of-type { border-top: 0; padding-top: 0; }
+.ref-body .ws-pp-h { margin-bottom: 4px; color: #4b5f52; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.ref-body .ws-pp-h .bi { color: #b7860b; }
+.ref-body .ws-pp-kv { margin: 0; padding: 0; list-style: none; }
+.ref-body .ws-pp-kv li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+.ref-body .ws-pp-kv i { width: 8px; height: 8px; border-radius: 50%; } .ref-body .ws-pp-kv small { color: #7c8d82; }
+.ref-body .ws-pp-kv b { font-variant-numeric: tabular-nums; }
+.ref-body .ws-pp-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ref-body .ws-pp-links .btn { padding: 4px 9px; font-size: 12px; border-radius: 7px; }
+.ref-body .ws-pp-sug { margin: 2px -4px -4px; padding: 8px 10px; border: 1px solid #cfe6d5; border-radius: 8px; background: #f1f8f2; }
+
+/* PURCHASING_REPORTS_V2 — summary cards with details, period popover transaction lists */
+.ref-scope .pr-chart { height: 260px; }
+.ref-scope .pr-sum { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.ref-scope .pr-sum-card { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 9px 11px; border: 1px solid var(--ws-line-2); border-radius: 9px; background: #fff; }
+.ref-scope .pr-sum-card span { color: var(--ws-muted); font-size: 12px; }
+.ref-scope .pr-sum-card b { overflow: hidden; color: var(--rf-ink); font-size: 15.5px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ref-scope .pr-sum-card small { color: #7c8d82; font-size: 11px; }
+.ref-scope .pr-sum-card .btn-link { align-self: flex-start; margin-top: 2px; font-size: 12px; font-weight: 650; color: #20714b; text-decoration: none; }
+@media (max-width: 1199.98px) { .ref-scope .pr-sum { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 575.98px) { .ref-scope .pr-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ref-body .pr-moves { margin: 0; padding: 0; list-style: none; }
+.ref-body .pr-moves li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 4px; border-radius: 6px; font-size: 12.5px; }
+.ref-body .pr-moves li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-body .pr-moves li.clickable { cursor: pointer; } .ref-body .pr-moves li.clickable:hover, .ref-body .pr-moves li.clickable:focus-visible { background: #f1f8f2; outline: none; }
+.ref-body .mr-recon { display: flex; justify-content: space-between; margin-top: 10px; padding: 10px 12px; border: 1px solid #cfe6d5; border-radius: 9px; background: #f1f8f2; font-size: 14px; }
+
+/* HEAD_MANAGEMENT_V1 — six KPI cards on the Admin overview; clickable summary figures */
+.ref-scope .kpi-tiles.ws-kpi6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1399.98px) { .ref-scope .kpi-tiles.ws-kpi6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767.98px) { .ref-scope .kpi-tiles.ws-kpi6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ref-scope .ws-sum > div.clickable { cursor: pointer; } .ref-scope .ws-sum > div.clickable:hover, .ref-scope .ws-sum > div.clickable:focus-visible { border-color: #b1d0bd; outline: none; }
+.ref-scope .ws-panel .ws-budget-meter { margin: 8px 0; }
+
+/* HEAD_MANAGEMENT_V1 — executive written summary */
+.ref-scope .hm-summary { margin: 0; padding-left: 18px; color: var(--rf-ink); font-size: 14px; line-height: 1.6; }
+.ref-scope .hm-summary li + li { margin-top: 2px; }
+
+/* HEAD_MANAGEMENT_V2 — weekly budget breakdown, priorities, department performance, analytics labels */
+.ref-scope .hm-empty { margin: 10px 14px; }
+.ref-scope .hm-na { color: var(--amber); font-weight: 600; font-size: 13px; }
+.ref-scope .hm-brk { list-style: none; margin: 0; padding: 4px 0; }
+.ref-scope .hm-brow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid #edf2ee; cursor: pointer; }
+.ref-scope .hm-brow:hover, .ref-scope .hm-brow:focus-visible { background: #f1f8f2; outline: none; }
+.ref-scope .hm-brow span { display: flex; flex-direction: column; min-width: 0; }
+.ref-scope .hm-brow small { color: var(--rf-muted, #6b7280); font-size: 12px; }
+.ref-scope .hm-brow b { white-space: nowrap; }
+.ref-scope .hm-stack { display: flex; height: 12px; margin: 12px 14px 6px; border-radius: 6px; overflow: hidden; background: #e5e7eb; }
+.ref-scope .hm-stack span { height: 100%; } .ref-scope .hm-stack .m-spent { background: var(--blue); } .ref-scope .hm-stack .m-res { background: var(--amber); }
+.ref-scope .hm-stack + .ws-legend { padding: 0 14px 10px; display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; }
+.ref-scope .hm-stack + .ws-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.ref-scope .hm-pri td { vertical-align: top; }
+.ref-scope .hm-perf { list-style: none; margin: 0; padding: 0; }
+.ref-scope .hm-perf li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid #edf2ee; }
+.ref-scope .hm-perf li.clickable { cursor: pointer; } .ref-scope .hm-perf li.clickable:hover, .ref-scope .hm-perf li.clickable:focus-visible { background: #f1f8f2; outline: none; }
+.ref-scope .hm-perf small { display: block; color: var(--rf-muted, #6b7280); font-size: 12px; }
+.ref-scope .hm-perf-f { font-size: 12px; color: var(--rf-muted, #6b7280); text-align: right; }
+@media (max-width: 575.98px) { .ref-scope .hm-perf li { grid-template-columns: 1fr; } .ref-scope .hm-perf-f { text-align: left; } }
+.ref-scope .hm-kind { display: inline-block; margin: 10px 14px 0; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.ref-scope .hm-kind-d { background: #e8f0fe; color: #1d4ed8; } .ref-scope .hm-kind-g { background: #fef3c7; color: #92400e; }
+.ref-scope .ws-panel .mr-chart { margin: 8px 14px 4px; position: relative; }
+@media (min-width: 992px) { .ref-scope .ws-grid2 > .hm-span2 { grid-row: span 2; } }
+/* UNSUPPORTED_CLASSIFICATION_CLEANUP — workflow group rows in Executive Reports */
+.ref-scope .hm-pri tr.hm-group th { background: #f6f9f7; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--rf-muted, #6b7280); padding: 7px 12px; }
+
+
+/* MOTORPOOL_ACTION_UI_V3 — content-only action summaries. Never styles sidebar, topbar or reports. */
+#pageContent.ws-scope .mp-action-stages {
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;
+}
+#pageContent.ws-scope .mp-action-stage {
+  min-width:0; display:flex; align-items:center; gap:10px;
+  padding:14px 13px; border:1px solid #dfebe2; border-radius:12px;
+  color:#21432e; background:#fff; text-align:left;
+  box-shadow:0 1px 2px rgba(16,60,34,.04);
+}
+#pageContent.ws-scope button.mp-action-stage {cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+#pageContent.ws-scope button.mp-action-stage:hover {background:#f2f8f3;border-color:#a9d4b5;transform:translateY(-1px)}
+#pageContent.ws-scope button.mp-action-stage:focus-visible {outline:2px solid #267849;outline-offset:2px}
+#pageContent.ws-scope .mp-action-stage-icon {
+  display:grid;place-items:center;flex:0 0 36px;height:36px;
+  border-radius:10px;background:#edf6ef;color:#287448;font-size:18px
+}
+#pageContent.ws-scope .mp-action-stage-content {display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+#pageContent.ws-scope .mp-action-stage-content b {font-size:13px;line-height:1.2}
+#pageContent.ws-scope .mp-action-stage-content small {font-size:11px;line-height:1.3;color:#698071}
+#pageContent.ws-scope .mp-action-stage-count {font-size:22px;line-height:1;font-variant-numeric:tabular-nums;color:#1b5938}
+#pageContent.ws-scope .mp-parts-summary {grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1199px) {#pageContent.ws-scope .mp-action-stages {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px) {#pageContent.ws-scope .mp-action-stages,#pageContent.ws-scope .mp-parts-summary {grid-template-columns:1fr}
+#pageContent.ws-scope .mp-action-stage {padding:12px}}
+
+
+/* MOTORPOOL_HTML_FIDELITY_V4
+   Content screens only: layout and visual language matched to the approved
+   mulawin_motorpool_current_branch_ui_review.html. No sidebar, shell, other
+   roles, reports, API, drawer logic or permissions are modified. */
+#pageContent:has(#pageBody > .mp-wireframe-marker),
+#pageContent:has(#pageBody > .maint-overview.mp-wireframe-dashboard) {
+  --mp-html-line:#e0e9e2; --mp-html-muted:#708274; --mp-html-ink:#203a2b;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages,
+#pageContent .mp-wireframe-dashboard .mp-action-stages {
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:4px 0 17px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-parts-summary {grid-template-columns:repeat(3,minmax(0,1fr))}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage {
+  padding:15px;gap:10px;background:#fff;border:1px solid #e0e9e2;border-radius:11px;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);min-height:83px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-icon {
+  width:36px;height:36px;flex:0 0 36px;background:#e9f5ed;color:#267447;border-radius:9px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-content b {
+  color:#203a2b;font-weight:700;font-size:14px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-content small {
+  font-size:12px;color:#708274;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-count {
+  font-size:23px;color:#176238;font-weight:750;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) button.mp-action-stage:hover {background:#f1faf3;border-color:#93c6a0}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .line-tabs,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .ws-status-tabs {
+  display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:0;margin:15px 0;background:transparent;border:0;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .line-tabs .tab,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .ws-status-tabs .tab {
+  padding:9px 13px;background:#fff;border:1px solid #dce7df;border-radius:7px;
+  font-size:12.5px;color:#536c5b;box-shadow:none;min-height:36px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .line-tabs .tab.active,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .ws-status-tabs .tab.active {
+  background:#e8f4eb;border-color:#99cbaa;color:#1a693b;font-weight:700;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table {
+  background:#fff;border:1px solid #e0e9e2;border-radius:12px;overflow:hidden;margin-top:16px;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table table {width:100%}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+  background:#f7faf8;color:#63786a;font-size:12px;font-weight:700;
+  padding:12px 13px;border-bottom:1px solid #ebf0ed;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table td {
+  padding:12px 13px;border-color:#ebf0ed;vertical-align:middle;font-size:13px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table tr:hover td {background:#fbfdfb}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .cell-sub {font-size:12px;color:#708274;margin-top:4px}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .badge-s {
+  border-radius:20px;padding:5px 9px;font-size:11px;font-weight:650;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .btn {
+  border-radius:7px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .panel {
+  border:1px solid #e0e9e2;border-radius:11px;box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .panel .panel-body {color:#506a56}
+#pageContent .mp-wireframe-dashboard .head-trip-kpis {
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 15px;
+}
+#pageContent .mp-wireframe-dashboard .head-fleet-kpi {
+  min-width:0;min-height:108px;background:#fff;border:1px solid #e0e9e2;border-radius:11px;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);padding:16px;align-items:flex-start;
+}
+#pageContent .mp-wireframe-dashboard .head-fleet-kpi .head-fleet-kpi-value {
+  display:flex;flex-direction:column;gap:6px;
+}
+#pageContent .mp-wireframe-dashboard .head-fleet-kpi .head-fleet-kpi-value span {
+  font-size:12px;color:#68806e;font-weight:600;
+}
+#pageContent .mp-wireframe-dashboard .head-fleet-kpi .head-fleet-kpi-value strong {
+  display:block;font-size:28px;line-height:1.15;color:#183d29;font-weight:750;
+}
+#pageContent .mp-wireframe-dashboard .head-fleet-kpi .head-kpi-icon {
+  background:#e9f5ed;color:#267447;border-radius:9px;padding:9px;
+}
+#pageContent .mp-wireframe-dashboard .mo-quickbar {
+  background:#fff;border:1px solid #e0e9e2;border-radius:11px;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);padding:12px 15px;margin:15px 0;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout {
+  display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:stretch;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout > .panel.ws-panel {
+  border:1px solid #e0e9e2;border-radius:11px;box-shadow:0 1px 2px rgba(18,53,28,.035);
+  background:#fff;overflow:hidden;padding:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .ws-panel .panel-head {
+  padding:14px 17px;border-bottom:1px solid #e9f0eb;background:#fff;margin:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .ws-panel .panel-body {
+  padding:6px 16px;min-width:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .ws-panel-foot {
+  padding:10px 16px;border-top:1px solid #e9f0eb;color:#708274;font-size:12px;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .ws-panel .panel-title {
+  color:#203a2b;font-size:14px;font-weight:700;
+}
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .mo-list.mo-scroll,
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .ws-trucks.mo-scroll {
+  max-height:240px;overflow-y:auto;
+}
+@media(max-width:1180px) {
+  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+  #pageContent .mp-wireframe-dashboard .head-trip-kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
+  #pageContent .mp-wireframe-dashboard .mp-wireframe-layout {grid-template-columns:1fr}
+}
+@media(max-width:620px) {
+  #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:1fr}
+  #pageContent .mp-wireframe-dashboard .head-trip-kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* MOTORPOOL_HTML_REFERENCE_V5 — exact wireframe content styling; no shell/sidebar/report selectors.
+   The app renders page markup inside #pageBody, not directly under #pageContent. */
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) #pageBody,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) #pageBody {
+  color:#203a2b;font-size:13.5px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
+  border:1px solid #e0e9e2;background:#fff;border-radius:11px;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage {
+  display:flex;align-items:center;justify-content:space-between;
+  min-height:83px;gap:10px;text-align:left;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-action-stage-icon {
+  display:grid;place-items:center;padding:0;font-size:18px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs {
+  border:0;box-shadow:none;background:transparent;gap:7px;padding:0;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab {
+  flex:none;width:auto;min-height:36px;margin:0;border:1px solid #dce7df;
+  border-radius:7px;background:#fff;padding:9px 13px;color:#536c5b;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs .tab.active {
+  background:#e8f4eb;border-color:#99cbaa;color:#1a693b;font-weight:700;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table {
+  margin-top:16px;border:1px solid #e0e9e2;border-radius:12px;background:#fff;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);overflow:hidden;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-toolbar {
+  background:#fff;border:0;padding:14px 15px 9px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table .ref-tablebox {
+  border:0;border-radius:0;box-shadow:none;background:#fff;overflow-x:auto;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+  background:#f7faf8;color:#63786a;font-weight:700;font-size:12px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table td,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-table th {
+  padding:12px 13px;border-bottom:1px solid #ebf0ed;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi {
+  padding:16px;min-height:106px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .head-fleet-kpi-value strong {
+  font-size:28px;font-weight:750;color:#183d29;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar {
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  padding:12px 15px;margin:16px 0;border:1px solid #e0e9e2;
+  border-radius:11px;background:#fff;box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-title {
+  font-weight:700;color:#203a2b;margin-right:8px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar-row {
+  display:flex;gap:9px;flex-wrap:wrap;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout > .panel.ws-panel {
+  min-width:0;background:#fff;border:1px solid #e0e9e2;
+  border-radius:11px;box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-head {
+  background:#fff;border-bottom:1px solid #e9f0eb;padding:14px 17px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout .panel-body.flush {
+  padding:6px 16px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow {
+  background:#fff;border:1px solid #e0e9e2;border-radius:10px;
+  box-shadow:none;margin:14px 0;padding:11px 14px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-wireframe-flow .panel-body {
+  padding:0!important;
+}
+@media(max-width:1100px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mp-wireframe-layout {grid-template-columns:1fr}
+}
+@media(max-width:720px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Reference page heading and side drawers — content-only; shell and sidebar remain untouched. */
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker),
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) {
+  max-width:1500px;margin-left:auto;margin-right:auto;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {
+  gap:10px;margin-bottom:18px;align-items:center;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-title,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-title {
+  color:#203a2b;font-size:24px;font-weight:750;line-height:1.2;margin:0 0 6px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-subtitle,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-subtitle {
+  color:#708274;font-size:13px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-actions .btn,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .mo-quickbar .btn {
+  border-radius:8px;font-size:13px;font-weight:650;padding:8px 12px;
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer {
+  width:min(490px,100vw);max-width:100vw;background:#fff;
+  box-shadow:-8px 0 45px rgba(0,27,13,.18);
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer .offcanvas-header {
+  padding:20px 24px;border-bottom:1px solid #e0e9e2;
+}
+body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker) .offcanvas.app-drawer .offcanvas-body {
+  padding:20px 24px;
+}
+@media(max-width:720px) {
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .page-head,
+ #pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-dashboard) .page-head {align-items:flex-start;flex-direction:column}
+}
+
+/* MOTORPOOL_COMPACT_MODAL_V6
+   Match the luis Operations/Admin field-form visual treatment. Only modal forms
+   opened from Motorpool content pages; no sidebar, reports, global shell styling. */
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-dialog {
+  max-width:min(760px,calc(100vw - 28px));
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-content {
+  overflow:hidden;border:1px solid #d6e6dc;border-radius:18px;
+  background:#f9fcfa;box-shadow:0 20px 70px rgba(8,50,31,.18);
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-header {
+  position:relative;display:flex;align-items:center;
+  padding:22px 28px 19px;background:linear-gradient(115deg,#f0f8f2,#fcfefd);
+  border-bottom:1px solid #e2ebe5;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-title {
+  font-size:19px;font-weight:750;line-height:1.3;letter-spacing:-.25px;color:#184c32;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {
+  padding:23px 28px 25px;background:#f9fcfa;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-intro {
+  margin:0 0 20px;padding:12px 14px;background:#f0f7f2;
+  border:1px solid #d9e8de;border-radius:10px;color:#486b55;
+  font-size:12px;line-height:1.6;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body > .row {
+  row-gap:15px!important;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-label {
+  margin-bottom:7px;color:#335744;font-size:12px;font-weight:680;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-control,
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-select {
+  min-height:42px;padding:9px 12px;border-radius:9px;
+  border-color:#d2e1d7;background-color:#fff;color:#294735;font-size:12.5px;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) textarea.form-control {
+  min-height:95px;resize:vertical;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-control:focus,
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-select:focus {
+  border-color:#70b48a;box-shadow:0 0 0 3px rgba(42,136,76,.13);
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .form-help {
+  font-size:11px;color:#809385;margin-top:5px;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {
+  gap:8px;padding:14px 28px;border-top:1px solid #e2ebe5;background:#fff;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer .btn {
+  min-height:37px;padding:8px 15px;border-radius:9px;font-size:12px;font-weight:700;
+}
+body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .pl-row {
+  padding:8px 0;border-bottom:1px solid #e8efe9;
+}
+@media(max-width:650px) {
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-header {padding:18px 20px}
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-body {padding:18px 20px}
+ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.modal-body .row) .modal-footer {padding:12px 20px}
+}
+
+/* MOTORPOOL_PARTS_FORM_V7 — modal-only visual treatment; no sidebar or reports. */
+.mp-parts-request-modal .modal-dialog { max-width:min(770px,calc(100vw - 24px)); }
+.mp-parts-request-modal .modal-content {border:1px solid #d6e6dc;border-radius:18px;overflow:hidden;background:#f9fcfa;box-shadow:0 20px 70px rgba(8,50,31,.18)}
+.mp-parts-request-modal .modal-header {background:linear-gradient(115deg,#f0f8f2,#fcfefd);padding:22px 28px 19px;border-bottom:1px solid #e2ebe5}
+.mp-parts-request-modal .modal-title {font-size:19px;color:#184c32;font-weight:750}
+.mp-parts-request-modal .modal-body {padding:23px 28px;background:#f9fcfa}
+.mp-parts-request-modal .modal-footer {padding:14px 28px;border-top:1px solid #e2ebe5;background:#fff;gap:8px}
+.mp-parts-request-modal .modal-footer .btn {border-radius:9px;padding:8px 15px;font-weight:700}
+.mp-parts-request-modal .mp-parts-items {background:#fff;border:1px solid #dfeae2;border-radius:12px;padding:15px 17px;margin-top:17px}
+.mp-parts-request-modal .mp-parts-items-head {display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:13px}
+.mp-parts-request-modal .mp-parts-items-head strong {font-size:14px;color:#234e35}
+.mp-parts-request-modal .mp-parts-line {display:flex;align-items:end;gap:9px;padding:11px 0;border-top:1px solid #edf2ee}
+.mp-parts-request-modal .mp-parts-line:first-child {border-top:0}
+.mp-parts-request-modal .mp-parts-line-fields {display:grid;grid-template-columns:minmax(0,1fr) 120px;flex:1;gap:10px}
+.mp-parts-request-modal .mp-parts-line .form-control,.mp-parts-request-modal .mp-parts-line .form-select {min-height:39px}
+.mp-parts-request-modal .mp-parts-remove {height:39px;min-width:39px;border-radius:9px}
+@media(max-width:650px){.mp-parts-request-modal .modal-header,.mp-parts-request-modal .modal-body,.mp-parts-request-modal .modal-footer{padding:17px 18px}
+.mp-parts-request-modal .mp-parts-line-fields{grid-template-columns:minmax(0,1fr) 85px}.mp-parts-request-modal .mp-parts-items{padding:12px}}
+
+/* MOTORPOOL_OPERATIONS_TABLE_ALIGNMENT_V8 */
+/* Only Motorpool marker pages. Uses the existing UI.table() markup and behavior. */
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table{
+  border:1px solid #dee7e0;border-radius:13px;overflow:hidden;background:#fff;
+  box-shadow:0 1px 3px rgba(18,53,28,.04);margin-top:18px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .mp-records-heading{
+  padding:19px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border-bottom:1px solid #e7ece8;background:#fff;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-records-heading strong{
+  display:block;font-size:15px;font-weight:750;color:#244431;line-height:1.35;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-records-heading small{
+  display:block;color:#7a897f;font-size:12px;margin-top:4px;font-weight:400;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-tools,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-toolbar,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-controls{
+  padding:16px 19px;background:#fff;gap:10px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table th{
+  padding:13px 15px;background:#f5f7f6;color:#394c40;font-size:12px;font-weight:700;
+  border-bottom:1px solid #e1e9e3;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table td{
+  padding:15px;line-height:1.45;border-bottom:1px solid #e7ece8;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table tbody tr:last-child td{border-bottom:0}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .data-table tbody tr:hover td{background:#f7faf8}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-pager{
+  padding:13px 19px;border-top:1px solid #e6ede8;background:#fff;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-search .form-control{
+  min-height:43px;border-radius:9px;border-color:#d7e0d8;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section{
+  border:1px solid #dee7e0;border-radius:13px;overflow:hidden;background:#fff;
+  box-shadow:0 1px 3px rgba(18,53,28,.04);padding-top:4px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section > h2{
+  margin:0;padding:17px 19px;color:#244431;font-size:15px;font-weight:750;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section > .table-wrap,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section > .table-card{
+  border:0;border-radius:0;box-shadow:none;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section .data-table th{
+  padding:13px 15px;background:#f5f7f6;color:#394c40;font-size:12px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-session-section .data-table td{padding:15px}
+@media(max-width:700px){
+ #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .mp-records-heading{padding:14px 15px;align-items:flex-start}
+ #pageContent:has(#pageBody > .mp-wireframe-marker) .mp-ops-table .table-tools{padding:12px}
+}
+
+/* PURCHASING_LIVE_WIREFRAME_V1 */
+/* Actual Purchasing workspace, scoped only to its own pages. Existing UI.table actions and server state remain intact. */
+#pageContent .purchasing-live-v1{--purch-line:#dfe9e2;--purch-ink:#203e2d;--purch-muted:#728576;color:var(--purch-ink)}
+#pageContent .purchasing-live-v1 .ws-kpi4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:17px}
+#pageContent .purchasing-live-v1 .ws-kpi4 > *{min-width:0;border:1px solid var(--purch-line);border-radius:13px;box-shadow:0 1px 3px rgba(12,54,28,.04);background:#fff}
+#pageContent .purchasing-live-v1 .ws-grid2{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
+#pageContent .purchasing-live-v1 .ws-grid2 > .panel{border:1px solid var(--purch-line);border-radius:13px;overflow:hidden;box-shadow:0 1px 3px rgba(12,54,28,.04);background:#fff}
+#pageContent .purchasing-live-v1 .ws-grid2 .panel-head{padding:17px 18px;border-bottom:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .purchasing-records-card{background:#fff;border:1px solid var(--purch-line);border-radius:13px;overflow:hidden;margin-top:17px;box-shadow:0 1px 3px rgba(12,54,28,.04)}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-tools,
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-toolbar{padding:16px 19px;background:#fff}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-search .form-control{min-height:44px;border-radius:9px;border-color:#d5e2d9}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table th{padding:13px 15px;background:#f5f8f6;color:#455f4d;font-size:12px;font-weight:700;border-bottom:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table td{padding:14px 15px;line-height:1.45;border-color:#e9eee9;vertical-align:middle}
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table tbody tr:hover td{background:#f7faf8}
+#pageContent .purchasing-live-v1 .purchasing-records-card .table-pager{padding:12px 17px;border-top:1px solid var(--purch-line)}
+#pageContent .purchasing-live-v1 .ws-status-tabs{gap:8px;margin:15px 0}
+#pageContent .purchasing-live-v1 .ws-status-tabs .tab{background:#fff;border:1px solid #d9e7dd;border-radius:8px;padding:10px 14px;min-height:38px}
+#pageContent .purchasing-live-v1 .ws-status-tabs .tab.active{background:#e7f4ea;border-color:#a1cdb0;color:#1a6a3d;font-weight:700}
+.purchasing-po-modal .modal-content{border:1px solid #d8e6dc;border-radius:17px;overflow:hidden;background:#fafdFB;box-shadow:0 20px 65px rgba(9,48,26,.18)}
+.purchasing-po-modal .modal-header{background:#eef8f1;padding:21px 25px;border-bottom:1px solid #e0eae3}
+.purchasing-po-modal .modal-title{font-size:19px;font-weight:750;color:#1a5535}
+.purchasing-po-modal .modal-body{padding:22px 25px;background:#fafdFB}
+.purchasing-po-modal .modal-footer{background:#fff;padding:15px 25px;border-top:1px solid #e0eae3}
+.purchasing-po-modal .modal-footer .btn{border-radius:9px;padding:9px 15px}
+.purchasing-po-modal .purchasing-line-editor{background:#fff;border:1px solid #dce8df;border-radius:12px;padding:16px 18px;margin-top:14px}
+.purchasing-po-modal .purchasing-line-title{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.purchasing-po-modal .purchasing-line-title strong{display:block;font-size:14px;color:#28543a}
+.purchasing-po-modal .purchasing-line-title small{display:block;font-size:12px;color:#788b7d;margin-top:3px}
+.purchasing-po-modal .purchasing-line{display:flex;gap:8px;align-items:end;padding:12px 0;border-top:1px solid #edf2ee;flex-wrap:wrap}
+.purchasing-po-modal .purchasing-line:first-child{border-top:0}
+.purchasing-po-modal .purchasing-line-fields{display:grid;grid-template-columns:minmax(0,1fr) 91px 124px;gap:10px;flex:1;min-width:0}
+.purchasing-po-modal .purchasing-line .form-control,.purchasing-po-modal .purchasing-line .form-select{min-height:40px}
+.purchasing-po-modal .purchasing-line-amount{min-width:108px;font-weight:700;font-size:12px;color:#376348;text-align:right;padding-bottom:11px}
+.purchasing-po-modal .purchasing-remove{height:40px;min-width:40px;border-radius:9px}
+.purchasing-po-modal .purchasing-line-total{text-align:right;padding:12px 0 4px;font-size:15px;font-weight:750;color:#1e5835;border-top:1px solid #e6eee8}
+@media(max-width:1100px){#pageContent .purchasing-live-v1 .ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr))}#pageContent .purchasing-live-v1 .ws-grid2{grid-template-columns:1fr}}
+@media(max-width:680px){#pageContent .purchasing-live-v1 .ws-kpi4{grid-template-columns:1fr 1fr}.purchasing-po-modal .purchasing-line-fields{grid-template-columns:minmax(0,1fr) 90px}.purchasing-po-modal .purchasing-line-fields>div:last-child{grid-column:1/-1}.purchasing-po-modal .modal-body,.purchasing-po-modal .modal-header,.purchasing-po-modal .modal-footer{padding:16px}.purchasing-po-modal .purchasing-line-editor{padding:12px}}
+
+/* PURCHASING_SOURCE_HTML_FIDELITY_V2 */
+/* Adapted from user-provided Purchasing interactive HTML: source styles scoped to real Purchasing page roots.
+   App shell/sidebar intentionally retain production behavior, permissions and pinned navigation. */
+#pageContent .purchasing-live-v1, #pageContent .purchasing-dashboard-ref{
+ --pw-deep:#113d29; --pw-green:#1a6942; --pw-pale:#edf7ef;
+ --pw-bg:#f4f7f5; --pw-border:#dfe9e2; --pw-text:#20372b; --pw-muted:#728679;
+ --pw-shadow:0 2px 8px rgba(24,65,38,.045); font-size:13px; color:var(--pw-text);
+}
+#pageContent .purchasing-live-v1 .kpi-tiles.ws-kpi4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:14px 0 17px}
+#pageContent .purchasing-live-v1 .kpi-tile{border:1px solid var(--pw-border);background:#fff;border-radius:12px;min-height:122px;padding:18px;box-shadow:var(--pw-shadow);display:flex;gap:13px;align-items:flex-start}
+#pageContent .purchasing-live-v1 .kpi-tile:hover{border-color:#aacdb5;background:#fcfefd}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-icon{width:39px;height:39px;min-width:39px;background:var(--pw-pale);border-radius:10px;color:var(--pw-green);display:grid;place-items:center;font-size:19px}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-body{display:flex;flex-direction:column;min-width:0}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-label{color:#3c5745;font-size:12px;font-weight:700;order:-1}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-value{color:#175a35;font-size:28px;line-height:1.3;font-weight:800;margin:8px 0 2px}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-note{font-size:12px;color:#7a9080;line-height:1.4}
+#pageContent .purchasing-live-v1 .kpi-tile .kpi-go{margin-left:auto;color:#8aaa94}
+#pageContent .purchasing-live-v1 .mo-quickbar{border:1px solid var(--pw-border);background:#fff;border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:15px;margin:0 0 18px;box-shadow:var(--pw-shadow)}
+#pageContent .purchasing-live-v1 .mo-quickbar-title{font-size:12px;font-weight:800;color:#47674e;white-space:nowrap}
+#pageContent .purchasing-live-v1 .mo-quickbar-row{display:flex;flex-wrap:wrap;gap:8px}
+#pageContent .purchasing-live-v1 .mo-quickbar-row .btn{border-radius:9px;font-size:12px;padding:8px 13px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel{min-width:0;min-height:185px;margin:0;background:white;border:1px solid #dfe9e2;border-radius:12px;box-shadow:var(--pw-shadow);display:flex;flex-direction:column;overflow:hidden}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-head{padding:16px 19px;min-height:54px;display:flex;align-items:center;border-bottom:1px solid #e7eee8;background:white}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-title{font-size:14px;font-weight:760;color:#274937}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-body{padding:7px 18px;flex:1}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .mo-list{max-height:300px;overflow-y:auto}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .ws-panel-foot{background:#fbfdfa;border-top:1px solid #e7eee8;padding:12px 18px;color:#718674;font-size:12px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.purchasing-full-panel{grid-column:1/-1;min-height:125px}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.purchasing-full-panel .mo-list{max-height:none}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels .mo-list-entry{padding:11px 0}
+#pageContent .purchasing-live-v1 .purchasing-ref-records{margin-top:16px;border:1px solid var(--pw-border);border-radius:12px;overflow:hidden;box-shadow:var(--pw-shadow);background:white}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head{padding:17px 20px;border-bottom:1px solid #e6eee8;display:flex;align-items:center;justify-content:space-between;gap:8px}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head strong{display:block;font-size:15px;font-weight:770;color:#244936}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head small{display:block;color:#829487;margin-top:4px;font-size:12px}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-head>span{font-size:12px;color:#819084}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-list{border:0;border-radius:0;box-shadow:none;margin:0}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-toolbar{padding:18px 19px;display:flex;gap:10px;border-bottom:1px solid #e8efe9;background:white}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-search{flex:1;min-width:0}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-search input{min-height:43px;border-radius:9px;border-color:#d7e3d9}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table{width:100%;border-collapse:collapse}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table th{padding:13px 15px;background:#f6f8f6;font-size:12px;color:#49604f;border-bottom:1px solid #e0e8e2;font-weight:700}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table td{padding:14px 15px;font-size:13px;border-bottom:1px solid #e9efe9;vertical-align:middle}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .data-table tr:hover td{background:#f9fcf9}
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .table-pager{padding:12px 19px;border-top:1px solid #e6eee9}
+#pageContent .purchasing-live-v1 .line-tabs.ws-status-tabs .tab{background:#fff;border:1px solid #dce8df;border-radius:8px;min-height:39px;padding:10px 15px;font-weight:600;font-size:12px;color:#627c69}
+#pageContent .purchasing-live-v1 .line-tabs.ws-status-tabs .tab.active{background:#e7f4ea;color:#1b6b3c;border-color:#a5cdb1;font-weight:770}
+#pageContent .purchasing-live-v1 .badge-s{border-radius:18px;padding:5px 9px;font-size:11px}
+.purchasing-po-modal .purchasing-line-title{padding:0 0 8px}
+.purchasing-po-modal .purchasing-line-editor{border:1px solid #dfe9e2;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(24,65,38,.035)}
+.purchasing-po-modal .purchasing-line-fields label.form-label{font-weight:700;color:#345742;font-size:12px}
+@media(max-width:1080px){
+ #pageContent .purchasing-live-v1 .purchasing-ref-panels{grid-template-columns:1fr}
+ #pageContent .purchasing-live-v1 .purchasing-ref-panels>.purchasing-full-panel{grid-column:auto}
+ #pageContent .purchasing-live-v1 .kpi-tiles.ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ #pageContent .purchasing-live-v1 .kpi-tiles.ws-kpi4{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ #pageContent .purchasing-live-v1 .kpi-tile{padding:12px;min-height:110px}
+ #pageContent .purchasing-live-v1 .kpi-tile .kpi-value{font-size:24px}
+ #pageContent .purchasing-live-v1 .mo-quickbar{align-items:flex-start;flex-direction:column;gap:10px}
+ #pageContent .purchasing-live-v1 .purchasing-ref-records-head{padding:13px 15px}
+}
+
+
+
+/* PURCHASING_REFERENCE_TABLE_DISTRIBUTION_V8
+   Replaces the experimental V4-V7 spacing rules: full-width cards AND tables,
+   like the supplied applicant table screenshot. Natural, proportional columns,
+   not content-only narrow tables or equally stretched auto-sized columns.
+   Styling is Purchasing-only; table actions and backend remain unchanged. */
+#pageContent .purchasing-live-v1 .purchasing-records-card,
+#pageContent .purchasing-live-v1 .purchasing-ref-records,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-list,
+#pageContent .purchasing-live-v1 .purchasing-ref-records-body .ref-tablebox{
+  width:100%;max-width:none;margin-inline:0;
+}
+#pageContent.ref-scope .purchasing-live-v1 .ref-tablebox{
+  width:100%;overflow-x:auto;
+}
+#pageContent.ref-scope .purchasing-live-v1 .ref-tablebox .data-table,
+#pageContent .purchasing-live-v1 .purchasing-records-card .data-table{
+  width:100%;min-width:960px;max-width:none;
+  margin:0;table-layout:fixed;border-collapse:collapse;
+  font-size:13px;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table td{
+  padding:13px 12px;line-height:1.45;text-align:left;vertical-align:middle;
+  overflow-wrap:break-word;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th{
+  font-size:12px;font-weight:700;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-sub{
+  font-size:11.5px;margin-top:3px;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clamp,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clip{
+  max-width:100%;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-icons,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions{
+  gap:5px;flex-wrap:nowrap;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th:last-child,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table td:last-child{
+  white-space:nowrap;
+}
+/* Percentages describe each column's share of the same full-width table.
+   Parts Requests: 8 fields incl actions. */
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(1){width:14%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(2){width:13%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(3){width:23%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(4){width:10%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(5){width:10%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(6){width:13%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(7){width:9%}
+#pageContent .purchasing-table-parts-requests .data-table th:nth-child(8){width:8%}
+/* Purchase Orders: 7 fields + actions. */
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(1){width:14%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(2){width:18%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(3){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(4){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(5){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(6){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(7){width:12%}
+#pageContent .purchasing-table-purchase-orders .data-table th:nth-child(8){width:8%}
+/* Inventory: 6 fields + actions, as in the user screenshot. */
+#pageContent .purchasing-table-inventory .data-table th:nth-child(1){width:19%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(2){width:28%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(3){width:12%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(4){width:11%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(5){width:11%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(6){width:11%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(7){width:8%}
+/* Physical counts use more columns: allow naturally even distribution. */
+#pageContent .purchasing-table-inventory:has(.data-table th:nth-child(8)) .data-table th{
+  width:auto;
+}
+/* Stock Movements: 7 fields + optional actions. */
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(1){width:16%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(2){width:21%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(3){width:11%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(4){width:8%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(5){width:21%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(6){width:11%}
+#pageContent .purchasing-table-stock-movements .data-table th:nth-child(7){width:12%}
+@media(max-width:1100px){
+  #pageContent.ref-scope .purchasing-live-v1 .ref-tablebox .data-table,
+  #pageContent .purchasing-live-v1 .purchasing-records-card .data-table{min-width:960px}
+}
+
+/* PURCHASING_INVENTORY_TOOLBAR_FIX_V9 */
+/* Inventory: put search and category/count filters on the SAME toolbar row,
+   removing the empty vertical gap shown in local screenshots. */
+#pageContent .purchasing-table-inventory .purchasing-inventory-toolbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 16px;margin:0;background:#fff;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .table-search{
+  flex:1 1 320px;min-width:180px;margin:0;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter{
+  display:flex;align-items:center;flex:0 0 auto;gap:8px;
+  padding:0;margin:0;min-height:0;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .form-select{
+  width:auto;min-width:150px;max-width:210px;min-height:40px;
+  margin:0;font-size:12px;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .ws-filter-reset{
+  margin:0;white-space:nowrap;
+}
+#pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .ref-reset{
+  margin:0;
+}
+@media(max-width:650px){
+  #pageContent .purchasing-table-inventory .purchasing-inventory-toolbar{padding:10px;gap:8px}
+  #pageContent .purchasing-table-inventory .purchasing-inventory-toolbar .table-search{flex:1 1 100%}
+  #pageContent .purchasing-table-inventory .purchasing-inventory-inline-filter .form-select{min-width:140px}
+}
+
+/* PURCHASING_UNIFIED_FILTER_TOOLBAR_V10 */
+/* One shared compact toolbar for all Purchasing record lists.
+   Filter markup is moved to the existing shared UI.table search toolbar,
+   so no extra row, duplicate controls or whitespace remains. */
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 16px;margin:0;background:#fff;min-height:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-search{
+  flex:1 1 280px;min-width:180px;margin:0;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters{
+  display:flex;align-items:center;flex:0 1 auto;flex-wrap:wrap;
+  gap:8px;padding:0;margin:0;min-height:0;width:auto;background:none;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{
+  width:auto;min-width:142px;max-width:205px;min-height:40px;
+  margin:0;padding-top:7px;padding-bottom:7px;font-size:12px;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters input[type="date"]{
+  min-width:145px;max-width:180px;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .ws-filter-reset,
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .ref-reset{
+  margin:0;white-space:nowrap;flex:0 0 auto;
+}
+#pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-count{
+  white-space:nowrap;margin:0;
+}
+@media(max-width:830px){
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .table-search{flex:1 1 100%;min-width:0}
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters{flex:1 1 auto}
+}
+@media(max-width:500px){
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar{padding:10px;gap:8px}
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-select,
+  #pageContent .purchasing-live-v1 .purchasing-unified-toolbar .purchasing-inline-filters .form-control{min-width:125px;max-width:100%}
+}
+
+/* FLEETOPS_GLOBAL_RECORD_DESIGN_V1 */
+/* Shared table typography and toolbars for FleetOps pages — no forced table width,
+   so role-specific Administration, Operations, and Purchasing layouts remain intact.
+   Applies only to records rendered in #pageContent (never popups or login screens). */
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar){
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  padding:12px 15px;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar) .table-search{
+  flex:1 1 280px;min-width:170px;max-width:none;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.fleet-unified-record-toolbar) .table-search .form-control{
+  min-height:40px;font-size:13px;border-radius:8px;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  flex:0 1 auto;width:auto;min-height:0;margin:0;padding:0;
+  background:transparent;border:0;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters :is(.form-select,.form-control){
+  min-height:39px;min-width:142px;max-width:210px;
+  width:auto;font-size:12.5px;margin:0;
+}
+#pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters input[type=date]{
+  min-width:145px;max-width:175px;
+}
+#pageContent .fleet-unified-record-toolbar :is(.ws-filter-reset,.ref-reset,.table-count){
+  margin:0;white-space:nowrap;
+}
+/* Shared visual rhythm, preserving every module's chosen column widths. */
+#pageContent .data-table{
+  font-size:13px;line-height:1.45;
+}
+#pageContent .data-table th{
+  font-size:12px;font-weight:700;letter-spacing:0;
+  padding-block:12px;
+}
+#pageContent .data-table td{
+  font-size:13px;line-height:1.45;
+  padding-block:13px;
+}
+#pageContent .data-table .cell-sub{
+  font-size:11.5px;line-height:1.4;margin-top:3px;
+}
+#pageContent .data-table :is(.badge-s,.status-badge){
+  font-size:11.5px;
+}
+#pageContent .table-count,
+#pageContent .pager-info{
+  font-size:12px;
+}
+#pageContent :is(.ref-toolbar,.table-tools) :is(.btn,.ref-reset){
+  min-height:35px;
+}
+#pageContent .data-table .row-icons,
+#pageContent .data-table .row-actions{
+  display:inline-flex;align-items:center;gap:6px;
+}
+@media(max-width:800px){
+  #pageContent .fleet-unified-record-toolbar .table-search{flex:1 1 100%}
+  #pageContent .fleet-unified-record-toolbar .fleet-inline-record-filters{flex:1 1 auto}
+}
+
+/* PURCHASING_DASHBOARD_TYPE_SCALE_V11 */
+/* Slightly larger dashboard typography only. Existing cards, grid and spacing stay intact. */
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels > .panel .panel-title{
+  font-size:16px;
+  line-height:1.4;
+  font-weight:750;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-tools :is(.ws-seeall,button,a){
+  font-size:13px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-top,
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-top b{
+  font-size:14px;
+  line-height:1.45;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-issue{
+  font-size:12.5px;
+  line-height:1.5;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-ref{
+  font-size:12px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-item-side :is(.badge,.badge-s),
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-title .text-muted{
+  font-size:12px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .mo-empty,
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .ws-panel-foot{
+  font-size:13px;
+  line-height:1.5;
+}
+#pageContent .purchasing-dashboard-ref .kpi-tile .kpi-label{font-size:13px}
+#pageContent .purchasing-dashboard-ref .kpi-tile .kpi-note{font-size:12px}
+
+/* FLEETOPS_CONTENT_DENSITY_V1 */
+/* Content-height dashboard columns fix blank white areas caused by grid row stretching.
+   Applies only to the two dashboards explicitly adapted above. Other departments retain
+   their functional chart/tables and layouts. */
+#pageContent .mp-wireframe-dashboard .mp-content-columns{
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);
+  align-items:start;
+  gap:14px;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column{
+  display:flex;flex-direction:column;gap:14px;min-width:0;align-self:start;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .panel.ws-panel{
+  display:flex;flex-direction:column;
+  width:100%;height:auto;min-height:0;
+  flex:0 0 auto;margin:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .panel.ws-panel .panel-body{
+  flex:0 0 auto;min-height:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .panel.ws-panel .ws-panel-foot{
+  margin-top:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-columns{
+  display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  align-items:start;gap:14px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column{
+  display:flex;flex-direction:column;gap:14px;min-width:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column > .panel.ws-panel{
+  flex:0 0 auto;width:100%;height:auto;min-height:0;margin:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column > .panel.ws-panel .panel-body{
+  flex:0 0 auto;min-height:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-content-column > .panel.ws-panel .ws-panel-foot{margin-top:0}
+#pageContent .purchasing-dashboard-ref .purchasing-content-columns > .purchasing-full-panel{
+  grid-column:1/-1;min-height:0;height:auto;align-self:start;
+}
+/* Shared compact spacing for normal data pages in all departments.
+   Avoid charts/maps, dialogs, long forms, and intentional dashboard feature cards. */
+#pageContent .page-body > .ws-filters,
+#pageContent .page-body > .filter-summary,
+#pageContent .page-body > .line-tabs{
+  margin-bottom:10px;
+}
+#pageContent .page-body .panel:not(.chart-panel):not(.rpm-feature-card):not(.ws-panel){
+  margin-bottom:12px;
+}
+#pageContent .page-body .panel:not(.chart-panel):not(.rpm-feature-card):not(.ws-panel) > .panel-head{
+  min-height:0;
+}
+#pageContent .page-body .panel:not(.chart-panel):not(.rpm-feature-card):not(.ws-panel) > .panel-body:not(.flush){
+  padding:13px 15px;
+}
+#pageContent .page-body .ref-list .ref-toolbar,
+#pageContent .page-body .fleet-unified-record-toolbar{
+  margin-block:0;
+}
+#pageContent .page-body .ref-list .ref-tablebox{margin-top:0}
+@media(max-width:1180px){
+ #pageContent .mp-wireframe-dashboard .mp-content-columns,
+ #pageContent .purchasing-dashboard-ref .purchasing-content-columns{grid-template-columns:1fr}
+}
+@media(max-width:767px){
+ #pageContent .mp-wireframe-dashboard .mp-content-column,
+ #pageContent .purchasing-dashboard-ref .purchasing-content-column{gap:10px}
+}
+
+
+/* BILLING_DESIGN_V2 — presentation only, scoped to the signed-in Billing workspace.
+   Retain server-driven billing verification, adjustments, collection and report logic. */
+#pageContent.billing-design-v2{
+  max-width:none; margin:0; padding:17px 20px 26px;
+  color:#203329; font-size:14px;
+}
+#pageContent.billing-design-v2>.page-head,
+#pageContent.billing-design-v2>.page-body{max-width:none}
+#pageContent.billing-design-v2>.page-head{margin-bottom:10px}
+#pageContent.billing-design-v2 .page-title{font-size:21px;letter-spacing:-.025em}
+#pageContent.billing-design-v2 .page-subtitle{font-size:13px;margin-top:3px}
+#pageContent.billing-design-v2 .page-body{
+  background:#fff; border:1.5px solid #dfe9e2; border-radius:12px;
+  padding:15px 16px 20px; min-width:0; box-shadow:0 2px 12px rgba(29,77,44,.035);
+}
+#pageContent.billing-design-v2 :is(.panel,.ws-panel,.stat-card,.record-panel,.table-panel,.chart-card,.chart,.data-table-wrap){
+  border-color:#dfe9e2; border-radius:9px;
+}
+#pageContent.billing-design-v2 .kpi-tile{border-color:#dfe9e2;border-radius:9px}
+#pageContent.billing-design-v2 :is(.panel,.ws-panel){min-width:0;box-shadow:none}
+#pageContent.billing-design-v2 .kpi-tiles{gap:10px;margin-bottom:11px}
+#pageContent.billing-design-v2 .kpi-tile{padding:12px 14px;min-height:0}
+#pageContent.billing-design-v2 .kpi-value{font-size:23px;line-height:1.25}
+#pageContent.billing-design-v2 :is(.panel-head,.ws-panel-head){padding:11px 13px}
+#pageContent.billing-design-v2 :is(.panel-body,.ws-panel-body){padding:11px 13px}
+#pageContent.billing-design-v2 :is(.mo-grid,.ws-grid2){gap:11px}
+#pageContent.billing-design-v2 .mo-list.mo-scroll{
+  max-height:320px!important;overflow-y:auto;overscroll-behavior:contain;
+}
+#pageContent.billing-design-v2 .mo-list.mo-scroll>.mo-item{
+  min-height:80px;height:80px;max-height:80px;box-sizing:border-box;
+  overflow:hidden;padding:9px 12px;align-items:center;
+}
+#pageContent.billing-design-v2 .mo-item-main{min-width:0;overflow:hidden}
+#pageContent.billing-design-v2 .mo-item-issue,
+#pageContent.billing-design-v2 .mo-item-top{line-height:1.35}
+#pageContent.billing-design-v2 .mo-item-issue{
+  overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+}
+#pageContent.billing-design-v2 .mo-item-side{max-width:44%;min-width:0}
+#pageContent.billing-design-v2 .mo-item-side>*{max-width:100%;white-space:normal}
+#pageContent.billing-design-v2 .mo-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;
+}
+#pageContent.billing-design-v2 .mo-grid .mo-main,
+#pageContent.billing-design-v2 .mo-grid .mo-side{display:contents}
+#pageContent.billing-design-v2 .mo-grid>.mo-main>.panel,
+#pageContent.billing-design-v2 .mo-grid>.mo-side>.panel{min-width:0}
+#pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:first-child{order:4;grid-column:1/-1}
+#pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:last-child{order:3}
+#pageContent.billing-design-v2 .mo-grid>.mo-main>.panel:first-child{order:1}
+#pageContent.billing-design-v2 .mo-grid>.mo-main>.panel:last-child{order:2}
+#pageContent.billing-design-v2 .data-table :is(th,td){padding-top:9px;padding-bottom:9px}
+#pageContent.billing-design-v2 .btn-sm{border-radius:7px}
+#pageContent.billing-design-v2 .table-actions :is(button,a){min-width:32px;min-height:32px}
+@media(max-width:1180px){
+  #pageContent.billing-design-v2 .mo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:first-child{grid-column:1/-1}
+}
+@media(max-width:750px){
+  #pageContent.billing-design-v2{padding:12px 10px 20px}
+  #pageContent.billing-design-v2 .page-body{padding:12px 10px}
+  #pageContent.billing-design-v2 .mo-grid{grid-template-columns:1fr}
+  #pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:first-child{grid-column:auto}
+  #pageContent.billing-design-v2 .kpi-value{font-size:19px}
+}
+
+
+/* BILLING_REFERENCE_V2_LIVE_PORT */
+/* The uploaded Billing v2 layout, implemented with live API data and existing
+   Billing UI actions. Only Billing-role pages use this presentation. */
+#pageContent.billing-design-v2>.page-body{border-color:#dfe9e2}
+#pageContent.billing-design-v2 .bil-v2-dashboard,
+#pageContent.billing-design-v2 .bil-v2-records{width:100%;min-width:0}
+#pageContent.billing-design-v2 .bil-v2-queues{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start;margin:12px 0}
+#pageContent.billing-design-v2 .bil-v2-panel{background:#fff;border:1px solid #dfe9e2;border-radius:9px;min-width:0;overflow:hidden}
+#pageContent.billing-design-v2 .bil-v2-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid #e9ece9}
+#pageContent.billing-design-v2 .bil-v2-panel-head h2{font-size:13px;font-weight:700;margin:0;color:#304633}
+#pageContent.billing-design-v2 .bil-v2-panel-head>span,#pageContent.billing-design-v2 .bil-v2-panel-head>small{color:#65766a;font-size:12px}
+#pageContent.billing-design-v2 .bil-v2-queue{margin:0;padding:0;list-style:none;max-height:320px;overflow-y:auto;overscroll-behavior:contain}
+#pageContent.billing-design-v2 .bil-v2-item{height:80px;max-height:80px;box-sizing:border-box;padding:10px 14px;border-bottom:1px solid #eef0ee;display:flex;gap:12px;align-items:center;justify-content:space-between;cursor:pointer}
+#pageContent.billing-design-v2 .bil-v2-item:hover{background:#f8fbf8}
+#pageContent.billing-design-v2 .bil-v2-item:focus-visible{outline:2px solid #cf9c17;outline-offset:-3px}
+#pageContent.billing-design-v2 .bil-v2-item-main{min-width:0;flex:1}
+#pageContent.billing-design-v2 .bil-v2-item-main b{font-size:13px;display:block;color:#213b2b}
+#pageContent.billing-design-v2 .bil-v2-item-main small{font-size:11.5px;color:#65776b;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+#pageContent.billing-design-v2 .bil-v2-item-side{display:flex;align-items:flex-end;flex-direction:column;gap:4px;text-align:right;flex-shrink:0;max-width:43%}
+#pageContent.billing-design-v2 .bil-v2-item-side strong{font-size:12px;color:#234332}
+#pageContent.billing-design-v2 .bil-v2-empty{padding:22px 12px;text-align:center;font-size:12px;color:#68766c}
+#pageContent.billing-design-v2 .bil-v2-aging{margin-top:12px}
+#pageContent.billing-design-v2 .bil-v2-aging-body{padding:12px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px}
+#pageContent.billing-design-v2 .bil-v2-aging-body>p{grid-column:1/-1;font-size:12px;color:#66796c;margin:0}
+#pageContent.billing-design-v2 .bil-v2-bar{display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:12px;cursor:pointer}
+#pageContent.billing-design-v2 .bil-v2-bar>b{color:#2a4834}
+#pageContent.billing-design-v2 .bil-v2-track{grid-column:1/-1;height:8px;background:#edf1ed;border-radius:8px;overflow:hidden}
+#pageContent.billing-design-v2 .bil-v2-track>i{display:block;height:100%;background:#207847}
+#pageContent.billing-design-v2 .bil-v2-track>.blue{background:#357bbb}
+#pageContent.billing-design-v2 .bil-v2-track>.amber{background:#c78a2c}
+#pageContent.billing-design-v2 .bil-v2-track>.red{background:#c64d41}
+#pageContent.billing-design-v2 .bil-v2-record-panel{border:1px solid #dfe9e2;border-radius:9px;background:#fff;overflow:hidden;margin-top:12px}
+#pageContent.billing-design-v2 .bil-v2-tabstrip{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:3px;padding:8px 13px 0;border-bottom:1px solid #e6e9e6}
+#pageContent.billing-design-v2 .bil-v2-tabstrip button{border:0;border-bottom:3px solid transparent;background:none;color:#576f60;white-space:nowrap;padding:10px 11px;font-size:12px;font-weight:650}
+#pageContent.billing-design-v2 .bil-v2-tabstrip button.active{color:#1c6740;border-bottom-color:#237846}
+#pageContent.billing-design-v2 .bil-v2-tabstrip small{font-size:10px;background:#f0f2f0;border-radius:12px;padding:2px 6px}
+#pageContent.billing-design-v2 .bil-v2-record-content{padding:12px 13px}
+#pageContent.billing-design-v2 .bil-v2-record-content .data-table{width:100%}
+#pageContent.billing-design-v2 .bil-v2-record-content th{font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+#pageContent.billing-design-v2 .bil-v2-record-content td{font-size:12.5px}
+@media(max-width:1180px){#pageContent.billing-design-v2 .bil-v2-queues{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:750px){#pageContent.billing-design-v2 .bil-v2-queues{grid-template-columns:1fr}#pageContent.billing-design-v2 .bil-v2-aging-body{grid-template-columns:1fr}#pageContent.billing-design-v2 .bil-v2-record-content{padding:8px}}
+
+/* BILLING_QUEUE_LIMITS_V3 — exact visible row capacities in Billing Overview.
+   Empty/short queues keep a consistent card height; overflow scrolls inside.
+   All record rows stay in DOM and remain keyboard / mouse accessible. */
+#pageContent.billing-design-v2 .bil-v2-queue{
+  overflow-y:auto;
+  scrollbar-gutter:stable;
+  min-height:0;
+}
+#pageContent.billing-design-v2 .bil-v2-queue-4{
+  height:320px;min-height:320px;max-height:320px;
+}
+#pageContent.billing-design-v2 .bil-v2-queue-3{
+  height:240px;min-height:240px;max-height:240px;
+}
+#pageContent.billing-design-v2 .bil-v2-queue-5{
+  height:400px;min-height:400px;max-height:400px;
+}
+#pageContent.billing-design-v2 .bil-v2-queue>.bil-v2-item{
+  height:80px;min-height:80px;max-height:80px;
+}
+
+/* BILLING_WIREFRAME_2COL_LAYOUT_V4 */
+/* Exact Billing reference arrangement: left = Trips to Bill / Overdue,
+   right = Receivables Aging / Recent Collections. Scroll caps stay 4/3/5. */
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid{
+  display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);
+  align-items:start;gap:12px;margin-top:12px;
+}
+#pageContent.billing-design-v2 .bil-v2-left,
+#pageContent.billing-design-v2 .bil-v2-right{
+  display:flex;flex-direction:column;gap:12px;min-width:0;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-aging{
+  margin-top:0;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-aging-body{
+  display:block;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-bar{
+  margin:0 0 13px;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-aging-body>p{
+  margin:5px 0 0;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-panel{
+  margin:0;min-width:0;
+}
+@media(max-width:1000px){
+  #pageContent.billing-design-v2 .bil-v2-wireframe-grid{grid-template-columns:1fr;}
+}
+
+
+/* Purchasing dashboard: force neutral inner-card borders regardless of whether
+   dashboard content is nested inside .page-body or mounted directly. */
+#pageContent .purchasing-dashboard-ref :is(.panel.ws-panel,.purchasing-full-panel,.purchasing-ref-panels>.panel),
+#pageContent .purchasing-live-v1 :is(.panel.ws-panel,.purchasing-full-panel,.purchasing-ref-panels>.panel){
+  border:1px solid #dfe9e2 !important;
+}
+
+
+/* MAINTENANCE_ORANGE_OUTLINE_FIX_V3
+   Exact selectors for Motorpool dashboard visible in user's screenshot.
+   Neutralize both colored borders AND halo/shadow on regular content cards.
+   Does not touch sidebar/topbar, layout or controls. */
+#pageContent .maint-overview.mp-wireframe-dashboard .head-trip-kpis .head-fleet-kpi,
+#pageContent .maint-overview.mp-wireframe-dashboard .mo-quickbar,
+#pageContent .maint-overview.mp-wireframe-dashboard .mp-wireframe-layout > .panel.ws-panel,
+#pageContent .maint-overview.mp-wireframe-dashboard .mp-content-columns .panel.ws-panel,
+#pageContent .maint-overview.mp-wireframe-dashboard .mp-content-column > .panel.ws-panel,
+#pageContent .maint-overview.mp-wireframe-dashboard .panel.ws-panel {
+  border:1px solid #dfe9e2 !important;
+  box-shadow:none !important;
+  outline-color:#dfe9e2;
+}
+
+/* MP_LOCKED_REPAIR_REFERENCE_V1 */
+/* Repair-originated parts requests: keep the selected values visible as
+   fixed references, with no dropdown chevron or dropdown interaction. */
+.mp-parts-request-modal select.mp-locked-reference,
+.mp-parts-request-modal select.mp-locked-reference:disabled {
+  appearance:none !important;
+  -webkit-appearance:none !important;
+  background-image:none !important;
+  background-color:#f4f7f5 !important;
+  color:#294737 !important;
+  opacity:1 !important;
+  cursor:default !important;
+  padding-right:12px !important;
+}
+
+/* MOTORPOOL_REPAIR_OVERVIEW_ACTION_HIERARCHY_V1 */
+/* Simple repair overview in the record drawer. Preserve other page layouts. */
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-overview-summary {
+  display:flex;flex-direction:column;gap:11px;
+  padding:14px 16px;margin:0 0 12px;
+  background:#f8fbf9;border:1px solid #dfe9e2;border-radius:10px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-overview-top {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-next{
+  display:flex;flex-direction:column;gap:4px;
+  padding:10px 0;border-top:1px solid #e3ebe5;color:#294d38;font-size:13px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-next strong,
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-actions>strong{
+  font-family:var(--font-heading,"Poppins",sans-serif);font-size:12.5px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action .btn{min-height:37px;padding:7px 14px}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-actions{
+  padding:12px 16px;margin:0 0 16px;border:1px solid #e1eae3;
+  border-radius:10px;background:#fff;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-buttons{
+  display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-buttons .btn{white-space:normal;text-align:left}
+
+/* MOTORPOOL_ATTENDANCE_TEXT_ACTION_FIX_V1
+   Text Time In/Time Out + View icon must not overlap or be compressed. */
+#pageContent .mp-mechanic-attendance-table .data-table :is(th,td).actions-col {
+  width: 166px !important;
+  min-width: 166px !important;
+  max-width: none !important;
+  white-space: nowrap;
+  text-align: right;
+}
+#pageContent .mp-mechanic-attendance-table .data-table .row-actions,
+#pageContent .mp-mechanic-attendance-table .data-table .row-icons {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  min-width: max-content;
+  max-width: none !important;
+}
+#pageContent .mp-mechanic-attendance-table .data-table .row-icons > .btn {
+  flex: 0 0 auto;
+  white-space: nowrap !important;
+  width: auto !important;
+  min-height: 34px;
+  line-height: 1.25;
+}
+#pageContent .mp-mechanic-attendance-table .data-table .row-icons > .btn[data-act="toggle"] {
+  min-width: 86px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+#pageContent .mp-mechanic-attendance-table .ref-tablebox,
+#pageContent .mp-mechanic-attendance-table .table-wrap {
+  overflow-x: auto;
+}
+
+/* MOTORPOOL_REPAIR_ROW_ACTION_SPACING_V1 */
+/* Scope to Repair Management. Preserve every action and provide enough room
+   for the text-based next-step button + icon actions without overlap. */
+#pageContent .mp-repair-records-table .data-table :is(th,td).actions-col{
+  width:1% !important;
+  min-width:250px !important;
+  max-width:none !important;
+  text-align:right;
+  white-space:nowrap;
+}
+#pageContent .mp-repair-records-table .data-table .row-actions,
+#pageContent .mp-repair-records-table .data-table .row-icons{
+  display:inline-flex !important;
+  flex-wrap:nowrap !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  width:max-content;
+  min-width:max-content;
+  max-width:none !important;
+}
+#pageContent .mp-repair-records-table .data-table .row-icons > .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto !important;
+  width:auto !important;
+  min-width:34px;
+  min-height:34px;
+  white-space:nowrap !important;
+}
+#pageContent .mp-repair-records-table .data-table .row-icons > .mp-repair-step-btn{
+  min-width:115px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:650;
+}
+#pageContent .mp-repair-records-table :is(.ref-tablebox,.table-wrap,.table-card){
+  overflow-x:auto;
+}
+
+/* MOTORPOOL_REPAIR_DRAWER_LAYOUT_FIX_V2
+   Repair drawers are mounted directly on document.body, not under #appShell. */
+.app-drawer:has(.mp-repair-overview-summary) .ui-record-sections .tab-body{padding-top:14px}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-overview-summary{
+  gap:14px;padding:16px;margin-bottom:14px
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-overview-top{
+  justify-content:flex-start;gap:10px
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-next{
+  gap:6px;padding:13px 0;line-height:1.5
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-next > :is(strong,span){display:block}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action{
+  align-items:flex-start;flex-direction:column
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action .btn{
+  display:inline-flex;align-items:center;gap:6px
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-actions{margin-bottom:20px}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-buttons{gap:8px}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-support-buttons .btn{
+  display:inline-flex;align-items:center;gap:5px;min-height:35px
+}
+.app-drawer:has(.mp-repair-overview-summary) .ui-record-sections .drawer-h{margin-top:18px}

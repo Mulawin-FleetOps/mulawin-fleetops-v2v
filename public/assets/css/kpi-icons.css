@@ -1,0 +1,455 @@
+/* KPI_SOLID_ICONS_V1
+   Approved Option 2 across Mulawin FleetOps:
+   solid, flat 42px rounded-square icon chips; white glyphs;
+   semantic colors; gold KPI borders remain defined elsewhere.
+   This final stylesheet is loaded AFTER department and typography CSS.
+   No structural sizing, permissions, actions, or card borders changed. */
+#pageContent{
+  --kpi-green:#158354;
+  --kpi-blue:#1769B5;
+  --kpi-amber:#DC8B06;
+  --kpi-red:#CB4042;
+  --kpi-purple:#7545AC;
+  --kpi-slate:#64748B;
+}
+/* Common KPI icon chips (do not target non-KPI action icons). */
+#pageContent :is(
+ .kpi-tile .kpi-icon,
+ .metric-strip-icons .metric-icon,
+ .head-kpi .head-kpi-icon,
+ .rpm-kpi .rpm-kpi-icon,
+ .rpm-exec-kpis .rpm-kpi-icon,
+ .dispatcher-record-kpi-grid .ds-card-icon,
+ .ds-summary .ds-summary-card .ds-card-icon,
+ .oh-metric .oh-metric-icon,
+ .ax-kpi .ax-kpi-icon,
+ .stat-card .stat-icon
+){
+ display:inline-flex !important;
+ align-items:center !important;
+ justify-content:center !important;
+ flex:0 0 42px;
+ width:42px;
+ height:42px;
+ min-width:42px;
+ border-radius:11px !important;
+ background:var(--kpi-green) !important;
+ color:#fff !important;
+ border:0 !important;
+ box-shadow:none !important;
+ opacity:1 !important;
+}
+#pageContent :is(
+ .kpi-tile .kpi-icon,
+ .metric-strip-icons .metric-icon,
+ .head-kpi .head-kpi-icon,
+ .rpm-kpi .rpm-kpi-icon,
+ .dispatcher-record-kpi-grid .ds-card-icon,
+ .ds-summary .ds-summary-card .ds-card-icon,
+ .oh-metric .oh-metric-icon,
+ .ax-kpi .ax-kpi-icon,
+ .stat-card .stat-icon
+) :is(i,svg,.bi){
+ color:#fff !important;
+ opacity:1 !important;
+}
+/* All role scopes show icons. Existing flex/grid card layout is preserved. */
+#pageContent.ref-scope .kpi-tile .kpi-icon{display:inline-flex !important;}
+/* Metric-strip semantic colors. */
+#pageContent .metric-strip-icons .metric-icon-blue{background:var(--kpi-blue) !important}
+#pageContent .metric-strip-icons .metric-icon-amber{background:var(--kpi-amber) !important}
+#pageContent .metric-strip-icons .metric-icon-red{background:var(--kpi-red) !important}
+#pageContent .metric-strip-icons .metric-icon-purple{background:var(--kpi-purple) !important}
+#pageContent .metric-strip-icons .metric-icon-gray{background:var(--kpi-slate) !important}
+/* Workspace KPI tone classes; only color the icon, never the card. */
+#pageContent .kpi-tile.tone-blue .kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .kpi-tile.tone-amber .kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .kpi-tile.tone-red .kpi-icon{background:var(--kpi-red) !important}
+#pageContent .kpi-tile.tone-purple .kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .kpi-tile.tone-gray .kpi-icon{background:var(--kpi-slate) !important}
+/* Fleet and Motorpool. */
+#pageContent .head-kpi.blue .head-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .head-kpi.purple .head-kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .head-kpi.red .head-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .head-kpi.amber .head-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .head-kpi.gray .head-kpi-icon{background:var(--kpi-slate) !important}
+/* Explicit approved Motorpool example, independently of older tone values. */
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(1) .head-kpi-icon{background:var(--kpi-green) !important}
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(2) .head-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(3) .head-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(4) .head-kpi-icon{background:var(--kpi-purple) !important}
+/* Executive KPIs. */
+#pageContent .rpm-kpi-amber .rpm-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .rpm-kpi-red .rpm-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .rpm-kpi-blue .rpm-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .rpm-kpi-purple .rpm-kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .rpm-kpi-gray .rpm-kpi-icon{background:var(--kpi-slate) !important}
+/* Dispatcher summaries use existing semantic color classes. */
+#pageContent .ds-summary-card .ds-card-icon:is(.blue,.active,.cyan){background:var(--kpi-blue) !important}
+#pageContent .ds-summary-card .ds-card-icon:is(.orange,.resources){background:var(--kpi-amber) !important}
+#pageContent .ds-summary-card .ds-card-icon:is(.incidents,.red){background:var(--kpi-red) !important}
+#pageContent .ds-summary-card .ds-card-icon.purple{background:var(--kpi-purple) !important}
+#pageContent .ds-summary-card .ds-card-icon.gray{background:var(--kpi-slate) !important}
+#pageContent .ds-summary-card .ds-card-icon:is(.green,.attendance){background:var(--kpi-green) !important}
+/* Admin/Analytics named palette variants. */
+#pageContent .ax-kpi:is(.blue,.tone-blue) .ax-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .ax-kpi:is(.amber,.tone-amber) .ax-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .ax-kpi:is(.red,.tone-red) .ax-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .ax-kpi:is(.purple,.tone-purple) .ax-kpi-icon{background:var(--kpi-purple) !important}
+@media(max-width:600px){
+ #pageContent :is(.kpi-tile .kpi-icon,.metric-strip-icons .metric-icon,.head-kpi .head-kpi-icon,.rpm-kpi .rpm-kpi-icon,.ds-summary-card .ds-card-icon){
+   width:36px;min-width:36px;height:36px;flex-basis:36px;font-size:17px;
+ }
+}
+
+/* SEMANTIC_KPI_CLASSES_V2
+   Shared renderers attach dedicated color classes regardless of count.
+   These icon-only rules are intentionally last so older role-specific gray
+   fallback tones cannot override the semantic icon palette. */
+#pageContent .kpi-tile.kpi-color-green .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-green .rpm-kpi-icon{background:var(--kpi-green) !important}
+#pageContent .kpi-tile.kpi-color-blue .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-blue .rpm-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .kpi-tile.kpi-color-amber .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-amber .rpm-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .kpi-tile.kpi-color-red .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-red .rpm-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .kpi-tile.kpi-color-purple .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-purple .rpm-kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .kpi-tile.kpi-color-gray .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-gray .rpm-kpi-icon{background:var(--kpi-slate) !important}
+
+/* SPECIALIZED_KPI_COLORS_V3
+   Icon backgrounds in independently-rendered KPI cards follow the same
+   semantic class mapping as standard Purchasing tiles. */
+#pageContent :is(
+  .mp-action-stage .mp-action-stage-icon,
+  .pr-sum-card .pr-sum-icon,
+  .ws-kpi-card .ws-kpi-icon,
+  .stat-card .stat-icon
+){
+  display:inline-flex !important;
+  align-items:center;justify-content:center;
+  width:42px;height:42px;min-width:42px;flex:0 0 42px;
+  border-radius:11px !important;
+  color:#fff !important;
+  background:var(--kpi-green) !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+#pageContent :is(
+  .mp-action-stage .mp-action-stage-icon,
+  .pr-sum-card .pr-sum-icon,
+  .ws-kpi-card .ws-kpi-icon,
+  .stat-card .stat-icon
+) :is(i,.bi,svg){color:#fff !important;opacity:1 !important}
+#pageContent .kpi-semantic-green :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-green) !important;color:#fff !important}
+#pageContent .kpi-semantic-blue :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-blue) !important;color:#fff !important}
+#pageContent .kpi-semantic-amber :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-amber) !important;color:#fff !important}
+#pageContent .kpi-semantic-red :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-red) !important;color:#fff !important}
+#pageContent .kpi-semantic-purple :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-purple) !important;color:#fff !important}
+#pageContent .kpi-semantic-gray :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-slate) !important;color:#fff !important}
+#pageContent :is(.head-kpi,.rpm-kpi,.ds-summary-card,.oh-metric,.ax-kpi,.mp-action-stage,.pr-sum-card,.ws-kpi-card,.stat-card)
+ :is(.head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,.mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon)
+ :is(i,.bi,svg){color:#fff !important;opacity:1 !important}
+@media(max-width:600px){
+ #pageContent :is(.mp-action-stage .mp-action-stage-icon,.pr-sum-card .pr-sum-icon,.ws-kpi-card .ws-kpi-icon){
+  width:36px;height:36px;min-width:36px;flex-basis:36px
+ }
+}
+
+/* UNIFIED_KPI_TILE_LAYOUT_V4
+   All shared KPI tiles align with Maintenance/Purchasing:
+   leading solid icon, compact label / prominent number / note on the right.
+   No changes to KPI values, click handlers, gold outline or other panels. */
+#pageContent .kpi-tiles .kpi-tile {
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:12px !important;
+  min-width:0;
+  border-top-width:1px !important;
+  padding:15px !important;
+  min-height:103px;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-icon {
+  display:inline-flex !important;
+  flex:0 0 42px !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:42px !important;
+  height:42px !important;
+  min-width:42px !important;
+  margin:0 !important;
+  grid-row:auto !important;
+  grid-column:auto !important;
+  border-radius:11px !important;
+  font-size:19px !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-body {
+  display:flex !important;
+  flex:1 1 0;
+  flex-direction:column !important;
+  gap:0;
+  order:initial;
+  grid-row:auto !important;
+  grid-column:auto !important;
+  min-width:0;
+  margin:0;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-label {
+  order:0 !important;
+  margin:0 !important;
+  line-height:1.35;
+  font-size:12px;
+  font-weight:650;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-value {
+  order:1 !important;
+  margin:5px 0 2px !important;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(21px,1.8vw,27px);
+  line-height:1.16;
+  font-weight:750;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-note {
+  order:2 !important;
+  margin:2px 0 0 !important;
+  font-size:11.5px;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-go{display:none !important}
+/* Billing-specific uniform rows: 6 KPIs on Overview, 5 on Invoices.
+   At narrower widths, cards wrap without reducing the icon to a tiny square. */
+#pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+#pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+  display:grid;
+  gap:10px;
+  margin:0 0 13px;
+}
+#pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles{
+  grid-template-columns:repeat(6,minmax(0,1fr));
+}
+#pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+}
+#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile{
+  border-radius:11px;
+  background:#fff;
+  min-height:110px;
+}
+@media(max-width:1350px){
+  #pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+  #pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+@media(max-width:720px){
+  #pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+  #pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:460px){
+  #pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+  #pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:600px){
+  #pageContent .kpi-tiles .kpi-tile > .kpi-icon{
+    width:38px !important;height:38px !important;
+    min-width:38px !important;flex-basis:38px !important;
+    font-size:17px !important;
+  }
+}
+
+/* KPI_FORMAT_STANDARD_V6
+   Purchasing reference is authoritative: icon on left and vertically stacked
+   small label, number, then supporting note. Shared across role KPIs only.
+   No changes to KPI data, actions, borders or other content layouts. */
+#pageContent .kpi-tiles .kpi-tile,
+#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile {
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:12px !important;
+  padding:15px !important;
+  min-height:108px;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-body,
+#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile > .kpi-body{
+  display:flex !important;
+  flex:1 1 auto !important;
+  flex-direction:column !important;
+  min-width:0;
+  gap:0;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-label{
+  order:0 !important;
+  font-size:12px;
+  line-height:1.35;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-value{
+  order:1 !important;
+  align-self:flex-start !important;
+  justify-self:start !important;
+  margin:5px 0 2px !important;
+  font-size:clamp(22px,1.8vw,28px);
+  line-height:1.15;
+  text-align:left !important;
+  white-space:normal !important;
+  overflow-wrap:anywhere;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-note{
+  order:2 !important;
+  margin:3px 0 0 !important;
+  font-size:11.5px;
+  line-height:1.35;
+}
+/* Motorpool / Operations Head: existing title and value, with the optional
+   existing details line beneath. Keep the icon to the left. */
+#pageContent .head-trip-kpis .head-kpi.head-fleet-kpi{
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:12px;
+  min-width:0;
+  min-height:108px;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi > .head-kpi-icon{
+  flex:0 0 42px;
+  width:42px;height:42px;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value{
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:0;
+  min-width:0;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value > span{
+  display:block;
+  font-size:12px;
+  line-height:1.35;
+  font-weight:650;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value > strong{
+  display:block;
+  margin:5px 0 2px;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+  line-height:1.15;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value > .head-kpi-note{
+  display:block;
+  margin-top:3px;
+  font-family:var(--font-sans,"Manrope",sans-serif);
+  font-size:11.5px;
+  font-weight:400;
+  line-height:1.35;
+  color:#718579;
+}
+/* Motorpool stage cards previously put the number at far right. */
+#pageContent .mp-action-stages .mp-action-stage {
+  display:grid !important;
+  grid-template-columns:42px minmax(0,1fr) !important;
+  grid-template-rows:auto auto auto;
+  align-content:start;
+  align-items:start;
+  gap:0 12px !important;
+  min-height:108px;
+  padding:15px !important;
+}
+#pageContent .mp-action-stages .mp-action-stage > .mp-action-stage-icon {
+  grid-column:1;grid-row:1 / span 3;
+  flex:0 0 42px;width:42px;height:42px;
+}
+#pageContent .mp-action-stages .mp-action-stage > .mp-action-stage-content{
+  display:contents !important;
+}
+#pageContent .mp-action-stages .mp-action-stage-content > b{
+  grid-column:2;grid-row:1;line-height:1.35;font-size:12px;
+}
+#pageContent .mp-action-stages .mp-action-stage-count{
+  grid-column:2;grid-row:2;
+  margin:5px 0 2px;
+  text-align:left;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+  line-height:1.15;
+}
+#pageContent .mp-action-stages .mp-action-stage-content > small{
+  grid-column:2;grid-row:3;
+  margin-top:3px;line-height:1.35;font-size:11.5px;
+}
+/* Shared metric KPI strips (Reports, Finance, Head views). */
+#pageContent .metric-strip-icons .metric-icon-card{
+  align-items:flex-start;
+  gap:12px;
+  padding:15px;
+  min-height:108px;
+}
+#pageContent .metric-strip-icons .metric-content{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  min-width:0;
+}
+#pageContent .metric-strip-icons .metric-value{
+  margin:5px 0 2px;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+}
+#pageContent .metric-strip-icons .metric-note{margin-top:3px}
+/* Management dashboard cards: keep their existing label/value/note
+   relationships but ensure the title precedes the number. */
+#pageContent .rpm-kpi .rpm-kpi-value,
+#pageContent .rpm-kpi .rpm-kpi-note {margin-left:43px}
+#pageContent .rpm-kpi .rpm-kpi-value{
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+}
+#pageContent .ds-summary-card .ds-card-copy{
+  display:flex;flex-direction:column;min-width:0;
+}
+#pageContent .ds-summary-card .ds-card-copy > span{
+  order:0;margin:0;font-size:12px;
+}
+#pageContent .ds-summary-card .ds-card-copy > strong{
+  order:1;margin:5px 0 2px;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+}
+@media(max-width:600px){
+  #pageContent .mp-action-stages .mp-action-stage{
+    grid-template-columns:38px minmax(0,1fr) !important;
+  }
+  #pageContent .mp-action-stages .mp-action-stage > .mp-action-stage-icon,
+  #pageContent .head-trip-kpis .head-fleet-kpi > .head-kpi-icon{
+    width:38px;height:38px;flex-basis:38px;
+  }
+}

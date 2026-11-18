@@ -32,8 +32,9 @@ final class Actions {
         'Maintenance' => 'Maintenance', 'Mechanics' => 'Maintenance', 'Purchasing' => 'Maintenance',
         'Funds' => 'Accounting', 'Billing' => 'Accounting', 'Finance' => 'Accounting',
         'Attendance' => 'Administration',
-        'Analytics' => 'General', 'Documents' => 'General', 'Maps' => 'General',
-        'Admin' => 'Administration',
+        'Analytics' => 'General', 'Approvals' => 'General', 'Documents' => 'General', 'Maps' => 'General',
+        'HeadManagement' => 'Administration',
+        'Admin' => 'Administration', 'Oversight' => 'Administration',
     ];
 
     /** Loads backend/Modules/<Department>/<Name>.php safely and returns the class name. */

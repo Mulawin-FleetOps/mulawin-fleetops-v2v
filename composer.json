@@ -1,0 +1,12 @@
+{
+    "require-dev": {
+        "phpunit/phpunit": "^11"
+    },
+    "scripts": {
+        "test": "@php vendor/phpunit/phpunit/phpunit",
+        "test:unit": "@php vendor/phpunit/phpunit/phpunit --testsuite Unit",
+        "test:integration": "@php vendor/phpunit/phpunit/phpunit --testsuite Integration",
+        "test:feature": "@php vendor/phpunit/phpunit/phpunit --testsuite Feature",
+        "test:all": "@php vendor/phpunit/phpunit/phpunit --testsuite Safe,Integration,Feature"
+    }
+}

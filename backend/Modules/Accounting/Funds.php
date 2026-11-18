@@ -24,13 +24,14 @@ core('Notify');
 core('Money');
 core('Files');
 core('Settings');
+core('DispatcherScope');
 
 // CHECKLIST_40_FINANCE_WINDOW_V1: scheduling always uses Asia/Manila from bootstrap.php.
 final class Funds {
     public static function read(array $u, string $page, array $q): array {
         $p = db();
         $scope = ''; $args = [];
-        if (roleIsDispatcher($u['role'])) { $scope = ' AND (t.dispatcher_role=? OR f.requested_by=?)'; $args = [$u['role'], $u['id']]; }
+        if (roleIsDispatcher($u['role'])) [$scope,$args]=DispatcherScope::tripSql($u);
         $data = readSections([
             'funds' => fn() => many($p, "SELECT f.*, t.trip_ref, t.status AS trip_status, t.truck_type, t.pickup_point, t.delivery_point, t.scheduled_at,
                     c.company_name AS client, v.plate_number, ru.full_name AS requested_by_name, au.full_name AS approved_by_name,
@@ -43,11 +44,20 @@ final class Funds {
         ]);
         if (roleIsDispatcher($u['role'])) {
             $data = mergeSections($data, [
+                // Existing Diesel PO attachments only. No request approval/issuance workflow is implied.
+                'fuelTrips' => fn() => many($p, "SELECT t.id, t.trip_ref, t.truck_type, t.status, t.dispatcher_role, v.plate_number,
+                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Diesel PO') AS diesel_po_docs
+                    FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id
+                    WHERE 1=1 $scope AND (t.status NOT IN ('Pending Review','Rejected','Cancelled')
+                        OR EXISTS (SELECT 1 FROM documents pd WHERE pd.entity_type='trip' AND pd.entity_id=t.id AND pd.category='Diesel PO')) ORDER BY t.id DESC LIMIT 1000", $args),
+                'dieselDocuments' => fn() => many($p, "SELECT d.id,d.category,d.original_filename,d.mime_type,d.created_at,us.full_name AS uploader,t.id AS trip_id,t.trip_ref
+                    FROM documents d JOIN trips t ON d.entity_type='trip' AND d.entity_id=t.id JOIN users us ON us.id=d.uploaded_by
+                    WHERE d.category='Diesel PO' $scope ORDER BY d.id DESC LIMIT 2000", $args),
                 'eligibleTrips' => fn() => many($p, "SELECT t.id, t.trip_ref, t.status, t.attempt_number, t.pickup_point, t.delivery_point, v.plate_number
                     FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id
-                    WHERE t.dispatcher_role=? AND t.status IN ('Pre-Assigned','Ready for Dispatch')
+                    WHERE 1=1 $scope AND t.status IN ('Pre-Assigned','Ready for Dispatch')
                       AND NOT EXISTS (SELECT 1 FROM fund_requests f WHERE f.trip_id=t.id AND f.attempt_number=t.attempt_number AND f.status<>'Rejected')
-                    ORDER BY t.scheduled_at", [$u['role']]),
+                    ORDER BY t.scheduled_at", $args),
             ]);
         }
         // Server-derived flags power the Finance UI; the release API rechecks time.
@@ -79,15 +89,24 @@ final class Funds {
     }
 
     /**
-     * Builds the request lines. Preset amounts are ALWAYS taken from the database
-     * (the screen cannot change them); added categories use the typed amount.
+     * Builds request lines using active preset categories and the amounts entered
+     * for this request, without changing the configured category defaults.
      */
     private static function lines(PDO $p, array $d): array {
         $presets = array_column(many($p, 'SELECT name, amount FROM fund_categories WHERE active=1'), 'amount', 'name');
+        $requestedAmounts = $d['preset_amounts'] ?? [];
+        must(is_array($requestedAmounts), 'Invalid preset expense amounts.');
+        $selected = $d['categories'] ?? [];
+        must(is_array($selected), 'Invalid fund categories.');
         $lines = [];
-        foreach ((array)($d['categories'] ?? []) as $name) {
-            must(is_string($name) && isset($presets[$name]), 'Unknown fund category: ' . (is_string($name) ? $name : '?'));
-            $lines[$name] = ['category_name' => $name, 'amount' => number_format((float)$presets[$name], 2, '.', ''), 'is_preset' => 1];
+        foreach ($selected as $name) {
+            must(is_string($name) && array_key_exists($name, $presets), 'Unknown fund category: ' . (is_string($name) ? $name : '?'));
+            must(!isset($lines[$name]), 'Duplicate fund category: ' . $name);
+            $requested = array_key_exists($name, $requestedAmounts) ? $requestedAmounts[$name] : $presets[$name];
+            must(is_string($requested) || is_numeric($requested), 'Invalid preset expense amount.');
+            $amount = moneyField(['amount' => (string)$requested], 'amount');
+            must((float)$amount > 0, 'Preset expense amounts must be greater than zero.');
+            $lines[$name] = ['category_name' => $name, 'amount' => $amount, 'is_preset' => 1];
         }
         foreach ((array)($d['extra'] ?? []) as $x) {
             if (!is_array($x)) continue;
@@ -101,15 +120,49 @@ final class Funds {
         return array_values($lines);
     }
 
+    /** PO amounts are independent from cash fund requests. */
+    private static function dieselPo(array $d): ?array {
+        if(!isset($d['diesel_po']))return null;
+        $po=$d['diesel_po'];must(is_array($po),'Invalid Diesel PO data.');
+        $number=trim((string)($po['po_number']??''));
+        $date=trim((string)($po['po_date']??''));
+        $vehicle=trim((string)($po['vehicle']??''));
+        $plate=trim((string)($po['plate_number']??''));
+        must($number!==''&&textLength($number)<=60,'Enter a P.O. number up to 60 characters.');
+        must((bool)preg_match('/^\d{4}-\d{2}-\d{2}$/',$date),'Enter a valid PO date.');
+        [$y,$m,$day]=array_map('intval',explode('-',$date));
+        must(checkdate($m,$day,$y),'Enter a valid PO date.');
+        must($vehicle!==''&&textLength($vehicle)<=100,'Enter the vehicle name.');
+        must($plate!==''&&textLength($plate)<=40,'Enter the plate number.');
+        $lines=$po['lines']??[];
+        must(is_array($lines)&&count($lines)>=1&&count($lines)<=12,'Provide 1 to 12 PO lines.');
+        $items=[];$sum=0.0;
+        foreach($lines as $line){
+            must(is_array($line),'Invalid PO line.');
+            $liters=trim((string)($line['liters']??''));
+            $rate=trim((string)($line['unit_price']??''));
+            must((bool)preg_match('/^\d{1,6}(?:\.\d{1,3})?$/',$liters)&&(float)$liters>0,'Invalid liters quantity.');
+            must((bool)preg_match('/^\d{1,7}(?:\.\d{1,2})?$/',$rate)&&(float)$rate>0,'Invalid amount per liter.');
+            $amount=round((float)$liters*(float)$rate,2);
+            $sum+=$amount;
+            $items[]=['liters'=>$liters,'unit_price'=>$rate,'total'=>number_format($amount,2,'.','')];
+        }
+        must($sum>0&&$sum<=999999999999.99,'PO total exceeds the limit.');
+        return ['po_number'=>$number,'po_date'=>$date,'vehicle'=>$vehicle,'plate_number'=>$plate,
+            'lines'=>$items,'total_amount'=>number_format($sum,2,'.','')];
+    }
+
     /** Dispatcher submits (or revises a rejected) fund request. */
     private static function submit(array $u, array $d): array {
         must(roleIsDispatcher($u['role']), 'Only dispatchers submit trip fund requests.', 403);
         $tripId = idField($d, 'trip_id');
         $notes = optField($d, 'notes', 255);
-        return transaction(function (PDO $p) use ($u, $d, $tripId, $notes) {
+        $po = self::dieselPo($d);
+        return transaction(function (PDO $p) use ($u, $d, $tripId, $notes, $po) {
             $t = one($p, 'SELECT * FROM trips WHERE id=? FOR UPDATE', [$tripId]);
             must((bool)$t, 'Trip not found.', 404);
-            must($t['dispatcher_role'] === $u['role'], 'This trip belongs to the other dispatcher team.', 403);
+            $t['responsible_dispatcher_id']=one($p,'SELECT current_dispatcher_id FROM trip_responsibilities WHERE trip_id=?',[$tripId])['current_dispatcher_id']??null;
+            must(DispatcherScope::permitsTrip($u,$t), 'This trip belongs to the other dispatcher team.', 403);
             must(in_array($t['status'], ['Pre-Assigned', 'Ready for Dispatch'], true), 'A fund request is made for a Pre-Assigned trip that has not left yet (trip is ' . $t['status'] . ').', 409);
             $lines = self::lines($p, $d);
             $total = number_format(array_sum(array_map(fn($l) => (float)$l['amount'], $lines)), 2, '.', '');
@@ -129,6 +182,7 @@ final class Funds {
                 $verb = 'submitted';
             }
             foreach ($lines as $l) insert($p, 'fund_request_lines', ['fund_request_id' => $fid] + $l);
+            if ($po !== null) run($p, 'UPDATE fund_requests SET diesel_po_json=? WHERE id=?', [json_encode($po, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $fid]);
             if ($old) {
                 auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $fid, 'fund request resubmitted', $ref . ' for ' . $t['trip_ref'] . ': PHP ' . $total,
                     ['Requested amount' => $old['amount'], 'Notes' => $old['notes'], 'Expense breakdown' => implode('; ', array_map(fn($x) => $x['category_name'] . ': ' . $x['amount'], $oldBreakdown))],
@@ -160,14 +214,14 @@ final class Funds {
                     ['Status' => $f['status']], ['Status' => 'Ready for Release']);
                 Notify::roles($p, ['finance'], 'Fund release', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') PHP ' . number_format((float)$f['amount'], 2) . ' is Ready for Release.', 'funds', 'fund-release-' . $f['id']);
                 Notify::user($p, (int)$f['requested_by'], 'Fund approved', $f['fund_ref'] . ' was approved and is waiting for Finance release.', 'funds');
-                return ['message' => 'Approved. The request is Ready for Release and now appears to Finance.'];
+                return ['message' => 'Fund request approved. It is now ready for release by Finance.'];
             }
             run($p, "UPDATE fund_requests SET status='Rejected', rejected_reason=? WHERE id=?", [$reason, $id]);
             auditWithChanges($p, $u['id'], 'Funds', 'fund ' . $id, 'fund request rejected', $f['fund_ref'] . ': ' . $reason,
                 ['Status' => $f['status'], 'Rejection reason' => $f['rejected_reason']],
                 ['Status' => 'Rejected', 'Rejection reason' => $reason]);
             Notify::user($p, (int)$f['requested_by'], 'Fund rejected', $f['fund_ref'] . ' was rejected: ' . $reason . '. Please revise and resubmit.', 'funds', Notify::key('fund-revise-' . $f['id']));
-            return ['message' => 'Rejected. The dispatcher can revise and resubmit it.'];
+            return ['message' => 'Fund request rejected. The dispatcher may revise and resubmit the request.'];
         });
     }
 
@@ -202,7 +256,7 @@ final class Funds {
             Notify::roles($p, ['operations_head'], 'Fund released', $f['fund_ref'] . ' (' . $f['trip_ref'] . ') was released.', 'funds');
             Notify::resolve($p, 'fund-release-' . $f['id']);
             $v = one($p, 'SELECT voucher_number FROM disbursements WHERE id=?', [$disb])['voucher_number'];
-            return ['message' => "Release confirmed (voucher $v). Fund status: Released."];
+            return ['message' => "Funds released successfully under voucher $v."];
         });
     }
 
@@ -254,16 +308,21 @@ final class Funds {
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'funds'), 'Not allowed.', 403);
         $id = idField($d, 'fund_id'); $p = db();
-        $f = one($p, "SELECT f.*, t.trip_ref, t.dispatcher_role, t.pickup_point, t.delivery_point, t.scheduled_at, c.company_name AS client, v.plate_number,
+        $f = one($p, "SELECT f.*, t.trip_ref, t.status AS trip_status, (SELECT r.current_dispatcher_id FROM trip_responsibilities r WHERE r.trip_id=t.id) AS responsible_dispatcher_id,t.dispatcher_role,t.dispatcher_shift,t.truck_type, t.pickup_point, t.delivery_point, t.scheduled_at, c.company_name AS client, v.plate_number,
                 d1.full_name AS driver_name, ru.full_name AS requested_by_name, au.full_name AS approved_by_name, lu.full_name AS released_by_name,
                 ds.voucher_number, ds.payment_method, ds.reference_number, ds.cheque_number, ds.released_on
             FROM fund_requests f JOIN trips t ON t.id=f.trip_id JOIN clients c ON c.id=t.client_id LEFT JOIN vehicles v ON v.id=t.vehicle_id
             LEFT JOIN personnel d1 ON d1.id=t.driver_id JOIN users ru ON ru.id=f.requested_by LEFT JOIN users au ON au.id=f.approved_by
             LEFT JOIN users lu ON lu.id=f.released_by LEFT JOIN disbursements ds ON ds.id=f.disbursement_id WHERE f.id=?", [$id]);
         must((bool)$f, 'Fund request not found.', 404);
-        if (roleIsDispatcher($u['role'])) must($f['dispatcher_role'] === $u['role'] || (int)$f['requested_by'] === $u['id'], 'Not allowed.', 403);
+        if (roleIsDispatcher($u['role'])) must(DispatcherScope::permitsTrip($u,$f), 'Not allowed.', 403);
         $f['lines'] = many($p, 'SELECT category_name, amount, is_preset FROM fund_request_lines WHERE fund_request_id=? ORDER BY id', [$id]);
         $f['documents'] = Files::of($p, 'fund', $id);
+        $f['diesel_po'] = $f['diesel_po_json'] ? json_decode((string)$f['diesel_po_json'], true) : null;
+        if ($u['role'] === 'operations_head') {
+            $f['history'] = many($p, "SELECT a.action, a.created_at, u.full_name AS actor FROM audit_events a
+                LEFT JOIN users u ON u.id=a.actor_id WHERE a.area='Funds' AND a.record_ref=? ORDER BY a.id", ['fund ' . $id]);
+        }
         return ['fund' => $f];
     }
 }
