@@ -838,3 +838,293 @@
   .dispatcher-turnover-drawer .turnover-actions > .btn { width:100%; }
   .dispatcher-turnover-drawer .turnover-view-tabs { width:100%; }
 }
+
+/* Trip Details drawer: anchor the entire overlay above the app header. */
+.dispatcher-role .ds-trip-drawer.offcanvas {
+  position: fixed;
+  inset-block: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1200;
+  --bs-offcanvas-zindex: 1200;
+}
+/* The backdrop must cover the sticky header as well as the page contents. */
+body:has(.ds-trip-drawer.show) > .offcanvas-backdrop.show {
+  z-index: 1190;
+}
+/* Keep dialogs launched by the drawer above it. */
+body:has(.ds-trip-drawer.show) > .modal-backdrop.show {
+  z-index: 1205;
+}
+body:has(.ds-trip-drawer.show) > .modal.show {
+  z-index: 1210;
+}
+
+/* Trip Details drawer: keep its title and actions visible while only details scroll. */
+.dispatcher-role .ds-trip-drawer {
+  --bs-offcanvas-width: min(920px, 100vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dispatcher-role .ds-trip-drawer > .offcanvas-header {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 16px 22px;
+  align-items: center;
+  background: #fff;
+  border-bottom: 1px solid #dce8df;
+}
+.dispatcher-role .ds-trip-drawer > .offcanvas-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 20px 24px 24px;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-tabs {
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-pane { gap: 14px; }
+.dispatcher-role .ds-trip-drawer .ds-drawer-footer {
+  flex: 0 0 auto;
+  padding: 12px 24px;
+  background: #fff;
+  border-top: 1px solid #dce8df;
+}
+@media (max-width: 640px) {
+  .dispatcher-role .ds-trip-drawer > .offcanvas-header { padding: 14px 16px; }
+  .dispatcher-role .ds-trip-drawer > .offcanvas-body { padding: 14px 16px 20px; }
+  .dispatcher-role .ds-trip-drawer .ds-drawer-footer { padding: 12px 16px; }
+}
+
+/* Dispatcher fund request: one aligned layout, without overlapping overrides. */
+.dispatcher-role .ds-fund-request-modal .modal-dialog {
+  max-width: min(880px, calc(100vw - 24px));
+}
+.dispatcher-role .ds-fund-request-modal .modal-content {
+  overflow: hidden;
+  border: 1px solid #d8e5dd;
+  border-radius: 14px;
+}
+.dispatcher-role .ds-fund-request-modal .modal-header {
+  padding: 16px 22px;
+  background: #f8fbf9;
+  border-bottom: 1px solid #dee9e1;
+}
+.dispatcher-role .ds-fund-request-modal .modal-title {
+  font-size: 18px;
+  font-weight: 750;
+  color: #174d30;
+}
+.dispatcher-role .ds-fund-request-modal .modal-body {
+  padding: 18px 20px;
+  background: #f6f9f7;
+}
+.dispatcher-role .ds-fund-request-modal .ds-form-section {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px 16px;
+  margin: 0 0 16px;
+  background: #fff;
+  border: 1px solid #dce7df;
+  border-radius: 11px;
+  box-shadow: none;
+}
+.dispatcher-role .ds-fund-request-modal .ds-form-section legend {
+  float: none;
+  width: auto;
+  margin: 0 0 7px;
+  padding: 0 8px;
+  color: #244d36;
+  font-size: 14px;
+  font-weight: 750;
+}
+.dispatcher-role .ds-fund-request-modal .form-help {
+  margin: 0 0 12px;
+  color: #66786b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-summary {
+  display: grid;
+  gap: 10px;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 15px;
+  border-radius: 9px;
+  background: #eff7f1;
+  border: 1px solid #d5e8da;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-label {
+  display: block;
+  color: #617469;
+  font-size: 11px;
+  font-weight: 600;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-reference strong {
+  color: #174a2e;
+  font-size: 16px;
+  font-weight: 750;
+  text-align: right;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-meta > div {
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid #e1e9e3;
+  border-radius: 9px;
+  background: #fff;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-trip-meta strong {
+  display: block;
+  margin-top: 4px;
+  color: #293f30;
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-presets > label:has(.fund-cat) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 54px;
+  padding: 8px 12px !important;
+  margin: 0 0 7px !important;
+  border: 1px solid #dfe8e1 !important;
+  border-radius: 8px !important;
+  background: #fff;
+  transition: background-color .15s, border-color .15s;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-presets > label:has(.fund-cat):last-child {
+  margin-bottom: 0 !important;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-presets > label:has(.fund-cat):hover {
+  border-color: #9bc8ac !important;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-presets > label:has(.fund-cat:checked) {
+  background: #f0faf3;
+  border-color: #81bc96 !important;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-presets > label > span:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #2d4234;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dispatcher-role .ds-fund-request-modal .fund-cat {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin: 0 !important;
+  cursor: pointer;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-presets > label > span:last-child {
+  display: grid !important;
+  grid-template-columns: 15px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #355a43;
+  font-weight: 600;
+}
+.dispatcher-role .ds-fund-request-modal .fund-preset-amount {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 38px;
+  padding: 6px 10px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: #193e2b;
+  border: 1px solid #a1baa9;
+  border-radius: 7px;
+  background: #fff;
+}
+.dispatcher-role .ds-fund-request-modal .fund-preset-amount:disabled {
+  opacity: 1;
+  background: #f1f4f2;
+  border-color: #d5ded7;
+  color: #829189;
+  cursor: not-allowed;
+}
+.dispatcher-role .ds-fund-request-modal .fund-preset-amount:focus-visible {
+  border-color: #258047;
+  outline: 2px solid rgba(37, 128, 71, .2);
+  outline-offset: 1px;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-extras .fund-extra {
+  margin-bottom: 10px !important;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-extras .form-control {
+  min-height: 38px;
+}
+.dispatcher-role .ds-fund-request-modal .ds-fund-total {
+  padding: 12px 14px;
+  background: #f1faf4;
+  border: 1px solid #cde6d5;
+  border-radius: 9px;
+}
+.dispatcher-role .ds-fund-request-modal .modal-footer {
+  gap: 8px;
+  padding: 13px 20px;
+  background: #fff;
+  border-top: 1px solid #dce8df;
+}
+@media (max-width: 600px) {
+  .dispatcher-role .ds-fund-request-modal .ds-fund-trip-meta { grid-template-columns: 1fr; }
+  .dispatcher-role .ds-fund-request-modal .ds-fund-trip-reference { padding: 11px 12px; }
+  .dispatcher-role .ds-fund-request-modal .ds-fund-trip-reference strong { font-size: 14px; }
+  .dispatcher-role .ds-fund-request-modal .modal-dialog {
+    max-width: calc(100vw - 12px);
+    margin: 6px auto;
+  }
+  .dispatcher-role .ds-fund-request-modal .modal-header,
+  .dispatcher-role .ds-fund-request-modal .modal-footer {
+    padding: 12px 14px;
+  }
+  .dispatcher-role .ds-fund-request-modal .modal-body {
+    padding: 12px;
+  }
+  .dispatcher-role .ds-fund-request-modal .ds-form-section {
+    padding: 11px 10px 13px;
+  }
+  .dispatcher-role .ds-fund-request-modal .ds-fund-presets > label:has(.fund-cat) {
+    grid-template-columns: minmax(0, 1fr) 116px;
+    gap: 6px;
+    padding: 8px !important;
+  }
+  .dispatcher-role .ds-fund-request-modal .ds-fund-presets > label > span:first-child {
+    gap: 6px;
+    font-size: 12px;
+  }
+  .dispatcher-role .ds-fund-request-modal .fund-preset-amount {
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+}

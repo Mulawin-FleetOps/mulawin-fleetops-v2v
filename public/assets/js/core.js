@@ -427,7 +427,7 @@ const App = {
         const shown = new Set();
         const take = ids => ids.map(id => items.find(n => n.id === id))
           .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
-        nav = take(['maintenance_overview']).map(wsLink).join('');
+        nav = take(['maintenance_overview','approvals']).map(wsLink).join('');
         const groups = [
           { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
           { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
@@ -1069,7 +1069,7 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
 UI.WS_MENUS = {
   motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
     ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
-    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up']] },
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
     ['purchasing_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
@@ -2173,37 +2173,115 @@ UI.breakdown = (lines, total, totalLabel = 'Total') => `<table class="breakdown 
 /**
  * Fund Request form (PDF #12 Scenario A step 4 / B step 4).
  * The dispatcher picks the preset categories and may add other categories.
- * The total is shown while choosing; the server still takes the real preset amounts.
- * opts: { title, categories:[{name, amount}], selected:[names], extra:[{name, amount}], notes, action, payload, intro }
+ * The total reflects editable request amounts when editablePresets is enabled.
+ * opts: { title, categories, selected, presetAmounts, editablePresets, extra, notes, action, payload, intro }
  */
 UI.fundForm = (opts) => {
   const sel = new Set(opts.selected || []);
-  const extra = (opts.extra || []).concat(Array(Math.max(0, 3 - (opts.extra || []).length)).fill({ name: '', amount: '' }));
-  const cats = (opts.categories || []).map((c, i) => `<label class="d-flex justify-content-between border rounded px-2 py-1 mb-1">
-      <span><input type="checkbox" class="form-check-input me-2 fund-cat" data-name="${UI.esc(c.name)}" data-amount="${+c.amount}" ${sel.has(c.name) ? 'checked' : ''}>${UI.esc(c.name)}</span>
-      <span class="num">${UI.money(c.amount)}</span></label>`).join('') || '<div class="text-muted small">No preset categories yet. Ask the Admin to add them in Administration > Settings.</div>';
+  const extra = (opts.extra && opts.extra.length) ? opts.extra : [{ name: '', amount: '' }];
+  const cats = (opts.categories || []).map((c, i) => {
+    const checked = sel.has(c.name);
+    const amount = opts.presetAmounts?.[c.name] ?? c.amount;
+    const amountControl = opts.editablePresets
+      ? `<span class="d-flex align-items-center gap-1"><span aria-hidden="true">₱</span><input type="number" class="form-control form-control-sm fund-preset-amount text-end" aria-label="Amount for ${UI.esc(c.name)}" min="0.01" step="0.01" value="${UI.esc(String(amount))}" ${checked ? '' : 'disabled'} required></span>`
+      : `<span class="num">${UI.money(c.amount)}</span>`;
+    return `<label class="d-flex justify-content-between align-items-center gap-2 border rounded px-2 py-1 mb-1">
+      <span><input type="checkbox" class="form-check-input me-2 fund-cat" data-name="${UI.esc(c.name)}" data-amount="${+c.amount}" ${checked ? 'checked' : ''}>${UI.esc(c.name)}</span>
+      ${amountControl}</label>`;
+  }).join('') || '<div class="text-muted small">No preset categories yet. Ask the Admin to add them in Administration > Settings.</div>';
   const rows = extra.map((l, i) => `<div class="row g-2 mb-1 fund-extra">
       <div class="col-8"><input class="form-control form-control-sm" maxlength="80" placeholder="Other expense category" value="${UI.esc(l.name || '')}"></div>
       <div class="col-4"><input class="form-control form-control-sm" type="number" min="0" step="0.01" placeholder="Amount" value="${l.amount === '' ? '' : +l.amount}"></div></div>`).join('');
   const body = `${opts.intro ? `<p class="small text-muted">${opts.intro}</p>` : ''}
     <h6>Fund categories (preset amounts)</h6>${cats}
     <h6 class="mt-3">Other expense categories (optional)</h6>${rows}
+    ${opts.optionalDieselPo ? `<div class="fund-diesel-attachment" data-fund-diesel-attachment>
+      <label class="d-flex gap-2 align-items-center mb-2"><input type="checkbox" data-po-enabled ${opts.dieselPo?'checked':''}><strong>Include Diesel Purchase Order</strong> <small>(Optional)</small></label>
+      <div data-po-fields ${opts.dieselPo?'':'hidden'}>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6"><label class="form-label">P.O. Number</label><input class="form-control form-control-sm" name="po_number" maxlength="60" value="${UI.esc(opts.dieselPo?.po_number||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Date</label><input class="form-control form-control-sm" type="date" name="po_date" value="${UI.esc(opts.dieselPo?.po_date||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Vehicle</label><input class="form-control form-control-sm" name="po_vehicle" maxlength="100" value="${UI.esc(opts.dieselPo?.vehicle||opts.dieselPoVehicle||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Plate Number</label><input class="form-control form-control-sm" name="po_plate" maxlength="40" value="${UI.esc(opts.dieselPo?.plate_number||opts.dieselPoPlate||'')}"></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>No. of Liters</th><th>Amount per Liter</th><th>Total</th><th></th></tr></thead><tbody data-po-lines></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center"><button class="btn btn-sm btn-outline-success" type="button" data-po-add>Add Another Line</button><strong data-po-total>₱0.00</strong></div>
+        <p class="form-help mt-2">This optional purchase order does not change the cash fund total.</p>
+      </div>
+    </div>` : ''}
     <div class="mt-2"><label class="form-label small">Notes</label><input class="form-control form-control-sm" name="notes" maxlength="255" value="${UI.esc(opts.notes || '')}"></div>
     <div class="fs-6 mt-3 text-end">Total requested fund: <b id="fundTotal">₱0.00</b></div>`;
   UI.modal(opts.title, body, async (d, form) => {
-    const categories = [...form.querySelectorAll('.fund-cat:checked')].map(c => c.dataset.name);
+    const checkedPresets = [...form.querySelectorAll('.fund-cat:checked')];
+    const categories = checkedPresets.map(c => c.dataset.name);
+    const presetAmounts = {};
+    if (opts.editablePresets) {
+      for (const checkbox of checkedPresets) {
+        const input = checkbox.closest('label').querySelector('.fund-preset-amount');
+        if (!input || !/^\d+(?:\.\d{1,2})?$/.test(input.value) || Number(input.value) <= 0 || !input.checkValidity()) {
+          input?.setCustomValidity('Enter a positive amount with at most two decimal places.');
+          input?.reportValidity();
+          throw new Error('Enter a valid amount for each selected preset expense.');
+        }
+        input.setCustomValidity('');
+        presetAmounts[checkbox.dataset.name] = input.value;
+      }
+    }
     const extraLines = [...form.querySelectorAll('.fund-extra')].map(r => { const [n, a] = r.querySelectorAll('input'); return { name: n.value.trim(), amount: a.value }; }).filter(x => x.name || x.amount);
     if (!categories.length && !extraLines.length) throw new Error('Choose at least one fund category.');
-    const r = await App.api(opts.action, { ...opts.payload, categories, extra: extraLines, notes: d.notes || '' });
+    let dieselPo=null;
+    if(opts.optionalDieselPo&&form.querySelector('[data-po-enabled]')?.checked){
+      const value=name=>form.querySelector('[name='+name+']')?.value.trim()||'';
+      const lines=[...form.querySelectorAll('[data-po-line]')].map(row=>({
+        liters:row.querySelector('[data-po-liters]').value.trim(),
+        unit_price:row.querySelector('[data-po-rate]').value.trim()
+      })).filter(line=>line.liters||line.unit_price);
+      if(!value('po_number')||!value('po_date')||!value('po_vehicle')||!value('po_plate'))throw new Error('Complete the P.O. number, date, vehicle and plate number.');
+      if(!lines.length||lines.some(line=>!/^\d{1,6}(?:\.\d{1,3})?$/.test(line.liters)||+line.liters<=0||!/^\d{1,7}(?:\.\d{1,2})?$/.test(line.unit_price)||+line.unit_price<=0))throw new Error('Enter positive liters and price per liter for every PO line.');
+      dieselPo={po_number:value('po_number'),po_date:value('po_date'),vehicle:value('po_vehicle'),plate_number:value('po_plate'),lines};
+    }
+    const r = await App.api(opts.action, { ...opts.payload, categories, ...(opts.editablePresets ? { preset_amounts: presetAmounts } : {}), extra: extraLines, notes: d.notes || '', ...(dieselPo ? { diesel_po: dieselPo } : {}) });
     UI.result(r); if (opts.after) opts.after(r); else App.route();
   }, { submit: 'Submit Fund Request', onShow(w) {
     const total = () => {
       let t = 0;
-      w.querySelectorAll('.fund-cat:checked').forEach(c => t += +c.dataset.amount);
+      w.querySelectorAll('.fund-cat').forEach(c => {
+        const input = c.closest('label').querySelector('.fund-preset-amount');
+        if (input) {
+          input.disabled = !c.checked;
+          if (!input.disabled) input.setCustomValidity('');
+        }
+        if (c.checked) t += input ? (+input.value || 0) : +c.dataset.amount;
+      });
       w.querySelectorAll('.fund-extra').forEach(r => { const a = +r.querySelectorAll('input')[1].value; if (a > 0) t += a; });
       w.querySelector('#fundTotal').textContent = UI.money(t);
     };
     w.addEventListener('input', total); w.addEventListener('change', total); total();
+    const po=w.querySelector('[data-fund-diesel-attachment]');
+    if(po){
+      const enabled=po.querySelector('[data-po-enabled]'),fields=po.querySelector('[data-po-fields]'),tbody=po.querySelector('[data-po-lines]');
+      const update=()=>{
+        let sum=0;tbody.querySelectorAll('[data-po-line]').forEach(row=>{
+          const liters=+row.querySelector('[data-po-liters]').value||0,rate=+row.querySelector('[data-po-rate]').value||0;
+          const amount=Math.round(liters*rate*100)/100;
+          row.querySelector('[data-po-subtotal]').textContent=UI.money(amount);sum+=amount;
+        });po.querySelector('[data-po-total]').textContent=UI.money(sum);
+      };
+      const addLine=(line={})=>{
+        if(tbody.children.length>=12)return;
+        const row=document.createElement('tr');row.dataset.poLine='1';
+        row.innerHTML='<td><input type="number" min="0.001" step="0.001" class="form-control form-control-sm" data-po-liters aria-label="Liters"></td>'
+          +'<td><input type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-po-rate aria-label="Price per liter"></td>'
+          +'<td class="text-nowrap" data-po-subtotal>₱0.00</td><td><button class="btn btn-sm btn-outline-danger" type="button" data-po-remove>Remove</button></td>';
+        row.querySelector('[data-po-liters]').value=line.liters||'';
+        row.querySelector('[data-po-rate]').value=line.unit_price||'';tbody.append(row);update();
+      };
+      const saved=opts.dieselPo?.lines;(Array.isArray(saved)&&saved.length?saved:[{}]).forEach(addLine);
+      enabled.addEventListener('change',()=>{fields.hidden=!enabled.checked;});
+      po.querySelector('[data-po-add]').addEventListener('click',()=>addLine());
+      po.addEventListener('click',event=>{const btn=event.target.closest('[data-po-remove]');if(btn&&tbody.children.length>1){btn.closest('tr').remove();update();}});
+      po.addEventListener('input',update);update();
+    }
   } });
 };
 

@@ -358,7 +358,7 @@ const DispatcherUI = {
     return '<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr>'
       +'<th>Trip / Client</th><th>Route / Truck</th><th>'+(history?'Completion / Schedule':'Scheduled Dispatch')+'</th>'
       +'<th>Status</th><th>Action</th></tr></thead><tbody>'
-      +(lines||'<tr class="fleet-empty-row"><td colspan="5">'+UI.emptyRecords('No trips match the selected filters. Try adjusting your search or filters.',true)+'</td></tr>')
+      +(lines||'<tr class="fleet-empty-row"><td colspan="5"><div class="ds-empty-state" role="status"><i class="bi bi-search" aria-hidden="true"></i><b>No trips match the selected filters.</b><span>Try adjusting your search or filters.</span></div></td></tr>')
       +'</tbody></table></div>';
   },
   next(t) {
@@ -558,13 +558,19 @@ const DispatcherUI = {
     },{submit:'Continue',confirmBeforeSubmit:false});
   },
   fundForm(t,categories,old=null) {
-    UI.fundForm({title:old?'Revise Trip Fund Request':'Submit Fund Request',categories,action:'Funds.submit',payload:{trip_id:t.id},selected:old?old.lines.filter(l=>+l.is_preset).map(l=>l.category_name):[],presetAmounts:Object.fromEntries((old?.lines||[]).filter(l=>+l.is_preset).map(l=>[l.category_name,l.amount])),editablePresets:true,optionalDieselPo:true,extra:old?old.lines.filter(l=>!+l.is_preset).map(l=>({name:l.category_name,amount:l.amount})):[],notes:old?.notes||'',intro:`${UI.esc(t.trip_ref)}. Select applicable preset categories and adjust the amount for this request if needed. Other expenses can be added below. Review the total before submitting.`,after:()=>{UI.closeDrawer();App.route();}});
+    UI.fundForm({title:old?'Revise Trip Fund Request':'Submit Fund Request',categories,action:'Funds.submit',payload:{trip_id:t.id},selected:old?old.lines.filter(l=>+l.is_preset).map(l=>l.category_name):[],presetAmounts:Object.fromEntries((old?.lines||[]).filter(l=>+l.is_preset).map(l=>[l.category_name,l.amount])),editablePresets:true,optionalDieselPo:true,dieselPo:old?.diesel_po||(old?.diesel_po_json?JSON.parse(old.diesel_po_json):null),dieselPoVehicle:t.truck_type||old?.truck_type||'',dieselPoPlate:t.plate_number||old?.plate_number||'',extra:old?old.lines.filter(l=>!+l.is_preset).map(l=>({name:l.category_name,amount:l.amount})):[],notes:old?.notes||'',intro:`${UI.esc(t.trip_ref)}. Select applicable preset categories and adjust the amount for this request if needed. Other expenses can be added below. Review the total before submitting.`,after:()=>{UI.closeDrawer();App.route();}});
     const modal=[...document.querySelectorAll('.modal')].at(-1),form=modal?.querySelector('form');
     if(form){
-      modal.classList.add('ds-structured-modal');const body=modal.querySelector('.modal-body'),cats=[...form.querySelectorAll('.fund-cat')].map(c=>c.closest('label')),extras=[...form.querySelectorAll('.fund-extra')],notes=form.querySelector('[name=notes]'),notesBox=notes.parentElement,total=form.querySelector('#fundTotal'),totalBox=total.parentElement;
+      modal.classList.add('ds-structured-modal','ds-fund-request-modal');const body=modal.querySelector('.modal-body'),cats=[...form.querySelectorAll('.fund-cat')].map(c=>c.closest('label')),extras=[...form.querySelectorAll('.fund-extra')],notes=form.querySelector('[name=notes]'),notesBox=notes.parentElement,total=form.querySelector('#fundTotal'),totalBox=total.parentElement;
       body.querySelector('p')?.remove();body.querySelectorAll('h6').forEach(h=>h.remove());
-      const sections=['01 — Associated Trip','02 — Preset Expense Categories','03 — Additional Expenses','04 — Diesel PO Documents (Optional)','05 — Request Summary'].map(title=>{const el=document.createElement('fieldset');el.className='ds-form-section';el.innerHTML=`<legend>${title}</legend>`;body.insertBefore(el,body.querySelector('.form-error'));return el;});
-      sections[0].innerHTML+=UI.kv([['Eligible Trip',UI.e(t.trip_ref)],['Truck',UI.e(t.plate_number||'Assignment pending')],...(t.client?[['Client',UI.e(t.client)]]:[])]);
+      const sections=['01 — Associated Trip','02 — Preset Expense Categories','03 — Additional Expenses','04 — Diesel Purchase Order (Optional)','05 — Request Summary'].map((title,index)=>{const el=document.createElement('fieldset');el.className='ds-form-section '+['ds-fund-trip','ds-fund-presets','ds-fund-extras','ds-fund-diesel','ds-fund-summary'][index];el.innerHTML=`<legend>${title}</legend>`;body.insertBefore(el,body.querySelector('.form-error'));return el;});
+      sections[0].insertAdjacentHTML('beforeend',
+        '<div class="ds-fund-trip-summary">'
+        +'<div class="ds-fund-trip-reference"><span class="ds-fund-trip-label">Eligible Trip</span><strong>'+UI.e(t.trip_ref)+'</strong></div>'
+        +'<div class="ds-fund-trip-meta">'
+        +'<div><span class="ds-fund-trip-label">Truck</span><strong>'+UI.e(t.plate_number||'Assignment pending')+'</strong></div>'
+        +'<div><span class="ds-fund-trip-label">Client</span><strong>'+UI.e(t.client||'Not specified')+'</strong></div>'
+        +'</div></div>');
       sections[1].insertAdjacentHTML('beforeend','<p class="form-help">Select the categories needed and edit their amounts for this request. Configured amounts are the default.</p>');cats.forEach(el=>sections[1].append(el));if(!cats.length)sections[1].insertAdjacentHTML('beforeend','<p>No preset categories are available.</p>');
       sections[2].insertAdjacentHTML('beforeend','<p class="form-help">Optional expenses need a unique name and a positive amount.</p>');
       const expenseRows=document.createElement('div');expenseRows.className='ds-additional-expense-list';sections[2].append(expenseRows);
@@ -630,7 +636,12 @@ const DispatcherUI = {
   },
   async openFund(id,d) {
     let f;try{f=(await App.api('Funds.details',{fund_id:id})).fund;}catch(ex){return UI.toast(ex.message,'error');}
-    const el=UI.drawer(UI.esc(f.fund_ref),this.panel('Trip Fund Request',UI.kv([['Trip',UI.e(f.trip_ref)],['Requested By',UI.e(f.requested_by_name)],['Request Date',this.datetime(f.created_at)],['Requested Amount',UI.money(f.amount)],['Status',this.fundStatus(f.status)],['Approved By',UI.e(f.approved_by_name)],['Finance Release',f.status==='Released'?'Released':f.status==='Ready for Release'?'Awaiting Finance release':'Not released'],['Remarks',UI.e(f.notes)],f.rejected_reason?['Reason for Revision',UI.e(f.rejected_reason)]:null]))+this.panel('Expense Breakdown',UI.table([['Category','category_name'],['Amount','amount','money']],f.lines,{plain:true}))+'<div class="ds-form-footer"><button class="btn btn-outline-success" data-ds-trip="'+(+f.trip_id)+'">View Related Trip</button>'+((f.status==='Rejected'&&['Pre-Assigned','Ready for Dispatch'].includes(f.trip_status)&&f.dispatcher_role===App.me.user.role)?'<button class="btn btn-primary" data-revise-fund>Revise Request</button>':'')+'</div>',{subtitle:UI.esc(f.trip_ref)});
+    const po=f.diesel_po;
+    const poPanel=po?this.panel('Diesel Purchase Order',
+      UI.kv([['P.O. Number',UI.e(po.po_number)],['Date',UI.e(po.po_date)],['Vehicle',UI.e(po.vehicle)],
+        ['Plate Number',UI.e(po.plate_number)],['PO Total',UI.money(po.total_amount)]])
+      +UI.table([['Liters','liters'],['Amount per Liter','unit_price','money'],['Total','total','money']],po.lines||[],{plain:true})):'';
+    const el=UI.drawer(UI.esc(f.fund_ref),this.panel('Trip Fund Request',UI.kv([['Trip',UI.e(f.trip_ref)],['Requested By',UI.e(f.requested_by_name)],['Request Date',this.datetime(f.created_at)],['Requested Amount',UI.money(f.amount)],['Status',this.fundStatus(f.status)],['Approved By',UI.e(f.approved_by_name)],['Finance Release',f.status==='Released'?'Released':f.status==='Ready for Release'?'Awaiting Finance release':'Not released'],['Remarks',UI.e(f.notes)],f.rejected_reason?['Reason for Revision',UI.e(f.rejected_reason)]:null]))+this.panel('Expense Breakdown',UI.table([['Category','category_name'],['Amount','amount','money']],f.lines,{plain:true}))+poPanel+'<div class="ds-form-footer"><button class="btn btn-outline-success" data-ds-trip="'+(+f.trip_id)+'">View Related Trip</button>'+((f.status==='Rejected'&&['Pre-Assigned','Ready for Dispatch'].includes(f.trip_status)&&f.dispatcher_role===App.me.user.role)?'<button class="btn btn-primary" data-revise-fund>Revise Request</button>':'')+'</div>',{subtitle:UI.esc(f.trip_ref)});
     this.bindTrips(el);el.querySelector('[data-revise-fund]')?.addEventListener('click',()=>this.fundForm({id:f.trip_id,trip_ref:f.trip_ref},d.categories,f));
   },
   async openDiesel(t,d) {
@@ -1117,6 +1128,10 @@ const DispatcherUI = {
   decorateTrip(el,r) {
     const t=r.trip,body=el.querySelector('.offcanvas-body'),actions=body.querySelector('.drawer-actions'),sections=new Map(),progress=body.querySelector('.ui-workflow');
     el.classList.add('ds-trip-drawer');el.querySelector('.btn-close').setAttribute('aria-label','Close Trip Details');
+    // Hide superseded Dispatcher Trip Details controls without changing existing records.
+    body.querySelectorAll('button').forEach(button=>{
+      if(button.matches('[data-tact="dieselpo"]')||button.textContent.trim()==='Booking / container details')button.remove();
+    });
     el.querySelector('.offcanvas-header > div').insertAdjacentHTML('beforeend',this.status(t.status));
     [...body.querySelectorAll('.drawer-h')].forEach(h=>{const title=h.querySelector('span').textContent,fragment=document.createDocumentFragment();let node=h.nextSibling;while(node&&!(node.nodeType===1&&node.classList.contains('drawer-h'))){const next=node.nextSibling;fragment.append(node);node=next;}h.querySelectorAll('button').forEach(b=>fragment.prepend(b));sections.set(title,fragment);h.remove();});
     const inspection=r.inspections.find(i=>i.kind==='Pre-Dispatch'&&+i.attempt_number===+t.attempt_number),arrival=r.inspections.find(i=>i.kind==='Arrival'&&+i.attempt_number===+t.attempt_number),fund=r.funds.find(f=>+f.attempt_number===+t.attempt_number);
@@ -1189,9 +1204,9 @@ const DispatcherUI = {
       metadata.append(metadataTitle,meta);
       main.append(metadata);
       fuel.append(main);
-    }fuel.insertAdjacentHTML('beforeend','<p id="ds-diesel-unavailable" class="form-help">Diesel PO documents are optional. Attach them while submitting a fund request or upload them separately at any time allowed for this trip.</p>');
+    }
     fuel.querySelectorAll('.badge-s').forEach(b=>{if(b.textContent==='Ready for Release')b.textContent='Approved — Awaiting Release';if(b.textContent==='Rejected')b.textContent='Requires Revision';});
-    const dieselButton=actions?.querySelector('[data-tact=dieselpo]');if(dieselButton){dieselButton.textContent='Attach Diesel PO Document';fuel.append(dieselButton);}
+
     const fundButton=actions?.querySelector('[data-tact=fund]');if(fundButton){fundButton.textContent=fund?.status==='Rejected'?'Revise Trip Funds':'Request Trip Funds';fundButton.onclick=()=>this.fundForm(t,TripUI.data.fundCategories,fund?.status==='Rejected'?fund:null);fuel.append(fundButton);}
 
     append('Pre-Dispatch Checklist',[...sections].find(([title])=>title.startsWith('Pre-dispatch checklist'))?.[1]);
