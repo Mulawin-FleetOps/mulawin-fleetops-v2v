@@ -659,8 +659,8 @@
   .oh-dispatch-filter-panel,
   .card
 ) {
-  border:1px solid rgba(213,174,69,.62) !important;
-  box-shadow:0 0 7px rgba(235,190,66,.15) !important;
+  border:1px solid #dfe9e2 !important;
+  box-shadow:none !important;
 }
 @media (prefers-reduced-motion:reduce) {
   #appShell.sidebar-manual-toggle > .main > .topbar .profile-btn,
@@ -680,10 +680,10 @@
   gap:10px 14px !important;
   padding:16px 18px !important;
   margin:0 0 16px !important;
-  border:1px solid rgba(213,174,69,.50) !important;
+  border:1px solid #dfe9e2 !important;
   border-radius:14px !important;
   background:#F8FBF9 !important;
-  box-shadow:0 0 7px rgba(235,190,66,.12) !important;
+  box-shadow:none !important;
 }
 #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-head-text {
   flex:1 1 230px !important;
@@ -741,9 +741,9 @@
   box-sizing:border-box;
   min-width:0;
   background:#F6F9F7 !important;
-  border:1px solid rgba(213,174,69,.55) !important;
+  border:1px solid #dfe9e2 !important;
   border-radius:16px !important;
-  box-shadow:0 0 8px rgba(235,190,66,.13) !important;
+  box-shadow:none !important;
   padding:20px !important;
 }
 #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
@@ -771,9 +771,9 @@
    Gold is a soft outline, not a fill or thick glow. */
 #appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) > .page-body > .ax-shell,
 #appShell.sidebar-manual-toggle #pageContent .ax-shell {
-  border:1px solid rgba(213,174,69,.72) !important;
+  border:1px solid #dfe9e2 !important;
   border-radius:16px !important;
-  box-shadow:0 0 8px rgba(235,190,66,.13) !important;
+  box-shadow:none !important;
 }
 /* Major boxes across every account, including Objective 5's inline-styled
    analytics cards. Do not outline individual controls, tables or chart plots. */
@@ -806,10 +806,10 @@
   .oh-dispatch-filter-panel,
   .card
 ) {
-  border-color:rgba(213,174,69,.70) !important;
+  border-color:#dfe9e2 !important;
   border-style:solid !important;
   border-width:1px !important;
-  box-shadow:0 0 7px rgba(235,190,66,.14) !important;
+  box-shadow:none !important;
 }
 /* The previous header-only card styling was overridden by the full workspace.
    Keep heading/subtitle/access inside the SAME outer panel with no second card. */
@@ -828,9 +828,9 @@
    Only surface decoration: preserve the existing page DOM, dimensions,
    internal data controls, charts, active selection and workflow behavior. */
 #appShell.sidebar-manual-toggle {
-  --workspace-gold:#E7B447;
-  --workspace-gold-border:rgba(231,180,71,.88);
-  --workspace-gold-shadow:rgba(222,170,62,.13);
+  --workspace-gold:#dfe9e2;
+  --workspace-gold-border:#dfe9e2;
+  --workspace-gold-shadow:transparent;
 }
 /* One continuous outer panel per page. Analytics already has an .ax-shell. */
 #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
@@ -898,8 +898,8 @@
    ONE outer page panel contains the title, subtitle, access and existing body.
    Styling only: do not change page DOM, role logic, data or control behavior. */
 #appShell.sidebar-manual-toggle {
-  --billing-ui-outline:#E7B447;
-  --billing-ui-soft:#E6CA68;
+  --billing-ui-outline:#dfe9e2;
+  --billing-ui-soft:#dfe9e2;
   --billing-ui-surface:#fff;
 }
 /* This is the shared outer wrapper on every normal page. Unlike the previous
@@ -1042,7 +1042,7 @@
   border-color:var(--billing-ui-soft) !important;
   border-style:solid !important;
   border-width:1px !important;
-  box-shadow:0 1px 5px rgba(222,170,62,.07) !important;
+  box-shadow:none !important;
 }
 /* Filter blocks that are not already panels receive the same visual boundary. */
 #appShell.sidebar-manual-toggle #pageContent :is(
@@ -1158,7 +1158,7 @@
    the supplied Motorpool Parts Request Records example. Keep form controls,
    their focus styling, pagination and record handlers unchanged. */
 #appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table {
-  border:1px solid var(--billing-ui-outline,#E7B447) !important;
+  border:1px solid var(--billing-ui-outline,#dfe9e2) !important;
   border-radius:12px !important;
   background:#fff !important;
   overflow:hidden;
@@ -1190,7 +1190,7 @@
 /* Other shared record screens can use the ref-list itself as the single box,
    with filters on top and results inside, not separate gold rectangles. */
 #appShell.sidebar-manual-toggle #pageContent .ref-list:not(.mp-ops-table .ref-list):not(.purchasing-ref-records .ref-list):not(.purchasing-records-card .ref-list) {
-  border:1px solid var(--billing-ui-soft,#E6CA68) !important;
+  border:1px solid var(--billing-ui-soft,#dfe9e2) !important;
   border-radius:10px !important;
   background:#fff !important;
   overflow:hidden;
@@ -1233,7 +1233,7 @@
   .oh-panel:has(.oh-record-search),
   .ds-panel:has(.ds-filterbar)
 ) {
-  border:1px solid var(--billing-ui-outline,#E7B447) !important;
+  border:1px solid var(--billing-ui-outline,#dfe9e2) !important;
   border-radius:10px !important;
   background:#fff !important;
   box-shadow:0 1px 4px rgba(29,77,44,.035) !important;
@@ -1335,9 +1335,9 @@
   .ax-kpi,
   .ws-kpi-card
 ) {
-  border:1px solid #E7B447 !important;
+  border:1px solid #dfe9e2 !important;
   border-radius:10px !important;
-  box-shadow:0 1px 5px rgba(231,180,71,.10) !important;
+  box-shadow:none !important;
 }
 /* Keep existing tile backgrounds; preserve selected/semantic KPI states. */
 #appShell.sidebar-manual-toggle #pageContent :is(.mp-action-stage,.oh-metric,.ds-summary-card).active,
@@ -1468,7 +1468,7 @@
    heading -> optional date filters -> record-search bar -> table/empty state.
    No second gold outline on nested UI.table wrappers. */
 #appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section {
-  border:1px solid var(--billing-ui-outline,#E7B447) !important;
+  border:1px solid var(--billing-ui-outline,#dfe9e2) !important;
   border-radius:11px !important;
   padding:0 !important;
   margin-top:16px !important;
