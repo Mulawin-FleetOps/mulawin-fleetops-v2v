@@ -285,7 +285,7 @@ const TripUI = {
   complete(t) {
     const cc = t.truck_type === 'Car Carrier';
     const detailsFields=[
-      { name: 'completed_at', label: 'Actual completion date and time', type: 'datetime', value: (() => { const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); })(), required: true, col: 6 },
+      { name: 'completion_time_notice', type: 'html', html: '<div class="col-md-6"><div class="small fw-semibold mb-2">Actual completion date and time</div><div class="form-control bg-light text-muted" role="status"><i class="bi bi-clock me-2" aria-hidden="true"></i>Recorded automatically upon completion (Philippine time)</div></div>' },
       { name: 'waybill_number', label: 'Waybill number', required: true, col: 6, value: t.waybill_number },
       ...(cc ? [{ name: 'units_delivered', label: 'Units delivered', type: 'number', min: 1, value: t.units_planned, required: true, col: 6 }] : []),
       { name: 'delivery_notes', label: 'Delivery / return notes', col: cc ? 6 : 12 }
@@ -312,7 +312,7 @@ const TripUI = {
       const btn = form.querySelector('button[type=submit]');
       const check = () => {
         const has = (n) => form.querySelector(`[name=${n}]`).files.length > 0;
-        const items = [['Completion date and time', !!form.completed_at.value], ['Waybill number', !!form.waybill_number.value.trim()],
+        const items = [['Waybill number', !!form.waybill_number.value.trim()],
           ...(cc ? [['Units delivered', +form.units_delivered.value > 0]] : []),
           ['Waybill file', has('waybill') || +t.waybill_docs > 0], ['Acknowledgement receipt file', has('ack_receipt') || +t.ar_docs > 0],
           ['Delivery Receipt (DR) file', has('delivery_receipt') || +t.dr_docs > 0]];
