@@ -961,8 +961,21 @@ const App = {
         const kpiSection = sections.find(node =>
           kpiSelectors.some(selector => node.matches?.(selector)));
         if (kpiSection) {
-          ctx.tools.classList.add('page-kpi-actions');
-          kpiSection.insertAdjacentElement('afterend', ctx.tools);
+          // On records pages, align the action beside the status tabs rather
+          // than leaving an isolated button row between KPIs and the tabs.
+          // Keep tablist semantics intact by using a separate flex wrapper.
+          const tabs = sections.find(node => node.matches?.('.line-tabs.ws-status-tabs'));
+          if (tabs && (kpiSection.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+            const toolbar = document.createElement('div');
+            toolbar.className = 'page-kpi-tab-toolbar no-print';
+            tabs.insertAdjacentElement('beforebegin', toolbar);
+            toolbar.append(tabs, ctx.tools);
+            ctx.tools.classList.add('page-kpi-tab-actions');
+          } else {
+            // Without a following tab row, retain the normal KPI action row.
+            ctx.tools.classList.add('page-kpi-actions');
+            kpiSection.insertAdjacentElement('afterend', ctx.tools);
+          }
         }
       }
       UI.activate(body);

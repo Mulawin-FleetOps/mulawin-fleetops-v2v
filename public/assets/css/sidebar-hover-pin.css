@@ -1519,3 +1519,44 @@
 #appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section .table-pager {
   border-top:1px solid #E6ECE7;
 }
+
+
+/* MOTORPOOL_ACTION_TAB_ROW_V1
+   Keep actions beside the status-tabs row, not in their own line underneath
+   the KPI tiles. The tablist and original action buttons remain interactive. */
+#appShell.sidebar-manual-toggle #pageContent .page-body > .page-kpi-tab-toolbar {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px 14px;
+  width:100%;
+  margin:0 0 12px;
+  padding:0;
+}
+#appShell.sidebar-manual-toggle #pageContent .page-kpi-tab-toolbar > .line-tabs.ws-status-tabs {
+  display:flex;
+  flex:1 1 auto;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  min-width:0;
+  margin:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .page-kpi-tab-toolbar > #pageTools.page-kpi-tab-actions {
+  display:flex !important;
+  flex:0 0 auto !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  margin:0 0 0 auto !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent .page-kpi-tab-toolbar > #pageTools.page-kpi-tab-actions {
+    margin-left:0 !important;
+  }
+}
