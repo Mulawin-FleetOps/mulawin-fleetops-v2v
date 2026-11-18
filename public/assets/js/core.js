@@ -1380,9 +1380,35 @@ UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(ite
  * items: [{label, value, note, icon: 'bi-...', tone: amber|blue|green|red|gray, go: 'page?x=y'}]
  * A tile is a link only when the user may open its page (UI.canGo); otherwise it is plain, non-interactive text.
  */
+/* Consistent, meaningful KPI glyphs for reports and other role workspaces.
+   Respect explicit icon choices; never show a generic empty circle for missing icons. */
+UI.kpiGlyph = (label, icon) => {
+  if (/^bi-[a-z0-9-]+$/.test(String(icon || '')) && icon !== 'bi-circle') return icon;
+  const text = String(label || '').toLowerCase();
+  const rules = [
+    [/maintenance cost|maintenance expense|repair cost|repair expense|expenses|expense|cost|spending/, 'bi-cash-stack'],
+    [/completed repairs|completed repair|repairs completed|repairs finished/, 'bi-check-circle'],
+    [/ongoing repairs|under repair|repairs in progress/, 'bi-tools'],
+    [/trucks serviced|vehicles serviced|serviced trucks/, 'bi-truck-front'],
+    [/downtime|out of service/, 'bi-clock-history'],
+    [/cancelled|canceled|incident|critical|overdue|shortage/, 'bi-exclamation-triangle'],
+    [/fuel|diesel|consumption|liters|litres/, 'bi-fuel-pump'],
+    [/stock.in|stock out|stock level|inventory|warehouse/, 'bi-box-seam'],
+    [/payment|collected|collection|revenue|receivable|amount|balance|billed|billing/, 'bi-wallet2'],
+    [/invoice|to bill|for billing/, 'bi-receipt'],
+    [/driver|helper|mechanic|staff|personnel|employee|users/, 'bi-people'],
+    [/clients|customers/, 'bi-buildings'],
+    [/completed|complete|delivered|resolved|verified|successful|released/, 'bi-check-circle'],
+    [/ongoing|in progress|active|on trip|trips|trucks|vehicle|fleet|delivery|dispatch/, 'bi-truck'],
+    [/pending|awaiting|for review|approval|verification|follow.up/, 'bi-hourglass-split'],
+    [/purchase|parts|order|request/, 'bi-box-seam'],
+    [/report|records|documents/, 'bi-file-earmark-text']
+  ];
+  return rules.find(([pattern]) => pattern.test(text))?.[1] || 'bi-bar-chart-line';
+};
 UI.kpiTiles = (items, cls = '') => `<div class="kpi-tiles${cls ? ' ' + UI.esc(cls) : ''}">${(items || []).map(c => { const go = c.go && UI.canGo(c.go); const iconColor = UI.kpiIconColor(c.label, c.tone);
   return `<div class="kpi-tile tone-${UI.esc(c.tone || 'gray')} kpi-color-${UI.esc(iconColor)}${go ? ' clickable' : ''}" data-kpi-color="${UI.esc(iconColor)}"${go ? ` data-go="${UI.esc(c.go)}" role="link" tabindex="0" aria-label="${UI.esc(c.label)}: ${UI.esc(c.value)}"` : ''}>
-    <div class="kpi-icon"><i class="bi ${UI.esc(c.icon || 'bi-circle')}"></i></div>
+    <div class="kpi-icon"><i class="bi ${UI.esc(UI.kpiGlyph(c.label, c.icon))}"></i></div>
     <div class="kpi-body"><div class="kpi-value">${UI.esc(c.value)}</div><div class="kpi-label">${UI.esc(c.label)}</div>${c.note ? `<div class="kpi-note">${UI.esc(c.note)}</div>` : ''}</div>
     ${go ? '<i class="bi bi-chevron-right kpi-go" aria-hidden="true"></i>' : ''}</div>`; }).join('')}</div>`;
 /** Back link to a workspace page; empty when the user cannot open that page. */
