@@ -242,12 +242,8 @@ const MaintUI = {
           : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.preDispatch.actor) + ' · ' + UI.datetime(r.preDispatch.completed_at)
           : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
-        r.preDispatch ? ['Pre-dispatch NOT OK items', (() => {
-          let items = {}; try { items = JSON.parse(r.preDispatch.items_json || '{}').items || {}; } catch {}
-          const findings = Object.entries(items).filter(([, item]) => item.condition === 'NOT OK').map(([key, item]) =>
-            (key.replace(/_/g, ' ').toUpperCase()) + (item.remarks ? ': ' + item.remarks : ''));
-          return findings.length ? UI.esc(findings.join('; ')) : 'No recorded NOT OK findings';
-        })()] : null,
+        r.preDispatch ? ['Pre-dispatch NOT OK items', (r.preDispatchFindings || []).length
+          ? UI.esc(r.preDispatchFindings.join('; ')) : 'No recorded NOT OK findings'] : null,
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
         ])}
       ${UI.h('Mechanics and repair')}${progress}${readiness}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
