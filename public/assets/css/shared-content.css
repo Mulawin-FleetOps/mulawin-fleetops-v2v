@@ -38,7 +38,7 @@
   color: #fff !important;
   box-shadow: none;
 }
-#pageContent .metric-strip-icons :is(.metric-icon-blue,.metric-icon-blue .bi),
+#pageContent .metric-strip-icons .metric-icon-blue,
 #pageContent .kpi-tile.tone-blue .kpi-icon,
 #pageContent .head-kpi.blue .head-kpi-icon,
 #pageContent .dispatcher-record-kpi-grid .ds-card-icon.blue {
