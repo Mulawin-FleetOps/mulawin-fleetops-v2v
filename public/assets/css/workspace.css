@@ -1072,7 +1072,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent .purchasing-live-v1 .mo-quickbar-row{display:flex;flex-wrap:wrap;gap:8px}
 #pageContent .purchasing-live-v1 .mo-quickbar-row .btn{border-radius:9px;font-size:12px;padding:8px 13px}
 #pageContent .purchasing-live-v1 .purchasing-ref-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel{min-width:0;min-height:185px;margin:0;background:white;border:1px solid var(--pw-border);border-radius:12px;box-shadow:var(--pw-shadow);display:flex;flex-direction:column;overflow:hidden}
+#pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel{min-width:0;min-height:185px;margin:0;background:white;border:1px solid #dfe9e2;border-radius:12px;box-shadow:var(--pw-shadow);display:flex;flex-direction:column;overflow:hidden}
 #pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-head{padding:16px 19px;min-height:54px;display:flex;align-items:center;border-bottom:1px solid #e7eee8;background:white}
 #pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-title{font-size:14px;font-weight:760;color:#274937}
 #pageContent .purchasing-live-v1 .purchasing-ref-panels>.panel .panel-body{padding:7px 18px;flex:1}
@@ -1603,4 +1603,12 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 }
 @media(max-width:1000px){
   #pageContent.billing-design-v2 .bil-v2-wireframe-grid{grid-template-columns:1fr;}
+}
+
+
+/* Purchasing dashboard: force neutral inner-card borders regardless of whether
+   dashboard content is nested inside .page-body or mounted directly. */
+#pageContent .purchasing-dashboard-ref :is(.panel.ws-panel,.purchasing-full-panel,.purchasing-ref-panels>.panel),
+#pageContent .purchasing-live-v1 :is(.panel.ws-panel,.purchasing-full-panel,.purchasing-ref-panels>.panel){
+  border:1px solid #dfe9e2 !important;
 }
