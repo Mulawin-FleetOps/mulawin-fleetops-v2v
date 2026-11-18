@@ -136,7 +136,7 @@ App.page('mechanic_attendance', {
         onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
 
-    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.classList.add('mp-reference-table', 'mp-ops-table', 'mp-mechanic-attendance-table');
     box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Attendance Records</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Duty status and current assignments</small></div>`);
 
     } else {
