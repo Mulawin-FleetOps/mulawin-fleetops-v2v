@@ -192,43 +192,49 @@ const BillUI = {
   },
 };
 
-// ---------------------------------------------------------------- BILLING_WORKSPACE_V1: Overview (Billing landing page)
+// ---------------------------------------------------------------- Billing reference v2: live-data overview, no simulated actions
 App.page('billing_overview', {
   title: 'Billing Overview',
   subtitle: 'Trips to bill, invoices to collect and receivables aging, as of today.',
   render(ctx) {
-    const d = BillUI.data = ctx.data, c = d.counts || {}, col = d.collectedMonth || {};
-    const tiles = [
-      { label: 'Trips to bill', value: +c.for_billing || 0, note: 'completed trips: verify and invoice', icon: 'bi-receipt', tone: +c.for_billing ? 'amber' : 'gray', go: 'billing?tab=for' },
-      { label: 'Ongoing drafts', value: +c.ongoing || 0, note: 'billing drafts of trips on the road', icon: 'bi-hourglass', tone: 'gray', go: 'billing?tab=ongoing' },
-      { label: 'Adjustments pending', value: d._errors?.pendingAdjustments ? '—' : (d.pendingAdjustments || 0), note: d._errors?.pendingAdjustments ? 'needs database update 09' : 'waiting for Admin approval', icon: 'bi-hourglass-split', tone: d.pendingAdjustments ? 'amber' : 'gray', go: 'billing?tab=approvals' },
-      { label: 'Outstanding', value: UI.money(c.outstanding || 0), note: (+c.unpaid || 0) + ' unpaid invoice(s)', icon: 'bi-file-earmark-text', tone: +c.unpaid ? 'blue' : 'gray', go: 'billing_receivables' },
-      { label: 'Overdue', value: UI.money(c.overdue || 0), note: (+c.overdue_n || 0) + ' invoice(s) past the due date', icon: 'bi-exclamation-octagon', tone: +c.overdue_n ? 'red' : 'gray', go: 'billing_receivables?state=overdue' },
-      { label: 'Collected this month', value: UI.money(col.total || 0), note: (+col.n || 0) + ' payment(s) · billed ' + UI.money(c.billed_month || 0), icon: 'bi-cash-stack', tone: 'green', go: 'billing_collections' },
+    const d = BillUI.data = ctx.data, c = d.counts || {}, collected = d.collectedMonth || {};
+    const k = [
+      {label:'Trips to bill',value:+c.for_billing||0,note:'Completed trips to verify and invoice',icon:'bi-receipt',tone:'amber',go:'billing?tab=for'},
+      {label:'Ongoing drafts',value:+c.ongoing||0,note:'View-only while trips are ongoing',icon:'bi-hourglass',tone:'gray',go:'billing?tab=ongoing'},
+      {label:'Adjustments pending',value:d._errors?.pendingAdjustments?'—':(+d.pendingAdjustments||0),note:'Waiting for Admin approval',icon:'bi-hourglass-split',tone:'amber',go:'billing?tab=approvals'},
+      {label:'Outstanding',value:UI.money(c.outstanding||0),note:(+c.unpaid||0)+' unpaid invoice(s)',icon:'bi-file-earmark-text',tone:'blue',go:'billing_receivables'},
+      {label:'Overdue',value:UI.money(c.overdue||0),note:(+c.overdue_n||0)+' invoices past due',icon:'bi-exclamation-triangle',tone:'red',go:'billing_receivables?state=overdue'},
+      {label:'Collected this month',value:UI.money(collected.total||0),note:(+collected.n||0)+' payment(s)',icon:'bi-cash-stack',tone:'green',go:'billing_collections'},
     ];
-    // Queue rows are navigable records, not embedded action buttons.
-    const item = (attrs, top, sub, side) => `<li class="mo-item clickable" ${attrs} role="link" tabindex="0"><div class="mo-item-main"><div class="mo-item-top">${top}</div>${sub ? `<div class="mo-item-issue">${sub}</div>` : ''}</div><div class="mo-item-side">${side}</div></li>`;
-    const list = (title, icon, items, empty, more) => `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi ${icon} me-1" aria-hidden="true"></i>${UI.esc(title)} <span class="text-muted fw-normal">(${items.length})</span></h2></div>
-      <div class="panel-body flush">${items.length ? `<ul class="mo-list mo-scroll">${items.join('')}</ul>` : `<div class="mo-empty">${UI.esc(empty)}</div>`}</div></section>`;
-    const toBill = (d.forBilling || []).map(b => item(`data-bill="${+b.id}"`, `<b>${UI.esc(b.trip_ref)}</b> <span class="mo-ref">${UI.esc(b.client)}</span>`, 'Completed ' + UI.datetime(b.completed_at),
-      (+b.docs_complete ? (b.docs_verified_at ? '<span class="badge-s blue">Verified</span>' : '<span class="badge-s amber">Verify</span>') : '<span class="badge-s red">Docs missing</span>') + `<span class="mo-ref">${UI.money(b.total_amount)}</span>`));
-    const overdue = (d.overdue || []).map(b => item(`data-bill="${+b.id}"`, `<b>${UI.esc(b.invoice_number)}</b> <span class="mo-ref">${UI.esc(b.client)}</span>`, 'Due ' + UI.date(b.due_date) + ' · follow up with the client',
-      `<span class="badge-s red">${+b.days_overdue} days</span><span class="mo-ref">${UI.money(b.balance)}</span>`));
-    const cols = (d.recentCollections || []).map(x => item(`data-bill="${+x.billing_id}"`, `<b>${UI.money(x.amount)}</b> <span class="mo-ref">${UI.esc(x.client)}</span>`, UI.esc(x.invoice_number) + ' · ' + UI.esc(x.payment_method), `<span class="mo-ref">${UI.date(x.payment_date)}</span>`));
-    const ag = d.aging || [], sum = (k) => ag.reduce((a, r) => a + +r[k], 0), tot = sum('balance');
-    const aging = `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>Receivables aging</h2><div class="panel-tools"><span class="small text-muted">as of ${UI.date(d.asOf)}</span></div></div><div class="panel-body">
-      ${tot ? [['Not yet due', 'not_due', 'green'], ['1–30 days overdue', 'd1_30', 'blue'], ['31–60 days overdue', 'd31_60', 'blue'], ['Over 60 days overdue', 'd60', 'blue']].map(([l, k, tone]) => `
-        <div class="ws-bar clickable" data-go="billing_receivables" role="link" tabindex="0"><div class="ws-bar-top"><span>${l}</span><b>${UI.money(sum(k))}</b></div><div class="ws-bar-track"><div class="ws-bar-fill tone-${tone}" style="width:${(sum(k) / tot * 100).toFixed(1)}%"></div></div></div>`).join('')
-        + `<div class="ws-foot">Open invoices (Invoiced or Partially Paid) by days past the due date. Total ${UI.money(tot)} across ${ag.length} client(s).</div>` : '<div class="text-muted">No outstanding receivable.</div>'}</div></section>`;
-    const banners = (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.${UI.canGo('clients') ? '<button type="button" class="btn btn-sm btn-light" data-go="clients?status=Pending Rate">Open clients</button>' : ''}</div>` : '');
-    ctx.el.innerHTML = `<div class="maint-overview mp-ws">${banners}${UI.kpiTiles(tiles)}
-      <div class="mo-grid"><div class="mo-main">
-        ${list('Trips to bill', 'bi-receipt', toBill, 'No completed trip is waiting for billing.', 'billing?tab=for')}
-        ${list('Overdue invoices to follow up', 'bi-alarm', overdue, 'No invoice is past its due date.', 'billing_receivables?state=overdue')}
-      </div><div class="mo-side">${aging}
-        ${list('Recent collections', 'bi-cash-stack', cols, 'No payment recorded yet.', 'billing_collections')}
-      </div></div></div>`;
-    ctx.el.querySelectorAll('[data-bill]').forEach(li => { li.onclick = () => BillUI.open(+li.dataset.bill); li.onkeydown = (e) => { if (e.key === 'Enter') BillUI.open(+li.dataset.bill); }; });
+    const queue=(heading,icon,rows,empty)=>{
+      const row=(ref,meta,amount,state,code)=>'<li class="bil-v2-item" role="button" tabindex="0" data-bill="'+Number(code)+'">'
+        +'<div class="bil-v2-item-main"><b>'+UI.esc(ref)+'</b><small>'+UI.esc(meta)+'</small></div>'
+        +'<div class="bil-v2-item-side">'+(state?'<span class="badge-s '+state[0]+'">'+UI.esc(state[1])+'</span>':'')
+        +'<strong>'+UI.esc(amount)+'</strong></div></li>';
+      return '<section class="bil-v2-panel"><header class="bil-v2-panel-head"><h2><i class="bi '+icon+'" aria-hidden="true"></i> '+UI.esc(heading)+'</h2><span>'+rows.length+'</span></header>'
+      +'<ul class="bil-v2-queue">'+(rows.length?rows.map(rowData=>row(...rowData)).join(''):'<li class="bil-v2-empty">'+UI.esc(empty)+'</li>')+'</ul></section>';
+    };
+    const todo=(d.forBilling||[]).map(b=>[b.trip_ref,b.client+' · Completed '+UI.date(b.completed_at),UI.money(b.total_amount),
+      +b.docs_complete?(b.docs_verified_at?['green','Verified']:['amber','Verify']):['red','Docs missing'],b.id]);
+    const overdue=(d.overdue||[]).map(b=>[b.invoice_number,b.client+' · Due '+UI.date(b.due_date),
+      UI.money(b.balance),['red',(+b.days_overdue||0)+' days overdue'],b.id]);
+    const recent=(d.recentCollections||[]).map(x=>[x.invoice_number,x.client+' · '+UI.esc(x.payment_method)+' · '+UI.date(x.payment_date),
+      UI.money(x.amount),['green','Recorded'],x.billing_id]);
+    const aging=d.aging||[],value=key=>aging.reduce((sum,x)=>sum+(+x[key]||0),0),total=value('balance');
+    const agingRows=[['Not yet due','not_due','green'],['1–30 days overdue','d1_30','blue'],['31–60 days overdue','d31_60','amber'],['Over 60 days overdue','d60','red']];
+    const age='<section class="bil-v2-panel bil-v2-aging"><header class="bil-v2-panel-head"><h2><i class="bi bi-bar-chart-steps"></i> Receivables aging</h2><small>As of '+UI.date(d.asOf)+'</small></header>'
+      +'<div class="bil-v2-aging-body">'+(total?agingRows.map(([l,key,tone])=>'<div class="bil-v2-bar" role="link" tabindex="0" data-go="billing_receivables">'
+      +'<span>'+l+'</span><b>'+UI.money(value(key))+'</b><div class="bil-v2-track"><i class="'+tone+'" style="width:'+(100*value(key)/total).toFixed(1)+'%"></i></div></div>').join('')
+      +'<p>Open invoice balance: '+UI.money(total)+' across '+aging.length+' client(s).</p>':'<p>No outstanding receivables.</p>')+'</div></section>';
+    const warning=d._errors?.pendingAdjustments?'<div class="alert alert-warning small">Adjustment counts are temporarily unavailable. Check the required database migration.</div>':'';
+    ctx.el.innerHTML='<div class="bil-v2-dashboard">'+warning+UI.kpiTiles(k)
+      +'<div class="bil-v2-queues">'+queue('Trips to bill','bi-receipt',todo,'No completed trips waiting.')
+      +queue('Overdue invoices to follow up','bi-alarm',overdue,'No overdue invoices.')
+      +queue('Recent collections','bi-cash-stack',recent,'No collections recorded.')+'</div>'+age+'</div>';
+    ctx.el.querySelectorAll('[data-bill]').forEach(el=>{
+      el.onclick=()=>BillUI.open(+el.dataset.bill);
+      el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();BillUI.open(+el.dataset.bill);}};
+    });
   },
 });
 
@@ -283,47 +289,70 @@ const HeadBillingPage = {
 
 App.page('billing', {
   title: 'Billing & Invoices',
-  subtitle: 'Billing drafts of dispatched trips, completed trips to verify and invoice, and the invoices issued.',
+  subtitle: 'Billing drafts of dispatched trips, completed trips to verify and invoice, and invoices issued.',
   render(ctx) {
     if (UI.role('admin')) return HeadBillingPage.render(ctx);
-    if (UI.role('admin') || UI.role('billing') || UI.role('audit')) UI.tool(ctx, 'Pricing Impact', () => BillUI.pricingReport(), 'bi-clock-history', 'outline-secondary'); // kenneth: fixed-route pricing preview
-    const d = BillUI.data = ctx.data, q = ctx.query, all = d.billings || [];
-    const TABS = { for: ['To bill', b => b.status === 'For Billing'], approvals: ['Adjustment approvals', null], unpaid: ['Unpaid invoices', b => ['Invoiced', 'Partially Paid'].includes(b.status)],
-      paid: ['Paid', b => b.status === 'Paid'], ongoing: ['Ongoing drafts', b => b.status === 'Ongoing'] };
-    const cnt = (k) => k === 'approvals' ? (d.adjustments || []).length : all.filter(TABS[k][1]).length;
-    const tab = TABS[q.tab] ? q.tab : (d.can.decide && cnt('approvals') ? 'approvals' : 'for');
-    ctx.el.innerHTML = `${UI.crumb('billing_overview', 'Billing Overview')}
-      ${d._errors?.adjustments || d._errors?.billings ? '<div class="alert alert-warning py-2 small">Part of the billing data needs the pending database update (migration 09, billing adjustments). The other parts work.</div>' : ''}
-      <div class="line-tabs no-print" role="tablist">${Object.entries(TABS).map(([k, [l]]) => `<button type="button" role="tab" class="tab ${k === tab ? 'active' : ''}" data-go="billing?${new URLSearchParams({ tab: k })}">${l} <span class="text-muted">${cnt(k)}</span></button>`).join('')}</div>`;
-    const box = document.createElement('div'); ctx.el.append(box);
-    const open = (b) => BillUI.open(b.billing_id || b.id);
-    const clients = [...new Set(all.map(b => b.client))].sort();
-    const filters = UI.generalFilters(ctx, [{ name: 'client', label: 'Clients', options: clients }]);
-    const rows = tab === 'approvals' ? (d.adjustments || []) : all.filter(TABS[tab][1]).filter(b => !q.client || b.client === q.client);
-    const docs = (b) => { const ok = +b.waybill_docs && +b.dr_docs && +b.ar_docs; return `<span class="badge-s ${ok ? 'green' : 'red'}">${ok ? 'Complete' : 'Missing'}</span>`; };
-    const view = UI.ibtn('open', 'Open billing details', 'bi-eye', 'outline-primary');
-    if (tab === 'approvals') {
-      box.innerHTML = UI.table([['Trip', 'trip_ref', (v, x) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(x.client)}</div>`], ['Request', 'id', (v, x) => BillUI.reqText(x)], ['Reason', 'reason', (v) => `<span class="cell-clamp">${UI.esc(v || '')}</span>`],
-        ['Requested', 'created_at', (v, x) => UI.esc(x.added_by_name) + `<div class="cell-sub">${UI.datetime(v)}</div>`], ['Current total', 'total_amount', 'money'],
-        ['Waiting for', 'id', () => BillUI.chip(['admin', 'Admin', 'Approve or reject'])]], rows,
-        { title: 'Charge and rate adjustment requests (' + rows.length + ')', showAllColumns: true, directActions: true,
-          actions: (x) => (d.can.decide && +x.added_by !== d.can.me ? UI.ibtn('approve', 'Approve request', 'bi-check-lg', 'success') + UI.ibtn('reject', 'Reject request', 'bi-x-lg', 'outline-danger') : '') + view,
-          onAction: (a, x) => a === 'open' ? open(x) : BillUI.decide(x, a, () => App.route()), rowClick: open, empty: 'No adjustment request is waiting.' });
-      return;
+    if (UI.role('billing') || UI.role('audit')) UI.tool(ctx, 'Pricing Impact', () => BillUI.pricingReport(), 'bi-clock-history', 'outline-secondary');
+    const d=BillUI.data=ctx.data,q=ctx.query||{},all=d.billings||[],open=all.filter(b=>['Invoiced','Partially Paid'].includes(b.status));
+    const tabs={
+      for:['To bill',b=>b.status==='For Billing'],
+      approvals:['Adjustment approvals',null],
+      unpaid:['Unpaid invoices',b=>['Invoiced','Partially Paid'].includes(b.status)],
+      paid:['Paid',b=>b.status==='Paid'],
+      ongoing:['Ongoing drafts',b=>b.status==='Ongoing']
+    };
+    const count=k=>k==='approvals'?(d.adjustments||[]).length:all.filter(tabs[k][1]).length;
+    const tab=tabs[q.tab]?q.tab:'for';
+    const tiles=[
+      {label:'Ongoing trips (drafts)',value:count('ongoing'),note:'View-only while in progress',icon:'bi-hourglass',tone:'gray'},
+      {label:'For billing',value:count('for'),note:'Completed trips awaiting review',icon:'bi-receipt',tone:'amber'},
+      {label:'Unpaid invoices',value:open.length,note:'Invoiced or partially paid',icon:'bi-file-earmark',tone:'blue'},
+      {label:'Outstanding balance',value:UI.money(open.reduce((s,x)=>s+(+x.balance||0),0)),note:'Total unpaid balance',icon:'bi-wallet2',tone:'blue'},
+      {label:'Overdue',value:UI.money(open.filter(x=>+x.days_overdue>0).reduce((s,x)=>s+(+x.balance||0),0)),note:'Past due invoice balances',icon:'bi-alarm',tone:'red'}
+    ];
+    const tabMarkup='<div class="bil-v2-tabstrip" role="tablist">'+Object.entries(tabs).map(([id,[label]])=>
+      '<button type="button" role="tab" aria-selected="'+(tab===id)+'" class="'+(tab===id?'active':'')+'" data-go="billing?tab='+id+'">'+label+' <small>'+count(id)+'</small></button>').join('')+'</div>';
+    ctx.el.innerHTML=UI.crumb('billing_overview','Billing Overview')
+      +(d._errors?.adjustments||d._errors?.billings?'<div class="alert alert-warning small">Some records require billing adjustment migration 09.</div>':'')
+      +'<div class="bil-v2-records">'+UI.kpiTiles(tiles)+
+      '<section class="bil-v2-record-panel">'+tabMarkup+'<div class="bil-v2-record-content"></div></section></div>';
+    const root=ctx.el.querySelector('.bil-v2-record-content');
+    const show=x=>BillUI.open(x.billing_id||x.id);
+    const clients=[...new Set(all.map(x=>x.client).filter(Boolean))].sort();
+    const filters=tab==='approvals'?'':UI.generalFilters(ctx,[{name:'client',label:'Clients',options:clients}]);
+    const rows=tab==='approvals'?(d.adjustments||[]):all.filter(tabs[tab][1]).filter(x=>!q.client||x.client===q.client);
+    const iconView=UI.ibtn('open','View billing details','bi-eye','outline-primary');
+    const cols={
+      for:[['Trip','trip_ref',(v,b)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(b.waybill_number||'No waybill number')+'</div>'],
+        ['Client','client'],['Completed','completed_at','date'],
+        ['Documents','waybill_docs',(v,b)=>+b.waybill_docs&&+b.dr_docs&&+b.ar_docs?'<span class="badge-s green">Complete</span>':'<span class="badge-s red">Missing</span>'],
+        ['Amount','total_amount','money'],['Waiting for','status',(v,b)=>BillUI.chip(BillUI.next(b))]],
+      unpaid:[['Invoice','invoice_number',(v,b)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(b.trip_ref)+'</div>'],
+        ['Client','client'],['Due','due_date',(v,b)=>UI.date(v)+(+b.days_overdue>0?' <span class="badge-s red">'+b.days_overdue+' days overdue</span>':'')],
+        ['Amount','total_amount','money'],['Paid','amount_paid','money'],['Balance','balance','money'],['Status','status','badge']],
+      paid:[['Invoice','invoice_number',(v,b)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(b.trip_ref)+'</div>'],
+        ['Client','client'],['Invoice date','invoice_date','date'],['Amount','total_amount','money'],['Status','status','badge']],
+      ongoing:[['Trip','trip_ref',(v,b)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(b.plate_number||'')+'</div>'],
+        ['Client','client'],['Route','delivery_point',(v,b)=>'<span class="cell-clamp">'+UI.esc(b.pickup_point)+' → '+UI.esc(v)+'</span>'],
+        ['Dispatched','dispatched_at','datetime'],['Draft amount','total_amount','money']]
+    };
+    if(tab==='approvals'){
+      root.innerHTML=UI.table([['Trip','trip_ref',(v,x)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(x.client)+'</div>'],
+        ['Request','id',(v,x)=>BillUI.reqText(x)],['Reason','reason',(v)=>'<span class="cell-clamp">'+UI.esc(v||'')+'</span>'],
+        ['Requested','created_at',(v,x)=>UI.esc(x.added_by_name)+'<div class="cell-sub">'+UI.datetime(v)+'</div>'],
+        ['Current total','total_amount','money'],['Waiting for','id',()=>BillUI.chip(['admin','Admin','Approve or reject'])]],rows,
+        {title:'Adjustment approvals ('+rows.length+')',showAllColumns:true,directActions:true,
+        actions:x=>(d.can.decide&&+x.added_by!==d.can.me?UI.ibtn('approve','Approve','bi-check-lg','success')+UI.ibtn('reject','Reject','bi-x-lg','outline-danger'):'')+iconView,
+        onAction:(a,x)=>a==='open'?show(x):BillUI.decide(x,a,()=>App.route()),rowClick:show,empty:'No pending adjustments.'});
+    }else{
+      root.innerHTML=filters+UI.table(cols[tab],rows,{
+        title:tabs[tab][0]+' ('+rows.length+')',showAllColumns:true,directActions:true,
+        actions:b=>(d.can.act&&['Invoiced','Partially Paid'].includes(b.status)?UI.ibtn('collect','Record collection','bi-cash-stack','success'):'')
+          +(d.can.act&&b.status==='For Billing'&&!+b.pending_adjustments&&+b.waybill_docs&&+b.dr_docs&&+b.ar_docs
+          ?UI.ibtn('open',b.docs_verified_at?'Finalize invoice':'Verify documents',b.docs_verified_at?'bi-receipt':'bi-shield-check','primary'):iconView),
+        onAction:(a,b)=>a==='collect'?BillUI.collectForm(b):show(b),rowClick:show,empty:'No billing records match.'
+      });
     }
-    const cols = {
-      ongoing: [['Trip', 'trip_ref', (v, b) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(b.plate_number || '')}</div>`], ['Client', 'client'], ['Route', 'delivery_point', (v, b) => `<span class="cell-clamp">${UI.esc(b.pickup_point)} → ${UI.esc(v)}</span>`],
-        ['Dispatched', 'dispatched_at', 'datetime'], ['Draft amount', 'total_amount', 'money']],
-      for: [['Trip', 'trip_ref', (v, b) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(b.waybill_number || 'no waybill no.')}</div>`], ['Client', 'client'], ['Completed', 'completed_at', 'date'],
-        ['Documents', 'waybill_docs', (v, b) => docs(b)], ['Amount', 'total_amount', 'money'], ['Waiting for', 'status', (v, b) => BillUI.chip(BillUI.next(b))]],
-      unpaid: [['Invoice', 'invoice_number', (v, b) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(b.trip_ref)}</div>`], ['Client', 'client'], ['Due', 'due_date', (v, b) => UI.date(v) + (+b.days_overdue > 0 ? ` <span class="badge-s red">${b.days_overdue} days overdue</span>` : '')],
-        ['Amount', 'total_amount', 'money'], ['Paid', 'amount_paid', 'money'], ['Balance', 'balance', 'money'], ['Status', 'status', 'badge']],
-      paid: [['Invoice', 'invoice_number', (v, b) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(b.trip_ref)}</div>`], ['Client', 'client'], ['Invoice date', 'invoice_date', 'date'], ['Amount', 'total_amount', 'money'], ['Status', 'status', 'badge']],
-    }[tab];
-    box.innerHTML = filters + UI.table(cols, rows, { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true,
-      actions: (b) => (d.can.act && ['Invoiced', 'Partially Paid'].includes(b.status) ? UI.ibtn('collect', 'Record collection', 'bi-cash-stack', 'success') : '')
-        + (d.can.act && b.status === 'For Billing' && !+b.pending_adjustments && +b.waybill_docs && +b.dr_docs && +b.ar_docs ? UI.ibtn('open', b.docs_verified_at ? 'Finalize invoice' : 'Verify documents', b.docs_verified_at ? 'bi-receipt' : 'bi-shield-check', 'primary') : view),
-      onAction: (a, b) => a === 'collect' ? BillUI.collectForm(b) : open(b), rowClick: open, empty: 'No billing record in this list.' });
   },
 });
 
