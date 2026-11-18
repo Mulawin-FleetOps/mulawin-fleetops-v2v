@@ -721,15 +721,15 @@ App.page('maintenance_overview', {
     const fv = (k) => fs ? fs[k] : '—';
     // MOTORPOOL_UI_V2: Admin KPI cards (head-kpi). Each card opens the matching truck list or repair view.
     const tiles = [
-      ['Available', fv('available'), 'bi-check-circle', 'blue', 'trucks?status=Available'],
-      ['On Trip', fv('on_trip'), 'bi-signpost-split', 'purple', 'trucks?status=On Trip'],
-      ['Under Maintenance', fv('under_maintenance'), 'bi-wrench-adjustable', 'red', 'trucks?status=Under Maintenance'],
-      ['For Verification', n('for_verification'), 'bi-clipboard-check', 'green', 'maintenance?view=verify'],
+      ['Available', fv('available'), 'bi-check-circle', 'blue', 'trucks?status=Available', 'Ready for dispatch'],
+      ['On Trip', fv('on_trip'), 'bi-signpost-split', 'purple', 'trucks?status=On Trip', 'Currently on a trip'],
+      ['Under Maintenance', fv('under_maintenance'), 'bi-wrench-adjustable', 'red', 'trucks?status=Under Maintenance', 'Inspection or repair'],
+      ['For Verification', n('for_verification'), 'bi-clipboard-check', 'green', 'maintenance?view=verify', 'Return-to-service check'],
     ];
-    const kpis = '<div class="head-trip-kpis head-fleet-kpis">' + tiles.map(([label, value, icon, tone, go]) =>
+    const kpis = '<div class="head-trip-kpis head-fleet-kpis">' + tiles.map(([label, value, icon, tone, go, note]) =>
       `<button type="button" class="head-kpi head-fleet-kpi ${tone}"${UI.canGo(go) ? ` data-go="${UI.esc(go)}"` : ' disabled'} aria-label="View ${UI.esc(label)}">`
       + `<span class="head-kpi-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>`
-      + `<span class="head-fleet-kpi-value"><span>${UI.esc(label)}</span><strong>${UI.esc(String(value))}</strong></span></button>`).join('')
+      + `<span class="head-fleet-kpi-value"><span>${UI.esc(label)}</span><strong>${UI.esc(String(value))}</strong><small class="head-kpi-note">${UI.esc(note)}</small></span></button>`).join('')
       + '</div>' + (fs && fs.assigned ? `<p class="small text-muted mt-1 mb-2">${UI.num(fs.assigned)} more truck(s) are reserved for an upcoming trip.</p>` : '');
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
