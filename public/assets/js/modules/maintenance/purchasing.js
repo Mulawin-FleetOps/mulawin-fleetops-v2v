@@ -353,12 +353,12 @@ PurUI.openPO = async (o, k) => {
 PurUI.openPart = async (pt, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.part_history', { part_id: pt.id }); const p = x.part;
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
-  const html = `${UI.kv([['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
+  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
       p.warranty_info ? ['Warranty', UI.esc(p.warranty_info)] : null])}
     ${UI.h('Stock movements (latest 50)')}${UI.table([['Date and time', 'created_at', 'datetime'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => (v > 0 ? '+' : '') + UI.num(v)], ['Reference', 'reference', (v, m) => UI.e(v || m.reason)], ['Truck', 'plate_number'], ['By', 'actor']], x.movements, { plain: true, limit: 10, empty: 'No stock movement recorded.' })}
     <div class="d-flex flex-wrap gap-2 mt-3">${k.partActs(pt, true)}</div>`;
-  const el = UI.drawer(UI.esc(p.part_number), html, { subtitle: 'Inventory part' });
+  const el = UI.drawer(UI.esc(p.description), html, { subtitle: 'Part ID · ' + UI.esc(p.part_number) });
   const root = el || document.querySelector('.offcanvas.app-drawer');
   PurUI.bindDrawerActions(root.querySelector('.d-flex.flex-wrap.gap-2.mt-3'), pt, k.partAct);
 };
