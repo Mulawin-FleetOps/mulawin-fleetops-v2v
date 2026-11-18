@@ -1111,15 +1111,15 @@
 
 
 /* Uniform desktop viewport breathing room across ALL role workspaces.
-   Supersedes the old 8px-per-side width and zero top margin without
+   Fill the available area with a small consistent gutter, without
    touching component layout, pagination or page content. */
 #appShell.sidebar-manual-toggle > .main > #pageContent,
 #appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
 #appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
 #appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2 {
   box-sizing:border-box !important;
-  width:calc(100% - 48px) !important;
-  max-width:1360px !important;
+  width:calc(100% - 40px) !important;
+  max-width:none !important;
   min-width:0 !important;
   margin:24px auto 36px !important;
   align-self:center !important;
@@ -1127,8 +1127,8 @@
 }
 /* Workspace and Analytics wrappers both retain their single gold border. */
 #appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
-  width:calc(100% - 48px) !important;
-  max-width:1360px !important;
+  width:calc(100% - 40px) !important;
+  max-width:none !important;
   margin:24px auto 36px !important;
 }
 @media(max-width:991.98px) {
