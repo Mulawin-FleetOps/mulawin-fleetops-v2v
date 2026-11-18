@@ -21,7 +21,17 @@ final class Data {
                     'csrf' => $_SESSION['csrf'] ?? '', 'passwordMin' => PASSWORD_MIN_LENGTH];
         }
         $bell = ['items' => [], 'unread' => 0, 'active' => 0];
-        try { core('Notify'); if ($u['role'] === 'admin') { require_once __DIR__ . '/Modules/Administration/Attendance.php'; Attendance::remind(db()); } $bell = Notify::forUser(db(), $u['id']); }
+        try {
+            core('Notify');
+            if ($u['role'] === 'admin') {
+                require_once __DIR__ . '/Modules/Administration/Attendance.php';
+                Attendance::remind(db());
+            }
+            // Trigger deduplicated date-based alerts when Purchasing/Admin opens a session.
+            // Includes warranty batches only if the additive migration has been installed.
+            if (in_array($u['role'], ['admin', 'purchasing'], true)) Notify::dailyReminders(db());
+            $bell = Notify::forUser(db(), $u['id']);
+        }
         catch (Throwable $e) { error_log('Notifications unavailable: ' . $e->getMessage()); }
         $u['has_signature'] = (bool)(one(db(), 'SELECT signature_document_id FROM users WHERE id=?', [$u['id']])['signature_document_id'] ?? null);
         return [
