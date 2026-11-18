@@ -56,7 +56,9 @@ App.page('funds', {
       {label:'Needs Revision',value:needsRevision.length,color:'red'},
       {label:'Released',value:n('Released'),color:'green'},
     ];
-    ctx.el.innerHTML = RecordComponents.kpis(counts);
+    // Action-related counts remain visible without a second KPI-card grid.
+    ctx.el.innerHTML = '<div class="small text-muted mb-2">'
+      +counts.map(x => UI.esc(x.label)+': <b>'+UI.num(x.value)+'</b>').join(' · ')+'</div>';
     const cols = [['Fund', 'fund_ref'], ['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Breakdown', 'breakdown'], ['Amount', 'amount', 'money'],
       ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Request date', 'created_at', 'date']];
     const actions = (f) => {
