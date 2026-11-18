@@ -238,19 +238,23 @@ final class Purchasing {
 
     private static function warrantyConfirmationReady(PDO $p): bool {
         return self::warrantyReady($p) && (int)(one($p,
-            "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='part_warranty_batches' AND COLUMN_NAME='warranty_status'")['n'] ?? 0) === 1;
+            "SELECT COUNT(*) AS n FROM schema_migrations WHERE id='2026-11-18_23_pending_installation_warranty'")['n'] ?? 0) === 1;
     }
 
     private static function warrantyData(array $d): array {
         $status = trim((string)($d['status'] ?? ''));
-        must(in_array($status, ['With Warranty', 'No Warranty', 'Not Yet Confirmed'], true),
+        must(in_array($status, ['With Warranty', 'No Warranty', 'Not Yet Confirmed', 'Pending Installation'], true),
             'Select a warranty status for this delivery.');
-        if ($status !== 'With Warranty') return [
+        if ($status === 'No Warranty' || $status === 'Not Yet Confirmed') return [
             'warranty_status' => $status, 'warranty_months' => null,
             'warranty_start' => null, 'warranty_expires' => null, 'start_basis' => null,
         ];
         $months = filter_var($d['months'] ?? null, FILTER_VALIDATE_INT);
         must($months !== false && $months >= 1 && $months <= 120, 'Enter warranty duration (1 to 120 months).');
+        if ($status === 'Pending Installation') {
+            return ['warranty_status' => $status, 'warranty_months' => $months,
+                'warranty_start' => null, 'warranty_expires' => null, 'start_basis' => 'Installation'];
+        }
         $basis = trim((string)($d['start_basis'] ?? ''));
         must(in_array($basis, ['Delivery', 'Purchase', 'Invoice', 'Installation', 'Other'], true),
             'Select the warranty start-date basis.');
