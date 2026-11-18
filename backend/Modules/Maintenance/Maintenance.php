@@ -765,9 +765,10 @@ final class Maintenance {
         if ($inc) foreach (Files::of($p, 'incident', (int)$inc['id']) as $doc) $docs[] = $doc;
         // Repair opened by an arrival checklist: show the checklist findings and its photos.
         $arrival = one($p, "SELECT ins.*, us.full_name AS actor FROM inspections ins JOIN users us ON us.id=ins.actor_id WHERE ins.maintenance_job_id=? AND ins.kind='Arrival' ORDER BY ins.id DESC LIMIT 1", [$id]);
+        $preDispatch = one($p, "SELECT ins.*, us.full_name AS actor FROM inspections ins JOIN users us ON us.id=ins.actor_id WHERE ins.maintenance_job_id=? AND ins.kind='Pre-Dispatch' ORDER BY ins.id DESC LIMIT 1", [$id]);
         if ($arrival) foreach (Files::of($p, 'trip', (int)$arrival['trip_id']) as $doc) if ($doc['category'] === 'Arrival Inspection Photo') $docs[] = $doc;
         return [
-            'job' => $j, 'incident' => $inc, 'arrival' => $arrival, 'documents' => $docs,
+            'job' => $j, 'incident' => $inc, 'arrival' => $arrival, 'preDispatch' => $preDispatch, 'documents' => $docs,
             // JOB_HELPER_MECHANICS_V1: assisting mechanics, active and past (who assigned / released them and why).
             'helpers' => self::helpersReady($p) ? many($p, 'SELECT h.mechanic_id, h.assigned_at, h.released_at, h.release_reason, mc.full_name, mc.mechanic_code, au.full_name AS assigned_by_name, ru.full_name AS released_by_name
                 FROM maintenance_job_helpers h JOIN mechanics mc ON mc.id=h.mechanic_id JOIN users au ON au.id=h.assigned_by LEFT JOIN users ru ON ru.id=h.released_by
