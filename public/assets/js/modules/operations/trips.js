@@ -285,7 +285,7 @@ const TripUI = {
   complete(t) {
     const cc = t.truck_type === 'Car Carrier';
     const detailsFields=[
-      { name: 'completion_time_notice', type: 'html', html: '<div class="col-md-6"><div class="small fw-semibold mb-2">Actual completion date and time</div><div class="form-control bg-light text-muted" role="status"><i class="bi bi-clock me-2" aria-hidden="true"></i>Recorded automatically upon completion (Philippine time)</div></div>' },
+      { name: 'completion_time_notice', type: 'html', col: 6, html: '<div class="small fw-semibold mb-2">Actual completion date and time</div><div class="form-control bg-light text-muted" role="status"><i class="bi bi-clock me-2" aria-hidden="true"></i>Recorded automatically on completion (PH time)</div>' },
       { name: 'waybill_number', label: 'Waybill number', required: true, col: 6, value: t.waybill_number },
       ...(cc ? [{ name: 'units_delivered', label: 'Units delivered', type: 'number', min: 1, value: t.units_planned, required: true, col: 6 }] : []),
       { name: 'delivery_notes', label: 'Delivery / return notes', col: cc ? 6 : 12 }
