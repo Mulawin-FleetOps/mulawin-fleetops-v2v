@@ -141,7 +141,7 @@ if (isset($_GET['api'])) {
 // Screen files naka-grupo ayon sa department (public/assets/js/modules/<department>/<file>.js).
 $jsModules = ['general/dashboard', 'operations/trips', 'operations/trip-planner', 'operations/fleet', 'operations/clients', 'operations/routes', 'maintenance/mechanics', 'maintenance/maintenance', 'maintenance/history',
               'maintenance/purchasing', 'accounting/funds', 'accounting/billing', 'accounting/finance', 'general/documents', 'general/reports',
-              'general/notifications', 'administration/admin', 'administration/head-management', 'administration/audit', 'administration/oversight', 'operations/ops-head', 'operations/dispatcher-monitoring', 'operations/trip-approvals', 'operations/dispatcher', 'operations/ops-reports', 'operations/dispatcher-turnover'];
+              'general/notifications', 'administration/admin', 'administration/head-management', 'administration/audit', 'administration/oversight', 'operations/ops-head', 'operations/dispatcher-monitoring', 'operations/trip-approvals', 'operations/dispatcher', 'operations/ops-reports', 'operations/dispatcher-turnover', 'general/approvals'];
 $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filemtime(__DIR__ . '/' . $f) : '1';
 ?><!doctype html>
 <html lang="en">
