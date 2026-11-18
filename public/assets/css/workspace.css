@@ -1552,3 +1552,24 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent.billing-design-v2 .bil-v2-record-content td{font-size:12.5px}
 @media(max-width:1180px){#pageContent.billing-design-v2 .bil-v2-queues{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:750px){#pageContent.billing-design-v2 .bil-v2-queues{grid-template-columns:1fr}#pageContent.billing-design-v2 .bil-v2-aging-body{grid-template-columns:1fr}#pageContent.billing-design-v2 .bil-v2-record-content{padding:8px}}
+
+/* BILLING_QUEUE_LIMITS_V3 — exact visible row capacities in Billing Overview.
+   Empty/short queues keep a consistent card height; overflow scrolls inside.
+   All record rows stay in DOM and remain keyboard / mouse accessible. */
+#pageContent.billing-design-v2 .bil-v2-queue{
+  overflow-y:auto;
+  scrollbar-gutter:stable;
+  min-height:0;
+}
+#pageContent.billing-design-v2 .bil-v2-queue-4{
+  height:320px;min-height:320px;max-height:320px;
+}
+#pageContent.billing-design-v2 .bil-v2-queue-3{
+  height:240px;min-height:240px;max-height:240px;
+}
+#pageContent.billing-design-v2 .bil-v2-queue-5{
+  height:400px;min-height:400px;max-height:400px;
+}
+#pageContent.billing-design-v2 .bil-v2-queue>.bil-v2-item{
+  height:80px;min-height:80px;max-height:80px;
+}

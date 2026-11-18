@@ -206,13 +206,14 @@ App.page('billing_overview', {
       {label:'Overdue',value:UI.money(c.overdue||0),note:(+c.overdue_n||0)+' invoices past due',icon:'bi-exclamation-triangle',tone:'red',go:'billing_receivables?state=overdue'},
       {label:'Collected this month',value:UI.money(collected.total||0),note:(+collected.n||0)+' payment(s)',icon:'bi-cash-stack',tone:'green',go:'billing_collections'},
     ];
-    const queue=(heading,icon,rows,empty)=>{
+    // BILLING_QUEUE_LIMITS_V3: fixed visible row count, remaining records scroll within each card.
+    const queue=(heading,icon,rows,empty,limit)=>{
       const row=(ref,meta,amount,state,code)=>'<li class="bil-v2-item" role="button" tabindex="0" data-bill="'+Number(code)+'">'
         +'<div class="bil-v2-item-main"><b>'+UI.esc(ref)+'</b><small>'+UI.esc(meta)+'</small></div>'
         +'<div class="bil-v2-item-side">'+(state?'<span class="badge-s '+state[0]+'">'+UI.esc(state[1])+'</span>':'')
         +'<strong>'+UI.esc(amount)+'</strong></div></li>';
       return '<section class="bil-v2-panel"><header class="bil-v2-panel-head"><h2><i class="bi '+icon+'" aria-hidden="true"></i> '+UI.esc(heading)+'</h2><span>'+rows.length+'</span></header>'
-      +'<ul class="bil-v2-queue">'+(rows.length?rows.map(rowData=>row(...rowData)).join(''):'<li class="bil-v2-empty">'+UI.esc(empty)+'</li>')+'</ul></section>';
+      +'<ul class="bil-v2-queue bil-v2-queue-'+limit+'" aria-label="'+UI.esc(heading)+'">'+(rows.length?rows.map(rowData=>row(...rowData)).join(''):'<li class="bil-v2-empty">'+UI.esc(empty)+'</li>')+'</ul></section>';
     };
     const todo=(d.forBilling||[]).map(b=>[b.trip_ref,b.client+' · Completed '+UI.date(b.completed_at),UI.money(b.total_amount),
       +b.docs_complete?(b.docs_verified_at?['green','Verified']:['amber','Verify']):['red','Docs missing'],b.id]);
@@ -228,9 +229,9 @@ App.page('billing_overview', {
       +'<p>Open invoice balance: '+UI.money(total)+' across '+aging.length+' client(s).</p>':'<p>No outstanding receivables.</p>')+'</div></section>';
     const warning=d._errors?.pendingAdjustments?'<div class="alert alert-warning small">Adjustment counts are temporarily unavailable. Check the required database migration.</div>':'';
     ctx.el.innerHTML='<div class="bil-v2-dashboard">'+warning+UI.kpiTiles(k)
-      +'<div class="bil-v2-queues">'+queue('Trips to bill','bi-receipt',todo,'No completed trips waiting.')
-      +queue('Overdue invoices to follow up','bi-alarm',overdue,'No overdue invoices.')
-      +queue('Recent collections','bi-cash-stack',recent,'No collections recorded.')+'</div>'+age+'</div>';
+      +'<div class="bil-v2-queues">'+queue('Trips to bill','bi-receipt',todo,'No completed trips waiting.',4)
+      +queue('Overdue invoices to follow up','bi-alarm',overdue,'No overdue invoices.',3)
+      +queue('Recent collections','bi-cash-stack',recent,'No collections recorded.',5)+'</div>'+age+'</div>';
     ctx.el.querySelectorAll('[data-bill]').forEach(el=>{
       el.onclick=()=>BillUI.open(+el.dataset.bill);
       el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();BillUI.open(+el.dataset.bill);}};
