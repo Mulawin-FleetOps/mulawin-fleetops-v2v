@@ -240,7 +240,7 @@ const MaintUI = {
       ${supportActions.length ? `<div class="mp-repair-support-actions"><strong>Other actions</strong><div class="mp-repair-support-buttons">${supportActions.map(actionButton).join('')}</div></div>` : ''}
       ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at)
           : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.preDispatch.actor) + ' · ' + UI.datetime(r.preDispatch.completed_at)
-          : 'Reported at the garage')],
+          : j.trip_ref ? 'Checklist-linked truck problem · ' + UI.esc(j.trip_ref) : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
         r.preDispatch ? ['Pre-dispatch NOT OK items', (r.preDispatchFindings || []).length
           ? UI.esc(r.preDispatchFindings.join('; ')) : 'No recorded NOT OK findings'] : null,
