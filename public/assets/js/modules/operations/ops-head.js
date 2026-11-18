@@ -845,7 +845,9 @@ const OpsHead = {
         const card = document.createElement('details'); card.className = 'oh-entry'; card.dataset.entry = e.id; card.open = e.expanded !== false;
         card.ontoggle = () => e.expanded = card.open;
         card.innerHTML = `<summary><b data-entry-label>Trip Details</b><span data-entry-summary></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-entry-body">${i ? '<button type="button" class="btn btn-sm btn-outline-danger oh-remove" data-remove>Remove Entry</button>' : ''}<div class="oh-form-grid">${UI.fields([
-          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 12, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]) },
+          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 12, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]),
+            placeholder: clients.length ? 'Choose a client...' : 'No active clients available',
+            help: clients.length ? '' : 'No active clients are available for trip planning. Ask Admin to add or activate a client in Client Management, then reopen Add Trip. The client also needs an approved route before you can create a trip.' },
           { type: 'html', col: 12, html: '<input type="hidden" name="truck_type" value="'+UI.esc(e.data.truck_type||'')+'">' },
           { name: 'client_route_id', label: 'Approved Route', type: 'select', required: true, col: 12, options: [], value: '' },
           { name: 'scheduled_at', label: 'Scheduled Date & Time', type: 'datetime', required: true, col: 12, value: e.data.scheduled_at, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"` },
