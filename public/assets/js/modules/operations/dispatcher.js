@@ -646,12 +646,11 @@ const DispatcherUI = {
   incidents(ctx) {
     ctx.setTitle('Incidents','Review incident records and monitor corrective maintenance coordination.');
     const rows=ctx.data.incidents;
-    const kpis=Array.isArray(rows)?this.recordKpis([
-      ['Total Incidents',rows.length,'bi-clipboard2-pulse','resources'],
-      ['Open Incidents',rows.filter(i=>i.status!=='Resolved').length,'bi-exclamation-triangle','incidents'],
-      ['Resolved',rows.filter(i=>i.status==='Resolved').length,'bi-check2-circle','active'],
-      ['Maintenance Linked',rows.filter(i=>Boolean(i.job_ref)).length,'bi-tools','attendance']
-    ]):'';
+    const kpis=Array.isArray(rows)
+      ?'<div class="small text-muted mb-2">Incidents: <b>'+UI.num(rows.length)+'</b>'
+       +' · Open: <b>'+UI.num(rows.filter(i=>i.status!=='Resolved').length)+'</b>'
+       +' · Resolved: <b>'+UI.num(rows.filter(i=>i.status==='Resolved').length)+'</b>'
+       +' · Linked to maintenance: <b>'+UI.num(rows.filter(i=>Boolean(i.job_ref)).length)+'</b></div>':'';
     const fields=[{name:'incident',label:'Incident Status',type:'select',placeholder:'All incidents',options:[['open','Open Incidents'],...this.options(rows,'status') ]},{name:'incident_type',label:'Incident Type',type:'select',placeholder:'All incident types',options:this.options(rows,'incident_type')},{name:'job_status',label:'Maintenance Status',type:'select',placeholder:'All maintenance statuses',options:this.options(rows,'job_status').map(([v,l])=>[v,l==='Under Repair'?'Under Corrective Maintenance':l])}],opts={base:{tab:'incidents'}};
     ctx.el.innerHTML=kpis+this.filters(ctx,fields,{...opts,placeholder:'Search incident, trip, truck, or location…'})+'<div data-incidents></div>';
     if(!Array.isArray(rows)){ctx.el.insertAdjacentHTML('beforeend','<p role="alert">Incident records unavailable.</p>');return;}
