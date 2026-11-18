@@ -1780,3 +1780,29 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   display:inline-flex;align-items:center;gap:5px;min-height:35px
 }
 .app-drawer:has(.mp-repair-overview-summary) .ui-record-sections .drawer-h{margin-top:18px}
+
+
+/* Stock count: clear reading order, compact form groups and reliable modal spacing. */
+.stock-count-modal .modal-body{padding:18px 22px 20px}
+.stock-count-modal .stock-count-form{display:flex;flex-direction:column;gap:0}
+.stock-count-modal .stock-count-form .modal-intro{
+  margin:0 0 17px;padding:12px 14px;border:1px solid #dce8df;
+  border-radius:8px;background:#f8fbf9;color:#4d6556;font-size:13px;line-height:1.55
+}
+.stock-count-modal .stock-count-section-label{
+  margin:3px 0 9px;color:#24513a;font-size:12px;font-weight:700;
+  letter-spacing:.01em
+}
+.stock-count-modal .stock-count-form .row{margin-bottom:14px}
+.stock-count-modal .stock-count-form .form-label{margin-bottom:5px}
+.stock-count-modal .stock-count-form .sc-figures{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 18px
+}
+.stock-count-modal .stock-count-form .sc-fig{min-width:0;padding:10px 12px}
+.stock-count-modal .stock-count-form .sc-fig b{font-size:16px}
+.stock-count-modal .modal-footer{padding:12px 22px}
+@media(max-width:600px){
+  .stock-count-modal .modal-body{padding:15px}
+  .stock-count-modal .stock-count-form .sc-figures{grid-template-columns:1fr}
+  .stock-count-modal .modal-footer{padding:12px 15px}
+}
