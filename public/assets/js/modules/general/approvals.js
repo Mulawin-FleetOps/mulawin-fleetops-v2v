@@ -27,9 +27,7 @@ App.page('approvals', {
     const box = document.createElement('div'); ctx.el.append(box);
     box.className = 'approval-inbox-table';
     box.innerHTML = UI.table([
-      ['Reference','ref',(v,r)=>`<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(r.type)} · ${UI.esc(r.summary || '')}</div>`],
-      ['Requested by','requester'],
-      ['Submitted','submitted','datetime'],
+      ['Request','ref',(v,r)=>`<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(r.type)} · ${UI.esc(r.summary || '')}</div><div class="cell-sub">By ${UI.esc(r.requester || 'Unknown')} · ${UI.datetime(r.submitted)}</div>`],
       ['Amount','amount','money'],
       ['Status','status',(value,r)=>`<div>${UI.badge(value)}</div>${r.kind === 'fund_release' && r.actionable && !r.release_allowed_now
         ? `<small class="text-muted d-block mt-1">${r.release_opens_at ? 'Opens '+UI.datetime(r.release_opens_at) : 'Release time unavailable'}</small>`
