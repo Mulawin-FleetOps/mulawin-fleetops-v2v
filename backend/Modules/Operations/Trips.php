@@ -462,7 +462,7 @@ final class Trips {
     }
     /** The current attempt's pre-dispatch checklist (null when there is none). */
     private static function currentChecklist(PDO $p, array $t): ?array {
-        return one($p, "SELECT id, vehicle_id, completed_at FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch' AND completed_at IS NOT NULL",
+        return one($p, "SELECT id, vehicle_id, completed_at, has_not_ok FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch' AND completed_at IS NOT NULL",
             [$t['id'], $t['attempt_number']]) ?: null;
     }
     /**
@@ -1076,6 +1076,7 @@ final class Trips {
             $c = self::currentChecklist($p, $t);
             if (!$c) $why[] = 'No pre-dispatch checklist for attempt #' . $t['attempt_number'] . ' (the Dispatcher must select a fixed pair or reschedule so the checklist can be done again).';
             elseif ((int)$c['vehicle_id'] !== (int)$t['vehicle_id']) $why[] = 'The pre-dispatch checklist was done for another truck (the Dispatcher must select a fixed pair so the checklist can be done for the assigned truck).';
+            elseif ((int)$c['has_not_ok'] !== 0) $why[] = 'The pre-dispatch checklist has NOT OK items. Correct the findings and submit a new full checklist before dispatch.';
         }
         $fund = one($p, 'SELECT status FROM fund_requests WHERE trip_id=? AND attempt_number=?', [$t['id'], $t['attempt_number']]);
         if ($fund && $fund['status'] !== 'Released') $why[] = 'Fund status is ' . $fund['status'] . ' (needs Released).';
