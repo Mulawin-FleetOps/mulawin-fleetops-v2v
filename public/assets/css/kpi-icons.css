@@ -118,3 +118,60 @@
 #pageContent .rpm-kpi.rpm-kpi-color-purple .rpm-kpi-icon{background:var(--kpi-purple) !important}
 #pageContent .kpi-tile.kpi-color-gray .kpi-icon,
 #pageContent .rpm-kpi.rpm-kpi-color-gray .rpm-kpi-icon{background:var(--kpi-slate) !important}
+
+/* SPECIALIZED_KPI_COLORS_V3
+   Icon backgrounds in independently-rendered KPI cards follow the same
+   semantic class mapping as standard Purchasing tiles. */
+#pageContent :is(
+  .mp-action-stage .mp-action-stage-icon,
+  .pr-sum-card .pr-sum-icon,
+  .ws-kpi-card .ws-kpi-icon,
+  .stat-card .stat-icon
+){
+  display:inline-flex !important;
+  align-items:center;justify-content:center;
+  width:42px;height:42px;min-width:42px;flex:0 0 42px;
+  border-radius:11px !important;
+  color:#fff !important;
+  background:var(--kpi-green) !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+#pageContent :is(
+  .mp-action-stage .mp-action-stage-icon,
+  .pr-sum-card .pr-sum-icon,
+  .ws-kpi-card .ws-kpi-icon,
+  .stat-card .stat-icon
+) :is(i,.bi,svg){color:#fff !important;opacity:1 !important}
+#pageContent .kpi-semantic-green :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-green) !important;color:#fff !important}
+#pageContent .kpi-semantic-blue :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-blue) !important;color:#fff !important}
+#pageContent .kpi-semantic-amber :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-amber) !important;color:#fff !important}
+#pageContent .kpi-semantic-red :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-red) !important;color:#fff !important}
+#pageContent .kpi-semantic-purple :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-purple) !important;color:#fff !important}
+#pageContent .kpi-semantic-gray :is(
+  .head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,
+  .mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon
+){background:var(--kpi-slate) !important;color:#fff !important}
+#pageContent :is(.head-kpi,.rpm-kpi,.ds-summary-card,.oh-metric,.ax-kpi,.mp-action-stage,.pr-sum-card,.ws-kpi-card,.stat-card)
+ :is(.head-kpi-icon,.rpm-kpi-icon,.ds-card-icon,.oh-metric-icon,.ax-kpi-icon,.mp-action-stage-icon,.pr-sum-icon,.ws-kpi-icon,.stat-icon)
+ :is(i,.bi,svg){color:#fff !important;opacity:1 !important}
+@media(max-width:600px){
+ #pageContent :is(.mp-action-stage .mp-action-stage-icon,.pr-sum-card .pr-sum-icon,.ws-kpi-card .ws-kpi-icon){
+  width:36px;height:36px;min-width:36px;flex-basis:36px
+ }
+}
