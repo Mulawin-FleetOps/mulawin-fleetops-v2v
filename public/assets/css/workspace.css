@@ -1458,9 +1458,10 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   background:#fff; border:1.5px solid #d7ae38; border-radius:12px;
   padding:15px 16px 20px; min-width:0; box-shadow:0 2px 12px rgba(29,77,44,.035);
 }
-#pageContent.billing-design-v2 :is(.panel,.ws-panel,.kpi-tile,.stat-card,.record-panel,.table-panel,.chart-card,.chart,.data-table-wrap){
-  border-color:#e6ca68; border-radius:9px;
+#pageContent.billing-design-v2 :is(.panel,.ws-panel,.stat-card,.record-panel,.table-panel,.chart-card,.chart,.data-table-wrap){
+  border-color:#dfe9e2; border-radius:9px;
 }
+#pageContent.billing-design-v2 .kpi-tile{border-color:#e6ca68;border-radius:9px}
 #pageContent.billing-design-v2 :is(.panel,.ws-panel){min-width:0;box-shadow:none}
 #pageContent.billing-design-v2 .kpi-tiles{gap:10px;margin-bottom:11px}
 #pageContent.billing-design-v2 .kpi-tile{padding:12px 14px;min-height:0}
@@ -1517,7 +1518,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent.billing-design-v2 .bil-v2-dashboard,
 #pageContent.billing-design-v2 .bil-v2-records{width:100%;min-width:0}
 #pageContent.billing-design-v2 .bil-v2-queues{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start;margin:12px 0}
-#pageContent.billing-design-v2 .bil-v2-panel{background:#fff;border:1px solid #e6ca68;border-radius:9px;min-width:0;overflow:hidden}
+#pageContent.billing-design-v2 .bil-v2-panel{background:#fff;border:1px solid #dfe9e2;border-radius:9px;min-width:0;overflow:hidden}
 #pageContent.billing-design-v2 .bil-v2-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid #e9ece9}
 #pageContent.billing-design-v2 .bil-v2-panel-head h2{font-size:13px;font-weight:700;margin:0;color:#304633}
 #pageContent.billing-design-v2 .bil-v2-panel-head>span,#pageContent.billing-design-v2 .bil-v2-panel-head>small{color:#65766a;font-size:12px}
@@ -1541,7 +1542,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent.billing-design-v2 .bil-v2-track>.blue{background:#357bbb}
 #pageContent.billing-design-v2 .bil-v2-track>.amber{background:#c78a2c}
 #pageContent.billing-design-v2 .bil-v2-track>.red{background:#c64d41}
-#pageContent.billing-design-v2 .bil-v2-record-panel{border:1px solid #e6ca68;border-radius:9px;background:#fff;overflow:hidden;margin-top:12px}
+#pageContent.billing-design-v2 .bil-v2-record-panel{border:1px solid #dfe9e2;border-radius:9px;background:#fff;overflow:hidden;margin-top:12px}
 #pageContent.billing-design-v2 .bil-v2-tabstrip{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:3px;padding:8px 13px 0;border-bottom:1px solid #e6e9e6}
 #pageContent.billing-design-v2 .bil-v2-tabstrip button{border:0;border-bottom:3px solid transparent;background:none;color:#576f60;white-space:nowrap;padding:10px 11px;font-size:12px;font-weight:650}
 #pageContent.billing-design-v2 .bil-v2-tabstrip button.active{color:#1c6740;border-bottom-color:#237846}
