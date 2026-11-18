@@ -21,7 +21,7 @@ final class ReportAccess {
     ];
 
     /** Existing admin-only analytics contain executive information and stay admin-only. */
-    public const DELEGATABLE = ['reports','operations_reports','maintenance_reports','purchasing_reports','financial_reports','billing_reports','audit_reports'];
+    public const DELEGATABLE = ['operations_reports','maintenance_reports','purchasing_reports','financial_reports','billing_reports','audit_reports'];
 
     private static function installed(): bool {
         try {
@@ -57,7 +57,9 @@ final class ReportAccess {
         must($page === 'reports_center', 'Unknown reports page.', 404);
         $available = [];
         foreach (self::PAGES as $id => $label) {
-            if (self::allowed($u, $id)) $available[] = ['page'=>$id,'label'=>$label];
+            // Keep the legacy mixed report route available to Admin deep-links only;
+            // it is not a selectable report card or delegated permission.
+            if ($id !== 'reports' && self::allowed($u, $id)) $available[] = ['page'=>$id,'label'=>$label];
         }
         $result = ['reports'=>$available, 'admin'=>($u['role'] ?? '') === 'admin'];
         if (!$result['admin']) return $result;
