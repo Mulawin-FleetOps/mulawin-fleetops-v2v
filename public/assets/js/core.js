@@ -431,7 +431,7 @@ const App = {
         const groups = [
           { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
           { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
-          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','maintenance_reports'] }
+          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','reports_center'] }
         ];
         nav += groups.map(group => {
           const entries = take(group.ids);
@@ -466,7 +466,7 @@ const App = {
         }).join('');
         // Purchasing has one reporting destination: show it directly as a
         // primary sidebar link instead of a one-item "Records & Reports" group.
-        nav += take(['purchasing_reports']).map(n => wsLink({ ...n, label:'Reports' })).join('');
+        nav += take(['reports_center']).map(n => wsLink({ ...n, label:'Reports' })).join('');
         const remaining = items.filter(n => !shown.has(n.id));
         if (remaining.length) nav += UI.sidebarGroup({
           title:'Other Tools', icon:'bi-grid-3x3-gap',
@@ -480,11 +480,11 @@ const App = {
         const lookup = id => items.find(n => n.id === id);
         const home = lookup('billing_overview');
         nav = home ? wsLink({ ...home, label: 'Dashboard' }) : '';
-        const ordered = ['approvals', 'billing', 'billing_collections', 'billing_receivables', 'reports']
+        const ordered = ['approvals', 'billing', 'billing_collections', 'billing_receivables', 'reports_center']
           .map(lookup).filter(Boolean);
         // BILLING_FLAT_NAV_V3: four primary links, no expandable Billing parent.
-        if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports'
-          ? { ...n, label: 'Billing Reports' } : n)).join('');
+        if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports_center'
+          ? { ...n, label: 'Reports' } : n)).join('');
         // Clients, routes, trips and documents are supporting pages, opened
         // from authorized record links, not primary Billing menu entries.
       } else {
