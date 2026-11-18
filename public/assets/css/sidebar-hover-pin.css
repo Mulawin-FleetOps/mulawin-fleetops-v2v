@@ -1151,3 +1151,70 @@
     margin:14px auto 22px !important;
   }
 }
+
+
+/* INTEGRATED_RECORD_FILTERS_V1
+   Filters and results belong to ONE gold-bordered records section, matching
+   the supplied Motorpool Parts Request Records example. Keep form controls,
+   their focus styling, pagination and record handlers unchanged. */
+#appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table {
+  border:1px solid var(--billing-ui-outline,#E7B447) !important;
+  border-radius:12px !important;
+  background:#fff !important;
+  overflow:hidden;
+}
+/* Motorpool's UI.table() renders a nested panel/ref-list inside the already
+   bordered records section; only the outer .mp-ops-table gets an outline. */
+#appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table :is(
+  .ref-list,
+  .ref-tablebox,
+  .ref-toolbar,
+  .table-tools,
+  .table-wrap,
+  .panel,
+  .panel-body.flush
+) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin-block:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .mp-ops-table.mp-reference-table :is(
+  .ref-toolbar,
+  .table-tools
+) {
+  padding:14px 19px !important;
+  border-bottom:1px solid #E5EBE6 !important;
+}
+/* Other shared record screens can use the ref-list itself as the single box,
+   with filters on top and results inside, not separate gold rectangles. */
+#appShell.sidebar-manual-toggle #pageContent .ref-list:not(.mp-ops-table .ref-list):not(.purchasing-ref-records .ref-list):not(.purchasing-records-card .ref-list) {
+  border:1px solid var(--billing-ui-soft,#E6CA68) !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  overflow:hidden;
+}
+#appShell.sidebar-manual-toggle #pageContent .ref-list > .ref-toolbar,
+#appShell.sidebar-manual-toggle #pageContent .ref-list > .ref-tablebox {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ref-list > .ref-toolbar {
+  border-bottom:1px solid #E5EBE6 !important;
+}
+/* Filter bars already housed inside a records panel do not get a second box. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .purchasing-ref-records,
+  .purchasing-records-card,
+  .record-workspace-panel,
+  .oh-panel,
+  .ds-panel
+) :is(.purchasing-unified-toolbar,.purchasing-inventory-toolbar,.ws-filters,.ref-toolbar) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
