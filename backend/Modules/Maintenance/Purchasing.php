@@ -627,10 +627,14 @@ final class Purchasing {
                 must(isset($warrantyInputs[(int)$l['id']]), 'Confirm warranty status for each received item.');
                 $coverage = self::warrantyData($warrantyInputs[(int)$l['id']]);
                 unset($warrantyInputs[(int)$l['id']]);
-                insert($p, 'part_warranty_batches', [
+                $batchId = insert($p, 'part_warranty_batches', [
                     'po_line_id' => $l['id'], 'part_id' => $l['part_id'],
                     'received_qty' => $q, 'received_by' => $u['id'],
                 ] + $coverage);
+                auditWithChanges($p, $u['id'], 'Inventory', 'warranty ' . $batchId,
+                    'warranty receipt recorded', $o['po_ref'] . ' / ' . $l['part_number'],
+                    [], ['Status' => $coverage['warranty_status'], 'Received quantity' => $q,
+                        'Warranty start' => $coverage['warranty_start'], 'Warranty expires' => $coverage['warranty_expires']]);
                 $total += $q;
             }
             must(!$warrantyInputs, 'Warranty entries must match the items received on this PO.');
