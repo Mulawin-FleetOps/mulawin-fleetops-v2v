@@ -1822,7 +1822,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   margin:0;max-width:100%;overflow-x:auto
 }
 .purchasing-receive-modal .purchasing-receive-table .data-table{
-  width:100%;min-width:785px;table-layout:fixed;border-collapse:collapse
+  width:100%;min-width:640px;table-layout:fixed;border-collapse:collapse
 }
 .purchasing-receive-modal .purchasing-receive-table .data-table :is(th,td){
   padding:10px 8px;text-align:left;vertical-align:middle;overflow-wrap:normal
@@ -1830,13 +1830,13 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 .purchasing-receive-modal .purchasing-receive-table .data-table th{
   font-size:12px;white-space:normal;line-height:1.35
 }
-/* 6-column warranty view: more space for date field, less unused space after Part. */
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(1){width:24%}
+/* Five columns: read-only expiry replaces two editable warranty fields. */
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(1){width:29%}
 .purchasing-receive-modal .purchasing-receive-table th:nth-child(2),
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(3){width:10%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(4){width:17%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(5){width:17%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(6){width:22%}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(3){width:11%}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(4){width:22%}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(5){width:27%}
+.purchasing-receive-modal .purchasing-receive-expiry{white-space:nowrap;font-variant-numeric:tabular-nums;color:#28533b}
 /* Legacy 4-column view remains balanced if warranty migration is unavailable. */
 .purchasing-receive-modal .purchasing-receive-table .data-table:not(:has(th:nth-child(5))) th:nth-child(1){width:34%}
 .purchasing-receive-modal .purchasing-receive-table .data-table:not(:has(th:nth-child(5))) th:nth-child(2),
@@ -1856,7 +1856,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 .purchasing-receive-modal .purchasing-receive-form>.row{row-gap:10px;margin-bottom:0}
 .purchasing-receive-modal .purchasing-receive-form>.row .form-label{margin-bottom:5px}
 @media(max-width:850px){
-  .purchasing-receive-modal .purchasing-receive-table .data-table{min-width:785px}
+  .purchasing-receive-modal .purchasing-receive-table .data-table{min-width:640px}
 }
 @media(max-width:700px){
   .purchasing-receive-modal .modal-body{padding:14px}
