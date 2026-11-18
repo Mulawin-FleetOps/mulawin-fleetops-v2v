@@ -80,7 +80,7 @@ final class Notify {
             $today = date('Y-m-d');
             // A notification is sent once when a warranty enters each reminder window.
             // No estimated dates are fabricated for historic receipts without a recorded batch.
-            $warrantyTable = (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='part_warranty_batches'")['n'] ?? 0);
+            $warrantyTable = (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='part_warranty_batches' AND COLUMN_NAME='warranty_status'")['n'] ?? 0);
             if ($warrantyTable === 1) {
                 foreach (many($p, "SELECT w.id, w.received_qty, w.warranty_expires, pt.part_number, pt.description
                     FROM part_warranty_batches w JOIN parts pt ON pt.id=w.part_id
