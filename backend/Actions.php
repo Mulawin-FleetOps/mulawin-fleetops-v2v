@@ -32,7 +32,7 @@ final class Actions {
         'Maintenance' => 'Maintenance', 'Mechanics' => 'Maintenance', 'Purchasing' => 'Maintenance',
         'Funds' => 'Accounting', 'Billing' => 'Accounting', 'Finance' => 'Accounting',
         'Attendance' => 'Administration',
-        'Analytics' => 'General', 'Documents' => 'General', 'Maps' => 'General',
+        'Analytics' => 'General', 'Approvals' => 'General', 'Documents' => 'General', 'Maps' => 'General',
         'HeadManagement' => 'Administration',
         'Admin' => 'Administration', 'Oversight' => 'Administration',
     ];
