@@ -29,7 +29,7 @@ final class Data {
             }
             // Trigger deduplicated date-based alerts when Purchasing/Admin opens a session.
             // Includes warranty batches only if the additive migration has been installed.
-            if (in_array($u['role'], ['admin', 'purchasing'], true)) Notify::dailyReminders(db());
+            if (in_array($u['role'], ['admin', 'purchasing'], true)) Notify::warrantyReminders(db());
             $bell = Notify::forUser(db(), $u['id']);
         }
         catch (Throwable $e) { error_log('Notifications unavailable: ' . $e->getMessage()); }
