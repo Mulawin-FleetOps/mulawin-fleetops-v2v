@@ -1461,3 +1461,61 @@
     justify-content:flex-start !important;
   }
 }
+
+
+/* MECHANIC_ATTENDANCE_SESSION_OUTLINE_V1
+   One Billing-style gold border around the complete session history:
+   heading -> optional date filters -> record-search bar -> table/empty state.
+   No second gold outline on nested UI.table wrappers. */
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section {
+  border:1px solid var(--billing-ui-outline,#E7B447) !important;
+  border-radius:11px !important;
+  padding:0 !important;
+  margin-top:16px !important;
+  overflow:hidden !important;
+  background:#fff !important;
+  box-shadow:0 1px 4px rgba(29,77,44,.035) !important;
+}
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section > h2 {
+  padding:15px 18px !important;
+  margin:0 !important;
+  background:#fff !important;
+  border-bottom:1px solid #E6ECE7 !important;
+}
+/* Filters are part of the section, not a separate bordered rectangle. */
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section > .ws-filters {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  padding:11px 16px !important;
+  margin:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  border-bottom:1px solid #E6ECE7 !important;
+  background:#fff !important;
+  box-shadow:none !important;
+}
+/* UI.table creates a panel or ref-list and inner toolbar/table. Keep their
+   regular controls, but remove container-on-container outlines. */
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section :is(
+  .panel,.panel-body.flush,.ref-list,.ref-tablebox,.table-wrap,.table-card,.plain-table
+) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section :is(.table-tools,.ref-toolbar) {
+  border:0 !important;
+  border-radius:0 !important;
+  border-bottom:1px solid #E6ECE7 !important;
+  background:#fff !important;
+  box-shadow:none !important;
+  margin:0 !important;
+  padding:12px 16px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent #pageBody > .mp-session-section .table-pager {
+  border-top:1px solid #E6ECE7;
+}
