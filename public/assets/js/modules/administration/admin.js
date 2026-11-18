@@ -226,12 +226,10 @@ const HeadAdminPage = {
               'Admin.user_toggle',{user_id:u.id,active:Number(u.active)?0:1},{danger:Boolean(Number(u.active))});
           }
         });
-        const summary=RecordComponents.kpis([
-          {label:'Total Accounts',value:total,icon:'bi-people',color:'blue'},
-          {label:'Active Accounts',value:active,icon:'bi-person-check',color:'green'},
-          {label:'Inactive Accounts',value:total-active,icon:'bi-person-dash',color:'red'},
-          {label:'Assigned Roles',value:new Set(accounts.map(u=>u.role).filter(Boolean)).size,icon:'bi-shield-check',color:'purple'}
-        ]);
+        const summary='<div class="small text-muted mb-2">Accounts: <b>'+UI.num(total)+'</b>'
+          +' · Active: <b>'+UI.num(active)+'</b>'
+          +' · Inactive: <b>'+UI.num(total-active)+'</b>'
+          +' · Roles: <b>'+UI.num(new Set(accounts.map(u=>u.role).filter(Boolean)).size)+'</b></div>';
         const reference='<details class="head-user-role-reference"><summary><i class="bi bi-shield-check" aria-hidden="true"></i>'
           +'<span>Role & Access Reference</span><small>View configured user roles</small><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>'
           +'<div class="head-user-role-reference-body"><p>Permissions are enforced by the server. Account roles shown here are a reference, not an authorization policy.</p>'
