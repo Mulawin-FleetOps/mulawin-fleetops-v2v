@@ -1218,3 +1218,102 @@
   border-radius:0 !important;
   box-shadow:none !important;
 }
+
+
+/* FLEETOPS_RECORDS_ONE_PANEL_V2
+   Approved "Open invoices" records pattern: title row, searchable filters,
+   slim divider, and records/empty-state in ONE gold-bordered container.
+   Apply only to list/table surfaces, never KPIs, charts or active inputs. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table.mp-reference-table,
+  .purchasing-ref-records,
+  .purchasing-records-card,
+  .ref-list:not(.mp-ops-table .ref-list):not(.purchasing-ref-records .ref-list):not(.purchasing-records-card .ref-list),
+  .panel:has(> .panel-body.flush > .table-tools),
+  .oh-panel:has(.oh-record-search),
+  .ds-panel:has(.ds-filterbar)
+) {
+  border:1px solid var(--billing-ui-outline,#E7B447) !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  box-shadow:0 1px 4px rgba(29,77,44,.035) !important;
+  overflow:hidden;
+}
+/* All real records headings share the plain Billing section-header line. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table .mp-records-heading,
+  .purchasing-ref-records .purchasing-ref-records-head,
+  .panel:has(> .panel-body.flush > .table-tools) > .panel-head,
+  .oh-panel:has(.oh-record-search) > .oh-panel-head,
+  .ds-panel:has(.ds-filterbar) > .ds-panel-head
+) {
+  background:#fff !important;
+  border:0 !important;
+  border-bottom:1px solid #E7ECE8 !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+  padding:13px 15px !important;
+}
+/* Search/filter row sits INSIDE the parent panel, without its own rectangle. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table .ref-toolbar,
+  .mp-ops-table .table-tools,
+  .purchasing-ref-records .ref-toolbar,
+  .purchasing-records-card .ref-toolbar,
+  .ref-list > .ref-toolbar,
+  .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush > .table-tools,
+  .oh-panel:has(.oh-record-search) .oh-record-search,
+  .ds-panel:has(.ds-filterbar) .ds-filterbar
+) {
+  border-top:0 !important;
+  border-left:0 !important;
+  border-right:0 !important;
+  border-bottom:1px solid #E7ECE8 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+  padding:12px 15px !important;
+}
+/* The table's own wrapping surfaces must not create a second gold outline. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table .ref-list,
+  .mp-ops-table .ref-tablebox,
+  .mp-ops-table .panel,
+  .purchasing-ref-records .ref-list,
+  .purchasing-ref-records .ref-tablebox,
+  .purchasing-records-card .ref-list,
+  .purchasing-records-card .ref-tablebox,
+  .ref-list > .ref-tablebox,
+  .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush
+) {
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  background:#fff !important;
+  margin:0 !important;
+}
+/* Unify empty-state positioning and allow the record section to grow naturally. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .mp-ops-table,
+  .purchasing-ref-records,
+  .ref-list,
+  .panel:has(> .panel-body.flush > .table-tools)
+) .table-empty {
+  min-height:120px;
+  padding:26px 14px;
+  box-sizing:border-box;
+}
+/* Do not disturb expanded inline filters, which still need their own focusable
+   field layout. Only the search BAR loses the extra external border. */
+#appShell.sidebar-manual-toggle #pageContent .oh-panel:has(.oh-record-search) .oh-record-filter-panel {
+  box-shadow:none !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent :is(
+    .mp-ops-table .ref-toolbar,
+    .purchasing-ref-records .ref-toolbar,
+    .ref-list > .ref-toolbar,
+    .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush > .table-tools
+  ) { padding:10px 12px !important; }
+}
