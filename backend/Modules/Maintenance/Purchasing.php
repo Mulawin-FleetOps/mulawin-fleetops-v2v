@@ -226,7 +226,9 @@ final class Purchasing {
     private static function partSave(array $u, array $d): array {
         requireRole($u, 'purchasing');
         $id = optId($d, 'id');
-        $row = ['part_number' => strtoupper(field($d, 'part_number', 70)), 'description' => field($d, 'description', 200), 'category' => optField($d, 'category', 80),
+        // Part ID is system-owned. "description" remains the existing database field for the Part Name.
+        // Never accept a user-supplied part number on new records or change an existing identifier.
+        $row = ['description' => field($d, 'description', 200), 'category' => optField($d, 'category', 80),
                 'unit' => field($d, 'unit', 20), 'unit_cost' => moneyField($d, 'unit_cost', true), 'reorder_level' => intField($d, 'reorder_level', 0),
                 'warranty_info' => optField($d, 'warranty_info', 150)];
         // STOCK_COUNT_RECONCILIATION_V1: a new part starts at 0. Stock comes in only through PO receiving or a reviewed stock count.
@@ -234,27 +236,33 @@ final class Purchasing {
             'A new part starts with 0 on hand. Receive it on a purchase order, or record a stock count for the Admin to review.', 403);
         $opening = 0;
         return transaction(function (PDO $p) use ($u, $id, $row, $opening) {
-            must(!one($p, 'SELECT id FROM parts WHERE part_number=? AND id<>?', [$row['part_number'], $id ?? 0]), 'Part number ' . $row['part_number'] . ' already exists.', 409);
             if ($id) {
                 $old = one($p, 'SELECT * FROM parts WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$old, 'Part not found.', 404);
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE parts SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
                 $before = []; $after = [];
-                foreach (['part_number', 'description', 'category', 'unit', 'unit_cost', 'reorder_level', 'warranty_info'] as $key) {
-                    $label = ucwords(str_replace('_', ' ', $key));
+                foreach (['description', 'category', 'unit', 'unit_cost', 'reorder_level', 'warranty_info'] as $key) {
+                    $label = $key === 'description' ? 'Part name' : ucwords(str_replace('_', ' ', $key));
                     $before[$label] = $old[$key]; $after[$label] = $row[$key];
                 }
-                auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part updated', $row['part_number'], $before, $after);
-                return ['message' => 'Part updated.'];
+                auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part updated', $old['part_number'], $before, $after);
+                return ['message' => 'Part ' . $old['part_number'] . ' updated.'];
             }
-            $id = insert($p, 'parts', $row);
-            if ($opening > 0) self::move($p, $u, $id, 'Adjustment', $opening, (float)$row['unit_cost'], 'Opening balance', 'adjustment', null);
-            $added = ['Part number' => $row['part_number'], 'Description' => $row['description'], 'Category' => $row['category'],
+            // Insert with a temporary unique value, then derive the permanent code from the
+            // database AUTO_INCREMENT ID. This is concurrency-safe and never uses MAX(id)+1.
+            $placeholder = 'TMP-' . bin2hex(random_bytes(12));
+            $id = insert($p, 'parts', ['part_number' => $placeholder] + $row);
+            $partNumber = 'PART-' . str_pad((string)$id, 6, '0', STR_PAD_LEFT);
+            // Legacy manual part numbers are preserved; refuse an identifier collision rather
+            // than silently renumbering any historical inventory or purchasing references.
+            must(!one($p, 'SELECT id FROM parts WHERE part_number=? AND id<>?', [$partNumber, $id]),
+                'Generated part ID already exists in the legacy catalog. Contact the administrator.', 409);
+            run($p, 'UPDATE parts SET part_number=? WHERE id=?', [$partNumber, $id]);
+            $added = ['Part ID' => $partNumber, 'Part name' => $row['description'], 'Category' => $row['category'],
                 'Unit' => $row['unit'], 'Unit cost' => $row['unit_cost'], 'Reorder level' => $row['reorder_level']];
-            if ($opening > 0) $added['Opening quantity'] = $opening;
-            auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part added', $row['part_number'] . ($opening ? " (opening $opening)" : ''), [], $added);
-            return ['message' => 'Part ' . $row['part_number'] . ' added.'];
+            auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part added', $partNumber, [], $added);
+            return ['message' => 'Part ' . $partNumber . ' added.', 'id' => $id, 'part_number' => $partNumber];
         });
     }
 
