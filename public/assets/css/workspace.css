@@ -1674,3 +1674,41 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;
 }
 #appShell .offcanvas .mp-repair-support-buttons .btn{white-space:normal;text-align:left}
+
+/* MOTORPOOL_ATTENDANCE_TEXT_ACTION_FIX_V1
+   Text Time In/Time Out + View icon must not overlap or be compressed. */
+#pageContent .mp-mechanic-attendance-table .data-table :is(th,td).actions-col {
+  width: 166px !important;
+  min-width: 166px !important;
+  max-width: none !important;
+  white-space: nowrap;
+  text-align: right;
+}
+#pageContent .mp-mechanic-attendance-table .data-table .row-actions,
+#pageContent .mp-mechanic-attendance-table .data-table .row-icons {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  min-width: max-content;
+  max-width: none !important;
+}
+#pageContent .mp-mechanic-attendance-table .data-table .row-icons > .btn {
+  flex: 0 0 auto;
+  white-space: nowrap !important;
+  width: auto !important;
+  min-height: 34px;
+  line-height: 1.25;
+}
+#pageContent .mp-mechanic-attendance-table .data-table .row-icons > .btn[data-act="toggle"] {
+  min-width: 86px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+#pageContent .mp-mechanic-attendance-table .ref-tablebox,
+#pageContent .mp-mechanic-attendance-table .table-wrap {
+  overflow-x: auto;
+}
