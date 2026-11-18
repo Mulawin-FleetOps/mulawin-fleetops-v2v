@@ -502,12 +502,10 @@ App.page('trucks', {
       empty: active.length === 0 ? 'No trucks registered yet. Add your first truck to start managing fleet records.' : 'No trucks match these filters. Try clearing your search or filters.',
     });
     ctx.el.innerHTML = `<div class="fleet-trucks-page">
-      ${RecordComponents.kpis([
-        { label: 'Total Trucks', value: active.length },
-        { label: 'Available', value: count('Available'), color: 'green', go: 'trucks?status=Available' },
-        { label: 'Assigned / On Trip', value: count('Assigned') + count('On Trip'), color: 'blue' },
-        { label: 'Under Maintenance', value: count('Under Maintenance'), color: count('Under Maintenance') ? 'red' : '', go: 'trucks?status=Under%20Maintenance' },
-      ])}
+      <div class="small text-muted mb-2">Active trucks: <b>${UI.num(active.length)}</b>
+        · <a href="#trucks?status=Available">Available: ${UI.num(count('Available'))}</a>
+        · Assigned / On Trip: ${UI.num(count('Assigned') + count('On Trip'))}
+        · <a href="#trucks?status=Under%20Maintenance">Under Maintenance: ${UI.num(count('Under Maintenance'))}</a></div>
       ${RecordComponents.tabs([{value:'master',label:'Master List'},{value:'availability',label:'Availability'}], availabilityView ? 'availability' : 'master','data-truck-view')}
       ${RecordComponents.panel(tableHtml, RecordComponents.categories(typeTabs.map(([value,label]) => ({value,label})),q.truck_type||'','data-truck-type'))}
     </div>`;
