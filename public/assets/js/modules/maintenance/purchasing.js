@@ -674,7 +674,15 @@ App.page('inventory', {
     body.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
       + UI.table([
         ['Part ID', 'part_number', (v, p) => `<span class="cell-nowrap">${UI.esc(v)}</span>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
-        ['Part Name', 'description', (v, p) => `<b class="cell-clamp">${UI.esc(v)}</b>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`],
+        ['Part Name', 'description', (v, p) => {
+          const expiry = p.earliest_warranty_expiry;
+          const today = new Date(), date = [today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+          const near = new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
+          const limit = [near.getFullYear(),String(near.getMonth()+1).padStart(2,'0'),String(near.getDate()).padStart(2,'0')].join('-');
+          const alert = expiry ? (expiry < date ? 'Expired warranty batch' : expiry <= limit ? 'Warranty expiring soon' : '') : '';
+          return `<b class="cell-clamp">${UI.esc(v)}</b>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`
+            + (alert ? `<div class="cell-sub"><span class="badge-s ${expiry < date ? 'red' : 'amber'}" title="Earliest recorded warranty expiry: ${UI.esc(expiry)}">${alert}</span></div>` : '');
+        }],
         ['On hand', 'quantity_on_hand', (v, p) => `<span class="cell-nowrap"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? ' <span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>`],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
         { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
