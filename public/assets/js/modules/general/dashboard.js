@@ -41,7 +41,8 @@ const RPMDashboard = {
   },
   tile(c) {
     const go = c.page && UI.canGo(c.page);
-    return `<div class="rpm-kpi rpm-kpi-${['green', 'amber', 'red'].includes(c.color) ? c.color : 'normal'}${go ? ' rpm-kpi-link' : ''}"
+    const iconColor = UI.kpiIconColor(c.label, c.color);
+    return `<div class="rpm-kpi rpm-kpi-${['green', 'amber', 'red'].includes(c.color) ? c.color : 'normal'} rpm-kpi-color-${UI.esc(iconColor)}${go ? ' rpm-kpi-link' : ''}"
       ${go ? `data-go="${UI.esc(c.page)}" role="link" tabindex="0"` : ''}>
       <span class="rpm-kpi-icon"><i class="bi ${this.icon(c.icon)}" aria-hidden="true"></i></span>
       <div class="rpm-kpi-body"><div class="rpm-kpi-label">${UI.esc(c.label)}</div>
