@@ -12,6 +12,7 @@ final class ReportAccess {
         'purchasing_reports' => 'Purchasing Reports',
         'audit_reports' => 'Audit Reports',
         'admin_reports' => 'Executive Reports',
+        'admin_analytics' => 'Analytics',
         'admin_descriptive_analytics' => 'Descriptive Analytics',
         'admin_diagnostic_analytics' => 'Diagnostic Analytics',
     ];
@@ -67,7 +68,7 @@ final class ReportAccess {
 
     public static function action(array $u, string $action, array $data): array {
         requireRole($u, 'admin');
-        must($action === 'set_grant', 'Unknown report access action.', 404);
+        must(in_array($action, ['set_grant','clear_grant'], true), 'Unknown report access action.', 404);
         must(self::installed(), 'Run the report access migration before assigning permissions.', 503);
         $type = (string)($data['subject_type'] ?? '');
         $key = (string)($data['subject_key'] ?? '');
@@ -75,7 +76,7 @@ final class ReportAccess {
         $allowed = $data['allowed'] ?? null;
         must(in_array($type, ['role','user'], true), 'Invalid recipient type.');
         must(in_array($page, self::DELEGATABLE, true), 'This report is reserved for Admin.');
-        must(in_array($allowed, [true,false,0,1,'0','1'], true), 'Invalid access value.');
+        if ($action === 'set_grant') must(in_array($allowed, [true,false,0,1,'0','1'], true), 'Invalid access value.');
         if ($type === 'role') {
             must(isset(ROLE_LABELS[$key]) && $key !== 'admin', 'Invalid role.');
         } else {
@@ -87,10 +88,16 @@ final class ReportAccess {
         $pdo = db();
         $pdo->beginTransaction();
         try {
-            run($pdo, 'INSERT INTO report_access_grants(subject_type,subject_key,report_page,allowed,updated_by)
-                VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed), updated_by=VALUES(updated_by), updated_at=CURRENT_TIMESTAMP',
-                [$type,$key,$page,$value,(int)$u['id']]);
-            audit($pdo, (int)$u['id'], 'Report Access', $type.':'.$key, $value ? 'GRANT' : 'REVOKE', $page.' access '.($value?'granted':'revoked'));
+            if ($action === 'clear_grant') {
+                run($pdo, 'DELETE FROM report_access_grants WHERE subject_type=? AND subject_key=? AND report_page=?', [$type,$key,$page]);
+            } else {
+                run($pdo, 'INSERT INTO report_access_grants(subject_type,subject_key,report_page,allowed,updated_by)
+                    VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed), updated_by=VALUES(updated_by), updated_at=CURRENT_TIMESTAMP',
+                    [$type,$key,$page,$value,(int)$u['id']]);
+            }
+            audit($pdo, (int)$u['id'], 'Report Access', $type.':'.$key,
+                $action === 'clear_grant' ? 'RESET' : ($value ? 'GRANT' : 'REVOKE'),
+                $page.' permission updated');
             $pdo->commit();
         } catch(Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
         return ['ok'=>true,'message'=>'Report permission saved.','allowed'=>(bool)$value];
