@@ -280,34 +280,44 @@ const App = {
     const tripLink = (label, icon, query) => `<a href="#trips?${query}" class="nav-item-link" data-nav="trips" data-trip-section="${query}"><i class="bi ${icon}" aria-hidden="true"></i><span>${label}</span></a>`;
     let nav;
     if (u.role === 'admin') {
-      // The server sends the authoritative executive menu in business-flow
-      // order. Preserve its labels and sections instead of re-sorting it into
-      // the old Admin shortcuts + More tools groups.
+      // Admin-only executive hierarchy. The server-provided me.nav remains the
+      // authoritative list of permitted destinations and existing route IDs.
       const sectionIcons = {
-        'Operations Oversight': 'bi-activity',
+        'Management Control': 'bi-shield-check',
         'Client & Commercial': 'bi-buildings',
         'Financial Oversight': 'bi-graph-up-arrow',
-        'Management Control': 'bi-shield-check',
+        'Operational Oversight': 'bi-activity',
+        'Analytics': 'bi-bar-chart-line'
       };
-      const menuGroups=[];
-      const ungrouped=[];
+      const adminSectionOrder = [
+        'Management Control',
+        'Client & Commercial',
+        'Financial Oversight',
+        'Operational Oversight',
+        'Analytics'
+      ];
+      const normalizedSection = section =>
+        section === 'Operations Oversight' ? 'Operational Oversight' : section;
+      const menuGroups = new Map();
+      const ungrouped = [];
       for (const item of allowed) {
-        // A dashboard is a direct destination, not a collapsible "General" category.
-        if(!item.section || item.section==='General'){
+        const section = normalizedSection(item.section);
+        if (!section || section === 'General') {
           ungrouped.push(item);
           continue;
         }
-        let group=menuGroups.find(g=>g.title===item.section);
-        if(!group){group={title:item.section,items:[]};menuGroups.push(group);}
-        group.items.push(item);
+        if (!menuGroups.has(section)) menuGroups.set(section, []);
+        menuGroups.get(section).push(item);
       }
-      const adminLink=item=>'<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.label)+'</span></a>';
-      nav=ungrouped.map(adminLink).join('')
-        +menuGroups.map(group=>UI.sidebarGroup({
-          title:group.title,
-          icon:sectionIcons[group.title]||'bi-folder2',
-          items:group.items.map(adminLink).join('')
-        })).join('');
+      const adminLink = item => '<a href="#'+UI.esc(item.id)+'" class="nav-item-link" data-nav="'+UI.esc(item.id)+'"><i class="bi '+UI.esc(item.icon)+'" aria-hidden="true"></i><span>'+UI.esc(item.id === 'dashboard' ? 'Dashboard' : item.label)+'</span></a>';
+      const renderSection = title => UI.sidebarGroup({
+        title,
+        icon: sectionIcons[title] || 'bi-folder2',
+        items: menuGroups.get(title).map(adminLink).join('')
+      });
+      nav = ungrouped.map(adminLink).join('')
+        + adminSectionOrder.filter(title => menuGroups.has(title)).map(renderSection).join('')
+        + [...menuGroups.keys()].filter(title => !adminSectionOrder.includes(title)).map(renderSection).join('');
     } else if (u.role === 'operations_head') {
       // Collapsible, role-specific sidebar: render only entries authorized by
       // the server-provided navigation, preserving every existing route target.
