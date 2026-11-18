@@ -1455,13 +1455,13 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent.billing-design-v2 .page-title{font-size:21px;letter-spacing:-.025em}
 #pageContent.billing-design-v2 .page-subtitle{font-size:13px;margin-top:3px}
 #pageContent.billing-design-v2 .page-body{
-  background:#fff; border:1.5px solid #d7ae38; border-radius:12px;
+  background:#fff; border:1.5px solid #dfe9e2; border-radius:12px;
   padding:15px 16px 20px; min-width:0; box-shadow:0 2px 12px rgba(29,77,44,.035);
 }
 #pageContent.billing-design-v2 :is(.panel,.ws-panel,.stat-card,.record-panel,.table-panel,.chart-card,.chart,.data-table-wrap){
   border-color:#dfe9e2; border-radius:9px;
 }
-#pageContent.billing-design-v2 .kpi-tile{border-color:#e6ca68;border-radius:9px}
+#pageContent.billing-design-v2 .kpi-tile{border-color:#dfe9e2;border-radius:9px}
 #pageContent.billing-design-v2 :is(.panel,.ws-panel){min-width:0;box-shadow:none}
 #pageContent.billing-design-v2 .kpi-tiles{gap:10px;margin-bottom:11px}
 #pageContent.billing-design-v2 .kpi-tile{padding:12px 14px;min-height:0}
@@ -1514,7 +1514,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 /* BILLING_REFERENCE_V2_LIVE_PORT */
 /* The uploaded Billing v2 layout, implemented with live API data and existing
    Billing UI actions. Only Billing-role pages use this presentation. */
-#pageContent.billing-design-v2>.page-body{border-color:#e6ca68}
+#pageContent.billing-design-v2>.page-body{border-color:#dfe9e2}
 #pageContent.billing-design-v2 .bil-v2-dashboard,
 #pageContent.billing-design-v2 .bil-v2-records{width:100%;min-width:0}
 #pageContent.billing-design-v2 .bil-v2-queues{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start;margin:12px 0}
