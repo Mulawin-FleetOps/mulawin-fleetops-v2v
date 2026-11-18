@@ -1862,3 +1862,24 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   .purchasing-receive-modal .modal-body{padding:14px}
   .purchasing-receive-modal .modal-footer{padding:12px 14px}
 }
+
+
+/* Add/Edit Part: warranty decision precedes duration, with conditional disclosure. */
+.part-warranty-modal .part-warranty-choice{
+  border:0;padding:0;margin:3px 0 0;min-width:0
+}
+.part-warranty-modal .part-warranty-choice legend{
+  float:none;width:auto;margin:0 0 8px;font-size:13px;font-weight:600;color:#395b46
+}
+.part-warranty-modal .part-warranty-options{
+  display:flex;align-items:center;gap:24px
+}
+.part-warranty-modal .part-warranty-options label{
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#244936
+}
+.part-warranty-modal .part-warranty-options input{
+  accent-color:#1c7848;width:16px;height:16px;margin:0
+}
+.part-warranty-modal .part-warranty-duration{margin:0}
+.part-warranty-modal .part-warranty-duration[hidden]{display:none!important}
+.part-warranty-modal .part-warranty-duration .form-text{font-size:12px}
