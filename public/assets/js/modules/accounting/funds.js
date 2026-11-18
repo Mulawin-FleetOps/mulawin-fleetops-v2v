@@ -163,5 +163,8 @@ App.page('funds', {
       },{filter:'fund-filter-panel',sort:'fund-sort-panel'});
     };
     renderView();
+    // Deep link from the consolidated Approvals queue into the original fund record.
+    const target = UI.takeQuery(ctx, 'open').open;
+    if (target && d.funds.some(f => String(f.id) === String(target))) FundUI.details(target);
   },
 });
