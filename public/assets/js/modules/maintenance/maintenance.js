@@ -105,7 +105,7 @@ const MaintUI = {
       ${UI.fields([
         { name: 'vehicle_id', label: 'Truck', type: 'select', required: true, col: 6, value: vehicleId,
           options: trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]) },
-        { name: 'maintenance_job_id', label: lockedRepair ? 'For repair record (locked)' : 'For repair record (optional)', type: 'select', col: 6, value: jobId,
+        { name: 'maintenance_job_id', label: lockedRepair ? 'For repair record' : 'For repair record (optional)', type: 'select', col: 6, value: jobId,
           options: openJobs.map(j => [j.id, j.job_ref + ' · ' + j.plate_number + ' · ' + (j.problem || '').slice(0, 30)]),
           help: lockedRepair ? 'Automatically linked to this repair. Truck and repair record cannot be changed.' : 'Only inspection/repair records for the selected truck are available.' },
         { name: 'purpose', label: 'Reason for request', type: 'textarea', col: 12, required: true,
@@ -152,6 +152,8 @@ const MaintUI = {
           jobSelect.value = String(jobId);
           truckSelect.disabled = true;
           jobSelect.disabled = true;
+          truckSelect.classList.add('mp-locked-reference');
+          jobSelect.classList.add('mp-locked-reference');
           truckSelect.setAttribute('aria-label', 'Truck (fixed for selected repair)');
           jobSelect.setAttribute('aria-label', 'Repair record (fixed for selected repair)');
           truckSelect.title = 'This truck is linked to the selected repair record.';
@@ -593,10 +595,9 @@ const MpParts = {
 
 App.page('mp_parts_requests', {
   title: 'Parts Requests',
-  subtitle: 'Request parts for repairs and track their availability.',
+  subtitle: 'View parts request records, statuses, and release history. New requests are created from repair actions.',
   render(ctx) {
     const d = MaintUI.data = ctx.data, q = ctx.query, can = d.can || {};
-    if (can.act) UI.tool(ctx, 'Request parts', () => MaintUI.requestParts(), 'bi-plus-lg', 'primary');
     const trucks = Array.isArray(d.trucks) ? d.trucks : [];
     const rows = (Array.isArray(d.requests) ? d.requests : []).map(r => ({ ...r,
       progress: `${UI.num(+r.released_units)} of ${UI.num(+r.requested_units)} released`, next: MpParts.nextStep(r) }));
