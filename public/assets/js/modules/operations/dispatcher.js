@@ -1016,7 +1016,7 @@ const DispatcherUI = {
       ['Timed Out',crewRows.filter(r=>r.attendance_status==='Timed Out').length,'bi-box-arrow-right','blue']
     ]);
     ctx.el.innerHTML=(!d.schema_ready?'<p role="alert" class="alert alert-warning">Dispatcher attendance sessions are not installed. Apply the additive Dispatcher attendance migration.</p>':'')+kpis+this.filters(ctx,fields,{...opts,placeholder:'Search '+crewLabel.toLowerCase()+' name…'})+'<nav class="ds-attendance-crew-tabs" aria-label="Attendance pages"><div class="ds-attendance-crew-links">'+['Driver','Helper'].map(type=>'<a href="'+UI.esc(this.href(ctx.page,{view:'attendance',crew_type:type}))+'" '+(type===crewType?'class="active" aria-current="page"':'')+'>'+type+' Attendance ('+rows.filter(r=>r.person_type===type).length+')</a>').join('')+'</div></nav><p class="ds-record-context">Attendance date: '+UI.esc(d.attendance_date||d.shift?.date||'Unavailable')+' <span class="ds-attendance-reset-note">· Resets daily at 6:00 AM (PH)</span></p><div data-attendance-records></div><p class="small text-muted">Time Out is blocked while personnel are held by an active trip. One Time In and Time Out cycle is allowed per attendance date; previous records remain in History.</p>';
-    const checklist={mode:'time_in',selected:new Set()};
+    const checklist={mode:q.attendance_status==='Timed In'?'time_out':'time_in',selected:new Set()};
     const selectable=r=>r.can_record!==false&&r.action===(checklist.mode==='time_in'?'Time In':'Time Out');
     const checkbox=r=>selectable(r)
       ?'<input type="checkbox" class="form-check-input ds-attendance-check" data-attendance-check="'+(+r.id)+'" aria-label="Select '+UI.esc(r.full_name)+'" '+(checklist.selected.has(String(r.id))?'checked':'')+'>'
@@ -1038,10 +1038,7 @@ const DispatcherUI = {
     }));
     const toolbar=document.createElement('div');
     toolbar.className='ds-attendance-checklist-toolbar';
-    toolbar.innerHTML='<div class="ds-attendance-checklist-mode" role="group" aria-label="Checklist operation">'
-      +'<button type="button" data-attendance-mode="time_in" class="active">Time In</button>'
-      +'<button type="button" data-attendance-mode="time_out">Time Out</button></div>'
-      +'<label class="ds-attendance-select-all"><input type="checkbox" class="form-check-input" data-attendance-all> Select all eligible</label>'
+    toolbar.innerHTML='<label class="ds-attendance-select-all"><input type="checkbox" class="form-check-input" data-attendance-all> Select all eligible</label>'
       +'<span class="ds-attendance-selection-count" data-attendance-count>0 selected</span>'
       +'<button type="button" class="btn btn-sm btn-primary ds-attendance-batch-button" data-attendance-batch disabled>Record Time In (0)</button>';
     workspace?.querySelector('.table-wrap')?.before(toolbar);
@@ -1057,11 +1054,6 @@ const DispatcherUI = {
       const button=toolbar.querySelector('[data-attendance-batch]');
       button.disabled=checklist.selected.size===0;
       button.textContent='Record '+(checklist.mode==='time_in'?'Time In':'Time Out')+' ('+checklist.selected.size+')';
-      toolbar.querySelectorAll('[data-attendance-mode]').forEach(b=>{
-        const active=b.dataset.attendanceMode===checklist.mode;
-        b.classList.toggle('active',active);
-        b.setAttribute('aria-pressed',String(active));
-      });
     };
     workspace?.addEventListener('change',event=>{
       const item=event.target.closest('[data-attendance-check]');
@@ -1079,12 +1071,6 @@ const DispatcherUI = {
       if(tableId)UI.drawTable(tableId);
       updateChecklist();
     });
-    toolbar.querySelectorAll('[data-attendance-mode]').forEach(button=>button.addEventListener('click',()=>{
-      checklist.mode=button.dataset.attendanceMode;
-      checklist.selected.clear();
-      if(tableId)UI.drawTable(tableId);
-      updateChecklist();
-    }));
     toolbar.querySelector('[data-attendance-batch]').addEventListener('click',()=>{
       const selected=crewRows.filter(r=>checklist.selected.has(String(r.id))&&selectable(r));
       if(selected.length!==checklist.selected.size)return UI.toast('Attendance eligibility changed. Refresh and select again.','warn');
