@@ -598,16 +598,22 @@
   box-shadow:0 2px 8px var(--nav-gold-glow) !important;
 }
 #appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
-  background:#E9D6A0 !important;
-  border:1px solid #F3E2B9 !important;
-  color:#194B36 !important;
-  box-shadow:0 0 7px rgba(239,199,83,.22) !important;
+  background:#1F7052 !important;
+  border:1px solid rgba(235,210,129,.67) !important;
+  color:#FFFFFF !important;
+  box-shadow:0 0 6px rgba(235,190,66,.17) !important;
   border-radius:10px;
 }
 #appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell:hover,
 #appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell:focus-visible {
-  background:#F5E5BC !important;
-  color:#153E2D !important;
+  background:#2A8060 !important;
+  color:#FFFFFF !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell .bell-count {
+  background:#E7BD4C !important;
+  color:#173E2E !important;
+  border:2px solid #12553F !important;
+  box-shadow:0 1px 3px rgba(4,35,22,.18);
 }
 #appShell.sidebar-manual-toggle > .main > .topbar .profile-btn {
   background:#206A50 !important;
