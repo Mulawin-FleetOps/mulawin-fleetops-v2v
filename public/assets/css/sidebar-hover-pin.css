@@ -1431,3 +1431,33 @@
   #appShell.sidebar-manual-toggle #pageContent .ws-period-summary {flex:1 1 100%;margin-left:0;}
   #appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls input {width:140px;}
 }
+
+
+/* ACTIONS_BELOW_KPIS_V1
+   The same authorized action buttons are moved by the shared renderer after
+   the first summary KPI row. Keep the heading's right side for access only. */
+#appShell.sidebar-manual-toggle #pageContent .page-body > #pageTools.page-kpi-actions {
+  display:flex !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  margin:0 0 14px !important;
+  padding:0 !important;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .page-body > #pageTools.page-kpi-actions .btn {
+  flex:0 0 auto;
+  max-width:100%;
+  white-space:normal;
+}
+@media(max-width:575.98px) {
+  #appShell.sidebar-manual-toggle #pageContent .page-body > #pageTools.page-kpi-actions {
+    justify-content:flex-start !important;
+  }
+}

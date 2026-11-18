@@ -948,6 +948,23 @@ const App = {
       if (this.current !== routeState) return;
       body.innerHTML = '';
       await def.render(ctx);
+      // Keep access information alone in the page header. On screens with
+      // summary KPIs, put the EXISTING action buttons immediately below the
+      // KPI row. Moving the node preserves its listeners and role permissions.
+      if (this.current === routeState && ctx.tools?.children.length) {
+        const kpiSelectors = [
+          '.mp-action-stages', '.kpi-tiles', '.rpm-dashboard-kpis',
+          '.rpm-kpi-grid', '.head-trip-kpis', '.head-fleet-kpis',
+          '.oh-metrics', '.ds-summary', '.ax-kpis', '.pr-sum'
+        ];
+        const sections = Array.from(body.children);
+        const kpiSection = sections.find(node =>
+          kpiSelectors.some(selector => node.matches?.(selector)));
+        if (kpiSection) {
+          ctx.tools.classList.add('page-kpi-actions');
+          kpiSection.insertAdjacentElement('afterend', ctx.tools);
+        }
+      }
       UI.activate(body);
       if (ctx.data && ctx.data._errors && Object.keys(ctx.data._errors).length) {
         const warnings = [...new Set(Object.values(ctx.data._errors).map(String))];
