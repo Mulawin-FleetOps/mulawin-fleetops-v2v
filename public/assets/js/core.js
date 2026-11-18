@@ -1325,6 +1325,24 @@ UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
  * Metric strip: one bordered panel divided into segments (label, value, note).
  * items: [{label, value, note, color: green|blue|amber|red, go: 'page?x=y', format: 'money'}]
  */
+/* Shared semantic KPI icon color: independent of numeric count, including zero.
+   Keep legacy tone classes for card state/border styling; only icon background changes. */
+UI.kpiIconColor = (label, requestedColor = '') => {
+  const text = String(label || '').toLowerCase();
+  const rules = [
+    [/overdue|over 60|incident|cancel|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
+    [/not timed in|inactive|archived|draft|no action/, 'gray'],
+    [/under maintenance|under repair|low stock|follow.up|pending|awaiting|to approve|for approval|for billing|to bill|for review|needs attention|approval|verification|verify|to release|to liquidate/, 'amber'],
+    [/collected|completed|complete|available|paid|delivered|resolved|successful|released|received|on duty/, 'green'],
+    [/on trip|ongoing|in progress|active|dispatch|to receive|new parts|requests|trips|truck|vehicle|fleet|route|delivery/, 'blue'],
+    [/outstanding|balance|cash|revenue|receivable|billing|invoice|finance|budget|expenses|expense|cost|payment|fund|rate|amount|money/, 'purple'],
+    [/stock|inventory|parts|purchase|order|warehouse|document|report|record/, 'blue'],
+    [/driver|helper|personnel|mechanic|employee|staff|user|client|customer/, 'green']
+  ];
+  const matching = rules.find(([pattern]) => pattern.test(text));
+  if (matching) return matching[1];
+  return ['green','blue','amber','red','purple'].includes(requestedColor) ? requestedColor : 'blue';
+};
 // Presentation-only icon mapping. Counts, data sources, and navigation are unchanged.
 UI.metricVisual = (card) => {
   const label = String(card.label || '').toLowerCase();
@@ -1344,7 +1362,7 @@ UI.metricVisual = (card) => {
   ];
   const matched = rules.find(([pattern]) => pattern.test(label));
   const icon = /^bi-[a-z0-9-]+$/.test(String(card.icon || '')) ? card.icon : (matched?.[1] || 'bi-bar-chart-line');
-  const color = ['green','blue','amber','red','purple','gray'].includes(card.color) ? card.color : (matched?.[2] || 'green');
+  const color = UI.kpiIconColor(card.label, card.color || matched?.[2] || 'blue');
   return {icon,color};
 };
 UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
@@ -1360,8 +1378,8 @@ UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(ite
  * items: [{label, value, note, icon: 'bi-...', tone: amber|blue|green|red|gray, go: 'page?x=y'}]
  * A tile is a link only when the user may open its page (UI.canGo); otherwise it is plain, non-interactive text.
  */
-UI.kpiTiles = (items, cls = '') => `<div class="kpi-tiles${cls ? ' ' + UI.esc(cls) : ''}">${(items || []).map(c => { const go = c.go && UI.canGo(c.go);
-  return `<div class="kpi-tile tone-${UI.esc(c.tone || 'gray')}${go ? ' clickable' : ''}"${go ? ` data-go="${UI.esc(c.go)}" role="link" tabindex="0" aria-label="${UI.esc(c.label)}: ${UI.esc(c.value)}"` : ''}>
+UI.kpiTiles = (items, cls = '') => `<div class="kpi-tiles${cls ? ' ' + UI.esc(cls) : ''}">${(items || []).map(c => { const go = c.go && UI.canGo(c.go); const iconColor = UI.kpiIconColor(c.label, c.tone);
+  return `<div class="kpi-tile tone-${UI.esc(c.tone || 'gray')} kpi-color-${UI.esc(iconColor)}${go ? ' clickable' : ''}"${go ? ` data-go="${UI.esc(c.go)}" role="link" tabindex="0" aria-label="${UI.esc(c.label)}: ${UI.esc(c.value)}"` : ''}>
     <div class="kpi-icon"><i class="bi ${UI.esc(c.icon || 'bi-circle')}"></i></div>
     <div class="kpi-body"><div class="kpi-value">${UI.esc(c.value)}</div><div class="kpi-label">${UI.esc(c.label)}</div>${c.note ? `<div class="kpi-note">${UI.esc(c.note)}</div>` : ''}</div>
     ${go ? '<i class="bi bi-chevron-right kpi-go" aria-hidden="true"></i>' : ''}</div>`; }).join('')}</div>`;
