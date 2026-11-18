@@ -538,9 +538,9 @@ const HeadTripsUI = {
     const count=key=>Number(summary[key]||0);
     ctx.el.innerHTML='<div class="head-trip-dashboard">'
       +'<div class="head-trip-kpis">'+[
-        ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','blue'],
-        ['On Trip / In Transit',count('ongoing'),'bi-truck','green'],
-        ['Completed Today',count('completed_today'),'bi-check-circle','purple'],
+        ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','amber'],
+        ['On Trip / In Transit',count('ongoing'),'bi-truck','blue'],
+        ['Completed Today',count('completed_today'),'bi-check-circle','green'],
         ['Delayed / Problem',count('delayed_problem'),'bi-exclamation-triangle','red']
       ].map(([title,value,icon,tone])=>'<div class="head-kpi '+tone+'"><div class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></div><div><span>'+UI.esc(title)+'</span><strong>'+value+'</strong></div></div>').join('')
       +'</div><div data-head-trip-records></div></div>';
