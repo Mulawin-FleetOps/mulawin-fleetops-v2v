@@ -220,15 +220,24 @@ PurUI.kit = (d, can) => {
 PurUI.countForm = (d, part) => {
   const parts = (d.parts || []).filter(p => +p.active);
   const sel = part ? part.id : '';
-  const wrap = UI.modal('Record stock count', `<p class="modal-intro">Count the part physically and enter what you found. The stock does <b>not</b> change now:
-      the Admin reviews the count and posts it, which records one traceable adjustment.</p>
-    ${UI.fields([{ name: 'part_id', label: 'Part', type: 'select', required: true, col: 12, value: sel, options: parts.map(p => [p.id, p.part_number + ' · ' + p.description]) }])}
-    <div class="sc-figures" data-fig></div>
-    ${UI.fields([{ name: 'counted_qty', label: 'Counted quantity', type: 'number', required: true, col: 6, attrs: 'min="0" max="100000" step="1"' },
-      { name: 'reason', label: 'Reason for the difference', required: true, col: 6, placeholder: 'Damaged, lost, miscount on receiving…' },
-      { name: 'evidence', label: 'Supporting evidence (photo or count sheet, optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="application/pdf,image/png,image/jpeg"' }])}`,
+  const wrap = UI.modal('Record stock count', `<div class="stock-count-form">
+    <p class="modal-intro">Record the physical count for a part. Stock remains unchanged until the Admin reviews and posts the adjustment.</p>
+    <div class="stock-count-section-label">Part to count</div>
+    ${UI.fields([{ name: 'part_id', label: 'Part ID and Name', type: 'select', required: true, col: 12, value: sel,
+      options: parts.map(p => [p.id, p.part_number + ' · ' + p.description]) }])}
+    <div class="sc-figures" data-fig aria-live="polite"></div>
+    <div class="stock-count-section-label">Physical count details</div>
+    ${UI.fields([{ name: 'counted_qty', label: 'Actual quantity counted', type: 'number', required: true, col: 12,
+      placeholder: 'Enter the number physically counted', attrs: 'min="0" max="100000" step="1"' },
+      { name: 'reason', label: 'Reason for discrepancy', required: true, col: 12,
+        placeholder: 'Explain why the actual stock differs from the system', attrs: 'maxlength="255"' }])}
+    <div class="stock-count-section-label">Supporting document (optional)</div>
+    ${UI.fields([{ name: 'evidence', label: 'Photo or stock count sheet', type: 'file',
+      multiple: true, col: 12, attrs: 'accept="application/pdf,image/png,image/jpeg"' }])}
+    </div>`,
     async (x, form) => { const r = await App.apiForm('Purchasing.count_submit', { part_id: x.part_id, counted_qty: x.counted_qty, reason: x.reason }, form); UI.result(r); App.route(); },
-    { submit: 'Submit for review', confirmBeforeSubmit: false });
+    { submit: 'Submit for review', confirmBeforeSubmit: false, size: 'modal-lg' });
+  wrap.classList.add('stock-count-modal');
   const f = (n) => wrap.querySelector(`[name="${n}"]`), fig = wrap.querySelector('[data-fig]');
   const show = () => {
     const p = parts.find(x => String(x.id) === f('part_id').value), raw = f('counted_qty').value;
