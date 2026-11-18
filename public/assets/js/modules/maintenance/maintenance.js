@@ -84,12 +84,16 @@ const MaintUI = {
   },
   /** Motorpool Parts Request: existing Purchasing backend, clear line-item editing and safe truck/repair linking. */
   async requestParts(vehicleId, jobId) {
+    // Repair-originated requests always retain their original truck and repair.
+    const lockedRepair = vehicleId != null && vehicleId !== '' && jobId != null && jobId !== '';
     const d = MaintUI.data || {};
     let parts;
     try { parts = (await App.api('Purchasing.request_catalog')).parts || []; }
     catch (e) { return UI.toast(e.message, 'error'); }
     const trucks = Array.isArray(d.trucks) ? d.trucks : [];
     const openJobs = (Array.isArray(d.jobs) ? d.jobs : []).filter(j => ['Under Inspection', 'Under Repair'].includes(j.status));
+    if (lockedRepair && !openJobs.some(j => String(j.id) === String(jobId) && String(j.vehicle_id) === String(vehicleId)))
+      return UI.toast('The selected repair is no longer available for a parts request. Refresh the repair record.', 'error');
     const partOptions = parts.map(p =>
       `<option value="${+p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)} (${UI.esc(p.availability)})</option>`).join('');
     const item = () => `<div class="mp-parts-line" data-part-row>
@@ -118,6 +122,11 @@ const MaintUI = {
         throw new Error('Select at least one part with a whole-number quantity from 1 to 100000.');
       if (new Set(lines.map(x => String(x.part_id))).size !== lines.length)
         throw new Error('Duplicate parts are not allowed. Combine quantities into one item.');
+      // Disabled selects may be excluded from form serialization; force original linkage.
+      if (lockedRepair) {
+        values.vehicle_id = vehicleId;
+        values.maintenance_job_id = jobId;
+      }
       const job = openJobs.find(j => String(j.id) === String(values.maintenance_job_id));
       if (job && String(job.vehicle_id) !== String(values.vehicle_id))
         throw new Error('The chosen repair belongs to a different truck.');
@@ -136,8 +145,18 @@ const MaintUI = {
             .forEach(o => jobSelect.add(new Option(o.label, o.value)));
           if ([...jobSelect.options].some(o => o.value === desired)) jobSelect.value = desired;
         };
+        if (lockedRepair) truckSelect.value = String(vehicleId);
         truckSelect.addEventListener('change', refreshJobs);
         refreshJobs();
+        if (lockedRepair) {
+          jobSelect.value = String(jobId);
+          truckSelect.disabled = true;
+          jobSelect.disabled = true;
+          truckSelect.setAttribute('aria-label', 'Truck (fixed for selected repair)');
+          jobSelect.setAttribute('aria-label', 'Repair record (fixed for selected repair)');
+          truckSelect.title = 'This truck is linked to the selected repair record.';
+          jobSelect.title = 'This repair record is fixed for this parts request.';
+        }
         const list = dialog.querySelector('[data-part-list]'), count = dialog.querySelector('[data-part-count]');
         const sync = () => {
           const rows = [...list.querySelectorAll('[data-part-row]')];
