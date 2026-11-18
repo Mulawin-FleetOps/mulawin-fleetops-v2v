@@ -15,6 +15,27 @@ final class ChecklistTest extends TestCase {
         $key=array_key_first($d['items']); $d['items'][$key]=['condition'=>'NOT OK','remarks'=>' Tire damage '];
         $r=Checklist::validate($d); self::assertTrue($r['has_not_ok']); self::assertSame('Tire damage',$r['items'][$key]['remarks']);
     }
+    public function testTractorAndTrailerProblemsAreClassifiedAsTruckDefects(): void {
+        $d=self::payload();
+        $d['items']['tractor_head_18']=['condition'=>'NOT OK','remarks'=>'Sidewall cut'];
+        $d['items']['trailer_09']=['condition'=>'NOT OK','remarks'=>'Worn tire'];
+        $validated=Checklist::validate($d);
+        $defects=Checklist::truckDefects($validated);
+        self::assertCount(2,$defects);
+        self::assertStringContainsString('Sidewall cut',implode(' ',$defects));
+        self::assertStringContainsString('Worn tire',implode(' ',$defects));
+    }
+
+    public function testDocumentPpeAndAccessoriesFailuresDoNotCreateTruckDefects(): void {
+        $d=self::payload();
+        $d['items']['documents_01']=['condition'=>'NOT OK','remarks'=>'Expired'];
+        $d['items']['ppe_01']=['condition'=>'NOT OK','remarks'=>'Missing'];
+        $d['items']['accessories_15']=['condition'=>'NOT OK','remarks'=>'Missing kit'];
+        $validated=Checklist::validate($d);
+        self::assertTrue($validated['has_not_ok']);
+        self::assertSame([],Checklist::truckDefects($validated));
+    }
+
     public static function invalidCases(): iterable {
         foreach (['missing','extra','condition','remarks','meta'] as $case) yield $case => [$case];
     }
