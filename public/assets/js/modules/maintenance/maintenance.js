@@ -827,10 +827,10 @@ App.page('maintenance_reports', {
     const freq = Array.isArray(d.frequency) ? d.frequency : [];
     const unit = { day: 'day', week: 'week', month: 'month' }[per.granularity] || 'period';
     const tiles = [
-      { label: 'Completed repairs', value: k ? UI.num(k.completed) : '—', note: 'completed in the period', tone: 'gray', go: 'maint_history' },
-      { label: 'Ongoing repairs', value: k ? UI.num(k.ongoing) : '—', note: k ? `now · ${UI.num(k.awaiting_verification)} awaiting verification` : 'now', tone: 'gray', go: 'maintenance' },
-      { label: 'Trucks serviced', value: k ? UI.num(k.trucks_serviced) : '—', note: 'trucks with a completed repair', tone: 'gray', go: 'maint_history' },
-      { label: 'Maintenance cost', value: c ? UI.money(c.total) : '—', note: 'parts used + recorded repair costs', tone: 'gray' },
+      { label: 'Completed repairs', value: k ? UI.num(k.completed) : '—', note: 'completed in the period', icon: 'bi-check-circle', tone: 'gray', go: 'maint_history' },
+      { label: 'Ongoing repairs', value: k ? UI.num(k.ongoing) : '—', note: k ? `now · ${UI.num(k.awaiting_verification)} awaiting verification` : 'now', icon: 'bi-tools', tone: 'gray', go: 'maintenance' },
+      { label: 'Trucks serviced', value: k ? UI.num(k.trucks_serviced) : '—', note: 'trucks with a completed repair', icon: 'bi-truck-front', tone: 'gray', go: 'maint_history' },
+      { label: 'Maintenance cost', value: c ? UI.money(c.total) : '—', note: 'parts used + recorded repair costs', icon: 'bi-cash-stack', tone: 'gray' },
     ];
     const series = MaintReport.SERIES.filter(([key]) => tl && Array.isArray(tl[key]));
     const notes = [];
