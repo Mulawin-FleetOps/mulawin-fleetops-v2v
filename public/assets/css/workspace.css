@@ -1179,14 +1179,15 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent .purchasing-table-purchase-orders .data-table th:nth-child(6){width:12%}
 #pageContent .purchasing-table-purchase-orders .data-table th:nth-child(7){width:12%}
 #pageContent .purchasing-table-purchase-orders .data-table th:nth-child(8){width:8%}
-/* Inventory: 6 fields + actions, as in the user screenshot. */
-#pageContent .purchasing-table-inventory .data-table th:nth-child(1){width:19%}
-#pageContent .purchasing-table-inventory .data-table th:nth-child(2){width:28%}
-#pageContent .purchasing-table-inventory .data-table th:nth-child(3){width:12%}
-#pageContent .purchasing-table-inventory .data-table th:nth-child(4){width:11%}
-#pageContent .purchasing-table-inventory .data-table th:nth-child(5){width:11%}
-#pageContent .purchasing-table-inventory .data-table th:nth-child(6){width:11%}
-#pageContent .purchasing-table-inventory .data-table th:nth-child(7){width:8%}
+/* Inventory: balanced column allocation after Part ID / Part Name ordering.
+   Leave sufficient room for stock badges and the three row action icons. */
+#pageContent .purchasing-table-inventory .data-table th:nth-child(1){width:12%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(2){width:23%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(3){width:18%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(4){width:12%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(5){width:12%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(6){width:12%}
+#pageContent .purchasing-table-inventory .data-table th:nth-child(7){width:11%}
 /* Physical counts use more columns: allow naturally even distribution. */
 #pageContent .purchasing-table-inventory:has(.data-table th:nth-child(8)) .data-table th{
   width:auto;
