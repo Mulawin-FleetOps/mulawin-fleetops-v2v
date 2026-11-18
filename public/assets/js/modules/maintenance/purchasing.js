@@ -165,13 +165,18 @@ const PurUI = {
         ${ready ? `<td><input class="form-control form-control-sm" type="number" min="0" max="120" step="1" value="${UI.esc(l.warranty_months || 0)}" data-wmonths="${l.id}" ${left ? '' : 'disabled'}><small class="text-muted">months; 0 = none</small></td>
         <td><input class="form-control form-control-sm" type="date" value="${localDate}" data-wstart="${l.id}" ${left ? '' : 'disabled'}></td>` : ''}</tr>`;
     }).join('');
-    UI.modal('Receive parts for ' + UI.esc(o.po_ref), `<p class="small text-muted">Check the delivered quantities against this approved PO. Partial deliveries are supported.</p>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th>Ordered</th><th>Received</th><th>Received now</th>
-      ${ready ? '<th>Warranty duration</th><th>Warranty start</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
-      ${ready ? '<p class="small text-muted mt-2">Each receipt is tracked separately. Set warranty months to 0 for no coverage; otherwise confirm the actual warranty start date.</p>' :
-      '<p class="small text-warning mt-2">Dated warranty tracking will be available after the warranty database migration. Existing receiving remains available.</p>'}
-      ${UI.fields([{ name: 'supplier_invoice_no', label: 'Supplier invoice / delivery receipt no.', col: 6 },
-        { name: 'receipt', label: 'Delivery receipt / invoice file (optional)', type: 'file', col: 6 }])}`,
+    UI.modal('Receive parts for ' + UI.esc(o.po_ref), `<div class="purchasing-receive-form">
+      <p class="purchasing-receive-intro">Check the actual quantity delivered against the approved PO. A short delivery remains Partially Received.</p>
+      <div class="purchasing-receive-section">Delivered items</div>
+      <div class="table-wrap purchasing-receive-table"><table class="data-table"><thead><tr><th>Part</th><th>Ordered</th><th>Received</th><th>Received now</th>
+      ${ready ? '<th>Warranty (months)</th><th>Warranty start date</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
+      ${ready ? '<p class="purchasing-receive-note">Warranty records are saved per receiving batch. Use 0 months for no coverage and confirm the actual start date.</p>' :
+      '<p class="purchasing-receive-note">Warranty dates will be available after the approved warranty migration is applied. Normal receiving is still available.</p>'}
+      <div class="purchasing-receive-section">Delivery documents</div>
+      ${UI.fields([{ name: 'supplier_invoice_no', label: 'Invoice / delivery receipt number', col: 12,
+        placeholder: 'Enter supplier invoice or delivery receipt number' },
+        { name: 'receipt', label: 'Attach receipt or invoice (optional)', type: 'file', col: 12 }])}
+      </div>`,
       async (x, form) => {
         const receive = [...form.querySelectorAll('[data-rcv]')].map(i => ({ line_id: i.dataset.rcv, qty: +i.value || 0 }));
         const warranty = ready ? receive.filter(i => i.qty > 0).map(i => ({
@@ -182,7 +187,8 @@ const PurUI = {
         const res = await App.apiForm('Purchasing.po_receive', { po_id: o.id, receive, warranty,
           supplier_invoice_no: x.supplier_invoice_no }, form);
         UI.result(res); App.route();
-      }, { submit: 'Record received parts', size: 'modal-xl' });
+      }, { submit: 'Record received parts', size: 'modal-xl',
+        onShow: (wrap) => wrap.classList.add('purchasing-receive-modal') });
   },
 };
 
