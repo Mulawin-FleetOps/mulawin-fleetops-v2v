@@ -411,8 +411,7 @@ const App = {
         nav = take(['purchasing_overview']).map(wsLink).join('');
         const groups = [
           { title:'Purchasing Operations', icon:'bi-cart-check', ids:['parts_requests','purchase_orders'] },
-          { title:'Inventory Control', icon:'bi-boxes', ids:['inventory','stock_movements'] },
-          { title:'Records & Reports', icon:'bi-journal-text', ids:['purchasing_reports'] }
+          { title:'Inventory Control', icon:'bi-boxes', ids:['inventory','stock_movements'] }
         ];
         nav += groups.map(group => {
           const entries = take(group.ids);
@@ -421,6 +420,9 @@ const App = {
             items:entries.map(wsLink).join('')
           }) : '';
         }).join('');
+        // Purchasing has one reporting destination: show it directly as a
+        // primary sidebar link instead of a one-item "Records & Reports" group.
+        nav += take(['purchasing_reports']).map(n => wsLink({ ...n, label:'Reports' })).join('');
         const remaining = items.filter(n => !shown.has(n.id));
         if (remaining.length) nav += UI.sidebarGroup({
           title:'Other Tools', icon:'bi-grid-3x3-gap',
