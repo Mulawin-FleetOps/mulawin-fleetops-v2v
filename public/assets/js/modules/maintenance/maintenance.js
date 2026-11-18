@@ -105,9 +105,9 @@ const MaintUI = {
       ${UI.fields([
         { name: 'vehicle_id', label: 'Truck', type: 'select', required: true, col: 6, value: vehicleId,
           options: trucks.map(v => [v.id, v.plate_number + (v.truck_number ? ' #' + v.truck_number : '')]) },
-        { name: 'maintenance_job_id', label: 'For repair record (optional)', type: 'select', col: 6, value: jobId,
+        { name: 'maintenance_job_id', label: lockedRepair ? 'For repair record (locked)' : 'For repair record (optional)', type: 'select', col: 6, value: jobId,
           options: openJobs.map(j => [j.id, j.job_ref + ' · ' + j.plate_number + ' · ' + (j.problem || '').slice(0, 30)]),
-          help: 'Only inspection/repair records for the selected truck are available.' },
+          help: lockedRepair ? 'Automatically linked to this repair. Truck and repair record cannot be changed.' : 'Only inspection/repair records for the selected truck are available.' },
         { name: 'purpose', label: 'Reason for request', type: 'textarea', col: 12, required: true,
           placeholder: 'Describe why these parts are needed.' }
       ])}
