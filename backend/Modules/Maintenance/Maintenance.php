@@ -341,6 +341,47 @@ final class Maintenance {
         if ($j['mechanic_id'] && (int)$j['mechanic_id'] !== $mechanicId) self::refreshMechanic($p, (int)$j['mechanic_id']);
     }
 
+    /**
+     * Called inside Trips::checklist's transaction for confirmed defects in the
+     * existing tractor/trailer checklist sections. This must not start a second
+     * transaction or accept client-provided status/authority.
+     *
+     * One unresolved job per vehicle: append findings rather than duplicate it.
+     */
+    public static function fromPreDispatchChecklist(PDO $p, array $u, array $t, array $defects): array {
+        must(count($defects) > 0, 'No truck defects were provided.');
+        $vid = (int)$t['vehicle_id'];
+        $v = one($p, 'SELECT id, plate_number FROM vehicles WHERE id=? FOR UPDATE', [$vid]);
+        must((bool)$v, 'Assigned truck not found.', 409);
+        $description = cut('Pre-dispatch checklist ' . $t['trip_ref'] . ' - NOT OK: ' . implode('; ', $defects), 500);
+        $open = FleetState::openJob($p, $vid);
+        if ($open) {
+            $id = (int)$open['id'];
+            $ref = $open['job_ref'];
+            run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)',
+                [$id, $open['status'], $open['status'], $description, $u['id']]);
+        } else {
+            $id = insert($p, 'maintenance_jobs', [
+                'job_ref' => 'TMP-' . bin2hex(random_bytes(6)),
+                'vehicle_id' => $vid, 'trip_id' => (int)$t['id'],
+                'source' => 'On-Premise', 'problem' => $description,
+                'reported_on' => date('Y-m-d'), 'priority' => 'Normal',
+                'status' => 'Reported',
+                'remarks' => cut('Automatically opened from pre-dispatch checklist ' . $t['trip_ref'], 500),
+                'created_by' => $u['id'],
+            ]);
+            $ref = refNumber('CM', $id);
+            run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$ref, $id]);
+            run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)',
+                [$id, null, 'Reported', $description, $u['id']]);
+        }
+        audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'pre-dispatch truck defects reported',
+            $ref . ': ' . cut($description, 200));
+        Notify::roles($p, ['motorpool'], 'Pre-dispatch truck problem',
+            $v['plate_number'] . ' from ' . $t['trip_ref'] . ' needs corrective inspection (' . $ref . ').', 'maintenance', 'job-open-' . $id);
+        return ['job_id' => $id, 'job_ref' => $ref, 'new' => !$open];
+    }
+
     // ------------------------------------------------------------------ actions
     /** Report a truck problem found at the garage (on-premise). The truck goes Under Maintenance at once. */
     private static function report(array $u, array $d): array {
