@@ -206,8 +206,9 @@ App.page('billing_overview', {
       { label: 'Overdue', value: UI.money(c.overdue || 0), note: (+c.overdue_n || 0) + ' invoice(s) past the due date', icon: 'bi-exclamation-octagon', tone: +c.overdue_n ? 'red' : 'gray', go: 'billing_receivables?state=overdue' },
       { label: 'Collected this month', value: UI.money(col.total || 0), note: (+col.n || 0) + ' payment(s) · billed ' + UI.money(c.billed_month || 0), icon: 'bi-cash-stack', tone: 'green', go: 'billing_collections' },
     ];
+    // Queue rows are navigable records, not embedded action buttons.
     const item = (attrs, top, sub, side) => `<li class="mo-item clickable" ${attrs} role="link" tabindex="0"><div class="mo-item-main"><div class="mo-item-top">${top}</div>${sub ? `<div class="mo-item-issue">${sub}</div>` : ''}</div><div class="mo-item-side">${side}</div></li>`;
-    const list = (title, icon, items, empty, more) => `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi ${icon} me-1" aria-hidden="true"></i>${UI.esc(title)} <span class="text-muted fw-normal">(${items.length})</span></h2>${more ? `<div class="panel-tools"><button type="button" class="btn btn-link btn-sm p-0" data-go="${UI.esc(more)}">View all</button></div>` : ''}</div>
+    const list = (title, icon, items, empty, more) => `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi ${icon} me-1" aria-hidden="true"></i>${UI.esc(title)} <span class="text-muted fw-normal">(${items.length})</span></h2></div>
       <div class="panel-body flush">${items.length ? `<ul class="mo-list mo-scroll">${items.join('')}</ul>` : `<div class="mo-empty">${UI.esc(empty)}</div>`}</div></section>`;
     const toBill = (d.forBilling || []).map(b => item(`data-bill="${+b.id}"`, `<b>${UI.esc(b.trip_ref)}</b> <span class="mo-ref">${UI.esc(b.client)}</span>`, 'Completed ' + UI.datetime(b.completed_at),
       (+b.docs_complete ? (b.docs_verified_at ? '<span class="badge-s blue">Verified</span>' : '<span class="badge-s amber">Verify</span>') : '<span class="badge-s red">Docs missing</span>') + `<span class="mo-ref">${UI.money(b.total_amount)}</span>`));
@@ -221,8 +222,6 @@ App.page('billing_overview', {
         + `<div class="ws-foot">Open invoices (Invoiced or Partially Paid) by days past the due date. Total ${UI.money(tot)} across ${ag.length} client(s).</div>` : '<div class="text-muted">No outstanding receivable.</div>'}</div></section>`;
     const banners = (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.${UI.canGo('clients') ? '<button type="button" class="btn btn-sm btn-light" data-go="clients?status=Pending Rate">Open clients</button>' : ''}</div>` : '');
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">${banners}${UI.kpiTiles(tiles)}
-      ${UI.quickBar([{ label: 'Bill completed trips', icon: 'bi-receipt', go: 'billing?tab=for' }, { label: 'Record a collection', icon: 'bi-cash-stack', go: 'billing_collections' },
-        { label: 'Receivables', icon: 'bi-hourglass-split', go: 'billing_receivables' }, { label: 'Billing reports', icon: 'bi-bar-chart-line', go: 'reports' }])}
       <div class="mo-grid"><div class="mo-main">
         ${list('Trips to bill', 'bi-receipt', toBill, 'No completed trip is waiting for billing.', 'billing?tab=for')}
         ${list('Overdue invoices to follow up', 'bi-alarm', overdue, 'No invoice is past its due date.', 'billing_receivables?state=overdue')}

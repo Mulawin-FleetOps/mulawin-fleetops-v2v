@@ -871,6 +871,8 @@ const App = {
     const el = document.getElementById('pageContent');
     // STAGE_B_WORKSPACE_UI: compact table styling only on Maintenance and Accounting pages (Operations pages unchanged).
     el.classList.toggle('ws-scope', UI.WS_PAGES.has(page) || (page === 'admin' && UI.role('audit')));
+    // Billing-only compact presentation; never leak styles into other roles or pages.
+    el.classList.toggle('billing-design-v2', UI.role('billing') && ['billing_overview','billing','billing_collections','billing_receivables','reports'].includes(page));
     el.classList.toggle('ref-scope', UI.REF_PAGES.has(page) && document.body.classList.contains('ref-body'));
     const def = this.pages[page];
     if (!def) {

@@ -1441,3 +1441,70 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
  #pageContent .mp-wireframe-dashboard .mp-content-column,
  #pageContent .purchasing-dashboard-ref .purchasing-content-column{gap:10px}
 }
+
+
+/* BILLING_DESIGN_V2 — presentation only, scoped to the signed-in Billing workspace.
+   Retain server-driven billing verification, adjustments, collection and report logic. */
+#pageContent.billing-design-v2{
+  max-width:none; margin:0; padding:17px 20px 26px;
+  color:#203329; font-size:14px;
+}
+#pageContent.billing-design-v2>.page-head,
+#pageContent.billing-design-v2>.page-body{max-width:none}
+#pageContent.billing-design-v2>.page-head{margin-bottom:10px}
+#pageContent.billing-design-v2 .page-title{font-size:21px;letter-spacing:-.025em}
+#pageContent.billing-design-v2 .page-subtitle{font-size:13px;margin-top:3px}
+#pageContent.billing-design-v2 .page-body{
+  background:#fff; border:1.5px solid #d7ae38; border-radius:12px;
+  padding:15px 16px 20px; min-width:0; box-shadow:0 2px 12px rgba(29,77,44,.035);
+}
+#pageContent.billing-design-v2 :is(.panel,.ws-panel,.kpi-tile,.stat-card,.record-panel,.table-panel,.chart-card,.chart,.data-table-wrap){
+  border-color:#e6ca68; border-radius:9px;
+}
+#pageContent.billing-design-v2 :is(.panel,.ws-panel){min-width:0;box-shadow:none}
+#pageContent.billing-design-v2 .kpi-tiles{gap:10px;margin-bottom:11px}
+#pageContent.billing-design-v2 .kpi-tile{padding:12px 14px;min-height:0}
+#pageContent.billing-design-v2 .kpi-value{font-size:23px;line-height:1.25}
+#pageContent.billing-design-v2 :is(.panel-head,.ws-panel-head){padding:11px 13px}
+#pageContent.billing-design-v2 :is(.panel-body,.ws-panel-body){padding:11px 13px}
+#pageContent.billing-design-v2 :is(.mo-grid,.ws-grid2){gap:11px}
+#pageContent.billing-design-v2 .mo-list.mo-scroll{
+  max-height:320px!important;overflow-y:auto;overscroll-behavior:contain;
+}
+#pageContent.billing-design-v2 .mo-list.mo-scroll>.mo-item{
+  min-height:80px;height:80px;max-height:80px;box-sizing:border-box;
+  overflow:hidden;padding:9px 12px;align-items:center;
+}
+#pageContent.billing-design-v2 .mo-item-main{min-width:0;overflow:hidden}
+#pageContent.billing-design-v2 .mo-item-issue,
+#pageContent.billing-design-v2 .mo-item-top{line-height:1.35}
+#pageContent.billing-design-v2 .mo-item-issue{
+  overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+}
+#pageContent.billing-design-v2 .mo-item-side{max-width:44%;min-width:0}
+#pageContent.billing-design-v2 .mo-item-side>*{max-width:100%;white-space:normal}
+#pageContent.billing-design-v2 .mo-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;
+}
+#pageContent.billing-design-v2 .mo-grid .mo-main,
+#pageContent.billing-design-v2 .mo-grid .mo-side{display:contents}
+#pageContent.billing-design-v2 .mo-grid>.mo-main>.panel,
+#pageContent.billing-design-v2 .mo-grid>.mo-side>.panel{min-width:0}
+#pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:first-child{order:4;grid-column:1/-1}
+#pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:last-child{order:3}
+#pageContent.billing-design-v2 .mo-grid>.mo-main>.panel:first-child{order:1}
+#pageContent.billing-design-v2 .mo-grid>.mo-main>.panel:last-child{order:2}
+#pageContent.billing-design-v2 .data-table :is(th,td){padding-top:9px;padding-bottom:9px}
+#pageContent.billing-design-v2 .btn-sm{border-radius:7px}
+#pageContent.billing-design-v2 .table-actions :is(button,a){min-width:32px;min-height:32px}
+@media(max-width:1180px){
+  #pageContent.billing-design-v2 .mo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:first-child{grid-column:1/-1}
+}
+@media(max-width:750px){
+  #pageContent.billing-design-v2{padding:12px 10px 20px}
+  #pageContent.billing-design-v2 .page-body{padding:12px 10px}
+  #pageContent.billing-design-v2 .mo-grid{grid-template-columns:1fr}
+  #pageContent.billing-design-v2 .mo-grid>.mo-side>.panel:first-child{grid-column:auto}
+  #pageContent.billing-design-v2 .kpi-value{font-size:19px}
+}
