@@ -971,6 +971,25 @@ final class Trips {
         return $st['started_at'];
     }
 
+    /**
+     * Preserve every full 57-item submission once the additive history table is
+     * approved and installed. Older installations continue with existing
+     * inspections + immutable trip_events, never fail a dispatch because
+     * an optional migration has not been applied.
+     */
+    private static function savePreDispatchSubmission(PDO $p, array $t, array $u, array $check,
+        ?int $km, ?string $fuel, ?string $remarks, ?int $jobId = null): void {
+        $ready = one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()
+            AND TABLE_NAME='pre_dispatch_checklist_submissions'");
+        if (!$ready) return;
+        run($p, 'INSERT INTO pre_dispatch_checklist_submissions
+            (trip_id, vehicle_id, attempt_number, items_json, has_not_ok, odometer_km, fuel_level, remarks, maintenance_job_id, actor_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?)',
+            [(int)$t['id'], (int)$t['vehicle_id'], (int)$t['attempt_number'],
+             json_encode($check, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+             (int)$check['has_not_ok'], $km, $fuel, $remarks, $jobId, (int)$u['id']]);
+    }
+
     private static function checklist(array $u, array $d): array {
         $id = idField($d, 'trip_id');
         require_once __DIR__ . '/Inspections/Checklist.php';
@@ -1009,6 +1028,7 @@ final class Trips {
                     $job = Maintenance::fromPreDispatchChecklist($p, $u, $t, $truckDefects);
                     run($p, "UPDATE inspections SET maintenance_job_id=? WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch'",
                         [$job['job_id'], $id, $t['attempt_number']]);
+                    self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks, (int)$job['job_id']);
                     // A defective Assigned truck must not stay reserved or become
                     // dispatchable. Reuse existing fixed-pair resource-loss logic.
                     $next = self::resourceLost($p, $u, $id,
@@ -1019,11 +1039,13 @@ final class Trips {
                         ' was ' . ($job['new'] ? 'created' : 'updated') .
                         ' for Motorpool. The unsafe truck was released from the trip. After Motorpool verifies the repair, Dispatcher must assign a valid truck/crew and complete the full pre-dispatch checklist again. ' . $next];
                 }
+                self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks);
                 Notify::roles($p, ['motorpool'], 'Checklist finding', $t['trip_ref'] . ' / ' . $v['plate_number'] .
                     ' NOT OK: ' . implode(', ', array_slice($bad, 0, 6)), 'maintenance');
                 return ['warning' => 'Checklist saved with NOT OK items (' . implode(', ', array_slice($bad, 0, 5)) .
                     '). No automatic truck repair was opened because the failures were outside tractor/trailer equipment. Correct the findings and repeat the full checklist before dispatch.'];
             }
+            self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks);
             self::event($p, $u['id'], $id, 'pre-dispatch checklist passed', $t['status'], $t['status'],
                 'All checklist items OK; full pre-dispatch inspection submitted', [],
                 ['Inspection result' => 'All OK']);
