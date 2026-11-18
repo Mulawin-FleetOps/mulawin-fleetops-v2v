@@ -5,11 +5,11 @@
  * =====================================================================
  *  Proteksyon ng accounts (login = username/email + password lamang; walang email OTP):
  *  1. Lock ng account: 5 maling password (kahit saang computer) = naka-lock nang 15 minuto.
- *  2. Recovery code ng Admin: isang code na ipi-print at itatago. Kapag nakalimutan o na-hack ang
- *     Admin password, gamitin ito sa login page ("Forgot the Admin password?"). Isang beses lang gumagana.
- *  3. Kapag napalitan ang password (ng user, ng Admin o gamit ang recovery code), lahat ng lumang
- *     login session ng account na iyon ay mala-log out.
- *  Huling paraan (IT / developer, may access sa server): php scripts/reset_password.php USERNAME
+ *  2. Forgot Password: one-time 6-digit code sent to the account's registered email.
+ *     Five-minute expiry, attempt limits; the code is stored only as a hash.
+ *  3. Kapag napalitan ang password, lahat ng lumang login session ay mala-log out.
+ *  Emergency fallback kapag unavailable ang email: authorized server IT can use
+ *     php scripts/reset_password.php USERNAME (CLI only, audited).
  * =====================================================================
  */
 declare(strict_types=1);
