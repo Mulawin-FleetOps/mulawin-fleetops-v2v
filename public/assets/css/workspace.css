@@ -1612,3 +1612,19 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent .purchasing-live-v1 :is(.panel.ws-panel,.purchasing-full-panel,.purchasing-ref-panels>.panel){
   border:1px solid #dfe9e2 !important;
 }
+
+
+/* MAINTENANCE_ORANGE_OUTLINE_FIX_V3
+   Exact selectors for Motorpool dashboard visible in user's screenshot.
+   Neutralize both colored borders AND halo/shadow on regular content cards.
+   Does not touch sidebar/topbar, layout or controls. */
+#pageContent .maint-overview.mp-wireframe-dashboard .head-trip-kpis .head-fleet-kpi,
+#pageContent .maint-overview.mp-wireframe-dashboard .mo-quickbar,
+#pageContent .maint-overview.mp-wireframe-dashboard .mp-wireframe-layout > .panel.ws-panel,
+#pageContent .maint-overview.mp-wireframe-dashboard .mp-content-columns .panel.ws-panel,
+#pageContent .maint-overview.mp-wireframe-dashboard .mp-content-column > .panel.ws-panel,
+#pageContent .maint-overview.mp-wireframe-dashboard .panel.ws-panel {
+  border:1px solid #dfe9e2 !important;
+  box-shadow:none !important;
+  outline-color:#dfe9e2;
+}
