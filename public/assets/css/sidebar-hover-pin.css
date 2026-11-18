@@ -889,3 +889,163 @@
 @media (prefers-reduced-motion:reduce) {
   #appShell.sidebar-manual-toggle #pageContent .ax-category.active {transition:none !important;}
 }
+
+
+/* FLEETOPS_UNIFIED_WORKSPACE_V2
+   Apply the approved one-outer-box Receivables pattern to all authenticated
+   roles, including Motorpool, Purchasing, Operations Head and Dispatchers.
+   Decorations only: existing module DOM, data, click handlers, permissions,
+   status colors and responsive grids are intentionally unchanged. */
+#appShell.sidebar-manual-toggle {
+  --fo-box-border:#E7B447;
+  --fo-box-glow:rgba(222,170,62,.13);
+  --fo-box-surface:#FAFCFB;
+}
+/* All regular routes use the shared page shell as the SINGLE main box. */
+#appShell.sidebar-manual-toggle > .main > #pageContent:not(:has(.ax-shell)) {
+  width:100% !important;
+  max-width:none !important;
+  min-width:0;
+  margin:0 !important;
+  padding:20px !important;
+  box-sizing:border-box;
+  background:var(--fo-box-surface) !important;
+  border:1px solid var(--fo-box-border) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px var(--fo-box-glow) !important;
+}
+/* Objective 5's own .ax-shell already contains the heading and all visuals;
+   keep exactly one bordered surface there instead of an extra wrapper. */
+#appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ax-shell {
+  border:1px solid var(--fo-box-border) !important;
+  box-shadow:0 0 8px var(--fo-box-glow) !important;
+}
+/* Existing page heading, tools and access badge stay inside the outer box.
+   Do not reparent any elements: several modules expect #pageBody to persist. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head,
+#appShell.sidebar-manual-toggle #pageContent.ws-scope:not(:has(.ax-shell)) > .page-head,
+#appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)) > .page-head {
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  flex-wrap:wrap !important;
+  justify-content:space-between !important;
+  gap:10px 14px !important;
+  padding:0 0 15px !important;
+  margin:0 0 18px !important;
+  background:transparent !important;
+  border:0 !important;
+  border-bottom:1px solid #E0E9E2 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-head-text {
+  flex:1 1 260px !important;
+  min-width:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-title {
+  color:#194B34 !important;
+  font-size:21px !important;
+  font-weight:750 !important;
+  line-height:1.25 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-subtitle {
+  color:#63776B !important;
+  font-size:12.5px !important;
+  line-height:1.45 !important;
+  margin-top:4px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag {
+  margin-left:auto !important;
+  flex:0 1 auto !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-actions:not(:empty) {
+  flex:1 1 100% !important;
+  justify-content:flex-end !important;
+}
+/* Billing v2 previously outlined only the page-body. Clear that second
+   framing so Billing follows exactly the same header+body outer box as others. */
+#appShell.sidebar-manual-toggle #pageContent.billing-design-v2 > .page-body {
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  padding:0 !important;
+  min-width:0 !important;
+}
+/* Uniform golden outlines for real module-level boxes (different modules
+   use different component names). Do not target controls, labels or table rows. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .oh-panel,
+  .oh-trip-quick-card,
+  .oh-trip-progress-card,
+  .oh-trip-route-card,
+  .oh-dashboard-activity,
+  .oh-record-filter-panel,
+  .ds-panel,
+  .ds-records,
+  .ds-filterbar,
+  .ds-trip-overview-readiness,
+  .ds-trip-overview-check,
+  .ds-trip-overview-info-card,
+  .ds-trip-fund-details,
+  .ds-trip-fund-meta > div,
+  .ds-trip-subsection,
+  .ds-trip-ops-status,
+  .ds-trip-ops-next,
+  .head-fleet-kpi,
+  .head-kpi,
+  .pr-sum-card,
+  .purchasing-unified-toolbar,
+  .purchasing-inventory-toolbar,
+  .purchasing-ref-records-head,
+  .bil-v2-panel,
+  .bil-v2-record-panel,
+  .record-panel,
+  .table-panel,
+  .chart-card,
+  .trip-card,
+  .ref-list > .ref-tablebox,
+  .record-workspace-filter-panel
+) {
+  border:1px solid var(--fo-box-border) !important;
+  box-shadow:0 0 7px var(--fo-box-glow) !important;
+}
+/* Existing generic card family continues the same gold treatment. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .panel,
+  .ws-panel,
+  .kpi-tile,
+  .rpm-kpi,
+  .record-workspace-panel,
+  .metric-icon-card,
+  .ds-summary-card,
+  .ax-kpi,
+  .ax-filters,
+  .ax-table-wrap,
+  .ax-category
+) {
+  border-color:var(--fo-box-border) !important;
+}
+/* Selected navigation/filter states retain their semantic green border. */
+#appShell.sidebar-manual-toggle #pageContent .ax-category.active {
+  border-color:#258553 !important;
+  box-shadow:0 0 0 1px #258553 !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle > .main > #pageContent:not(:has(.ax-shell)) {
+    padding:13px !important;
+    border-radius:12px !important;
+  }
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-title {
+    font-size:19px !important;
+  }
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag {
+    margin-left:0 !important;
+  }
+}
