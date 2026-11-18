@@ -7,7 +7,10 @@ declare(strict_types=1);
 
 final class ReportAccess {
     public const PAGES = [
-        'reports' => 'General / Operations & Finance Reports',
+        'reports' => 'Original Department Reports',
+        'operations_reports' => 'Operations Reports',
+        'financial_reports' => 'Financial Reports',
+        'billing_reports' => 'Billing Reports',
         'maintenance_reports' => 'Maintenance Reports',
         'purchasing_reports' => 'Purchasing Reports',
         'audit_reports' => 'Audit Reports',
@@ -18,7 +21,7 @@ final class ReportAccess {
     ];
 
     /** Existing admin-only analytics contain executive information and stay admin-only. */
-    public const DELEGATABLE = ['reports','maintenance_reports','purchasing_reports','audit_reports'];
+    public const DELEGATABLE = ['reports','operations_reports','maintenance_reports','purchasing_reports','financial_reports','billing_reports','audit_reports'];
 
     private static function installed(): bool {
         try {
