@@ -1808,39 +1808,57 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 }
 
 
-/* Receiving: clear quantities and document sections without affecting other modal forms. */
-.purchasing-receive-modal .modal-dialog{max-width:min(980px,calc(100vw - 28px))}
+/* Receive Parts modal: compact, balanced columns; scoped to this form only. */
+.purchasing-receive-modal .modal-dialog{max-width:min(900px,calc(100vw - 28px))}
 .purchasing-receive-modal .modal-body{padding:18px 22px 20px}
 .purchasing-receive-modal .modal-footer{padding:12px 22px}
 .purchasing-receive-modal .purchasing-receive-intro{
-  margin:0 0 16px;color:#526b59;font-size:13px;line-height:1.5
+  margin:0 0 13px;color:#526b59;font-size:13px;line-height:1.5
 }
 .purchasing-receive-modal .purchasing-receive-section{
-  font-size:13px;font-weight:700;color:#26553b;margin:10px 0 9px
+  font-size:13px;font-weight:700;color:#26553b;margin:12px 0 8px
 }
-.purchasing-receive-modal .purchasing-receive-table{margin:0;max-width:100%;overflow-x:auto}
+.purchasing-receive-modal .purchasing-receive-table{
+  margin:0;max-width:100%;overflow-x:auto
+}
 .purchasing-receive-modal .purchasing-receive-table .data-table{
-  width:100%;min-width:640px;table-layout:fixed;border-collapse:collapse
+  width:100%;min-width:785px;table-layout:fixed;border-collapse:collapse
 }
 .purchasing-receive-modal .purchasing-receive-table .data-table :is(th,td){
-  padding:10px 12px;text-align:left;vertical-align:middle
+  padding:10px 8px;text-align:left;vertical-align:middle;overflow-wrap:normal
 }
-.purchasing-receive-modal .purchasing-receive-table th:first-child{width:29%}
+.purchasing-receive-modal .purchasing-receive-table .data-table th{
+  font-size:12px;white-space:normal;line-height:1.35
+}
+/* 6-column warranty view: more space for date field, less unused space after Part. */
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(1){width:24%}
 .purchasing-receive-modal .purchasing-receive-table th:nth-child(2),
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(3){width:12%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(4){width:22%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(5){width:12%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(6){width:13%}
-.purchasing-receive-modal .purchasing-receive-table .form-control{min-width:0;width:100%}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(5) .form-control{min-width:70px}
-.purchasing-receive-modal .purchasing-receive-table th:nth-child(6) .form-control{min-width:122px}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(3){width:10%}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(4){width:17%}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(5){width:17%}
+.purchasing-receive-modal .purchasing-receive-table th:nth-child(6){width:22%}
+/* Legacy 4-column view remains balanced if warranty migration is unavailable. */
+.purchasing-receive-modal .purchasing-receive-table .data-table:not(:has(th:nth-child(5))) th:nth-child(1){width:34%}
+.purchasing-receive-modal .purchasing-receive-table .data-table:not(:has(th:nth-child(5))) th:nth-child(2),
+.purchasing-receive-modal .purchasing-receive-table .data-table:not(:has(th:nth-child(5))) th:nth-child(3){width:16%}
+.purchasing-receive-modal .purchasing-receive-table .data-table:not(:has(th:nth-child(5))) th:nth-child(4){width:34%}
+.purchasing-receive-modal .purchasing-receive-table .data-table :is(th,td):nth-child(2),
+.purchasing-receive-modal .purchasing-receive-table .data-table :is(th,td):nth-child(3){text-align:center}
+.purchasing-receive-modal .purchasing-receive-table .form-control{
+  min-width:0;width:100%;height:36px;padding:6px 9px;font-size:13px
+}
+.purchasing-receive-modal .purchasing-receive-table .data-table td small{
+  display:block;font-size:11px;line-height:1.3;margin-top:3px
+}
 .purchasing-receive-modal .purchasing-receive-note{
-  font-size:12px;color:#6e8173;margin:9px 0 14px
+  font-size:12px;color:#6e8173;margin:9px 0 12px
 }
 .purchasing-receive-modal .purchasing-receive-form>.row{row-gap:10px;margin-bottom:0}
 .purchasing-receive-modal .purchasing-receive-form>.row .form-label{margin-bottom:5px}
+@media(max-width:850px){
+  .purchasing-receive-modal .purchasing-receive-table .data-table{min-width:785px}
+}
 @media(max-width:700px){
- .purchasing-receive-modal .modal-body{padding:14px}
- .purchasing-receive-modal .modal-footer{padding:12px 14px}
- .purchasing-receive-modal .purchasing-receive-table .data-table{min-width:720px}
+  .purchasing-receive-modal .modal-body{padding:14px}
+  .purchasing-receive-modal .modal-footer{padding:12px 14px}
 }
