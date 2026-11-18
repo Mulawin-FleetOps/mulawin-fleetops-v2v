@@ -89,6 +89,24 @@ const HMApproval = {
           <div class="d-flex flex-wrap gap-2 mt-3" data-acts>${r.actionable && c.status === 'Submitted' ? UI.btn('post', 'Post adjustment', 'success', 'bi-check-lg') + UI.btn('reject', 'Reject count', 'outline-danger', 'bi-x-lg') : ''}
             ${UI.canGo(r.go) ? UI.btn('src', 'Open in Inventory', 'outline-secondary', 'bi-box-arrow-up-right') : ''}</div>`, { subtitle: 'Purchasing · stock count' });
         HMApproval.bind(el, r, { post: () => PurUI.countReview(c, 'post'), reject: () => PurUI.countReview(c, 'reject') });
+      } else if (r.kind === 'route') {
+        const el = UI.drawer(UI.esc(r.ref), `${HMApproval.next(r)}
+          ${UI.kv([['Request','Route rate approval'],['Status',UI.badge(r.raw_status)],
+            ['Route',UI.esc(r.summary)],['Requested by',UI.esc(r.requester || '—')+' · '+UI.datetime(r.submitted)],
+            ['Proposed rate',UI.money(r.amount)]])}
+          <div class="d-flex flex-wrap gap-2 mt-3" data-acts>
+            ${r.actionable ? UI.btn('approve','Approve rate','success','bi-check-lg')+UI.btn('reject','Reject rate','outline-danger','bi-x-lg') : ''}
+            ${UI.canGo(r.go) ? UI.btn('src','Open route records','outline-secondary','bi-box-arrow-up-right') : ''}
+          </div>`,{subtitle:'Client & Commercial · route rate'});
+        HMApproval.bind(el,r,{
+          approve:()=>UI.confirmAction('Approve rate on '+UI.esc(r.ref),
+            'The existing route approval workflow will validate client eligibility and the current rate version.',
+            'Routes.decide',{rate_id:r.id,decision:'approve'}, {submit:'Approve'}),
+          reject:()=>UI.confirmAction('Reject rate on '+UI.esc(r.ref),
+            'The proposed rate will be rejected without activating it.',
+            'Routes.decide',{rate_id:r.id,decision:'reject'},
+            {danger:true,submit:'Reject',fields:[{name:'reason',label:'Reason',required:true,col:12}]})
+        });
       } else {
         const x = await App.api('Billing.details', { billing_id: r.billing_id }); if (seq !== App.navSeq) return; const b = x.billing;
         const req = [...(x.requests || []), ...(x.charges || [])].find(ch => +ch.id === r.id) || {};
