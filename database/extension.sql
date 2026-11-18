@@ -534,6 +534,7 @@ CREATE TABLE part_warranty_batches (
   CONSTRAINT chk_part_warranty_months CHECK (warranty_months BETWEEN 1 AND 120),
   CONSTRAINT chk_part_warranty_dates CHECK (warranty_expires > warranty_start)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_20_part_warranty_batches');
 
 -- Every stock change (stock-in, stock-out, adjustment) for inventory history (Objective 2.6, 5.5).
 CREATE TABLE stock_movements (
