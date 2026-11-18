@@ -522,19 +522,11 @@ const DispatcherUI = {
     const d=ctx.data, diesel=ctx.query.tab==='diesel';
     const funds=Array.isArray(d.funds)?d.funds:null;
     const fuelTrips=Array.isArray(d.fuelTrips)?d.fuelTrips:null;
-    const kpis=diesel
-      ?(fuelTrips?this.recordKpis([
-          ['Authorized Trips',fuelTrips.length,'bi-truck','resources'],
-          ['Documents Attached',fuelTrips.filter(t=>Number(t.diesel_po_docs)>0).length,'bi-file-earmark-check','active'],
-          ['Missing Documents',fuelTrips.filter(t=>!Number(t.diesel_po_docs)).length,'bi-file-earmark-excel','incidents'],
-          ['Total Attachments',fuelTrips.reduce((n,t)=>n+(Number(t.diesel_po_docs)||0),0),'bi-folder2-open','attendance']
-        ]):'')
-      :(funds?this.recordKpis([
-          ['Total Fund Requests',funds.length,'bi-cash-stack','resources'],
-          ['Pending Approval',funds.filter(f=>f.status==='Pending Approval').length,'bi-clock-history','attendance'],
-          ['Ready for Release',funds.filter(f=>f.status==='Ready for Release').length,'bi-check2-circle','active'],
-          ['Released',funds.filter(f=>f.status==='Released').length,'bi-wallet2','resources']
-        ]):'');
+    // Compact request/document status counts; operational dashboard keeps full KPIs.
+    const counts=diesel
+      ?(fuelTrips ? [['Authorized trips',fuelTrips.length],['Documents attached',fuelTrips.filter(t=>Number(t.diesel_po_docs)>0).length],['Missing documents',fuelTrips.filter(t=>!Number(t.diesel_po_docs)).length]] : [])
+      :(funds ? [['Fund requests',funds.length],['Pending approval',funds.filter(f=>f.status==='Pending Approval').length],['Ready for release',funds.filter(f=>f.status==='Ready for Release').length],['Released',funds.filter(f=>f.status==='Released').length]] : []);
+    const kpis=counts.length?'<div class="small text-muted mb-2">'+counts.map(([name,n])=>UI.esc(name)+': <b>'+UI.num(n)+'</b>').join(' · ')+'</div>':'';
     ctx.el.innerHTML=kpis+`<nav class="ds-fund-view-tabs" aria-label="Trip Funds and Fuel tabs"><a href="#funds" ${diesel?'':'class="active" aria-current="page"'}>Trip Fund Requests</a><a href="#funds?tab=diesel" ${diesel?'class="active" aria-current="page"':''}>Diesel PO Requests</a></nav><div data-fund-workspace></div>`;
     const box=ctx.el.querySelector('[data-fund-workspace]');
     if(diesel){
