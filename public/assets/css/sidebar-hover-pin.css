@@ -822,3 +822,70 @@
   border-radius:0 !important;
   box-shadow:none !important;
 }
+
+
+/* Approved unified Receivables-style workspace (all authenticated accounts).
+   Only surface decoration: preserve the existing page DOM, dimensions,
+   internal data controls, charts, active selection and workflow behavior. */
+#appShell.sidebar-manual-toggle {
+  --workspace-gold:#E7B447;
+  --workspace-gold-border:rgba(231,180,71,.88);
+  --workspace-gold-shadow:rgba(222,170,62,.13);
+}
+/* One continuous outer panel per page. Analytics already has an .ax-shell. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
+  background:#FAFCFB !important;
+  border:1px solid var(--workspace-gold-border) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px var(--workspace-gold-shadow) !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ax-shell {
+  background:#FAFCFB !important;
+  border:1px solid var(--workspace-gold-border) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px var(--workspace-gold-shadow) !important;
+}
+/* All major cards, KPI boxes, filter containers and report panels use
+   the same restrained golden outline. Avoid nested table rows and inputs. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .ax-kpi,
+  .ax-filters,
+  .ax-category,
+  .ax-table-wrap,
+  .kpi-tile,
+  .ws-kpi,
+  .ws-panel,
+  .panel,
+  .ref-tablebox,
+  .ref-toolbar,
+  .data-table-wrap,
+  .stat-card,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .rpm-feature-card,
+  .rpm-exec-performance-card,
+  .rpm-exec-headline,
+  .rpm-dashboard-shortcuts,
+  .rpm-summary-panel,
+  .record-workspace-panel,
+  .fleet-route-panel,
+  .head-trip-detail-card,
+  .head-fuel-combined-card,
+  .ds-summary-card,
+  .ds-filter-panel,
+  .oh-dispatch-shift-card,
+  .oh-dispatch-filter-panel,
+  .card
+) {
+  border:1px solid var(--workspace-gold-border) !important;
+  box-shadow:0 0 7px var(--workspace-gold-shadow) !important;
+}
+/* A chosen filter/tab stays green, as in the approved Analytics reference. */
+#appShell.sidebar-manual-toggle #pageContent .ax-category.active {
+  border:1px solid #258553 !important;
+  box-shadow:0 0 0 1px #258553 !important;
+}
+@media (prefers-reduced-motion:reduce) {
+  #appShell.sidebar-manual-toggle #pageContent .ax-category.active {transition:none !important;}
+}
