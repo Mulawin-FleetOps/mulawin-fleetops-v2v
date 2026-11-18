@@ -397,10 +397,10 @@ App.page('purchasing_overview', {
     // UI_REFERENCE_V1: four KPI cards -> Quick actions -> left: Needs attention + Recent purchasing activity;
     // right: Purchase order status + Inventory alerts. Every row opens the real record or the filtered list.
     const tiles = [
-      { label:'New Parts Requests', value:n('requests_open'), note:'Awaiting stock check', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo', tone:n('requests_open')?'amber':'gray' },
-      { label:'Requests for Follow-up', value:n('requests_followup'), note:'Partial release / unavailable', icon:'bi-clock-history', go:'parts_requests?tab=followup', tone:n('requests_followup')?'amber':'gray' },
-      { label:'POs Awaiting Approval', value:n('po_pending'), note:'Finance / Admin decision', icon:'bi-check2-square', go:'purchase_orders?tab=approval', tone:n('po_pending')?'blue':'gray' },
-      { label:'Orders to Receive', value:n('po_to_receive'), note:'Approved / partially received', icon:'bi-box-arrow-in-down', go:'purchase_orders?tab=receive', tone:n('po_to_receive')?'blue':'gray' },
+      { label:'New Parts Requests', value:n('requests_open'), note:'Awaiting stock check', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo', tone:'blue' },
+      { label:'Requests for Follow-up', value:n('requests_followup'), note:'Partial release / unavailable', icon:'bi-clock-history', go:'parts_requests?tab=followup', tone:'amber' },
+      { label:'POs Awaiting Approval', value:n('po_pending'), note:'Finance / Admin decision', icon:'bi-check2-square', go:'purchase_orders?tab=approval', tone:'purple' },
+      { label:'Orders to Receive', value:n('po_to_receive'), note:'Approved / partially received', icon:'bi-box-arrow-in-down', go:'purchase_orders?tab=receive', tone:'green' },
     ];
     const reqs = d.requests || [];
     const attention = [
