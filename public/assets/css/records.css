@@ -1770,3 +1770,16 @@
   [data-report-print-actions] .btn,[data-pricing-impact],
   .head-report-print > summary,.head-report-print-menu button
 ) { border-color: #dfe8e1 !important; }
+
+/* KPI_GOLD_ONLY_FINAL_V1
+   Loaded after all role styles: gold on KPI tiles ONLY. The shared neutral
+   rules above still own ordinary panels, records, actions, and outer frames.
+   Do not introduce gold shadows/glow or change sizing/positioning. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .kpi-tile,.ws-kpi,.ws-kpi-card,.metric,.metric-icon-card,
+  .stat-card,.rpm-kpi,.head-kpi,.head-fleet-kpi,
+  .ax-kpi,.oh-metric,.ds-summary-card
+) {
+  border-color:#E7B447 !important;
+  box-shadow:none !important;
+}
