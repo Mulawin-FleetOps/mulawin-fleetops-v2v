@@ -322,15 +322,9 @@ const HeadAdminPage = {
         return 'Operations';
       };
       const groups=['Financial','Operations','Attendance','Notifications'];
-      const active=categories.filter(item=>Number(item.active)===1).length;
-      host.innerHTML='<div class="head-settings-workspace">'
-        +RecordComponents.kpis([
-          {label:'System Settings',value:settings.length,icon:'bi-sliders',color:'blue'},
-          {label:'Fund Categories',value:categories.length,icon:'bi-wallet2',color:'green'},
-          {label:'Configuration Groups',value:new Set(settings.map(item=>groupFor(item.key))).size,icon:'bi-layers',color:'purple'},
-          {label:'Active Fund Categories',value:active,icon:'bi-check-circle',color:'amber'}
-        ])
-        +'<div data-head-settings-records></div></div>';
+      // Configuration is a form-management page, not an analytics dashboard.
+      // Existing settings, category counts, group selectors and save actions remain unchanged.
+      host.innerHTML='<div class="head-settings-workspace"><div data-head-settings-records></div></div>';
       const records=host.querySelector('[data-head-settings-records]');
       const state={section:'settings',group:'',fundState:'',sort:'default'};
       const sections=[{value:'settings',label:'System Settings'},{value:'funds',label:'Fund Request Categories'}];
