@@ -1,58 +1,96 @@
-/* FINAL_SEMANTIC_KPI_PALETTE_V3
-   Apply the same meaning-based palette to role-specific KPI markup after each
-   page render. Shared-renderer KPI colors already come from core.js.
-   This is presentation only and observes child nodes, not style mutations. */
+/* SEMANTIC_KPI_PALETTE_V4
+   Role-independent, semantic solid icon colors on every rendered KPI.
+   #pageContent is recreated on route changes, so observe the stable #app root.
+   Inline important icon colors intentionally win over legacy !important selectors.
+   Presentation only; never changes records, workflows, or buttons. */
 (() => {
   'use strict';
+  const colors = Object.freeze({
+    green:'#158354', blue:'#1769B5', amber:'#DC8B06',
+    red:'#CB4042', purple:'#7545AC', gray:'#64748B'
+  });
   const cards = [
-    '.head-kpi', '.rpm-kpi', '.ds-summary-card', '.oh-metric',
-    '.ax-kpi', '.mp-action-stage', '.pr-sum-card', '.ws-kpi-card',
-    '.stat-card'
+    '.kpi-tile','.metric-icon-card','.head-kpi','.rpm-kpi',
+    '.ds-summary-card','.oh-metric','.ax-kpi','.mp-action-stage',
+    '.pr-sum-card','.ws-kpi-card','.stat-card'
   ].join(',');
-  const labels = [
-    '.head-fleet-kpi-value > span', '.head-kpi-label', '.rpm-kpi-label',
-    '.ds-card-copy > span', '.oh-metric-label', '.ax-kpi-label',
-    '.mp-action-stage-content > b', '.pr-sum-label',
-    '.ws-kpi-label', '.stat-label', '.metric-label', '.kpi-label'
+  const iconSelectors = [
+    '.kpi-icon','.metric-icon','.head-kpi-icon','.rpm-kpi-icon',
+    '.ds-card-icon','.oh-metric-icon','.ax-kpi-icon',
+    '.mp-action-stage-icon','.pr-sum-icon','.ws-kpi-icon','.stat-icon'
   ].join(',');
+  const labelSelectors = [
+    '.kpi-label','.metric-label','.head-fleet-kpi-value > span',
+    '.head-kpi-label','.rpm-kpi-label','.ds-card-copy > span',
+    '.oh-metric-label','.ax-kpi-label','.mp-action-stage-content > b',
+    '.pr-sum-label','.ws-kpi-label','.stat-label'
+  ].join(',');
+  // First match takes precedence. A zero count does not change status meaning.
   const rules = [
     [/overdue|incident|cancel|critical|failed|rejected|unavailable|out of stock|shortage|past due/, 'red'],
     [/draft|inactive|archived|not timed in|not on duty/, 'gray'],
-    [/for verification|verification|verify/, 'purple'],
-    [/under maintenance|under repair|under inspection|inspection|low stock|follow.up|pending|approval|awaiting|waiting|to do|reported|needs attention|for review/, 'amber'],
-    [/on trip|ongoing|in progress|active trip|dispatch|route|delivery|to bill|requests|trips|new issue|to receive/, 'blue'],
+    [/for verification|verification|verify|to verify/, 'purple'],
+    [/under maintenance|under repair|repair in progress|low stock|follow.up|pending|approval|awaiting|waiting|needs attention|for review/, 'amber'],
+    [/inspection|inspect|record findings|on trip|ongoing|in progress|dispatch|route|delivery|to bill|new parts|new requests|to receive/, 'blue'],
     [/finance|revenue|receivable|outstanding|billing|invoice|collection|payment|budget|expense|cost|amount|money|fund/, 'purple'],
-    [/complete|available|collected|paid|delivered|received|released|resolved|on duty|timed in|success/, 'green'],
+    [/completed|complete|available|collected|paid|delivered|received|released|resolved|on duty|timed in|success/, 'green'],
+    [/reported|new issue|new problem/, 'gray'],
     [/driver|helper|mechanic|personnel|employee|staff|user/, 'blue'],
-    [/stock|inventory|parts|purchase|order|warehouse/, 'blue']
+    [/stock|inventory|parts|purchase|order|warehouse|request/, 'blue']
   ];
-  const detect = label => {
-    const lower = String(label || '').toLowerCase();
-    return rules.find(([pattern]) => pattern.test(lower))?.[1] || '';
+  const semantic = label => {
+    const text = String(label || '').toLowerCase();
+    return rules.find(([pattern]) => pattern.test(text))?.[1] || '';
   };
-  const apply = root => {
-    const host = root?.id === 'pageContent' ? root : document.getElementById('pageContent');
+  const classColor = card => {
+    const match = [...card.classList].find(v =>
+      /^(?:kpi-semantic-|kpi-color-|rpm-kpi-color-)(green|blue|amber|red|purple|gray)$/.test(v));
+    return match ? match.match(/(green|blue|amber|red|purple|gray)$/)?.[1] : '';
+  };
+  const apply = () => {
+    const host = document.getElementById('pageContent');
     if (!host) return;
     host.querySelectorAll(cards).forEach(card => {
-      const label = card.querySelector(labels)?.textContent?.trim();
-      const tone = detect(label);
-      if (!tone) return;
-      for (const c of ['green','blue','amber','red','purple','gray'])
-        card.classList.toggle('kpi-semantic-' + c, c === tone);
+      const icon = card.querySelector(iconSelectors);
+      if (!icon) return;
+      const label = card.querySelector(labelSelectors)?.textContent?.trim() || '';
+      const requested = card.getAttribute('data-kpi-color');
+      const tone = (requested && colors[requested]) ? requested
+        : semantic(label) || classColor(card) || 'blue';
+      const hex = colors[tone];
+      // Only KPI icon chip surfaces change, never KPI card borders or actions.
+      if (icon.style.getPropertyValue('background-color') !== hex ||
+          icon.style.getPropertyPriority('background-color') !== 'important') {
+        icon.style.setProperty('background-color',hex,'important');
+      }
+      if (icon.style.getPropertyValue('color') !== '#fff' ||
+          icon.style.getPropertyPriority('color') !== 'important') {
+        icon.style.setProperty('color','#fff','important');
+      }
+      if (icon.style.getPropertyValue('border-radius') !== '11px' ||
+          icon.style.getPropertyPriority('border-radius') !== 'important') {
+        icon.style.setProperty('border-radius','11px','important');
+      }
+      icon.querySelectorAll('i,.bi,svg').forEach(glyph => {
+        if (glyph.style.getPropertyValue('color') !== '#fff') {
+          glyph.style.setProperty('color','#fff','important');
+        }
+      });
     });
   };
   const mount = () => {
-    const host = document.getElementById('pageContent');
-    if (!host) return;
     let scheduled = false;
     const refresh = () => {
       if (scheduled) return;
       scheduled = true;
-      requestAnimationFrame(() => { scheduled = false; apply(host); });
+      requestAnimationFrame(() => { scheduled = false; apply(); });
     };
-    apply(host);
-    new MutationObserver(refresh).observe(host, {childList:true,subtree:true});
+    // #app remains mounted even when the individual #pageContent is replaced.
+    const host = document.getElementById('app') || document.body;
+    new MutationObserver(refresh).observe(host,{childList:true,subtree:true});
+    apply();
   };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, {once:true});
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded',mount,{once:true});
   else mount();
 })();
