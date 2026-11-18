@@ -67,12 +67,14 @@ const MaintUI = {
   /** Report a truck problem found at the garage. */
   report(vehicleId) {
     const d = MaintUI.data;
-    const ok = d.trucks.filter(v => !v.open_job && !v.on_road);
+    // Only garage-side, dispatchable or reserved trucks can be reported here.
+    // A reserved (Assigned) truck with a failed pre-trip check must remain reportable.
+    const ok = (d.trucks || []).filter(v => ['Available', 'Assigned'].includes(v.status) && !v.open_job && !v.on_road);
     const mech = MaintUI.mechanicOptions();
     UI.formModalFiles('Report a truck problem', [
       { name: 'vehicle_id', label: 'Affected truck', type: 'select', required: true, col: 6, value: vehicleId,
         options: ok.map(v => [v.id, `${v.plate_number}${v.truck_number ? ' · #' + v.truck_number : ''} · ${v.truck_type} (${v.status})`]),
-        help: d.trucks.length > ok.length ? 'Trucks on the road or already under repair are not listed.' : '' },
+        help: 'Available and Assigned trucks at the garage only. On Trip, returning, unavailable or already under repair are excluded.' },
       // MOTORPOOL_UI_V2: mechanic required when one is available (the server checks it again); no date field (server time).
       { name: 'mechanic_id', label: 'Assign mechanic', type: 'select', required: mech.length > 0, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is timed in',
         help: mech.length ? 'Only Available (timed-in) mechanics are listed.' : 'No mechanic is timed in. The report is saved as Reported; assign a mechanic after Time In.' },
