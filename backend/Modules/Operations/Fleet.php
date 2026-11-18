@@ -448,6 +448,8 @@ final class Fleet {
         $row = [
             'full_name' => $name,
             'person_type' => choiceField($d, 'person_type', ['Driver', 'Helper']),
+            'attendance_group' => ($group = optField($d, 'attendance_group', 40)) !== null
+                ? choiceField(['attendance_group'=>$group], 'attendance_group', ['car_carrier_dispatcher', 'container_wingvan_dispatcher']) : null,
             'employee_no' => optField($d, 'employee_no', 40),
             'contact_number' => phoneField($d, 'contact_number', 60),
             'address' => optField($d, 'address', 255),

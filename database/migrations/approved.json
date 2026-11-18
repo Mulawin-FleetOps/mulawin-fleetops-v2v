@@ -4,6 +4,7 @@
     "2026-11-18_20_part_warranty_batches.sql": "28ef8b5b328c7826908f12d70553fe79e71e98574ca473fd6786239e0b7aea09",
     "2026-11-18_21_pre_dispatch_checklist_submissions.sql": "743bec2536314aed804b2e06170baad5c92989b414e50c5f8087d2c0fe0d5eb0",
     "2026-11-18_22_warranty_receipt_confirmation.sql": "3571f1f9ff5adb31c9d3a6e8eff1b106d68734e37465e05aba06a65ccfefd2c5",
-    "2026-11-18_23_pending_installation_warranty.sql": "6e34a09c2430c232d909a4566169c3b72c37059a37a911c1bb57201ee7b34501"
+    "2026-11-18_23_pending_installation_warranty.sql": "6e34a09c2430c232d909a4566169c3b72c37059a37a911c1bb57201ee7b34501",
+    "2026-11-19_24_personnel_attendance_group.sql": "a6eb04942d2437d398a0ba03515d7f8d7e121c1159a78c63260fc73b21228f60"
   }
 }

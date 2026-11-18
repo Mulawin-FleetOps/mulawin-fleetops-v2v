@@ -154,6 +154,7 @@ const FleetUI = {
     UI.formModal(p.id ? 'Edit ' + UI.esc(p.full_name) : 'Add driver or helper', [
       { name: 'full_name', label: 'Name (LAST NAME, FIRST NAME)', required: true, col: 8, value: p.full_name, placeholder: 'JUEGOS, HECTOR' },
       { name: 'person_type', label: 'Type', type: 'select', options: UI.list(['Driver', 'Helper']), required: true, col: 4, value: p.person_type },
+      { name: 'attendance_group', label: 'Attendance Group', type: 'select', col: 6, required: true, value: p.attendance_group, options: [['car_carrier_dispatcher','Car Carrier'],['container_wingvan_dispatcher','Container / Wing Van']], help: 'Used for attendance if no regular truck is linked. Does not grant truck authorization.' },
       { name: 'employee_no', label: 'Employee no.', col: 4, value: p.employee_no }, { name: 'contact_number', label: 'Contact number', col: 4, value: p.contact_number },
       { name: 'date_hired', label: 'Employment start date', type: 'date', col: 4, value: p.date_hired },
       { name: 'license_number', label: "Driver's license no. (drivers)", col: 6, value: p.license_number }, { name: 'license_expiry', label: 'Driver’s license expiry date', type: 'date', col: 6, value: p.license_expiry },
@@ -224,6 +225,7 @@ const FleetUI = {
       +'</div>':'';    const identity=[
       {name:'person_type',type:'hidden',value:type},
       {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
+      {name:'attendance_group',label:'Attendance Group',type:'select',required:true,col:6,value:p.attendance_group,options:[['car_carrier_dispatcher','Car Carrier'],['container_wingvan_dispatcher','Container / Wing Van']],help:'For Time In when no regular truck exists. Trip authorization stays separate.'},
       {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
       {name:'contact_number',label:'Contact Number',col:4,value:p.contact_number},
       {name:'date_hired',label:'Date Hired',type:'date',col:4,value:p.date_hired},
