@@ -645,7 +645,7 @@ App.page('parts_requests', {
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
     ctx.el.innerHTML = `${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')],
         ...(tab === 'cancelled' ? [['cancelled','Cancelled',cnt('cancelled')]] : []),
-        ...(tab === 'all' ? [['all','All',cnt('all')]] : [])], tab)}
+        ['all','All',cnt('all')]], tab)}
       ${UI.generalFilters(ctx, [{ name: 'truck', label: 'Trucks', options: trucks }, { name: 'po', label: 'PO link', all: 'With or without PO', options: [['linked', 'Has a linked PO'], ['none', 'No linked PO']] }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Parts Request Records','Motorpool requests and release progress',rows.length);
@@ -687,7 +687,7 @@ App.page('purchase_orders', {
     ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
         ...(tab === 'payment' ? [['payment','Awaiting payment',cnt('payment')]] : []),
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
-        ...(tab === 'all' ? [['all','All',cnt('all')]] : [])], tab)}
+        ['all','All',cnt('all')]], tab)}
       ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }, { name: 'payment', label: 'Payment statuses', options: [...new Set(all.map(o => o.payment_status).filter(Boolean))].sort() }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Purchase Order Records','Approval and receiving status',rows.length);
