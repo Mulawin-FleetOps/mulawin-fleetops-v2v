@@ -386,9 +386,8 @@ App.page('head-approvals',{
       {label:'Open Incidents',value:sections[2].rows.length,icon:'bi-exclamation-triangle',color:'red'},
       {label:'Fund Requests',value:sections[3].rows.length,icon:'bi-wallet2',color:'green'}
     ];
-    ctx.el.innerHTML='<div class="head-approvals-workspace">'
-      +RecordComponents.kpis(metrics)
-      +'<div data-head-approvals-records></div></div>';
+    // Legacy action center already has category counts in its record tabs.
+    ctx.el.innerHTML='<div class="head-approvals-workspace"><div data-head-approvals-records></div></div>';
     const root=ctx.el.querySelector('[data-head-approvals-records]');
     const select=key=>{
       const group=sections.find(item=>item.key===key)||sections[0];
