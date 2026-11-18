@@ -668,3 +668,87 @@
     transition:none !important;
   }
 }
+
+
+/* Shared content-panel layout and consistent editorial heading.
+   This is scoped to the authenticated application; existing module sections,
+   tables, forms, permissions and inner analytics headings remain unchanged. */
+#appShell.sidebar-manual-toggle #pageContent {
+  min-width:0;
+  box-sizing:border-box;
+  background:#F6F9F7 !important;
+  border:1px solid rgba(213,174,69,.34) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px rgba(235,190,66,.09) !important;
+  padding:20px 22px 24px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head,
+#appShell.sidebar-manual-toggle #pageContent.ws-scope > .page-head,
+#appShell.sidebar-manual-toggle #pageContent.ref-scope > .page-head {
+  position:static !important;
+  display:flex;
+  align-items:flex-start;
+  flex-wrap:wrap;
+  gap:10px 14px;
+  margin:0 0 18px !important;
+  padding:0 0 14px !important;
+  border:0 !important;
+  border-bottom:1px solid #DCE7DE !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-head-text {
+  flex:1 1 250px;
+  min-width:0;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-title {
+  color:#194B34 !important;
+  font-size:21px !important;
+  font-weight:750 !important;
+  line-height:1.25;
+  letter-spacing:-.02em;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-subtitle {
+  color:#60796A !important;
+  font-size:12.5px !important;
+  line-height:1.5;
+  margin-top:4px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-access-tag {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  flex:0 1 auto;
+  max-width:100%;
+  margin-left:auto;
+  padding:6px 10px;
+  border:1px solid #D8EADD;
+  border-radius:999px;
+  background:#E7F4EA;
+  color:#196A46;
+  font-size:11px;
+  line-height:1.25;
+  font-weight:650;
+  white-space:normal;
+  text-align:center;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-access-tag .bi {
+  font-size:12px;
+  flex:0 0 auto;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-actions:not(:empty) {
+  flex:1 1 100%;
+  justify-content:flex-end;
+  margin-top:0;
+}
+/* Objective 5 already provides its own title, subtitle and access indicator. */
+#appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) > .page-head {
+  display:none !important;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent {padding:14px 12px 18px !important;border-radius:12px !important;}
+  #appShell.sidebar-manual-toggle #pageContent > .page-head {gap:8px 10px !important;}
+  #appShell.sidebar-manual-toggle #pageContent > .page-head .page-title {font-size:19px !important;}
+  #appShell.sidebar-manual-toggle #pageContent > .page-head .page-access-tag {margin-left:0;}
+}
