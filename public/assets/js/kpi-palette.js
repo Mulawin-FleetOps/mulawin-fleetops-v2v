@@ -22,7 +22,7 @@
   const labelSelectors = [
     '.kpi-label','.metric-label','.head-fleet-kpi-value > span',
     '.head-kpi-label','.rpm-kpi-label','.ds-card-copy > span',
-    '.oh-metric-label','.ax-kpi-label','.mp-action-stage-content > b',
+    '.oh-metric-label','.ax-kpi-label','.ax-kpi > span','.mp-action-stage-content > b',
     '.pr-sum-label','.ws-kpi-label','.stat-label'
   ].join(',');
   // First match takes precedence. A zero count does not change status meaning.
@@ -30,7 +30,7 @@
     [/overdue|incident|cancel|critical|failed|rejected|unavailable|out of stock|shortage|past due/, 'red'],
     [/draft|inactive|archived|not timed in|not on duty/, 'gray'],
     [/for verification|verification|verify|to verify/, 'purple'],
-    [/under maintenance|under repair|repair in progress|low stock|follow.up|pending|approval|awaiting|waiting|needs attention|for review/, 'amber'],
+    [/under maintenance|under repair|repair in progress|reschedul|low stock|follow.up|pending|approval|awaiting|waiting|needs attention|for review/, 'amber'],
     [/inspection|inspect|record findings|on trip|ongoing|in progress|dispatch|route|delivery|to bill|new parts|new requests|to receive/, 'blue'],
     [/finance|revenue|receivable|outstanding|billing|invoice|collection|payment|budget|expense|cost|amount|money|fund/, 'purple'],
     [/completed|complete|available|collected|paid|delivered|received|released|resolved|on duty|timed in|success/, 'green'],
