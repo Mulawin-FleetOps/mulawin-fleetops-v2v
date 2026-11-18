@@ -661,6 +661,19 @@ final class Maintenance {
                 }
             } else {
                 Notify::roles($p, ['operations_head', 'car_carrier_dispatcher', 'container_wingvan_dispatcher'], 'Truck available again', $v['plate_number'] . ' was repaired, verified and is ' . $now . '.', 'trucks');
+                // A failed pre-dispatch truck was released from its fixed pair.
+                // Verification restores availability, not dispatch authorization.
+                if (!empty($j['trip_id'])) {
+                    $affected = one($p, 'SELECT * FROM trips WHERE id=?', [(int)$j['trip_id']]);
+                    if ($affected && $affected['status'] === 'Awaiting Resources') {
+                        Notify::tripRoles($p, $affected, ['operations_head', $affected['dispatcher_role']],
+                            'Truck repaired — repeat pre-dispatch checklist',
+                            $v['plate_number'] . ' is verified after ' . $j['job_ref'] . '. Reassign an eligible truck and fixed driver to ' .
+                            $affected['trip_ref'] . ', then submit a fresh full pre-dispatch checklist before dispatch.',
+                            'trips');
+                        $msg .= ' Trip ' . $affected['trip_ref'] . ' still needs Dispatcher reassignment and a new full pre-dispatch checklist.';
+                    }
+                }
                 if ($auto = Trips::assignWaiting($p, $u)) $msg .= ' ' . $auto;
             }
             return ['message' => $msg];
