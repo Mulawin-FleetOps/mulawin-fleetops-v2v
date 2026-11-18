@@ -208,8 +208,7 @@ const MaintUI = {
       if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status)) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
         : ['helpers-off', 'Add mechanics (needs database update 12)', 'outline-secondary disabled', 'bi-people']);
       if (['Under Inspection', 'Under Repair'].includes(j.status)) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right'],
-        ['cost', 'Add cost', 'outline-secondary', 'bi-cash'], ['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
-      if (j.source !== 'Incident' && ['Reported', 'Under Inspection', 'Under Repair'].includes(j.status)) acts.push(['cancel', 'Cancel record', 'outline-danger', '']);
+        ['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
     }
     const partsCost = r.parts.reduce((a, p) => a + (+p.released_qty) * (+p.unit_cost || 0), 0), other = r.costs.reduce((a, c) => a + +c.amount, 0);
     const truckLine = `<b>${UI.esc(j.plate_number)}</b>${j.truck_number ? ' · #' + UI.esc(j.truck_number) : ''} · ${UI.esc(j.truck_type)} · ${UI.badge(j.truck_status)}`;
@@ -224,14 +223,24 @@ const MaintUI = {
       {label:'Corrective repair recorded',state:j.repair_performed&&j.completed_on?'complete':'unknown'},
       {label:'Return-to-service verification',state:j.verified_at?'complete':'unknown',detail:j.verified_at?'Recorded verification':'The existing verification action remains required before return to service.'}
     ],{title:'Return-to-service record'});
-    const html = `${progress}${readiness}
-      <div class="next-step ${j.verified_at ? 'done' : ''}"><i class="bi ${j.verified_at ? 'bi-check-circle' : 'bi-arrow-right-circle'}"></i> ${UI.esc(MaintUI.nextStep(j))}</div>
-      ${acts.length ? `<div class="drawer-actions">${acts.map(([a, l, c, ic]) => `<button class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}"></i> ` : ''}${UI.esc(l)}</button>`).join('')}</div>` : ''}
+    // Separate the single recommended workflow action from optional supporting tasks.
+    // Vehicle clearance stays available for eligible Minor incidents but does not
+    // compete visually with inspection, completion, or verification.
+    const mainAction = acts.find(([a]) => ['assess', 'mech', 'inspect', 'complete', 'verify'].includes(a) && (a !== 'mech' || j.status === 'Reported'))
+      || acts.find(([a]) => a === 'clearance');
+    const supportActions = acts.filter(a => a !== mainAction);
+    const actionButton = ([a, l, c, ic]) => `<button type="button" class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}" aria-hidden="true"></i> ` : ''}${UI.esc(l)}</button>`;
+    const html = `<div class="mp-repair-overview-summary">
+        <div class="mp-repair-overview-top"><span class="small text-muted">Current status</span>${UI.badge(j.verified_at ? 'Returned to service' : j.status)}</div>
+        <div class="mp-repair-next"><strong>Next step</strong><span>${UI.esc(MaintUI.nextStep(j))}</span></div>
+        ${mainAction ? `<div class="mp-repair-main-action"><span class="small text-muted">Recommended action</span>${actionButton(mainAction)}</div>` : ''}
+      </div>
+      ${supportActions.length ? `<div class="mp-repair-support-actions"><strong>Other actions</strong><div class="mp-repair-support-buttons">${supportActions.map(actionButton).join('')}</div></div>` : ''}
       ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at) : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
         ])}
-      ${UI.h('Mechanics and repair')}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
+      ${UI.h('Mechanics and repair')}${progress}${readiness}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
         ['Assisting mechanics', r.helpersReady ? MaintUI.helperList(r.helpers, act && MaintUI.ACTIVE.includes(j.status))
           : '<span class="text-muted">Not available until database update 2026-11-12_12 is applied.</span>'],
         ['Inspection findings', UI.e(j.findings)], ['Diagnosis', UI.e(j.diagnosis)],
@@ -298,13 +307,7 @@ const MaintUI = {
         const res = wrap.querySelector('[name=result]'), mc = wrap.querySelector('[name=mechanic_id]').closest('[class*=col-]');
         const t = () => { mc.style.display = res.value === 'Failed' ? '' : 'none'; }; res.onchange = t; t();
       }
-      if (a === 'cost') UI.formModal('Repair cost for ' + UI.esc(j.job_ref), [
-          { name: 'cost_type', label: 'Type', type: 'select', options: UI.list(d.costTypes), required: true, col: 6 }, { name: 'amount', label: 'Amount (₱)', type: 'money', required: true, col: 6 },
-          { name: 'description', label: 'Description', required: true, col: 12 }, { name: 'provider', label: 'Supplier / service provider', col: 6 }, { name: 'incurred_on', label: 'Date', type: 'date', value: UI.today(), required: true, col: 6 }],
-        'Maintenance.add_cost', { extra: { job_id: j.id }, after: () => MaintUI.open(j.id) });
       if (a === 'parts') { UI.closeDrawer(); MaintUI.requestParts(j.vehicle_id, j.id); }
-      if (a === 'cancel') UI.confirmAction('Cancel ' + UI.esc(j.job_ref), 'Use this only for a report made by mistake. The truck becomes available again if nothing else blocks it.', 'Maintenance.cancel', { job_id: j.id },
-        { danger: true, submit: 'Cancel record', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
       if (a === 'printinc') TripUI.printIncident({ ...i }, { trip_ref: j.trip_ref, plate_number: j.plate_number });
     });
     if (autoBtn) autoBtn.click();
@@ -542,9 +545,7 @@ App.page('maintenance', {
     // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
     const opt = { directActions: true, showAllColumns: true,
       actions: (j) => { const st = MaintUI.rowStep(j);
-        return (st ? UI.ibtn('step:' + st[0], st[1], st[2], 'outline-primary') : '')
-          + (d.can.act && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.ibtn('helpers', 'Add mechanics', 'bi-people') : '')
-          + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) ? UI.ibtn('parts', 'Request parts', 'bi-box-seam') : '')
+        return (st ? `<button type="button" class="btn btn-sm btn-outline-primary" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
           + UI.ibtn('view', 'Open record', 'bi-eye'); },
       onAction: (a, j) => a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id) : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
       rowClick: (j) => MaintUI.open(j.id) };
