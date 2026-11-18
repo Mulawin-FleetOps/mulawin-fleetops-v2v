@@ -306,18 +306,11 @@ App.page('billing', {
     };
     const count=k=>k==='approvals'?(d.adjustments||[]).length:all.filter(tabs[k][1]).length;
     const tab=tabs[q.tab]?q.tab:'for';
-    const tiles=[
-      {label:'Ongoing trips (drafts)',value:count('ongoing'),note:'View-only while in progress',icon:'bi-hourglass',tone:'gray'},
-      {label:'For billing',value:count('for'),note:'Completed trips awaiting review',icon:'bi-receipt',tone:'amber'},
-      {label:'Unpaid invoices',value:open.length,note:'Invoiced or partially paid',icon:'bi-file-earmark',tone:'blue'},
-      {label:'Outstanding balance',value:UI.money(open.reduce((s,x)=>s+(+x.balance||0),0)),note:'Total unpaid balance',icon:'bi-wallet2',tone:'purple'},
-      {label:'Overdue',value:UI.money(open.filter(x=>+x.days_overdue>0).reduce((s,x)=>s+(+x.balance||0),0)),note:'Past due invoice balances',icon:'bi-alarm',tone:'red'}
-    ];
     const tabMarkup='<div class="bil-v2-tabstrip" role="tablist">'+Object.entries(tabs).map(([id,[label]])=>
       '<button type="button" role="tab" aria-selected="'+(tab===id)+'" class="'+(tab===id?'active':'')+'" data-go="billing?tab='+id+'">'+label+' <small>'+count(id)+'</small></button>').join('')+'</div>';
     ctx.el.innerHTML=UI.crumb('billing_overview','Billing Overview')
       +(d._errors?.adjustments||d._errors?.billings?'<div class="alert alert-warning small">Some records require billing adjustment migration 09.</div>':'')
-      +'<div class="bil-v2-records">'+UI.kpiTiles(tiles)+
+      +'<div class="bil-v2-records">'+
       '<section class="bil-v2-record-panel">'+tabMarkup+'<div class="bil-v2-record-content"></div></section></div>';
     const root=ctx.el.querySelector('.bil-v2-record-content');
     const show=x=>BillUI.open(x.billing_id||x.id);
