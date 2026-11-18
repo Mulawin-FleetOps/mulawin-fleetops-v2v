@@ -764,3 +764,61 @@
     border-radius:12px !important;
   }
 }
+
+
+/* Unified Objective-5-style card outlines, including the Analytics workspace.
+   Preserve existing DOM, page hierarchy, layout sizing and interactive behavior.
+   Gold is a soft outline, not a fill or thick glow. */
+#appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) > .page-body > .ax-shell,
+#appShell.sidebar-manual-toggle #pageContent .ax-shell {
+  border:1px solid rgba(213,174,69,.72) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px rgba(235,190,66,.13) !important;
+}
+/* Major boxes across every account, including Objective 5's inline-styled
+   analytics cards. Do not outline individual controls, tables or chart plots. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .ax-filters,
+  .ax-kpi,
+  .ax-category,
+  .ax-chart,
+  .ax-table-wrap,
+  .ax-insight,
+  .ax-findings,
+  .kpi-tile,
+  .ws-panel,
+  .rpm-feature-card,
+  .rpm-exec-headline,
+  .rpm-dashboard-shortcuts,
+  .record-workspace-panel,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .chart-panel,
+  .rpm-exec-performance-card,
+  .rpm-summary-panel,
+  .fleet-route-panel,
+  .head-trip-detail-card,
+  .head-fuel-combined-card,
+  .ds-summary-card,
+  .ds-filter-panel,
+  .oh-dispatch-shift-card,
+  .oh-dispatch-filter-panel,
+  .card
+) {
+  border-color:rgba(213,174,69,.70) !important;
+  border-style:solid !important;
+  border-width:1px !important;
+  box-shadow:0 0 7px rgba(235,190,66,.14) !important;
+}
+/* The previous header-only card styling was overridden by the full workspace.
+   Keep heading/subtitle/access inside the SAME outer panel with no second card. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+  background:transparent !important;
+  border-top:0 !important;
+  border-left:0 !important;
+  border-right:0 !important;
+  border-bottom:1px solid #DFE7E0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
