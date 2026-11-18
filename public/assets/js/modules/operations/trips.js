@@ -212,7 +212,7 @@ const TripUI = {
       ? `Truck <b>${UI.esc(t.plate_number)}</b> is back. Check every item again; the result before departure is shown beside each item. Items marked <b>Requires Attention</b> require photographs and a description and generate a repair record (the truck becomes Under Maintenance). If all items are satisfactory, the truck becomes Available.`
       : `Inspect Truck <b>${UI.esc(t.plate_number)}</b> and classify each item as <b>Satisfactory</b> or <b>Requires Attention</b>. Any item marked <b>Requires Attention</b> will prevent the trip from proceeding to Ready for Dispatch.`;
     // Only show photo and description evidence when an arrival item requires attention.
-    // General arrival odometer, fuel and remarks are no longer collected.
+    // General odometer, fuel level and remarks are omitted from both checklists.
     const extra = arrival
       ? '<section class="arrival-finding-evidence border rounded p-3 mt-3" data-arrival-evidence hidden>'
           +'<h6 class="mb-1">Items Requiring Attention</h6>'
@@ -221,8 +221,7 @@ const TripUI = {
             { name: 'damage_notes', label: 'Damage or defect details', type: 'textarea', rows: 2, col: 12 },
             { name: 'photos', label: 'Supporting photographs', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }
           ])+'</section>'
-      : UI.fields([{ name: 'odometer_km', label: 'Odometer (km)', type: 'number', col: 4 }, { name: 'fuel_level', label: 'Fuel level', type: 'select', options: UI.list(['Full', '3/4', '1/2', '1/4', 'Low']), col: 4 },
-          { name: 'remarks', label: 'Remarks', col: 4 }]);
+      : '';
     const timerBox = +timer.min_minutes > 0 ? `<div class="alert alert-info py-2 small mb-2 d-flex align-items-center gap-2" data-timer><i class="bi bi-stopwatch"></i><span data-timer-text></span></div>` : '';
     const body = `${timerBox}<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">${intro}</div>
       <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark All as Satisfactory</button></div>
@@ -244,7 +243,7 @@ const TripUI = {
         if (bad && !form.querySelector('[name=photos]').files.length) throw new Error('Attach photographs of all items requiring attention.');
         r = await App.apiForm('Trips.arrival', { trip_id: t.id, items, meta: {}, damage_notes: d.damage_notes }, form);
       } else {
-        r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks });
+        r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {} });
       }
       UI.result(r); TripUI.open(t.id); App.route();
     }, { size: 'modal-xl', submit: arrival ? 'Submit arrival checklist' : 'Submit checklist', onShow: (w, form) => {
