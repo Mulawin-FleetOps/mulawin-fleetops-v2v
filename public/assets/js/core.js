@@ -480,7 +480,7 @@ const App = {
         const lookup = id => items.find(n => n.id === id);
         const home = lookup('billing_overview');
         nav = home ? wsLink({ ...home, label: 'Dashboard' }) : '';
-        const ordered = ['billing', 'billing_collections', 'billing_receivables', 'reports']
+        const ordered = ['approvals', 'billing', 'billing_collections', 'billing_receivables', 'reports']
           .map(lookup).filter(Boolean);
         // BILLING_FLAT_NAV_V3: four primary links, no expandable Billing parent.
         if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports'
