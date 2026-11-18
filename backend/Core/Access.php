@@ -78,7 +78,9 @@ final class Access {
         return [
             // id => [label, icon, section, module, js file, roles]
             'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $dash],
-            'approvals' => ['Approvals', 'bi-check2-square', null, 'Approvals', 'general/approvals', array_values(array_diff($all, ['motorpool']))],
+            // Purchasing submits and tracks POs but has no approval decision authority.
+            // Remove its general Approvals page from both navigation and direct page/API access.
+            'approvals' => ['Approvals', 'bi-check2-square', null, 'Approvals', 'general/approvals', array_values(array_diff($all, ['motorpool', 'purchasing']))],
             'trips'       => ['Trip Management', 'bi-signpost-split', null, 'Trips', 'operations/trips',
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
