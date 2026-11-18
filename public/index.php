@@ -159,6 +159,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/dispatcher.css?v=<?= $v('assets/css/dispatcher.css') ?>">
   <link rel="stylesheet" href="assets/css/system-typography.css?v=<?= $v('assets/css/system-typography.css') ?>">
+  <link rel="stylesheet" href="assets/css/kpi-icons.css?v=<?= $v('assets/css/kpi-icons.css') ?>">
 </head>
 <body>
   <div id="app"><div class="text-center p-5 text-muted">Loading Mulawin FleetOps…</div></div>
