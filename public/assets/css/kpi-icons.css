@@ -1,0 +1,103 @@
+/* KPI_SOLID_ICONS_V1
+   Approved Option 2 across Mulawin FleetOps:
+   solid, flat 42px rounded-square icon chips; white glyphs;
+   semantic colors; gold KPI borders remain defined elsewhere.
+   This final stylesheet is loaded AFTER department and typography CSS.
+   No structural sizing, permissions, actions, or card borders changed. */
+#pageContent{
+  --kpi-green:#158354;
+  --kpi-blue:#1769B5;
+  --kpi-amber:#DC8B06;
+  --kpi-red:#CB4042;
+  --kpi-purple:#7545AC;
+  --kpi-slate:#64748B;
+}
+/* Common KPI icon chips (do not target non-KPI action icons). */
+#pageContent :is(
+ .kpi-tile .kpi-icon,
+ .metric-strip-icons .metric-icon,
+ .head-kpi .head-kpi-icon,
+ .rpm-kpi .rpm-kpi-icon,
+ .rpm-exec-kpis .rpm-kpi-icon,
+ .dispatcher-record-kpi-grid .ds-card-icon,
+ .ds-summary .ds-summary-card .ds-card-icon,
+ .oh-metric .oh-metric-icon,
+ .ax-kpi .ax-kpi-icon,
+ .stat-card .stat-icon
+){
+ display:inline-flex !important;
+ align-items:center !important;
+ justify-content:center !important;
+ flex:0 0 42px;
+ width:42px;
+ height:42px;
+ min-width:42px;
+ border-radius:11px !important;
+ background:var(--kpi-green) !important;
+ color:#fff !important;
+ border:0 !important;
+ box-shadow:none !important;
+ opacity:1 !important;
+}
+#pageContent :is(
+ .kpi-tile .kpi-icon,
+ .metric-strip-icons .metric-icon,
+ .head-kpi .head-kpi-icon,
+ .rpm-kpi .rpm-kpi-icon,
+ .dispatcher-record-kpi-grid .ds-card-icon,
+ .ds-summary .ds-summary-card .ds-card-icon,
+ .oh-metric .oh-metric-icon,
+ .ax-kpi .ax-kpi-icon,
+ .stat-card .stat-icon
+) :is(i,svg,.bi){
+ color:#fff !important;
+ opacity:1 !important;
+}
+/* All role scopes show icons. Existing flex/grid card layout is preserved. */
+#pageContent.ref-scope .kpi-tile .kpi-icon{display:inline-flex !important;}
+/* Metric-strip semantic colors. */
+#pageContent .metric-strip-icons .metric-icon-blue{background:var(--kpi-blue) !important}
+#pageContent .metric-strip-icons .metric-icon-amber{background:var(--kpi-amber) !important}
+#pageContent .metric-strip-icons .metric-icon-red{background:var(--kpi-red) !important}
+#pageContent .metric-strip-icons .metric-icon-purple{background:var(--kpi-purple) !important}
+#pageContent .metric-strip-icons .metric-icon-gray{background:var(--kpi-slate) !important}
+/* Workspace KPI tone classes; only color the icon, never the card. */
+#pageContent .kpi-tile.tone-blue .kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .kpi-tile.tone-amber .kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .kpi-tile.tone-red .kpi-icon{background:var(--kpi-red) !important}
+#pageContent .kpi-tile.tone-purple .kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .kpi-tile.tone-gray .kpi-icon{background:var(--kpi-slate) !important}
+/* Fleet and Motorpool. */
+#pageContent .head-kpi.blue .head-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .head-kpi.purple .head-kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .head-kpi.red .head-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .head-kpi.amber .head-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .head-kpi.gray .head-kpi-icon{background:var(--kpi-slate) !important}
+/* Explicit approved Motorpool example, independently of older tone values. */
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(1) .head-kpi-icon{background:var(--kpi-green) !important}
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(2) .head-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(3) .head-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .maint-overview .head-fleet-kpis>.head-fleet-kpi:nth-child(4) .head-kpi-icon{background:var(--kpi-purple) !important}
+/* Executive KPIs. */
+#pageContent .rpm-kpi-amber .rpm-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .rpm-kpi-red .rpm-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .rpm-kpi-blue .rpm-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .rpm-kpi-purple .rpm-kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .rpm-kpi-gray .rpm-kpi-icon{background:var(--kpi-slate) !important}
+/* Dispatcher summaries use existing semantic color classes. */
+#pageContent .ds-summary-card .ds-card-icon:is(.blue,.active,.cyan){background:var(--kpi-blue) !important}
+#pageContent .ds-summary-card .ds-card-icon:is(.orange,.resources){background:var(--kpi-amber) !important}
+#pageContent .ds-summary-card .ds-card-icon:is(.incidents,.red){background:var(--kpi-red) !important}
+#pageContent .ds-summary-card .ds-card-icon.purple{background:var(--kpi-purple) !important}
+#pageContent .ds-summary-card .ds-card-icon.gray{background:var(--kpi-slate) !important}
+#pageContent .ds-summary-card .ds-card-icon:is(.green,.attendance){background:var(--kpi-green) !important}
+/* Admin/Analytics named palette variants. */
+#pageContent .ax-kpi:is(.blue,.tone-blue) .ax-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .ax-kpi:is(.amber,.tone-amber) .ax-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .ax-kpi:is(.red,.tone-red) .ax-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .ax-kpi:is(.purple,.tone-purple) .ax-kpi-icon{background:var(--kpi-purple) !important}
+@media(max-width:600px){
+ #pageContent :is(.kpi-tile .kpi-icon,.metric-strip-icons .metric-icon,.head-kpi .head-kpi-icon,.rpm-kpi .rpm-kpi-icon,.ds-summary-card .ds-card-icon){
+   width:36px;min-width:36px;height:36px;flex-basis:36px;font-size:17px;
+ }
+}
