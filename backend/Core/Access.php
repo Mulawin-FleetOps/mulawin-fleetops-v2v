@@ -216,7 +216,7 @@ final class Access {
             return $out;
         }
         foreach (self::pages() as $id => [$label, $icon, $section, $module, $js, $roles]) {
-            if (in_array($u['role'], $roles, true) && (!self::reportPage($id) || $id === 'reports_center' && self::canOpen($u, $id))) {
+            if (in_array($u['role'], $roles, true) && ($id === 'reports_center' ? self::canOpen($u, $id) : !self::reportPage($id))) {
                 // Navigation grouping is per ROLE, not per backend department.
                 // Existing server-side page/action authorization stays unchanged.
                 $section = self::NAV_SECTIONS[$u['role']][$id] ?? $section;
