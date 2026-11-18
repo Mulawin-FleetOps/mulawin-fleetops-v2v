@@ -286,45 +286,170 @@
   }
 }
 
-/* BILLING_MAINTENANCE_KPI_ALIGNMENT_V5
-   Billing cards mirror Motorpool's repair stages: icon at left,
-   status/description in the center, total at the right. */
+/* KPI_FORMAT_STANDARD_V6
+   Purchasing reference is authoritative: icon on left and vertically stacked
+   small label, number, then supporting note. Shared across role KPIs only.
+   No changes to KPI data, actions, borders or other content layouts. */
+#pageContent .kpi-tiles .kpi-tile,
 #pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile {
-  display:grid !important;
-  grid-template-columns:42px minmax(0,1fr) auto;
-  grid-template-rows:auto minmax(0,1fr);
-  align-items:start !important;
-  column-gap:10px !important;
-  row-gap:4px !important;
-  padding:13px 12px !important;
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:12px !important;
+  padding:15px !important;
+  min-height:108px;
 }
-#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile > .kpi-icon{
-  grid-column:1 !important;
-  grid-row:1 / span 2 !important;
-}
+#pageContent .kpi-tiles .kpi-tile > .kpi-body,
 #pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile > .kpi-body{
+  display:flex !important;
+  flex:1 1 auto !important;
+  flex-direction:column !important;
+  min-width:0;
+  gap:0;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-label{
+  order:0 !important;
+  font-size:12px;
+  line-height:1.35;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-value{
+  order:1 !important;
+  align-self:flex-start !important;
+  justify-self:start !important;
+  margin:5px 0 2px !important;
+  font-size:clamp(22px,1.8vw,28px);
+  line-height:1.15;
+  text-align:left !important;
+  white-space:normal !important;
+  overflow-wrap:anywhere;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-note{
+  order:2 !important;
+  margin:3px 0 0 !important;
+  font-size:11.5px;
+  line-height:1.35;
+}
+/* Motorpool / Operations Head: existing title and value, with the optional
+   existing details line beneath. Keep the icon to the left. */
+#pageContent .head-trip-kpis .head-kpi.head-fleet-kpi{
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:12px;
+  min-width:0;
+  min-height:108px;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi > .head-kpi-icon{
+  flex:0 0 42px;
+  width:42px;height:42px;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value{
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:0;
+  min-width:0;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value > span{
+  display:block;
+  font-size:12px;
+  line-height:1.35;
+  font-weight:650;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value > strong{
+  display:block;
+  margin:5px 0 2px;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+  line-height:1.15;
+}
+#pageContent .head-trip-kpis .head-fleet-kpi-value > .head-kpi-note{
+  display:block;
+  margin-top:3px;
+  font-family:var(--font-sans,"Manrope",sans-serif);
+  font-size:11.5px;
+  font-weight:400;
+  line-height:1.35;
+  color:#718579;
+}
+/* Motorpool stage cards previously put the number at far right. */
+#pageContent .mp-action-stages .mp-action-stage {
+  display:grid !important;
+  grid-template-columns:42px minmax(0,1fr) !important;
+  grid-template-rows:auto auto auto;
+  align-content:start;
+  align-items:start;
+  gap:0 12px !important;
+  min-height:108px;
+  padding:15px !important;
+}
+#pageContent .mp-action-stages .mp-action-stage > .mp-action-stage-icon {
+  grid-column:1;grid-row:1 / span 3;
+  flex:0 0 42px;width:42px;height:42px;
+}
+#pageContent .mp-action-stages .mp-action-stage > .mp-action-stage-content{
   display:contents !important;
 }
-#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile .kpi-label{
-  grid-column:2;grid-row:1;
-  font-size:12px;font-weight:650;
+#pageContent .mp-action-stages .mp-action-stage-content > b{
+  grid-column:2;grid-row:1;line-height:1.35;font-size:12px;
 }
-#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile .kpi-note{
+#pageContent .mp-action-stages .mp-action-stage-count{
   grid-column:2;grid-row:2;
-  font-size:11px;line-height:1.4;
-  align-self:start;
+  margin:5px 0 2px;
+  text-align:left;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+  line-height:1.15;
 }
-#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile .kpi-value{
-  grid-column:3;grid-row:1 / span 2;
-  align-self:center;
-  justify-self:end;
-  margin:0 !important;
-  font-size:clamp(18px,1.45vw,24px);
-  text-align:right;
-  white-space:nowrap;
+#pageContent .mp-action-stages .mp-action-stage-content > small{
+  grid-column:2;grid-row:3;
+  margin-top:3px;line-height:1.35;font-size:11.5px;
+}
+/* Shared metric KPI strips (Reports, Finance, Head views). */
+#pageContent .metric-strip-icons .metric-icon-card{
+  align-items:flex-start;
+  gap:12px;
+  padding:15px;
+  min-height:108px;
+}
+#pageContent .metric-strip-icons .metric-content{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  min-width:0;
+}
+#pageContent .metric-strip-icons .metric-value{
+  margin:5px 0 2px;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+}
+#pageContent .metric-strip-icons .metric-note{margin-top:3px}
+/* Management dashboard cards: keep their existing label/value/note
+   relationships but ensure the title precedes the number. */
+#pageContent .rpm-kpi .rpm-kpi-value,
+#pageContent .rpm-kpi .rpm-kpi-note {margin-left:43px}
+#pageContent .rpm-kpi .rpm-kpi-value{
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(22px,1.8vw,28px);
+}
+#pageContent .ds-summary-card .ds-card-copy{
+  display:flex;flex-direction:column;min-width:0;
+}
+#pageContent .ds-summary-card .ds-card-copy > span{
+  order:0;margin:0;font-size:12px;
+}
+#pageContent .ds-summary-card .ds-card-copy > strong{
+  order:1;margin:5px 0 2px;
+  font-family:var(--font-heading,"Poppins",sans-serif);
 }
 @media(max-width:600px){
-  #pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile{
-    grid-template-columns:38px minmax(0,1fr) auto;
+  #pageContent .mp-action-stages .mp-action-stage{
+    grid-template-columns:38px minmax(0,1fr) !important;
+  }
+  #pageContent .mp-action-stages .mp-action-stage > .mp-action-stage-icon,
+  #pageContent .head-trip-kpis .head-fleet-kpi > .head-kpi-icon{
+    width:38px;height:38px;flex-basis:38px;
   }
 }
