@@ -200,12 +200,17 @@ PurUI.kit = (d, can) => {
     // STOCK_COUNT_RECONCILIATION_V1: no direct +/- adjustment. A discrepancy is recorded as a stock count for the Admin to post.
     const partActs = (p, big) => { const a = act(big);
       return (can.count && d.countsReady && +p.active ? a('count', 'Record stock count', 'bi-clipboard-check', 'outline-primary') : '') + (can.stock ? a('edit', 'Edit part', 'bi-pencil', 'outline-secondary') : ''); };
-    const partForm = (p = {}) => UI.formModal(p.id ? 'Edit part ' + UI.esc(p.part_number) : 'Add part', [
-      { name: 'part_number', label: 'Part no. / ID', required: true, col: 4, value: p.part_number }, { name: 'description', label: 'Description', required: true, col: 8, value: p.description },
-      { name: 'category', label: 'Category', col: 4, value: p.category }, { name: 'unit', label: 'Unit', required: true, col: 4, value: p.unit || 'pc' }, { name: 'unit_cost', label: 'Unit cost', type: 'money', required: true, col: 4, value: p.unit_cost },
-      { name: 'reorder_level', label: 'Reorder level (low-stock alert)', type: 'number', required: true, col: 4, value: p.reorder_level ?? 0 }, { name: 'warranty_info', label: 'Warranty', col: 4, value: p.warranty_info },
-      ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {},
-        intro: p.id ? '' : 'A new part starts with 0 on hand. Stock comes in when a purchase order is received, or through a stock count posted by the Admin.' });
+    const partForm = (p = {}) => UI.formModal(p.id ? 'Edit part' : 'Add part', [
+      { name: 'part_id_display', label: 'Part ID', col: 4, value: p.part_number || 'Assigned after saving', attrs: 'readonly aria-readonly="true" tabindex="-1"', help: p.id ? 'Permanent reference · cannot be edited.' : 'Automatically generated when you save.' },
+      { name: 'description', label: 'Part Name', required: true, col: 8, value: p.description, placeholder: 'e.g. Brake pad set', attrs: 'maxlength="200"' },
+      { name: 'category', label: 'Category', col: 6, value: p.category, placeholder: 'e.g. Brake system', attrs: 'maxlength="80"' },
+      { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
+      { name: 'unit_cost', label: 'Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Cost per unit, not total stock value.' },
+      { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
+      { name: 'warranty_info', label: 'Warranty (optional)', col: 12, value: p.warranty_info, placeholder: 'e.g. 12 months', attrs: 'maxlength="150"' },
+      ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
+        transform: ({ part_id_display, ...data }) => data,
+        intro: p.id ? 'Update part details. The Part ID and stock on hand will not change.' : 'Part ID is assigned automatically. New parts start with 0 on hand; stock is added through purchase-order receiving or an Admin-approved stock count.' });
     const partAct = (a, p) => a === 'edit' ? partForm(p) : a === 'count' ? PurUI.countForm(d, p) : null;
   return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
 };
@@ -348,7 +353,7 @@ PurUI.openPO = async (o, k) => {
 PurUI.openPart = async (pt, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.part_history', { part_id: pt.id }); const p = x.part;
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
-  const html = `${UI.kv([['Description', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
+  const html = `${UI.kv([['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
       p.warranty_info ? ['Warranty', UI.esc(p.warranty_info)] : null])}
     ${UI.h('Stock movements (latest 50)')}${UI.table([['Date and time', 'created_at', 'datetime'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => (v > 0 ? '+' : '') + UI.num(v)], ['Reference', 'reference', (v, m) => UI.e(v || m.reason)], ['Truck', 'plate_number'], ['By', 'actor']], x.movements, { plain: true, limit: 10, empty: 'No stock movement recorded.' })}
@@ -598,7 +603,7 @@ App.page('inventory', {
       body.innerHTML = UI.generalFilters(ctx, [{ name: 'count', label: 'Count statuses', options: [['Submitted', 'Waiting for review'], ['Posted', 'Posted'], ['Rejected', 'Rejected']] }])
         + UI.table([
           ['Count', 'count_ref', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.datetime(c.counted_at)}</div>`],
-          ['Part', 'part_number', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(c.description)}</div>`],
+          ['Part ID / Name', 'part_number', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(c.description)}</div>`],
           ['System', 'system_qty', 'num'], ['Counted', 'counted_qty', 'num'],
           ['Discrepancy', 'variance', (v, c) => `<span class="cell-nowrap ${+v < 0 ? 'text-danger' : ''}"><b>${+v > 0 ? '+' : ''}${UI.num(v)}</b> ${UI.esc(c.unit)}</span><div class="cell-sub">${UI.money(Math.abs(+c.variance_value))}</div>`],
           ['Status', 'status', 'badge'],
@@ -617,8 +622,8 @@ App.page('inventory', {
     const openCount = new Set(pending.map(c => +c.part_id));
     body.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
       + UI.table([
-        ['Part no.', 'part_number', (v, p) => `<b>${UI.esc(v)}</b>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
-        ['Description', 'description', (v, p) => `<span class="cell-clamp">${UI.esc(v)}</span>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`],
+        ['Part Name', 'description', (v, p) => `<b class="cell-clamp">${UI.esc(v)}</b>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`],
+        ['Part ID', 'part_number', (v, p) => `<span class="cell-nowrap">${UI.esc(v)}</span>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
         ['On hand', 'quantity_on_hand', (v, p) => `<span class="cell-nowrap"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? ' <span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>`],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
         { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
