@@ -36,9 +36,8 @@ const ReportsPage = {
       const sections=d.sections||{};
       const keys=Object.keys(sections);
       ctx.el.classList.add('head-report-dashboard');
-      const heading=document.querySelector('#pageContent .page-title');
+      // Keep the shared Reports page heading aligned with the sidebar label.
       const subtitle=document.querySelector('#pageContent .page-subtitle');
-      if(heading)heading.textContent='Management Reports';
       if(subtitle)subtitle.textContent='Company-wide performance, trends and operational insights.';
       if(!keys.length){ctx.el.innerHTML='<div class="table-empty">No reports are available for your role.</div>';return;}
       const labels={trips:'Trips',fleet:'Fleet & Maintenance',money:'Money',stock:'Inventory'};
