@@ -403,7 +403,9 @@ const App = {
           +tripLink('Active Trips','bi-signpost-split','tab=active')
           +tripLink('Trip History','bi-clock-history','tab=history')
           +tripLink('Incidents','bi-exclamation-triangle','tab=incidents')
-          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('');
+          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('')
+          +(['car_carrier_dispatcher','container_wingvan_dispatcher'].includes(u.role) && allowed.some(n=>n.id==='crew')
+            ? '<a href="#crew?view=attendance" class="nav-item-link" data-nav="crew" data-dispatch-section="attendance"><i class="bi bi-person-check" aria-hidden="true"></i><span>Crew Attendance</span></a>' : '');
         nav=UI.sidebarGroup({title:'Overview',icon:'bi-grid-1x2',items:overview})
           +UI.sidebarGroup({title:'Trip Operations',icon:'bi-signpost-split',items:tripItems})
           +UI.sidebarGroup({title:'Reference & Records',icon:'bi-folder2-open',items:extra.map(link).join('')});
@@ -813,6 +815,20 @@ const App = {
   renderBell() {
     const me = this.me; const badge = document.getElementById('bellBadge'); if (!badge) return;
     badge.textContent = me.unread > 99 ? '99+' : me.unread; badge.classList.toggle('d-none', !me.unread);
+    const bell = document.getElementById('bellBtn');
+    const unreadIds = me.notifications.filter(n => n.state === 'Unread').map(n => String(n.id));
+    const previousUnread = new Set(JSON.parse(bell.dataset.unreadIds || '[]'));
+    const hasNewUnread = unreadIds.some(id => !previousUnread.has(id));
+    bell.dataset.unreadIds = JSON.stringify(unreadIds);
+    if (hasNewUnread && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const icon = bell.querySelector('.bi');
+      icon.getAnimations().forEach(animation => animation.cancel());
+      icon.animate([0, -18, 16, -12, 8, 0].map(angle => ({ transform: `rotate(${angle}deg)` })),
+        { duration: 850, easing: 'ease-in-out' });
+      badge.getAnimations().forEach(animation => animation.cancel());
+      badge.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }],
+        { duration: 450, easing: 'ease-out' });
+    }
     const list = document.getElementById('bellList');
     list.innerHTML = me.notifications.length ? me.notifications.map(n => `
       <div class="bell-item ${n.state === 'Unread' ? 'unread' : ''}" data-nid="${n.id}">

@@ -358,7 +358,7 @@ const DispatcherUI = {
     return '<div class="oh-dispatch-table-wrap"><table class="data-table"><thead><tr>'
       +'<th>Trip / Client</th><th>Route / Truck</th><th>'+(history?'Completion / Schedule':'Scheduled Dispatch')+'</th>'
       +'<th>Status</th><th>Action</th></tr></thead><tbody>'
-      +(lines||'<tr class="fleet-empty-row"><td colspan="5">'+UI.emptyRecords('No trips match the selected filters. Try adjusting your search or filters.',true)+'</td></tr>')
+      +(lines||'<tr class="fleet-empty-row"><td colspan="5">'+UI.state('empty', { title: 'No trips match the selected filters.', message: 'Try adjusting your search or filters.' })+'</td></tr>')
       +'</tbody></table></div>';
   },
   next(t) {

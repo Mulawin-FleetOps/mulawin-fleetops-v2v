@@ -167,6 +167,9 @@ const FleetUI = {
     }
     const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
     const allTrucks=d.assignmentTrucks||[];
+    const helperTruck = !driver ? allTrucks.find(t => Number(t.assigned_helper_id) === Number(p.id)) : null;
+    const helperTrucks = allTrucks.filter(t => ['Container','Wing Van'].includes(t.truck_type)
+      && (Number(t.assigned_helper_id) === Number(p.id) || (!t.assigned_helper_id && !Number(t.has_active_trip) && !Number(t.has_open_job))));
     const already=String(p.authorized_truck_ids||'').split(',').map(Number).filter(id=>Number.isInteger(id)&&id>0);
     // Preserve legacy fixed links when upgrading a database that has not yet
     // displayed the additive authorization backfill.
@@ -276,6 +279,11 @@ const FleetUI = {
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
       ...(driver?[section,authorization,helperSection]:[]),
+      ...(!driver ? [FormComponents.section('Dispatcher Assignment','bi-truck',[
+        {name:'helper_vehicle_id',label:'Regular Truck',type:'select',required:true,col:12,
+          value:helperTruck?.id,options:helperTrucks.map(t=>[t.id,t.plate_number+' · '+t.truck_type]),
+          help:'Choose the Helper’s regular Container or Wing Van truck. This makes the Helper visible in that operational group’s Dispatcher attendance roster. The Dispatcher records Time In.'}
+      ])] : []),
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
@@ -573,7 +581,6 @@ App.page('crew', {
   render(ctx) {
     const d = ctx.data, q = ctx.query;
     if (d.can.edit) UI.tool(ctx, 'Add driver or helper', () => FleetUI.crewForm({}), 'bi-plus-lg', 'primary');
-    if (App.me.user.role === 'admin') UI.tool(ctx, 'Attendance', () => AttendanceUI.open('Driver'), 'bi-clipboard-check', 'outline-primary');
     const act = d.crew.filter(p => +p.active);
     const rows = d.crew.filter(p => (q.inactive ? true : +p.active) && (!q.person_type || p.person_type === q.person_type) && (!q.availability || p.availability === q.availability)
       && (!q.license || (p.license_days !== null && +p.license_days <= +d.alertDays)));

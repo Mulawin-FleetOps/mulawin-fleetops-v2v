@@ -663,7 +663,7 @@ const OpsHead = {
       [type === 'Driver' ? 'Authorized Trucks' : 'Regular Truck', 'regular_truck'],
 
       ['Attendance Readiness', 'id', (value, person) => !Array.isArray(d.attendance)
-        ? 'Unavailable' : OpsHead.badge(d.attendance.find(entry => +entry.personnel_id === +person.id)?.status || 'Not Yet Marked')],
+        ? 'Unavailable' : OpsHead.badge(d.attendance.find(entry => +entry.personnel_id === +person.id)?.status || 'Not Timed In')],
       ['Availability', 'availability', 'badge'],
       ...(type === 'Driver' ? [['License Expiry', 'license_expiry', 'date']] : []),
     ];

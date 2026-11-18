@@ -439,6 +439,27 @@ final class Fleet {
             'Driver regular crew pairing',['Helper'=>'Unassigned'],['Helper ID'=>$helperId]);
     }
 
+    private static function saveHelperTruck(PDO $p, array $u, int $helperId, array $d): void {
+        $vehicleId = optId($d, 'helper_vehicle_id');
+        must($vehicleId !== null, 'Choose a Regular Truck so the Helper appears in Dispatcher attendance.');
+        $links = many($p, 'SELECT * FROM vehicles WHERE active=1 AND (assigned_helper_id=? OR id=?) ORDER BY id FOR UPDATE', [$helperId,$vehicleId]);
+        $target = null;
+        foreach ($links as $truck) {
+            if ((int)$truck['id'] === $vehicleId) $target = $truck;
+            if ((int)$truck['assigned_helper_id'] === $helperId)
+                must((int)$truck['id'] === $vehicleId, 'This Helper already has a regular Truck. Existing pairings cannot be replaced here.', 409);
+        }
+        must($target && in_array($target['truck_type'], ['Container','Wing Van'], true), 'Choose an active Container or Wing Van truck.', 409);
+        must(!$target['assigned_helper_id'] || (int)$target['assigned_helper_id'] === $helperId, 'This Truck already has a regular Helper.', 409);
+        if ((int)$target['assigned_helper_id'] === $helperId) return;
+        must(!FleetState::personTrip($p,$helperId), 'This Helper is held by an active trip.', 409);
+        must(!one($p,'SELECT id FROM maintenance_jobs WHERE vehicle_id=? AND open_key=1',[$vehicleId]), 'This Truck has an open maintenance hold.', 409);
+        FixedAssignments::validateTruck($p,$vehicleId,array_merge($target,['assigned_helper_id'=>$helperId]),$target);
+        run($p,'UPDATE vehicles SET assigned_helper_id=? WHERE id=?',[$helperId,$vehicleId]);
+        auditWithChanges($p,$u['id'],'Fleet','vehicle '.$vehicleId,'regular helper assigned','Helper masterlist assignment',
+            ['Helper ID'=>$target['assigned_helper_id']],['Helper ID'=>$helperId]);
+    }
+
     private static function crewSave(array $u, array $d): array {
         requireRole($u, ...self::EDIT);
         $id = optId($d, 'id');
@@ -474,6 +495,8 @@ final class Fleet {
                 }
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE personnel SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
+                if ($row['person_type'] === 'Helper' && array_key_exists('helper_vehicle_id',$d))
+                    self::saveHelperTruck($p,$u,$id,$d);
                 if ($row['person_type'] === 'Driver' && array_key_exists('authorized_vehicle_ids', $d))
                     self::saveDriverTruckAuthorizations($p,$u,$id,$d['authorized_vehicle_ids']);
                 if ($row['person_type'] === 'Driver' && array_key_exists('regular_helper_id', $d))
@@ -485,6 +508,7 @@ final class Fleet {
                 return ['id' => $id, 'message' => $row['full_name'] . ' was updated successfully.'];
             }
             $id = insert($p, 'personnel', $row);
+            if ($row['person_type'] === 'Helper') self::saveHelperTruck($p,$u,$id,$d);
             if ($row['person_type'] === 'Driver' && array_key_exists('authorized_vehicle_ids',$d))
                 self::saveDriverTruckAuthorizations($p,$u,$id,$d['authorized_vehicle_ids']);
             if ($row['person_type'] === 'Driver' && array_key_exists('regular_helper_id',$d))

@@ -418,6 +418,21 @@ textarea.form-control { min-height: 64px; }
 
 .bell-menu { width: 380px; max-width: calc(100vw - 24px); padding: 0; overflow: hidden; }
 
+.updated-bell > .bi { display: inline-block; transform-origin: 50% 15%; }
+@media (prefers-reduced-motion: no-preference) {
+  .bell-menu.show { animation: notification-menu-in 180ms ease-out; }
+  .bell-menu.show .bell-item { animation: notification-item-in 220ms ease-out; }
+  .bell-item { transition: background-color 150ms ease; }
+}
+@keyframes notification-menu-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes notification-item-in {
+  from { opacity: 0; translate: 0 5px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
 .bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--fs-md); }
 
 .bell-list { max-height: 420px; overflow-y: auto; }
