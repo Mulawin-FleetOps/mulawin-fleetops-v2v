@@ -155,23 +155,22 @@ const PurUI = {
   async receive(o) {
     const r = await App.api('Purchasing.po_details', { po_id: o.id });
     const ready = !!r.warrantyReady;
-    const today = new Date();
-    const localDate = [today.getFullYear(), String(today.getMonth()+1).padStart(2,'0'), String(today.getDate()).padStart(2,'0')].join('-');
     const rows = r.lines.map(l => {
       const left = l.quantity - l.received_qty;
-      return `<tr><td>${UI.esc(l.part_number)}<div class="small text-muted">${UI.esc(l.description)}</div></td>
-        <td class="num">${l.quantity}</td><td class="num">${l.received_qty}</td>
-        <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${left}" data-rcv="${l.id}" ${left ? '' : 'disabled'}></td>
-        ${ready ? `<td><input class="form-control form-control-sm" type="number" min="0" max="120" step="1" value="${UI.esc(l.warranty_months || 0)}" data-wmonths="${l.id}" ${left ? '' : 'disabled'}><small class="text-muted">months; 0 = none</small></td>
-        <td><input class="form-control form-control-sm" type="date" value="${localDate}" data-wstart="${l.id}" ${left ? '' : 'disabled'}></td>` : ''}</tr>`;
+      const expiration = !ready ? '' : !l.warranty_months ? 'No warranty' :
+        (l.warranty_expiry_preview ? UI.date(l.warranty_expiry_preview) : 'Not available');
+      return `<tr><td><b>${UI.esc(l.part_number)}</b><div class="small text-muted">${UI.esc(l.description)}</div></td>
+        <td class="num">${UI.num(l.quantity)}</td><td class="num">${UI.num(l.received_qty)}</td>
+        <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" step="1" value="${left}" data-rcv="${l.id}" ${left ? '' : 'disabled'}></td>
+        ${ready ? `<td class="purchasing-receive-expiry"><strong>${UI.esc(expiration)}</strong></td>` : ''}</tr>`;
     }).join('');
     UI.modal('Receive parts for ' + UI.esc(o.po_ref), `<div class="purchasing-receive-form">
       <p class="purchasing-receive-intro">Check the actual quantity delivered against the approved PO. A short delivery remains Partially Received.</p>
       <div class="purchasing-receive-section">Delivered items</div>
       <div class="table-wrap purchasing-receive-table"><table class="data-table"><thead><tr><th>Part</th><th>Ordered</th><th>Received</th><th>Received now</th>
-      ${ready ? '<th>Warranty (months)</th><th>Warranty start date</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
-      ${ready ? '<p class="purchasing-receive-note">Warranty records are saved per receiving batch. Use 0 months for no coverage and confirm the actual start date.</p>' :
-      '<p class="purchasing-receive-note">Warranty dates will be available after the approved warranty migration is applied. Normal receiving is still available.</p>'}
+      ${ready ? '<th>Warranty Expiration</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
+      ${ready ? '<p class="purchasing-receive-note">Warranty expiration is calculated automatically from the part warranty terms and the receiving date. Partial receipts get separate warranty records.</p>' :
+      '<p class="purchasing-receive-note">Warranty tracking is unavailable until its database migration is installed. Normal receiving is still available.</p>'}
       <div class="purchasing-receive-section">Delivery documents</div>
       ${UI.fields([{ name: 'supplier_invoice_no', label: 'Invoice / delivery receipt number', col: 12,
         placeholder: 'Enter supplier invoice or delivery receipt number' },
@@ -179,12 +178,7 @@ const PurUI = {
       </div>`,
       async (x, form) => {
         const receive = [...form.querySelectorAll('[data-rcv]')].map(i => ({ line_id: i.dataset.rcv, qty: +i.value || 0 }));
-        const warranty = ready ? receive.filter(i => i.qty > 0).map(i => ({
-          line_id: i.line_id,
-          months: form.querySelector('[data-wmonths="' + i.line_id + '"]').value,
-          start: form.querySelector('[data-wstart="' + i.line_id + '"]').value
-        })) : [];
-        const res = await App.apiForm('Purchasing.po_receive', { po_id: o.id, receive, warranty,
+        const res = await App.apiForm('Purchasing.po_receive', { po_id: o.id, receive,
           supplier_invoice_no: x.supplier_invoice_no }, form);
         UI.result(res); App.route();
       }, { submit: 'Record received parts', size: 'modal-xl',
