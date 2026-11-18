@@ -38,6 +38,20 @@ final class PartWarrantyTest extends TestCase {
         self::assertNull($data['warranty_months']);
     }
 
+    public function testPendingInstallationDoesNotInventDates(): void {
+        $data = self::coverage(['status'=>'Pending Installation', 'months'=>12]);
+        self::assertSame('Pending Installation', $data['warranty_status']);
+        self::assertSame('Installation', $data['start_basis']);
+        self::assertSame(12, $data['warranty_months']);
+        self::assertNull($data['warranty_start']);
+        self::assertNull($data['warranty_expires']);
+    }
+
+    public function testPendingInstallationRequiresDuration(): void {
+        $this->expectException(BusinessRuleException::class);
+        self::coverage(['status'=>'Pending Installation']);
+    }
+
     public function testNoWarrantyHasNoExpiry(): void {
         self::assertNull(self::coverage(['status'=>'No Warranty'])['warranty_expires']);
     }
