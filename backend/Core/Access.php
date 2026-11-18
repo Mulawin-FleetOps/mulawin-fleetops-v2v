@@ -78,6 +78,7 @@ final class Access {
         return [
             // id => [label, icon, section, module, js file, roles]
             'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $dash],
+            'approvals' => ['Approvals', 'bi-check2-square', null, 'Approvals', 'general/approvals', $all],
             'trips'       => ['Trip Management', 'bi-signpost-split', null, 'Trips', 'operations/trips',
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
@@ -198,6 +199,7 @@ final class Access {
                 'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
+                'approvals' => ['Approvals', 'Management Control'],
                 'head-approvals' => ['Management Action Center', 'Management Control'],
                 'reports' => ['Management Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
