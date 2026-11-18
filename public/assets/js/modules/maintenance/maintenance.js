@@ -708,8 +708,6 @@ App.page('maintenance_overview', {
   subtitle: 'Monitor repairs, mechanics and trucks in service.',
   render(ctx) {
     const d = MaintUI.data = ctx.data, can = d.can || {};
-    // REF_FIDELITY_V1: the Motorpool's own workspace title (other roles keep 'Maintenance Overview').
-    if (UI.role('motorpool')) { const h = document.querySelector('#pageContent .page-title'); if (h) h.textContent = 'Dashboard'; }
     const s = Array.isArray(d.summary) ? null : d.summary;   // a failed read section comes back as []
 
     const n = (k) => s ? +s[k] || 0 : '—';
