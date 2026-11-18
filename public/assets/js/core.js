@@ -1379,9 +1379,9 @@ UI.kpiIconColor = (label, requestedColor = '') => {
   if (['green','blue','amber','red','purple'].includes(requestedColor)) return requestedColor;
   const text = String(label || '').toLowerCase();
   const rules = [
-    [/overdue|over 60|incident|cancel|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
+    [/overdue|over 60|incident|cancel|delay|problem|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
     [/not timed in|inactive|archived|draft|no action/, 'gray'],
-    [/under maintenance|under repair|low stock|follow.up|pending|awaiting|to approve|for approval|for billing|to bill|for review|needs attention|approval|verification|verify|to release|to liquidate/, 'amber'],
+    [/under maintenance|under repair|scheduled|preparing|reschedul|low stock|follow.up|pending|awaiting|to approve|for approval|for billing|to bill|for review|needs attention|approval|verification|verify|to release|to liquidate/, 'amber'],
     [/collected|completed|complete|available|paid|delivered|resolved|successful|released|received|on duty/, 'green'],
     [/on trip|ongoing|in progress|active|dispatch|to receive|new parts|requests|trips|truck|vehicle|fleet|route|delivery/, 'blue'],
     [/outstanding|balance|cash|revenue|receivable|billing|invoice|finance|budget|expenses|expense|cost|payment|fund|rate|amount|money/, 'purple'],
@@ -1396,8 +1396,8 @@ UI.kpiIconColor = (label, requestedColor = '') => {
 UI.metricVisual = (card) => {
   const label = String(card.label || '').toLowerCase();
   const rules = [
-    [/overdue|incident|cancelled|canceled|critical|failed|shortage|out of stock|unavailable|rejected|problem/, 'bi-exclamation-triangle', 'red'],
-    [/under maintenance|repair|needs attention|low stock|pending|awaiting|for approval|for review|follow.up|verification|verify/, 'bi-tools', 'amber'],
+    [/overdue|incident|cancelled|canceled|delay|problem|critical|failed|shortage|out of stock|unavailable|rejected|problem/, 'bi-exclamation-triangle', 'red'],
+    [/under maintenance|repair|scheduled|preparing|reschedul|needs attention|low stock|pending|awaiting|for approval|for review|follow.up|verification|verify/, 'bi-tools', 'amber'],
     [/completed|complete|finished|resolved|collected|paid|delivered|available|success/, 'bi-check-circle', 'green'],
     [/ongoing|in progress|in transit|on trip|active trip|dispatched|dispatch|route|to bill|for billing/, 'bi-truck', 'blue'],
     [/finance|revenue|receivable|invoice|billing|expense|cost|budget|amount|payment|fund|rate|money/, 'bi-wallet2', 'purple'],
