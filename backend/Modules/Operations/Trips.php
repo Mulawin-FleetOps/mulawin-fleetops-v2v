@@ -992,12 +992,39 @@ final class Trips {
                            fuel_level=VALUES(fuel_level), remarks=VALUES(remarks), actor_id=VALUES(actor_id), started_at=VALUES(started_at), completed_at=NOW()")
               ->execute([$id, $t['vehicle_id'], $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $check['has_not_ok'] ? 1 : 0, $km, $fuel, $remarks, $u['id'], $started]);
             if ($check['has_not_ok']) {
-                $bad = []; foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) { $k = $s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT); if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label; }
-                self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'], implode(', ', $bad), [],
-                    ['Inspection result' => 'NOT OK', 'NOT OK item count' => count($bad)]);
-                Notify::roles($p, ['motorpool'], 'Checklist finding', $t['trip_ref'] . ' / ' . $v['plate_number'] . ' NOT OK: ' . implode(', ', array_slice($bad, 0, 6)), 'maintenance');
-                return ['warning' => 'Checklist saved with NOT OK items (' . implode(', ', array_slice($bad, 0, 5)) . '). The trip cannot be Ready for Dispatch until every item is OK. Fix the items and submit the checklist again.'];
+                $bad = [];
+                foreach (Checklist::sections() as $section) foreach ($section['items'] as $i => $label) {
+                    $k = $section['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT);
+                    if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label;
+                }
+                $truckDefects = Checklist::truckDefects($check);
+                // Keep a separate event on every submission, even when the current
+                // inspections row is updated in place for the same trip attempt.
+                self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'],
+                    count($bad) . ' NOT OK: ' . implode('; ', $bad), [],
+                    ['Inspection result' => 'NOT OK', 'NOT OK item count' => count($bad),
+                     'Truck defects' => count($truckDefects)]);
+                if ($truckDefects) {
+                    Actions::load('Maintenance');
+                    $job = Maintenance::fromPreDispatchChecklist($p, $u, $t, $truckDefects);
+                    // A defective Assigned truck must not stay reserved or become
+                    // dispatchable. Reuse existing fixed-pair resource-loss logic.
+                    $next = self::resourceLost($p, $u, $id,
+                        'Pre-dispatch truck defects; corrective maintenance ' . $job['job_ref']);
+                    Notify::roles($p, ['operations_head'], 'Truck failed pre-dispatch inspection',
+                        $v['plate_number'] . ' failed ' . $t['trip_ref'] . ' and requires repair ' . $job['job_ref'] . '.', 'trips');
+                    return ['warning' => 'Checklist saved with NOT OK truck defects. Repair ' . $job['job_ref'] .
+                        ' was ' . ($job['new'] ? 'created' : 'updated') .
+                        ' for Motorpool. The unsafe truck was released from the trip. After Motorpool verifies the repair, Dispatcher must assign a valid truck/crew and complete the full pre-dispatch checklist again. ' . $next];
+                }
+                Notify::roles($p, ['motorpool'], 'Checklist finding', $t['trip_ref'] . ' / ' . $v['plate_number'] .
+                    ' NOT OK: ' . implode(', ', array_slice($bad, 0, 6)), 'maintenance');
+                return ['warning' => 'Checklist saved with NOT OK items (' . implode(', ', array_slice($bad, 0, 5)) .
+                    '). No automatic truck repair was opened because the failures were outside tractor/trailer equipment. Correct the findings and repeat the full checklist before dispatch.'];
             }
+            self::event($p, $u['id'], $id, 'pre-dispatch checklist passed', $t['status'], $t['status'],
+                'All checklist items OK; full pre-dispatch inspection submitted', [],
+                ['Inspection result' => 'All OK']);
             run($p, 'UPDATE trips SET status=? WHERE id=?', ['Ready for Dispatch', $id]);
             self::event($p, $u['id'], $id, 'pre-dispatch checklist completed', $t['status'], 'Ready for Dispatch',
                 'All items OK' . ($km ? "; odometer $km" : ''), [], ['Inspection result' => 'All OK']);
