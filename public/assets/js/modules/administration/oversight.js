@@ -748,5 +748,22 @@ App.page('admin_reports', {
     }));
 
     chartJobs.forEach(job=>{try{job();}catch(err){console.error('Analytics chart error',err);}});
+    // In the Operations diagnostic, clicking an incident-type bar opens its
+    // filtered evidence list. The accessible category buttons work without a chart.
+    if (diagnostic && topic === 'operations' && kind === 'general' && typeof Chart !== 'undefined') {
+      const canvas=ctx.el.querySelector('#ax-chart-0');
+      canvas?.addEventListener('click',event=>{
+        const chart=Chart.getChart(canvas);
+        if(!chart)return;
+        const hits=chart.getElementsAtEventForMode(event,'nearest',{intersect:true},false);
+        if(!hits.length)return;
+        const types=[...new Set(((d.incidentEvidence||{}).records||[])
+          .map(r=>String(r.incident_type||'Not coded')))].sort();
+        const chosen=types[hits[0].index];
+        if(chosen)go({incident_type:chosen});
+      });
+      if(canvas) { canvas.style.cursor='pointer'; canvas.setAttribute('aria-label','Incident types chart. Select a category using the filter buttons below the chart.'); }
+    }
+
   },
 }));
