@@ -116,9 +116,10 @@ const App = {
           <div class="input-group"><input class="form-control" type="password" id="lgP" name="password" autocomplete="current-password" required>
           <button class="btn btn-outline-secondary" type="button" id="lgEye" aria-label="Show password"><i class="bi bi-eye"></i></button></div></div>
         <button class="btn btn-primary w-100 auth-btn" type="submit">Sign in</button>
-        <div class="auth-links"><span>Forgot your password? Contact the Admin or authorized IT support.</span></div>
+        <div class="auth-links"><button type="button" id="forgotPasswordLink" class="btn btn-link p-0">Forgot password?</button></div>
       </form>`);
     document.getElementById(username ? 'lgP' : 'lgU').focus();
+    document.getElementById('forgotPasswordLink').onclick = () => this.forgotPasswordScreen('', 'request', username); 
     document.getElementById('lgEye').onclick = (e) => { const p = document.getElementById('lgP'); p.type = p.type === 'password' ? 'text' : 'password'; e.currentTarget.innerHTML = `<i class="bi bi-eye${p.type === 'password' ? '' : '-slash'}"></i>`; };
     document.getElementById('loginForm').onsubmit = async (e) => {
       e.preventDefault();
@@ -127,6 +128,49 @@ const App = {
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking credentials…';
       try { await this.postAuth('login', f); location.hash = ''; await this.loadMe(); }
       catch (err) { this.loginScreen(err.message, f.username || ''); }
+    };
+  },
+
+  /** Email-only password recovery for locked-out users; no current password required. */
+  forgotPasswordScreen(message = '', stage = 'request', email = '', ok = false) {
+    const first = stage === 'request';
+    this.authFrame(`
+      <div class="auth-head"><h1>Forgot password</h1><p>${first
+        ? 'Enter your registered email to receive a one-time verification code.'
+        : 'Enter the 6-digit code emailed to you and choose a new password.'}</p></div>
+      ${this.authAlert(message, ok)}
+      <form id="forgotPasswordForm" novalidate>
+        ${first ? `<div class="mb-3"><label for="forgotEmail" class="form-label">Registered email address</label>
+          <input class="form-control" id="forgotEmail" name="email" type="email" autocomplete="email" required value="${UI.esc(email)}"></div>`
+        : `<div class="mb-3"><label for="forgotCode" class="form-label">6-digit verification code</label>
+          <input class="form-control" id="forgotCode" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div>
+          <div class="mb-3"><label for="forgotNewPassword" class="form-label">New password</label>
+          <input class="form-control" id="forgotNewPassword" name="new_password" type="password" autocomplete="new-password" required></div>
+          <div class="mb-3"><label for="forgotConfirm" class="form-label">Confirm new password</label>
+          <input class="form-control" id="forgotConfirm" name="confirm" type="password" autocomplete="new-password" required></div>`}
+        <button class="btn btn-primary w-100 auth-btn" type="submit">${first ? 'Send verification code' : 'Verify and reset password'}</button>
+        ${!first ? '<button type="button" class="btn btn-link w-100 mt-2" id="forgotResend">Request a new code</button>' : ''}
+        <button type="button" id="forgotBack" class="btn btn-link w-100 mt-2">Back to sign in</button>
+      </form>`);
+    document.getElementById('forgotBack').onclick = () => this.loginScreen();
+    if (!first) {
+      this.securityPasswordEyes('forgotPasswordForm');
+      document.getElementById('forgotResend').onclick = () => this.forgotPasswordScreen('', 'request', email);
+    }
+    document.getElementById(first ? 'forgotEmail' : 'forgotCode').focus();
+    document.getElementById('forgotPasswordForm').onsubmit = async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.currentTarget));
+      if (first && !f.email) return this.forgotPasswordScreen('Enter your registered email address.', stage, email);
+      if (!first && f.new_password !== f.confirm) return this.forgotPasswordScreen('New passwords do not match.', stage, email);
+      const btn = e.currentTarget.querySelector('[type="submit"]');
+      btn.disabled = true;
+      try {
+        const r = await this.postAuth(first ? 'password_recovery_request' : 'password_recovery_confirm',
+          first ? { email: f.email } : { ...f, email });
+        if (first) this.forgotPasswordScreen(r.data?.message || 'If your email is registered, check your inbox.', 'confirm', f.email, true);
+        else this.loginScreen('Password reset successfully. Sign in with your new password.', email, true);
+      } catch(err) { this.forgotPasswordScreen(err.message, stage, first ? f.email : email); }
     };
   },
 
