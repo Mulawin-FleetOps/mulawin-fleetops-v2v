@@ -1466,6 +1466,13 @@ final class Trips {
             'updates' => many($p, 'SELECT up.*, us.full_name AS actor FROM trip_updates up JOIN users us ON us.id=up.actor_id WHERE up.trip_id=? ORDER BY up.id DESC', [$id]),
             'inspections' => many($p, 'SELECT i.*, us.full_name AS actor, m.job_ref, m.status AS job_status FROM inspections i JOIN users us ON us.id=i.actor_id
                 LEFT JOIN maintenance_jobs m ON m.id=i.maintenance_job_id WHERE i.trip_id=? ORDER BY i.attempt_number, i.kind DESC', [$id]),
+            'checklist_submissions' => one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pre_dispatch_checklist_submissions'")
+                ? many($p, 'SELECT h.*, us.full_name AS actor, v.plate_number, m.job_ref, m.status AS job_status
+                    FROM pre_dispatch_checklist_submissions h JOIN users us ON us.id=h.actor_id
+                    JOIN vehicles v ON v.id=h.vehicle_id
+                    LEFT JOIN maintenance_jobs m ON m.id=h.maintenance_job_id
+                    WHERE h.trip_id=? ORDER BY h.id', [$id])
+                : [],
             'funds' => $funds,
             'incidents' => $incidents,
             'documents' => $docs,
