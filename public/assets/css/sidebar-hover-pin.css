@@ -732,3 +732,35 @@
   }
   #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag { margin-left:0; }
 }
+
+
+/* Single outer workspace border, matching Objective 5 Analytics.
+   The current page-head and pageBody remain siblings in their existing DOM.
+   Scope excludes Analytics, which already renders its own .ax-shell wrapper. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
+  box-sizing:border-box;
+  min-width:0;
+  background:#F6F9F7 !important;
+  border:1px solid rgba(213,174,69,.55) !important;
+  border-radius:16px !important;
+  box-shadow:0 0 8px rgba(235,190,66,.13) !important;
+  padding:20px !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+  padding:0 0 16px !important;
+  margin:0 0 18px !important;
+  background:transparent !important;
+  border:0 !important;
+  border-bottom:1px solid #DFE7E0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-body {
+  min-width:0;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) {
+    padding:14px !important;
+    border-radius:12px !important;
+  }
+}
