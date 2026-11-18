@@ -1276,15 +1276,16 @@ final class Trips {
 
     private static function complete(array $u, array $d): array {
         $id = idField($d, 'trip_id');
-        $when = dateTimeField($d, 'completed_at');
+        // Completion time is set by the server at the actual completion action, never by the browser.
         $waybill = strtoupper(field($d, 'waybill_number', 100));
         $units = intField($d, 'units_delivered', 0, false, 100);
         $notes = optField($d, 'delivery_notes', 500);
-        return transaction(function (PDO $p) use ($u, $id, $when, $waybill, $units, $notes) {
+        return transaction(function (PDO $p) use ($u, $id, $waybill, $units, $notes) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['Dispatched', 'In Transit'], 'complete the trip');
-            must(strtotime($when) <= time() + 300, 'The completion date and time cannot be in the future.');
+            $when = date('Y-m-d H:i:s'); // Asia/Manila per application bootstrap; timestamp is server-owned.
+
             must(strtotime($when) >= strtotime(substr((string)$t['dispatched_at'], 0, 16)), 'The completion time is before the dispatch time (' . substr((string)$t['dispatched_at'], 0, 16) . ').');
             if ($t['truck_type'] === 'Car Carrier') must($units !== null && $units > 0, 'Enter the number of units delivered.');
             Files::store($p, $u, 'waybill', 'trip', $id, self::DOC_WAYBILL);
