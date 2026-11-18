@@ -427,7 +427,7 @@ const App = {
         const shown = new Set();
         const take = ids => ids.map(id => items.find(n => n.id === id))
           .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
-        nav = take(['maintenance_overview','approvals']).map(wsLink).join('');
+        nav = take(['maintenance_overview']).map(wsLink).join('');
         const groups = [
           { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
           { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
@@ -1069,7 +1069,7 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
 UI.WS_MENUS = {
   motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
     ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
-    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
     ['purchasing_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
