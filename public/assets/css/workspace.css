@@ -1628,3 +1628,18 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   box-shadow:none !important;
   outline-color:#dfe9e2;
 }
+
+/* MP_LOCKED_REPAIR_REFERENCE_V1 */
+/* Repair-originated parts requests: keep the selected values visible as
+   fixed references, with no dropdown chevron or dropdown interaction. */
+.mp-parts-request-modal select.mp-locked-reference,
+.mp-parts-request-modal select.mp-locked-reference:disabled {
+  appearance:none !important;
+  -webkit-appearance:none !important;
+  background-image:none !important;
+  background-color:#f4f7f5 !important;
+  color:#294737 !important;
+  opacity:1 !important;
+  cursor:default !important;
+  padding-right:12px !important;
+}
