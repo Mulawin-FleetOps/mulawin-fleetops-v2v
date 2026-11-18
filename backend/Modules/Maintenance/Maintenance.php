@@ -765,7 +765,15 @@ final class Maintenance {
         if ($inc) foreach (Files::of($p, 'incident', (int)$inc['id']) as $doc) $docs[] = $doc;
         // Repair opened by an arrival checklist: show the checklist findings and its photos.
         $arrival = one($p, "SELECT ins.*, us.full_name AS actor FROM inspections ins JOIN users us ON us.id=ins.actor_id WHERE ins.maintenance_job_id=? AND ins.kind='Arrival' ORDER BY ins.id DESC LIMIT 1", [$id]);
-        $preDispatch = one($p, "SELECT ins.*, us.full_name AS actor FROM inspections ins JOIN users us ON us.id=ins.actor_id WHERE ins.maintenance_job_id=? AND ins.kind='Pre-Dispatch' ORDER BY ins.id DESC LIMIT 1", [$id]);
+        $historyReady = (bool)one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pre_dispatch_checklist_submissions'");
+        $preDispatch = $historyReady
+            ? one($p, "SELECT ins.*, us.full_name AS actor FROM pre_dispatch_checklist_submissions ins
+                JOIN users us ON us.id=ins.actor_id
+                WHERE ins.maintenance_job_id=? AND ins.has_not_ok=1 ORDER BY ins.id DESC LIMIT 1", [$id])
+            : one($p, "SELECT ins.*, us.full_name AS actor FROM inspections ins
+                JOIN users us ON us.id=ins.actor_id
+                WHERE ins.maintenance_job_id=? AND ins.kind='Pre-Dispatch' AND ins.has_not_ok=1
+                ORDER BY ins.id DESC LIMIT 1", [$id]);
         $preDispatchFindings = [];
         if ($preDispatch) {
             require_once __DIR__ . '/../Operations/Inspections/Checklist.php';
