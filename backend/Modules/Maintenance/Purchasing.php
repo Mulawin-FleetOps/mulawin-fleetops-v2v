@@ -53,8 +53,14 @@ final class Purchasing {
         $budget = fn() => hasRole($u, 'purchasing', 'finance', 'admin', 'audit')
             // ACCOUNTING_INTEGRITY_G7: in_period = the same date rule po_decide uses; an expired budget is shown as ended, not as available.
             ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? []) : [];
+        $warrantyReady = self::warrantyReady($p);
+        $warrantyExpirySql = $warrantyReady
+            ? "(SELECT MIN(w.warranty_expires) FROM part_warranty_batches w WHERE w.part_id=pt.id)"
+            : "NULL";
         $partsFull = fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
-                    (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock FROM parts pt ORDER BY pt.active DESC, pt.part_number");
+                    (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock,
+                    $warrantyExpirySql AS earliest_warranty_expiry
+                    FROM parts pt ORDER BY pt.active DESC, pt.part_number");
         $data = match ($page) {
             'purchasing_overview' => self::overview($u, $p, $budget),
             'parts_requests' => readSections([
