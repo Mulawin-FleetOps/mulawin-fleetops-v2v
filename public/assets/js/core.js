@@ -1164,16 +1164,34 @@ UI.wsRank = (rows, empty) => {
 UI.wsPeriod = (page, per) => {
   const iso = (x) => { const y = new Date(x); y.setMinutes(y.getMinutes() - y.getTimezoneOffset()); return y.toISOString().slice(0, 10); };
   const now = new Date(), today = iso(now);
-  const presets = [['This month', iso(new Date(now.getFullYear(), now.getMonth(), 1))], ['Last 3 months', iso(new Date(now.getFullYear(), now.getMonth() - 2, 1))],
-    ['Last 6 months', iso(new Date(now.getFullYear(), now.getMonth() - 5, 1))], ['This year', iso(new Date(now.getFullYear(), 0, 1))]];
-  const hit = presets.find(([, f]) => per.from === f && per.to === today);
-  return `<div class="ws-filters ws-period no-print" role="group" aria-label="Reporting period"><label class="small text-muted" for="wsPeriodSel">Reporting period</label>
-    <select id="wsPeriodSel" class="form-select form-select-sm" data-ws-period>${presets.map(([l, f]) => `<option value="${UI.esc(page + '?' + new URLSearchParams({ from: f, to: today }))}" ${hit && hit[1] === f ? 'selected' : ''}>${l}</option>`).join('')}${hit ? '' : '<option selected value="">Custom dates</option>'}</select>
-    <input type="date" class="form-control form-control-sm" data-gf="from" value="${UI.esc(per.from)}" aria-label="Start date" title="Start date">
-    <input type="date" class="form-control form-control-sm" data-gf="to" value="${UI.esc(per.to)}" aria-label="End date" title="End date">
-    <span class="small text-muted">${UI.date(per.from)} – ${UI.date(per.to)}</span></div>`;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const lastMonthStart = iso(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const lastMonthEnd = iso(new Date(now.getFullYear(), now.getMonth(), 0));
+  const presets = [
+    ['Today', today, today],
+    ['This week', iso(monday), today],
+    ['This month', iso(new Date(now.getFullYear(), now.getMonth(), 1)), today],
+    ['Last month', lastMonthStart, lastMonthEnd],
+    ['Last 3 months', iso(new Date(now.getFullYear(), now.getMonth() - 2, 1)), today],
+    ['This year', iso(new Date(now.getFullYear(), 0, 1)), today]
+  ];
+  const chosen = presets.find(([,from,to]) => per.from === from && per.to === to);
+  const buttons = presets.map(([label,from,to]) => {
+    const dest = page + '?' + new URLSearchParams({from,to});
+    const selected = chosen && chosen[0] === label;
+    return '<button type="button" class="btn btn-sm ' + (selected ? 'btn-success active' : 'btn-outline-secondary')
+      + '" data-ws-period="' + UI.esc(dest) + '" aria-pressed="' + (selected ? 'true' : 'false') + '">' + UI.esc(label) + '</button>';
+  }).join('');
+  return '<div class="ws-period-toolbar ws-period no-print" role="group" aria-label="Reporting period">'
+    + '<div class="ws-period-presets"><span class="ws-period-label">Period:</span>' + buttons
+    + '<span class="ws-period-summary"><strong>' + UI.date(per.from) + ' – ' + UI.date(per.to) + '</strong></span></div>'
+    + '<details class="ws-period-details"' + (chosen ? '' : ' open') + '><summary class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel" aria-hidden="true"></i> Filter</summary>'
+    + '<div class="ws-period-date-controls"><label>From <input type="date" class="form-control form-control-sm" data-gf="from" value="' + UI.esc(per.from) + '" aria-label="Start date"></label>'
+    + '<label>To <input type="date" class="form-control form-control-sm" data-gf="to" value="' + UI.esc(per.to) + '" aria-label="End date"></label></div></details>'
+    + '<span class="ws-period-hint">' + (chosen ? 'Showing ' + UI.esc(chosen[0].toLowerCase()) + ' records.' : 'Showing custom date range.') + '</span></div>';
 };
-UI.bindPeriod = (root) => root.querySelector('[data-ws-period]')?.addEventListener('change', (e) => { if (e.target.value) UI.goTo(e.target.value); });
+UI.bindPeriod = (root) => root.querySelectorAll('[data-ws-period]').forEach(button =>
+  button.addEventListener('click', () => { if (button.dataset.wsPeriod) UI.goTo(button.dataset.wsPeriod); }));
 UI.operationsLabel = label => {
   const role=App.me?.user?.role;if(!['operations_head','car_carrier_dispatcher','container_wingvan_dispatcher'].includes(role))return label;
   const names={'Trip Management':'Trips','Dispatcher Monitoring':'Dispatch Monitoring','Trip Fund Approvals':'Fund Approvals','Truck Masterlist':'Trucks','Truck Master List':'Trucks','Driver & Helper Masterlist':'Drivers & Helpers','Client Masterlist':'Clients','Incidents & Maintenance':'Incidents & Repairs','Plate Number':'Plate No.','Plate number':'Plate No.','Personnel Name':'Name','Personnel Role':'Role','Permanent Truck':'Fixed Truck','Current Availability':'Availability','Operational Status':'Status','View Details':'View','Action Required Summary':'Needs Action','Workflow Progress Timeline':'Progress','Eligibility & Readiness Panel':'Readiness'};

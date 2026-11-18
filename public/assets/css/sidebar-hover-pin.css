@@ -1345,3 +1345,89 @@
 #appShell.sidebar-manual-toggle #pageContent .ax-category.active {
   border-color:#258553 !important;
 }
+
+
+/* REPORT_PERIOD_INLINE_V1: Billing Reports-style inline period chips with
+   optional custom date controls; no stand-alone gold filter box. */
+#appShell.sidebar-manual-toggle #pageContent .ws-period-toolbar {
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  margin:0 0 16px;
+  padding:0 0 12px;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  color:#486355;
+  font-size:12px;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-presets {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  flex:1 1 100%;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-label {font-size:12px;color:#60796A;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-presets .btn {
+  border-radius:7px;
+  padding:6px 10px;
+  font-size:12px;
+  line-height:1.3;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-presets .btn.active {
+  background:#1E784A;
+  border-color:#1E784A;
+  color:#fff;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-summary {
+  margin-left:7px;
+  font-size:12px;
+  color:#294D37;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-details {position:relative;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-details > summary {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  list-style:none;
+  cursor:pointer;
+  color:#265F42;
+  border:1px solid #D4E1D7;
+  border-radius:7px;
+  background:#fff;
+  padding:6px 11px;
+  font-size:12px;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-details > summary::-webkit-details-marker {display:none;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:10px;
+  padding:10px 0 2px;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls label {
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  font-size:11px;
+  color:#60796A;
+}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls input {width:160px;max-width:100%;}
+#appShell.sidebar-manual-toggle #pageContent .ws-period-hint {color:#718579;font-size:11.5px;}
+/* Plain standalone Finance/Audit filter rows should not gain a gold wrapper.
+   Record-search toolbars inside actual gold panels are deliberately excluded. */
+#appShell.sidebar-manual-toggle #pageContent > .page-body > .ws-filters:not(.ws-period-toolbar) {
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+@media(max-width:575.98px) {
+  #appShell.sidebar-manual-toggle #pageContent .ws-period-summary {flex:1 1 100%;margin-left:0;}
+  #appShell.sidebar-manual-toggle #pageContent .ws-period-date-controls input {width:140px;}
+}
