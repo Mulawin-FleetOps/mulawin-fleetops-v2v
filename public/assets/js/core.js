@@ -366,7 +366,7 @@ const App = {
       // Collapsible, role-specific sidebar: render only entries authorized by
       // the server-provided navigation, preserving every existing route target.
       const groups = [
-        {name:'Overview',icon:'bi-grid-1x2',ids:['dashboard']},
+        {name:'Overview',icon:'bi-grid-1x2',ids:['dashboard','approvals']},
         {name:'Trip Operations',icon:'bi-signpost-split',ids:['trips','dispatcher-monitoring','funds']},
         {name:'Masterlists',icon:'bi-truck',ids:['trucks','crew','routes','mechanics']},
         {name:'Monitoring & Records',icon:'bi-clipboard-data',ids:['maintenance','reports','documents']}
@@ -427,7 +427,7 @@ const App = {
         const shown = new Set();
         const take = ids => ids.map(id => items.find(n => n.id === id))
           .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
-        nav = take(['maintenance_overview']).map(wsLink).join('');
+        nav = take(['maintenance_overview','approvals']).map(wsLink).join('');
         const groups = [
           { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
           { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
@@ -452,7 +452,7 @@ const App = {
         const shown = new Set();
         const take = ids => ids.map(id => items.find(n => n.id === id))
           .filter(n => n && !shown.has(n.id) && (shown.add(n.id), true));
-        nav = take(['purchasing_overview']).map(wsLink).join('');
+        nav = take(['purchasing_overview','approvals']).map(wsLink).join('');
         const groups = [
           { title:'Purchasing Operations', icon:'bi-cart-check', ids:['parts_requests','purchase_orders'] },
           { title:'Inventory Control', icon:'bi-boxes', ids:['inventory','stock_movements'] }
@@ -1052,15 +1052,15 @@ const App = {
 // =====================================================================
 /** Pages of the Maintenance (Motorpool, Purchasing) and Accounting (Finance, Billing, Audit) workspaces. */
 UI.WS_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maintenance_reports',
-  'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports',
-  'admin_overview', 'admin_approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics',
+  'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports', 'approvals',
+  'admin_overview', 'admin_approvals', 'approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics',
   'finance_overview', 'finance', 'finance_budgets', 'funds', 'billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'audit_overview', 'audit_logs', 'audit_history', 'audit_reports']);
 
 /** REF_FIDELITY_V1 — Motorpool and Purchasing pages drawn like docs/ui-reference/maintenance_reference.html. */
 UI.REF_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maintenance_reports',
   'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports',
   // HEAD_MANAGEMENT_V1: the Admin workspace pages, plus Users & Roles ('admin') and Audit Trail ('audit_logs') for the Admin
-  'admin_overview', 'admin_approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics', 'admin', 'audit_logs']);
+  'admin_overview', 'admin_approvals', 'approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics', 'admin', 'audit_logs']);
 UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classList.contains('ref-body');
 
 /* WS_SHELL_V1 — workspace menus of the in-scope roles. Presentation only: a page appears only when the server's
@@ -1069,21 +1069,21 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
 UI.WS_MENUS = {
   motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
     ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
-    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up']] },
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
-    ['purchasing_reports', 'Reports', 'bi-graph-up']] },
-  finance: { dept: 'Finance', items: [['finance_overview', 'Overview', 'bi-speedometer2'], ['purchase_orders', 'Approvals', 'bi-check2-square'],
+    ['purchasing_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+  finance: { dept: 'Finance', items: [['finance_overview', 'Overview', 'bi-speedometer2'], ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['approvals', 'Approvals', 'bi-check2-square'],
     ['funds', 'Trip Funds', 'bi-cash-coin'], ['finance', 'Payables & Payments', 'bi-wallet2'], ['finance_budgets', 'Budgets & Expenses', 'bi-piggy-bank']] },
-  billing: { dept: 'Billing', items: [['billing_overview', 'Overview', 'bi-speedometer2'], ['billing', 'Billing & Invoices', 'bi-receipt'],
+  billing: { dept: 'Billing', items: [['billing_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['billing', 'Billing & Invoices', 'bi-receipt'],
     ['billing_collections', 'Collections', 'bi-cash-stack'], ['billing_receivables', 'Receivables', 'bi-hourglass-split'], ['reports', 'Billing Reports', 'bi-bar-chart-line']] },
   // HEAD_MANAGEMENT_V1: the Admin's own sidebar (exclusive: no extra groups). Other pages the Admin may open stay reachable
   // from the Records shortcuts of each monitoring page; permissions are unchanged (me.nav / Access::canOpen).
-  admin: { dept: 'Head Management', section: 'Management', exclusive: true, items: [['admin_overview', 'Overview', 'bi-speedometer2'], ['admin_approvals', 'Approvals', 'bi-check2-square'],
+  admin: { dept: 'Head Management', section: 'Management', exclusive: true, items: [['admin_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'],
     ['admin_operations', 'Operations', 'bi-signpost-split'], ['admin_maintenance', 'Maintenance', 'bi-wrench-adjustable'], ['admin_purchasing', 'Purchasing', 'bi-cart-check'],
     ['admin_finance', 'Financial Oversight', 'bi-cash-coin'], ['admin_reports', 'Executive Reports', 'bi-clipboard-check'], ['admin_analytics', 'Analytics', 'bi-graph-up'],
     ['admin', 'Users & Roles', 'bi-people'], ['audit_logs', 'Audit Trail', 'bi-journal-text']] },
-  audit: { dept: 'Audit', items: [['audit_overview', 'Overview', 'bi-speedometer2'], ['audit_logs', 'Audit Logs', 'bi-journal-text'],
+  audit: { dept: 'Audit', items: [['audit_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['audit_logs', 'Audit Logs', 'bi-journal-text'],
     ['audit_history', 'Transaction History', 'bi-clock-history'], ['audit_reports', 'Audit Reports', 'bi-clipboard-data']] },
 };
 UI.WS_GROUPS = [
