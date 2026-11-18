@@ -1328,6 +1328,8 @@ UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
 /* Shared semantic KPI icon color: independent of numeric count, including zero.
    Keep legacy tone classes for card state/border styling; only icon background changes. */
 UI.kpiIconColor = (label, requestedColor = '') => {
+  // Explicit meaningful colors stay fixed, including when a KPI reads zero.
+  if (['green','blue','amber','red','purple'].includes(requestedColor)) return requestedColor;
   const text = String(label || '').toLowerCase();
   const rules = [
     [/overdue|over 60|incident|cancel|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
