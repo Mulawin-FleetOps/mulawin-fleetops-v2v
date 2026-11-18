@@ -1712,3 +1712,44 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent .mp-mechanic-attendance-table .table-wrap {
   overflow-x: auto;
 }
+
+/* MOTORPOOL_REPAIR_ROW_ACTION_SPACING_V1 */
+/* Scope to Repair Management. Preserve every action and provide enough room
+   for the text-based next-step button + icon actions without overlap. */
+#pageContent .mp-repair-records-table .data-table :is(th,td).actions-col{
+  width:1% !important;
+  min-width:250px !important;
+  max-width:none !important;
+  text-align:right;
+  white-space:nowrap;
+}
+#pageContent .mp-repair-records-table .data-table .row-actions,
+#pageContent .mp-repair-records-table .data-table .row-icons{
+  display:inline-flex !important;
+  flex-wrap:nowrap !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  width:max-content;
+  min-width:max-content;
+  max-width:none !important;
+}
+#pageContent .mp-repair-records-table .data-table .row-icons > .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto !important;
+  width:auto !important;
+  min-width:34px;
+  min-height:34px;
+  white-space:nowrap !important;
+}
+#pageContent .mp-repair-records-table .data-table .row-icons > .mp-repair-step-btn{
+  min-width:115px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:650;
+}
+#pageContent .mp-repair-records-table :is(.ref-tablebox,.table-wrap,.table-card){
+  overflow-x:auto;
+}
