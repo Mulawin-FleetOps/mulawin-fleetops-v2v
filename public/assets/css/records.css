@@ -1733,3 +1733,34 @@
 .dispatcher-role .dispatcher-standard-workspace .ds-resource-tabs .ds-availability-tab-group a:focus-visible {
   outline:2px solid #207a45;outline-offset:2px;
 }
+
+
+/* GLOBAL_INNER_PANEL_BORDER_NORMALIZATION_V1
+   Keep the outer workspace frame and KPI borders as defined by their own styles.
+   All ordinary nested record/summary panels use a neutral border across roles.
+   Do not alter warning, validation, status badges or primary action colors. */
+#pageContent .page-body :is(
+  .panel, .ws-panel, .record-workspace-panel, .record-panel,
+  .table-panel, .chart-panel, .chart-card, .data-table-wrap,
+  .purchasing-records-card, .purchasing-ref-records,
+  .purchasing-ref-panels > .panel, .bil-v2-panel, .bil-v2-record-panel,
+  .head-report-config, .head-report-performance, .head-report-details,
+  .head-report-secondary-item, .head-report-insight
+):not(.kpi-tile):not(.head-kpi):not(.metric):not(.stat-card) {
+  border-color: #dfe9e2 !important;
+}
+/* Explicitly preserve the existing gold outlines on KPI cards and the
+   surrounding page-body container; neither is in the selector above. */
+#pageContent.billing-design-v2 .page-body .kpi-tile {
+  border-color: #e6ca68 !important;
+}
+/* Neutral borders on report print actions and Billing's Pricing Impact,
+   keeping their click handlers, icon colors and typography unchanged. */
+#pageContent :is(
+  [data-report-print-actions] .btn,
+  [data-pricing-impact],
+  .head-report-print > summary,
+  .head-report-print-menu button
+) {
+  border-color: #d6e3d9 !important;
+}
