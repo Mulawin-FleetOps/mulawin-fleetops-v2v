@@ -234,13 +234,41 @@ PurUI.kit = (d, can) => {
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
       { name: 'unit_cost', label: 'Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Cost per unit, not total stock value.' },
       { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
-      ...(d.warrantyReady ? [{ name: 'warranty_months', label: 'Default Warranty (months)', type: 'number',
-        col: 12, value: p.warranty_months ?? 0, min: 0, attrs: 'max="120" step="1"',
-        help: '0 = no warranty. Actual start and expiry are tracked separately when parts are received.' }] : []),
+      ...(d.warrantyReady ? [
+        { type: 'html', col: 12, html: `<fieldset class="part-warranty-choice">
+          <legend class="form-label">Does this part have a warranty?</legend>
+          <div class="part-warranty-options">
+            <label><input type="radio" name="has_warranty" value="yes" ${+p.warranty_months > 0 ? 'checked' : ''}> Yes</label>
+            <label><input type="radio" name="has_warranty" value="no" ${+p.warranty_months > 0 ? '' : 'checked'}> No</label>
+          </div>
+        </fieldset>` },
+        { type: 'html', col: 12, html: `<div class="part-warranty-duration">
+          <label class="form-label" for="part-warranty-months">Warranty Duration (months) <span class="text-danger">*</span></label>
+          <input id="part-warranty-months" name="warranty_months" type="number" class="form-control"
+            min="1" max="120" step="1" value="${+p.warranty_months > 0 ? UI.esc(p.warranty_months) : '12'}">
+          <div class="form-text">Default warranty terms only. Actual start and expiry dates are recorded when parts are received.</div>
+        </div>` }
+      ] : []),
       ...(p.warranty_info ? [{ name: 'warranty_info', label: 'Historical warranty note', col: 12, value: p.warranty_info,
         attrs: 'readonly aria-readonly="true"', help: 'Retained from old records; does not create expiration alerts.' }] : []),
       ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
-        transform: ({ part_id_display, warranty_info, ...data }) => data,
+        transform: ({ part_id_display, warranty_info, has_warranty, ...data }) => ({
+          ...data, ...(d.warrantyReady ? { warranty_months: has_warranty === 'yes' ? data.warranty_months : 0 } : {})
+        }),
+        onShow: (wrap) => {
+          wrap.classList.add('part-warranty-modal');
+          if (!d.warrantyReady) return;
+          const duration = wrap.querySelector('.part-warranty-duration');
+          const input = wrap.querySelector('[name="warranty_months"]');
+          const toggle = () => {
+            const yes = wrap.querySelector('[name="has_warranty"]:checked')?.value === 'yes';
+            duration.hidden = !yes;
+            input.disabled = !yes;
+            input.required = yes;
+          };
+          wrap.querySelectorAll('[name="has_warranty"]').forEach(el => el.addEventListener('change', toggle));
+          toggle();
+        },
         intro: p.id ? 'Update part details. The Part ID and stock on hand will not change.' : 'Part ID is assigned automatically. New parts start with 0 on hand; stock is added through purchase-order receiving or an Admin-approved stock count.' });
     const partAct = (a, p) => a === 'edit' ? partForm(p) : a === 'count' ? PurUI.countForm(d, p) : null;
   return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
