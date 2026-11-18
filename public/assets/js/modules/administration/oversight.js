@@ -515,28 +515,36 @@ App.page('admin_reports', {
       note = 'Audit event volume is not a performance rating or evidence of wrongdoing.';
     } else if (topic === 'operations') {
       if (diagnostic) {
-        const entityOptions = [['driver','Per driver'],['helper','Per helper'],['truck','Per truck'],['client','Per client'],['dispatcher','Per dispatcher']];
-        const entity = entityOptions.some(x=>x[0] === q.entity) ? q.entity : 'truck';
-        const table = (trips.tables || []).find(t => t.title === entityOptions.find(x=>x[0]===entity)[1]);
-        const ranked = [...((table || {}).rows || [])].sort((a,b)=>Number(b.incidents)-Number(a.incidents)).slice(0,12);
-        const labels = ranked.map(x=>x.name);
-        basic('Trip groups compared', (table?.rows || []).length);
-        basic('Recorded incidents', ranked.reduce((n,x)=>n+Number(x.incidents||0),0), 'Top 12 groups shown; not unique incident count');
-        basic('Recorded delays', ranked.reduce((n,x)=>n+Number(x.delays||0),0), 'Top 12 groups shown');
-        plot('Incidents and delays by ' + entity, 'hbar', labels,
-          [{label:'Incidents',data:ranked.map(x=>Number(x.incidents)),color:colors[3]},
-           {label:'Delays',data:ranked.map(x=>Number(x.delays)),color:colors[2]}]);
-        plot('Trip exposure for the same groups', 'bar', labels,
-          [{label:'Trips',data:ranked.map(x=>Number(x.trips)),color:colors[0]}],
-          {note:'Compare incident counts with trip exposure; incident counts alone do not establish responsibility.'});
-        plot('Recorded incidents per 100 trips', 'hbar', labels,
-          [{label:'Incidents / 100 trips',data:ranked.map(x=>Number(x.trips)>0?Number((Number(x.incidents)*100/Number(x.trips)).toFixed(1)):0),color:colors[1]}],
-          {note:'Event rate, not necessarily percentage of trips affected; one trip may have multiple incidents.'});
-        supporting = '<div class="ax-subfilter"><label for="ax-entity">Compare by</label><select id="ax-entity" class="form-select form-select-sm">'
-          + entityOptions.map(x=>'<option value="'+x[0]+'"'+(x[0]===entity?' selected':'')+'>'+x[1].replace('Per ','')+'</option>').join('')+'</select></div>'
-          + reportTable('Trip and incident comparisons', [['Person / asset / client','name'],['Trips','trips'],['Completed','completed'],['Incidents','incidents'],['Delays','delays']], ranked, 12)
-          + recordTable(trips,'Delays and incidents',12);
-        note = '5.2.1 · Compare all five groups. These results indicate where investigation may be useful; they do not identify fault.';
+        // Incident reporting is an active workflow. Historical manual Delay
+        // updates are NOT used as a primary diagnostic category.
+        const evidence = d.incidentEvidence || {}, records = Array.isArray(evidence.records) ? evidence.records : [];
+        const type = String(q.incident_type || '');
+        const types = [...new Set(records.map(x=>String(x.incident_type || 'Not coded')))].sort();
+        const counts = types.map(t=>records.filter(x=>String(x.incident_type || 'Not coded')===t).length);
+        const selected = types.includes(type) ? type : '';
+        const filtered = selected ? records.filter(x=>String(x.incident_type || 'Not coded')===selected) : records;
+        const linked = filtered.filter(x=>x.job_id).length;
+        const uniqueTrips = new Set(filtered.map(x=>String(x.trip_id))).size;
+        basic('Recorded incidents', Number(evidence.total ?? records.length), 'Incident date within selected period');
+        basic('Trips with incidents', uniqueTrips, 'Unique trips in current evidence view');
+        basic('Linked repair records', linked, 'Explicit incident and trip relationship');
+        plot('Recorded incidents by type', 'hbar', types, [{label:'Incidents',data:counts,color:colors[3]}],
+          {note:'Click a category below to filter incident records. Multiple incidents may belong to the same trip.'});
+        const filters = '<div class="ax-subfilter" role="group" aria-label="Filter incidents by recorded type">'
+          + '<button type="button" class="btn btn-sm '+(!selected?'btn-success':'btn-outline-secondary')+'" data-ax-incident-type="">All types</button>'
+          + types.map(t=>'<button type="button" class="btn btn-sm '+(t===selected?'btn-success':'btn-outline-secondary')+'" data-ax-incident-type="'+escape(t)+'">'+escape(t)+' ('+counts[types.indexOf(t)]+')</button>').join('')
+          + '</div>';
+        const tableRows = filtered.slice(0,100).map((r,i)=>'<tr><td>'+escape(r.incident_ref)+'</td><td>'+escape(r.incident_type)+'</td><td>'+escape(r.trip_ref)+'</td><td>'+escape(r.plate_number)+'</td><td>'+escape(r.incident_at)+'</td><td>'+escape(r.job_ref||'No linked repair')+'</td><td><button class="btn btn-sm btn-outline-success" type="button" data-ax-evidence="'+i+'">View evidence</button></td></tr>').join('');
+        supporting = filters
+          + '<section class="ax-table-wrap"><h3>Recorded incident evidence</h3>'
+          + '<p class="small text-muted">Showing '+Math.min(filtered.length,100)+' of '+filtered.length+' loaded records. Date basis: incident date. '
+          + (Number(evidence.total||0)>records.length?'The evidence list is limited to the latest 1,000 incidents for this period.':'')
+          + '</p><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Incident</th><th>Type</th><th>Trip</th><th>Truck</th><th>Incident date</th><th>Linked job</th><th>Evidence</th></tr></thead><tbody>'
+          + (tableRows||'<tr><td colspan="7" class="text-muted">No recorded incidents for these filters.</td></tr>')
+          + '</tbody></table></div></section><div id="ax-evidence-details" aria-live="polite"></div>';
+        // Page-local view model, never persisted or used in a mutation.
+        ctx._incidentEvidenceRows = filtered.slice(0,100);
+        note = '5.2.1 · Incident, trip and repair records are linked by stored IDs. An incident or repair is not automatically proof of the root cause of another event. No manual Delay category is inferred.';
       } else {
         cardsOf(trips,['Total trips','Completed trips','Cancelled trips','Trips for reschedule','Delivered units (car carrier)','Incidents']);
         const time = d.buckets || [], activity = d.activity || {};
@@ -717,6 +725,28 @@ App.page('admin_reports', {
       go({from:iso(from),to:iso(now)});
     });
     ctx.el.querySelector('#ax-entity')?.addEventListener('change',e=>go({entity:e.target.value}));
+    ctx.el.querySelectorAll('[data-ax-incident-type]').forEach(button=>button.addEventListener('click',()=>{
+      go({incident_type:button.dataset.axIncidentType||''});
+    }));
+    ctx.el.querySelectorAll('[data-ax-evidence]').forEach(button=>button.addEventListener('click',()=>{
+      const row=(ctx._incidentEvidenceRows||[])[Number(button.dataset.axEvidence)];
+      const target=ctx.el.querySelector('#ax-evidence-details');
+      if(!row||!target)return;
+      target.innerHTML='<section class="panel mt-3"><div class="panel-head"><h2 class="panel-title">Supporting record · '+escape(row.incident_ref)+'</h2></div><div class="panel-body">'
+        +'<p class="small text-muted">Read-only snapshot of the recorded relationship. Review the source modules for full historical details.</p>'
+        +'<dl class="row small"><dt class="col-sm-4">Incident type / status</dt><dd class="col-sm-8">'+escape(row.incident_type)+' · '+escape(row.incident_status)+'</dd>'
+        +'<dt class="col-sm-4">Recorded problem</dt><dd class="col-sm-8">'+escape(row.problem)+'</dd>'
+        +'<dt class="col-sm-4">Location</dt><dd class="col-sm-8">'+escape(row.location)+'</dd>'
+        +'<dt class="col-sm-4">Trip / status</dt><dd class="col-sm-8">'+escape(row.trip_ref)+' · '+escape(row.trip_status)+'</dd>'
+        +'<dt class="col-sm-4">Linked maintenance job</dt><dd class="col-sm-8">'+escape(row.job_ref||'None recorded')+'</dd>'
+        +(row.job_id?'<dt class="col-sm-4">Repair status / problem</dt><dd class="col-sm-8">'+escape(row.job_status)+' · '+escape(row.repair_problem)+'</dd>':'')
+        +'</dl><div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-success" type="button" data-ax-open-source="trips">Open Trip Management</button>'
+        +(row.job_id?'<button class="btn btn-sm btn-outline-success" type="button" data-ax-open-source="maintenance">Open Repair Management</button>':'')
+        +'</div></div></section>';
+      target.querySelectorAll('[data-ax-open-source]').forEach(b=>b.addEventListener('click',()=>App.go(b.dataset.axOpenSource)));
+      target.scrollIntoView({block:'nearest',behavior:'smooth'});
+    }));
+
     chartJobs.forEach(job=>{try{job();}catch(err){console.error('Analytics chart error',err);}});
   },
 }));
