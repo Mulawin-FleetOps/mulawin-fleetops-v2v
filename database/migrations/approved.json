@@ -1,6 +1,7 @@
 {
   "files": {
     "2026-11-18_20_part_warranty_batches.sql": "28ef8b5b328c7826908f12d70553fe79e71e98574ca473fd6786239e0b7aea09",
-    "2026-11-18_21_pre_dispatch_checklist_submissions.sql": "743bec2536314aed804b2e06170baad5c92989b414e50c5f8087d2c0fe0d5eb0"
+    "2026-11-18_21_pre_dispatch_checklist_submissions.sql": "743bec2536314aed804b2e06170baad5c92989b414e50c5f8087d2c0fe0d5eb0",
+    "2026-11-18_22_warranty_receipt_confirmation.sql": "3571f1f9ff5adb31c9d3a6e8eff1b106d68734e37465e05aba06a65ccfefd2c5"
   }
 }
