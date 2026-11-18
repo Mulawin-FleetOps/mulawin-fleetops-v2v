@@ -607,6 +607,7 @@ final class Purchasing {
                 run($p, 'UPDATE purchase_order_lines SET received_qty=received_qty+? WHERE id=?', [$q, $l['id']]);
                 if (isset($warrantyInput[(int)$l['id']])) {
                     $w = $warrantyInput[(int)$l['id']];
+                    unset($warrantyInput[(int)$l['id']]);
                     $months = filter_var($w['months'] ?? null, FILTER_VALIDATE_INT);
                     must($months !== false && $months >= 0 && $months <= 120, 'Warranty duration must be 0 to 120 months.');
                     if ($months > 0) {
@@ -622,6 +623,7 @@ final class Purchasing {
                 }
                 $total += $q;
             }
+            must(!$warrantyInput, 'Warranty details must match PO lines actually received in this transaction.');
             must($total > 0, 'Enter the quantities actually received.');
             Files::store($p, $u, 'receipt', 'purchase', $id, 'Delivery Receipt / Supplier Invoice');
             $left = (int)one($p, 'SELECT COALESCE(SUM(quantity-received_qty),0) AS n FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['n'];
