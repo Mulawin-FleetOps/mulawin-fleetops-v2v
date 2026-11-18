@@ -643,12 +643,7 @@ App.page('parts_requests', {
     const trucks = [...new Set(all.map(r => r.plate_number))].sort();
     const rows = all.filter(TABS[tab][1]).filter(r => (!q.truck || r.plate_number === q.truck) && (!q.po || (q.po === 'linked' ? !!r.linked_pos : !r.linked_pos)));
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${PurRef.cards([
-      {label:'Requests', value:all.length, note:'All recorded requests', icon:'bi-box-seam', go:'parts_requests?tab=all'},
-      {label:'Awaiting Stock Check',value:cnt('todo'),note:'From Motorpool',icon:'bi-search',go:'parts_requests?tab=todo'},
-      {label:'Needs Follow-up',value:cnt('followup'),note:'Shortage or partial',icon:'bi-exclamation-triangle',go:'parts_requests?tab=followup'},
-      {label:'Released',value:cnt('released'),note:'Fully fulfilled',icon:'bi-check2-circle',go:'parts_requests?tab=released'}
-    ])}${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')],
+    ctx.el.innerHTML = `${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')],
         ...(tab === 'cancelled' ? [['cancelled','Cancelled',cnt('cancelled')]] : []),
         ...(tab === 'all' ? [['all','All',cnt('all')]] : [])], tab)}
       ${UI.generalFilters(ctx, [{ name: 'truck', label: 'Trucks', options: trucks }, { name: 'po', label: 'PO link', all: 'With or without PO', options: [['linked', 'Has a linked PO'], ['none', 'No linked PO']] }])}`;
@@ -689,12 +684,7 @@ App.page('purchase_orders', {
     const suppliers = [...new Set(all.map(o => o.supplier).filter(Boolean))].sort();
     const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) && (!q.payment || o.payment_status === q.payment));
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${PurRef.cards([
-      {label:'Purchase Orders', value:all.length, note:'Total created',icon:'bi-cart-check',go:'purchase_orders?tab=all'},
-      {label:'Awaiting Approval',value:cnt('approval'),note:'Finance / Admin',icon:'bi-clock',go:'purchase_orders?tab=approval'},
-      {label:'To Receive',value:cnt('receive'),note:'Goods not fully received',icon:'bi-box-arrow-in-down',go:'purchase_orders?tab=receive'},
-      {label:'Completed',value:cnt('done'),note:'Received and settled',icon:'bi-check-circle',go:'purchase_orders?tab=done'}
-    ])}${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
+    ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
         ...(tab === 'payment' ? [['payment','Awaiting payment',cnt('payment')]] : []),
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
         ...(tab === 'all' ? [['all','All',cnt('all')]] : [])], tab)}
