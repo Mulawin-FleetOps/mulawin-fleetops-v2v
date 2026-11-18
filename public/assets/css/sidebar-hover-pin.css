@@ -668,3 +668,67 @@
     transition:none !important;
   }
 }
+
+
+/* Safe global page-header card. No styles are applied to #pageContent itself,
+   the page-body, data tables, charts, forms or drawers. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+  position:static !important;
+  display:flex !important;
+  align-items:center !important;
+  flex-wrap:wrap !important;
+  gap:10px 14px !important;
+  padding:16px 18px !important;
+  margin:0 0 16px !important;
+  border:1px solid rgba(213,174,69,.50) !important;
+  border-radius:14px !important;
+  background:#F8FBF9 !important;
+  box-shadow:0 0 7px rgba(235,190,66,.12) !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-head-text {
+  flex:1 1 230px !important;
+  min-width:0;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-title {
+  color:#194B34 !important;
+  font-size:20px !important;
+  font-weight:750 !important;
+  line-height:1.3 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-subtitle {
+  color:#5B7565 !important;
+  margin-top:4px !important;
+  font-size:12.5px !important;
+  line-height:1.45 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent > .page-head .page-access-tag {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 1 auto;
+  max-width:100%;
+  gap:6px;
+  padding:6px 10px;
+  border:1px solid #D5E8DB;
+  border-radius:999px;
+  background:#E8F4EC;
+  color:#1B704B;
+  font-size:11px;
+  font-weight:650;
+  white-space:normal;
+  text-align:center;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag {
+  margin-left:auto;
+}
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-actions:not(:empty) {
+  flex:1 1 100%;
+  justify-content:flex-end;
+}
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head {
+    padding:13px !important;
+    gap:8px !important;
+  }
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)) > .page-head .page-access-tag { margin-left:0; }
+}

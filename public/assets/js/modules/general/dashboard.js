@@ -208,7 +208,7 @@ App.page('dashboard', {
     // The app shell already provides a page header: use it rather than duplicate it.
     const pageTitle = document.querySelector('.page-title');
     const pageSubtitle = document.querySelector('.page-subtitle');
-    if (pageTitle) pageTitle.textContent = cfg.title;
+    if (pageTitle) pageTitle.textContent = 'Dashboard';
     if (pageSubtitle) pageSubtitle.textContent = cfg.detail;
     const time = new Intl.DateTimeFormat('en-PH', {
       timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short', hour12: true,

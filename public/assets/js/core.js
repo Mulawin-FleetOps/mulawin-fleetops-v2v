@@ -882,6 +882,25 @@ const App = {
         <div class="page-actions no-print" id="pageTools"></div>
         <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
+    // Add only an access indicator to the existing header, without replacing
+    // the page shell or the page-body DOM structure used by every module.
+    if (!['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
+      const header = el.querySelector('.page-head');
+      const actions = header?.querySelector('#pageTools');
+      if (header && actions) {
+        const access = document.createElement('span');
+        access.className = 'page-access-tag';
+        const badgeIcon = document.createElement('i');
+        badgeIcon.className = 'bi bi-shield-check';
+        badgeIcon.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        const currentUser = this.me.user;
+        label.textContent = currentUser.role === 'admin' ? 'Management access'
+          : (currentUser.role_label || currentUser.role.replace(/_/g, ' ')) + ' access';
+        access.append(badgeIcon, label);
+        header.insertBefore(access, actions);
+      }
+    }
     // A drawer or dialog belongs to the list it was opened from: close it when the user moves to another page, or
     // (workspace pages) to another tab / filter of the same page. A plain reload of the same view keeps it.
     const moved = this._lastPage !== page || (UI.WS_PAGES.has(page) && canon !== this._lastCanon);
