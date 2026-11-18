@@ -173,6 +173,7 @@ const PurUI = {
         <td><select class="form-select form-select-sm" data-wstatus="${l.id}" ${left && ready ? '' : 'disabled'}>
           <option value="Not Yet Confirmed" selected>Not Yet Confirmed</option>
           <option value="With Warranty">With Warranty</option>
+          <option value="Pending Installation">Pending Installation</option>
           <option value="No Warranty">No Warranty</option>
         </select></td>
       </tr>
@@ -222,13 +223,23 @@ const PurUI = {
             const status = wrap.querySelector('[data-wstatus="' + id + '"]');
             const details = wrap.querySelector('[data-wdetails="' + id + '"]');
             const qty = wrap.querySelector('[data-rcv="' + id + '"]');
-            const show = status.value === 'With Warranty' && +qty.value > 0;
+            const covered = status.value === 'With Warranty' && +qty.value > 0;
+            const pending = status.value === 'Pending Installation' && +qty.value > 0;
+            const show = covered || pending;
             details.hidden = !show;
-            details.querySelectorAll('input,select').forEach(control => { control.disabled = !show; control.required = show; });
-            const start = wrap.querySelector('[data-wstart="' + id + '"]').value;
+            const basis = wrap.querySelector('[data-wbasis="' + id + '"]');
+            const startInput = wrap.querySelector('[data-wstart="' + id + '"]');
+            const monthsInput = wrap.querySelector('[data-wmonths="' + id + '"]');
+            const basisCell = basis.closest('label'), startCell = startInput.closest('label');
+            basisCell.hidden = pending; startCell.hidden = pending;
+            basis.disabled = !covered; basis.required = covered;
+            startInput.disabled = !covered; startInput.required = covered;
+            monthsInput.disabled = !show; monthsInput.required = show;
+            const start = startInput.value;
             const months = +wrap.querySelector('[data-wmonths="' + id + '"]').value;
             wrap.querySelector('[data-wexpires="' + id + '"]').textContent =
-              show && start && months >= 1 && months <= 120 ? PurUI.warrantyExpiry(start,months) : '—';
+              pending ? 'Pending installation date' :
+              covered && start && months >= 1 && months <= 120 ? PurUI.warrantyExpiry(start,months) : '—';
           };
           r.lines.forEach(l => {
             wrap.querySelectorAll('[data-wstatus="' + l.id + '"],[data-rcv="' + l.id + '"],[data-wstart="' + l.id + '"],[data-wmonths="' + l.id + '"]')
@@ -422,7 +433,8 @@ PurUI.confirmWarranty = (batch, onSaved) => {
     UI.fields([
       { name:'status', label:'Warranty Status', type:'select', required:true, col:12,
         value:batch.warranty_status,
-        options:[['Not Yet Confirmed','Not Yet Confirmed'],['With Warranty','With Warranty'],['No Warranty','No Warranty']] },
+        options:[['Not Yet Confirmed','Not Yet Confirmed'],['With Warranty','With Warranty'],
+          ['Pending Installation','Pending Installation'],['No Warranty','No Warranty']] },
       { name:'start_basis', label:'Start date basis', type:'select', col:12, value:batch.start_basis || '',
         options:[['','Choose basis'],['Delivery','Delivery date'],['Purchase','Purchase date'],
           ['Invoice','Invoice date'],['Installation','Installation date'],['Other','Other documented date']] },
@@ -438,11 +450,13 @@ PurUI.confirmWarranty = (batch, onSaved) => {
       const status = wrap.querySelector('[name="status"]');
       const update = () => {
         const covered = status.value === 'With Warranty';
+        const pending = status.value === 'Pending Installation';
         for (const name of ['start_basis','start','months']) {
           const inp=wrap.querySelector('[name="'+name+'"]');
-          inp.disabled=!covered; inp.required=covered;
+          const visible = name === 'months' ? (covered || pending) : covered;
+          inp.disabled=!visible; inp.required=visible;
           const column=inp.closest('[class*="col-"]');
-          if(column) column.hidden=!covered;
+          if(column) column.hidden=!visible;
         }
       };
       status.addEventListener('change', update); update();
