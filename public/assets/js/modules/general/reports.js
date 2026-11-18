@@ -146,7 +146,7 @@ const ReportsPage = {
       return;
     }
 
-    ctx.el.innerHTML = presetBar + filters;
+    ctx.el.innerHTML = presetBar + '<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 no-print"><div class="flex-grow-1">' + filters + '</div><div class="d-flex flex-wrap align-items-center gap-2" data-report-print-actions></div></div>';
     ctx.el.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { const [f, t] = b.dataset.preset.split('|'); App.go(ctx.page, { ...q, from: f, to: t }); });
     const keys = Object.keys(d.sections);
     if (!keys.length) { ctx.el.insertAdjacentHTML('beforeend', '<div class="table-empty">No reports for your role.</div>'); return; }
@@ -157,7 +157,7 @@ const ReportsPage = {
     let current = keys[0];
     p1.onclick = () => UI.printReport([d.sections[current]], meta());
     p2.onclick = () => UI.printReport(keys.map(k => d.sections[k]), meta());
-    ctx.tools.append(p1, p2);
+    ctx.el.querySelector('[data-report-print-actions]').append(p1, p2);
     const box = document.createElement('div'); ctx.el.append(box);
     UI.tabs(box, keys.map(k => [k, d.sections[k].title, () => { current = k; const s = d.sections[k];
       // FLEETOPS_ACCESS_ANALYTICS_V1: explanatory observations based only on report aggregates.
