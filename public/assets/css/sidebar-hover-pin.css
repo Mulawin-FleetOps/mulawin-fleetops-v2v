@@ -578,3 +578,87 @@
     min-height:64px !important;
   }
 }
+
+
+/* Shared premium gold detailing. Uses the same authenticated shell for every role.
+   Decorative styling only: no changes to routing, permissions or workflow controls. */
+#appShell.sidebar-manual-toggle {
+  --nav-gold:#D5AE45;
+  --nav-gold-glow:rgba(235,190,66,.22);
+}
+#appShell.sidebar-manual-toggle > .sidebar {
+  border-right:1px solid var(--nav-gold) !important;
+  box-shadow:2px 0 7px var(--nav-gold-glow) !important;
+}
+#appShell.sidebar-manual-toggle > .sidebar .sidebar-top {
+  border-bottom:1px solid rgba(235,190,66,.42) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar {
+  border-bottom:1px solid var(--nav-gold) !important;
+  box-shadow:0 2px 8px var(--nav-gold-glow) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
+  background:#E9D6A0 !important;
+  border:1px solid #F3E2B9 !important;
+  color:#194B36 !important;
+  box-shadow:0 0 7px rgba(239,199,83,.22) !important;
+  border-radius:10px;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell:hover,
+#appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell:focus-visible {
+  background:#F5E5BC !important;
+  color:#153E2D !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn {
+  background:#206A50 !important;
+  border:1px solid var(--nav-gold) !important;
+  color:#FFFFFF !important;
+  box-shadow:0 0 7px rgba(239,199,83,.20) !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn:hover,
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn:focus-visible {
+  background:#27775A !important;
+  border-color:#E9C66A !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-name {
+  color:#FFFFFF !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .profile-role {
+  color:#D8F0E1 !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .profile-btn .avatar {
+  background:#E7F2E9 !important;
+  color:#19573F !important;
+}
+#appShell.sidebar-manual-toggle > .main > .topbar .sb-border-toggle {
+  border:1px solid var(--nav-gold) !important;
+  box-shadow:0 0 6px var(--nav-gold-glow) !important;
+}
+/* Add a soft border only to major surface cards, not to every nested input,
+   dropdown, modal, table cell or dialog. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .record-workspace-panel,
+  .metric-icon-card,
+  .rpm-kpi,
+  .rpm-dept-card,
+  .chart-panel,
+  .rpm-exec-performance-card,
+  .rpm-summary-panel,
+  .fleet-route-panel,
+  .head-trip-detail-card,
+  .head-fuel-combined-card,
+  .ds-summary-card,
+  .ds-filter-panel,
+  .oh-dispatch-shift-card,
+  .oh-dispatch-filter-panel,
+  .card
+) {
+  border:1px solid rgba(213,174,69,.62) !important;
+  box-shadow:0 0 7px rgba(235,190,66,.15) !important;
+}
+@media (prefers-reduced-motion:reduce) {
+  #appShell.sidebar-manual-toggle > .main > .topbar .profile-btn,
+  #appShell.sidebar-manual-toggle > .main > .topbar .bell.updated-bell {
+    transition:none !important;
+  }
+}
