@@ -479,7 +479,7 @@ App.page('maintenance', {
         if (UI.canGo('mp_parts_requests')) return App.go('mp_parts_requests');
       }
     } catch { /* storage unavailable: stay on Repair Management */ }
-    if (d.can.act) UI.tool(ctx, 'Report truck problem', () => MaintUI.report(), 'bi-plus-lg', 'primary');
+    // New repair reports remain available from the Motorpool dashboard quick action.
     const q = ctx.query;
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     // STAGE_A_MOTORPOOL_UI: filters (truck, source, mechanic, stage). Field names = URL keys, so a filter survives a reload and can be linked.
@@ -545,13 +545,15 @@ App.page('maintenance', {
     // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
     const opt = { directActions: true, showAllColumns: true,
       actions: (j) => { const st = MaintUI.rowStep(j);
-        return (st ? `<button type="button" class="btn btn-sm btn-outline-primary" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
+        return (st ? `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
+          + (d.can.act && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.ibtn('helpers', 'Add mechanics', 'bi-people') : '')
+          + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) ? UI.ibtn('parts', 'Request parts', 'bi-box-seam') : '')
           + UI.ibtn('view', 'Open record', 'bi-eye'); },
       onAction: (a, j) => a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id) : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     const label = TABS.find(t => t[0] === tab)[1];
-    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.classList.add('mp-reference-table', 'mp-ops-table', 'mp-repair-records-table');
     box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Repair Records</strong><small>${UI.num(shownJobs.length)} matching record${shownJobs.length === 1 ? '' : 's'}</small></div><small>Truck maintenance and verification</small></div>`);
     const tableBody = document.createElement('div'); box.append(tableBody);
     if (tab === 'done') tableBody.innerHTML = UI.table([...cols.slice(0, 4), ['Completion date', 'completed_on', 'date'], ['Returned to service', 'verified_at', 'datetime']], done, { ...opt, title: label + ' (' + done.length + ')', empty: 'No completed repairs yet.' });
