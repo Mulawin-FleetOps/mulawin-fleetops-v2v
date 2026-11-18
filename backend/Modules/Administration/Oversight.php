@@ -103,6 +103,27 @@ final class Oversight {
                     'actionable' => $pending && (int)$c['added_by'] !== $me, 'own' => (int)$c['added_by'] === $me, 'go' => 'billing?open=' . $c['billing_id']];
             }
         }
+        // Legacy route-rate requests remain actionable in Routes.decide; include
+        // them here rather than leaving a second approval queue in Head Management.
+        foreach (many($p, "SELECT rt.id AS rate_id, rt.route_id, rt.rate_amount, rt.entered_at,
+                       r.route_ref, r.origin_label, r.destination_label, c.company_name,
+                       u.full_name AS requester
+                FROM client_route_rates rt
+                JOIN client_routes r ON r.id=rt.route_id
+                JOIN clients c ON c.id=r.client_id
+                LEFT JOIN users u ON u.id=rt.entered_by
+                WHERE rt.status='Pending Approval'
+                ORDER BY rt.entered_at ASC LIMIT 300") as $rt) {
+            $rows[] = ['key'=>'route:'.$rt['rate_id'], 'kind'=>'route', 'id'=>(int)$rt['rate_id'],
+                'route_id'=>(int)$rt['route_id'], 'ref'=>$rt['route_ref'],
+                'type'=>'Route rate approval', 'dept'=>'Client & Commercial',
+                'requester'=>$rt['requester'], 'submitted'=>$rt['entered_at'],
+                'amount'=>(float)$rt['rate_amount'], 'status'=>'Pending',
+                'raw_status'=>'Pending Approval',
+                'summary'=>$rt['company_name'].' · '.$rt['origin_label'].' → '.$rt['destination_label'],
+                'next'=>'Admin','decided_at'=>null,'decider'=>null,'notes'=>null,
+                'actionable'=>true,'go'=>'routes'];
+        }
         usort($rows, fn($a, $b) => [$b['status'] === 'Pending', $b['submitted']] <=> [$a['status'] === 'Pending', $a['submitted']]);
         return $rows;
     }
