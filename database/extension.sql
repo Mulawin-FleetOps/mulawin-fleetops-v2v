@@ -539,7 +539,7 @@ CREATE TABLE part_warranty_batches (
   CONSTRAINT chk_part_warranty_qty CHECK (received_qty > 0),
   CONSTRAINT chk_part_warranty_months CHECK (warranty_months BETWEEN 1 AND 120),
   CONSTRAINT chk_part_warranty_dates CHECK (warranty_expires > warranty_start),
-  CONSTRAINT chk_warranty_status CHECK (warranty_status IN ('With Warranty','No Warranty','Not Yet Confirmed')),
+  CONSTRAINT chk_warranty_status CHECK (warranty_status IN ('With Warranty','No Warranty','Not Yet Confirmed','Pending Installation')),
   CONSTRAINT chk_warranty_complete CHECK (
     (warranty_status='With Warranty' AND warranty_months BETWEEN 1 AND 120
       AND warranty_start IS NOT NULL AND warranty_expires IS NOT NULL AND start_basis IS NOT NULL)
@@ -547,10 +547,13 @@ CREATE TABLE part_warranty_batches (
       AND warranty_start IS NULL AND warranty_expires IS NULL AND start_basis IS NULL)
     OR (warranty_status='With Warranty' AND start_basis IS NULL
       AND warranty_months BETWEEN 1 AND 120 AND warranty_start IS NOT NULL AND warranty_expires IS NOT NULL)
+    OR (warranty_status='Pending Installation' AND warranty_months BETWEEN 1 AND 120
+      AND warranty_start IS NULL AND warranty_expires IS NULL AND start_basis='Installation')
   )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_20_part_warranty_batches');
 INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_22_warranty_receipt_confirmation');
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_23_pending_installation_warranty');
 
 -- Every stock change (stock-in, stock-out, adjustment) for inventory history (Objective 2.6, 5.5).
 CREATE TABLE stock_movements (
