@@ -296,6 +296,7 @@ CREATE TABLE parts (
   reorder_level INT NOT NULL DEFAULT 0,
   quantity_on_hand INT NOT NULL DEFAULT 0,
   warranty_info VARCHAR(150) NULL,
+  warranty_months SMALLINT UNSIGNED NULL COMMENT 'default coverage for future receipts; legacy text retained',
   active TINYINT NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT chk_parts_qty CHECK (quantity_on_hand >= 0),
@@ -510,6 +511,28 @@ CREATE TABLE purchase_order_lines (
   FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
   FOREIGN KEY (part_id) REFERENCES parts(id),
   CONSTRAINT chk_po_line CHECK (quantity > 0 AND unit_price > 0 AND received_qty >= 0 AND received_qty <= quantity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Each received warranty-covered PO line creates a distinct dated batch.
+-- Historic receipts remain unknown; no synthetic coverage is assigned.
+CREATE TABLE part_warranty_batches (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  po_line_id INT NOT NULL,
+  part_id INT NOT NULL,
+  received_qty INT NOT NULL,
+  warranty_months SMALLINT UNSIGNED NOT NULL,
+  warranty_start DATE NOT NULL,
+  warranty_expires DATE NOT NULL,
+  received_by INT NOT NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (po_line_id) REFERENCES purchase_order_lines(id),
+  FOREIGN KEY (part_id) REFERENCES parts(id),
+  FOREIGN KEY (received_by) REFERENCES users(id),
+  INDEX idx_warranty_expiry (warranty_expires),
+  INDEX idx_warranty_part (part_id, warranty_expires),
+  CONSTRAINT chk_part_warranty_qty CHECK (received_qty > 0),
+  CONSTRAINT chk_part_warranty_months CHECK (warranty_months BETWEEN 1 AND 120),
+  CONSTRAINT chk_part_warranty_dates CHECK (warranty_expires > warranty_start)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Every stock change (stock-in, stock-out, adjustment) for inventory history (Objective 2.6, 5.5).
