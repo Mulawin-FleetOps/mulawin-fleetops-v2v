@@ -357,16 +357,16 @@ const HeadMaintenanceUI = {
     const completed=jobs.filter(job=>Boolean(job.verified_at));
     const dataByCategory={open,completed,all:jobs};
     const metrics=[
-      ['Reported',open.filter(job=>job.status==='Reported').length,'bi-file-earmark-text','blue','open'],
-      ['Under inspection',open.filter(job=>job.status==='Under Inspection').length,'bi-search','green','open'],
-      ['Under repair',open.filter(job=>job.status==='Under Repair').length,'bi-tools','amber','open'],
-      ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open']
+      ['Reported',open.filter(job=>job.status==='Reported').length,'bi-file-earmark-text','blue','open','New issues to assess'],
+      ['Under inspection',open.filter(job=>job.status==='Under Inspection').length,'bi-search','green','open','Findings to record'],
+      ['Under repair',open.filter(job=>job.status==='Under Repair').length,'bi-tools','amber','open','Corrective work in progress'],
+      ['Awaiting verification',open.filter(job=>job.status==='Completed').length,'bi-calendar-check','purple','open','Awaiting service check']
     ];
     ctx.el.innerHTML='<section class="head-maintenance-workspace">'
-      +'<div class="head-trip-kpis">'+metrics.map(([label,value,icon,tone,tab])=>
+      +'<div class="head-trip-kpis">'+metrics.map(([label,value,icon,tone,tab,note])=>
         '<button type="button" class="head-kpi head-fleet-kpi '+tone+'" data-head-maintenance-kpi="'+tab+'">'
         +'<span class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></span>'
-        +'<span class="head-fleet-kpi-value"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></span></button>').join('')+'</div>'
+        +'<span class="head-fleet-kpi-value"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong><small class="head-kpi-note">'+UI.esc(note)+'</small></span></button>').join('')+'</div>'
       +'<div data-head-maintenance-workspace></div></section>';
     const root=ctx.el.querySelector('[data-head-maintenance-workspace]');
     const state={category:'open',status:'',sort:'default'};
