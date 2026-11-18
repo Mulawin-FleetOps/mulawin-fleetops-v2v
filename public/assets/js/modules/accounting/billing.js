@@ -369,7 +369,6 @@ App.page('billing_collections', {
     const inMonth = all.filter(x => String(x.payment_date).slice(0, 7) === month);
     ctx.el.innerHTML = `${UI.crumb('billing_overview', 'Billing Overview')}${UI.kpiTiles([
       { label: 'Collected this month', value: UI.money(inMonth.reduce((a, x) => a + +x.amount, 0)), note: inMonth.length + ' payment(s)', icon: 'bi-cash-stack', tone: 'green' },
-      { label: 'Shown below', value: UI.money(rows.reduce((a, x) => a + +x.amount, 0)), note: rows.length + ' payment(s) matching the filters', icon: 'bi-funnel', tone: 'gray' },
       { label: 'Invoices to collect', value: open.length, note: UI.money(open.reduce((a, b) => a + +b.balance, 0)) + ' outstanding', icon: 'bi-file-earmark-text', tone: open.length ? 'blue' : 'gray', go: 'billing_receivables' }])}
       ${UI.generalFilters(ctx, [{ name: 'client', label: 'Clients', options: clients }, { name: 'method', label: 'Methods', options: methods }, { name: 'from', label: 'From date', type: 'date' }, { name: 'to', label: 'To date', type: 'date' }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
