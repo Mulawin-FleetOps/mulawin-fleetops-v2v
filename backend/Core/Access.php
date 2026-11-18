@@ -64,7 +64,7 @@ final class Access {
 
     /** Workspace menu order per role: listed pages first, in this order; the other pages keep the default order. */
     private const NAV_ORDER = [
-        'finance' => ['finance_overview', 'purchase_orders', 'funds', 'finance', 'finance_budgets', 'purchasing_reports'],
+        'finance' => ['finance_overview', 'approvals', 'purchase_orders', 'funds', 'finance', 'finance_budgets', 'purchasing_reports'],
         'billing' => ['billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'reports'],
         'audit' => ['audit_overview', 'audit_logs', 'audit_history', 'audit_reports'],
     ];
@@ -200,7 +200,7 @@ final class Access {
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
                 'approvals' => ['Approvals', 'Management Control'],
-                'head-approvals' => ['Management Action Center', 'Management Control'],
+                // Legacy Management Action Center remains deep-linkable, but Approvals is the single sidebar entry.
                 'reports' => ['Management Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
