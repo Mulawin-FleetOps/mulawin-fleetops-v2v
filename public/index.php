@@ -155,6 +155,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link rel="stylesheet" href="assets/css/ops-head.css?v=<?= $v('assets/css/ops-head.css') ?>">
   <link rel="stylesheet" href="assets/css/records.css?v=<?= $v('assets/css/records.css') ?>">
   <link rel="stylesheet" href="assets/css/dispatcher.css?v=<?= $v('assets/css/dispatcher.css') ?>">
+  <link rel="stylesheet" href="assets/css/shared-content.css?v=<?= $v('assets/css/shared-content.css') ?>">
 </head>
 <body>
   <div id="app"><div class="text-center p-5 text-muted">Loading Mulawin FleetOps…</div></div>
