@@ -524,14 +524,18 @@ App.page('maintenance', {
         <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
         <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
     ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary
-      + (d.can.act ? UI.quickBar([{ label: 'Report truck problem', icon: 'bi-plus-lg', act: 'report', primary: true }]) : '')
       + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3">
-       <div class="d-flex flex-wrap align-items-center gap-2 small">
-         <strong class="me-1"><i class="bi bi-tools me-1" aria-hidden="true"></i>Repair process</strong>
-         <span>Report</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-         <span>Inspect &amp; repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-         <span>Verify</span>
-         <span class="text-muted ms-md-auto">Select a record to view details and its next action.</span>
+       <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+         <div class="d-flex flex-wrap align-items-center gap-2 small">
+           <strong class="me-1"><i class="bi bi-tools me-1" aria-hidden="true"></i>Repair process</strong>
+           <span>Report</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+           <span>Inspect &amp; repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+           <span>Verify</span>
+         </div>
+         <div class="d-flex flex-column align-items-end gap-2 ms-auto">
+           <span class="text-muted small">Select a record to view details and its next action.</span>
+           ${d.can.act ? '<button type="button" class="btn btn-sm btn-primary" data-qa="report"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i> Report truck problem</button>' : ''}
+         </div>
        </div></div></section>`
        + UI.statusTabs('maintenance', q, 'view', TABS, tab)
        + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
