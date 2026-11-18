@@ -478,6 +478,22 @@ const TripUI = {
           fund.rejected_reason ? ['Rejected because', UI.esc(fund.rejected_reason)] : null])
         : `<div class="text-muted small">${+t.attempt_number > 1 ? 'No new fund request for this attempt (optional for a redispatch).' : 'No fund request yet.'}</div>`}
       ${UI.h('Pre-dispatch checklist' + (+t.attempt_number > 1 ? ' (attempt #' + t.attempt_number + ')' : ''))}${checklistHtml}
+      ${(r.checklist_submissions || []).length ? UI.h('Pre-dispatch reinspection history') +
+        UI.table([
+          ['Submission', 'id', (v, row) => '#' + UI.num((r.checklist_submissions || []).indexOf(row) + 1)],
+          ['Trip attempt', 'attempt_number', (v) => '#' + UI.num(v)],
+          ['Truck', 'plate_number'],
+          ['Result', 'has_not_ok', (v) => +v ? '<span class="badge-s red">NOT OK</span>' : '<span class="badge-s green">All OK</span>'],
+          ['NOT OK findings', 'items_json', (v) => {
+            let entries = {}; try { entries = JSON.parse(v || '{}').items || {}; } catch {}
+            const labels = (TripUI.data.checklist || []).flatMap(sec => sec.items.map((label, i) => [sec.key + '_' + String(i + 1).padStart(2, '0'), label]));
+            const bad = labels.filter(([key]) => entries[key]?.condition === 'NOT OK').map(([key,label]) => label + (entries[key].remarks ? ' (' + entries[key].remarks + ')' : ''));
+            return bad.length ? UI.esc(bad.join('; ')) : 'All 57 items OK';
+          }],
+          ['Repair record', 'job_ref', (v) => v ? UI.esc(v) : '—'],
+          ['Submitted', 'submitted_at', 'datetime']
+        ], r.checklist_submissions, {showAllColumns:true,empty:'No reinspection submissions yet.'})
+        : ''}
       ${t.status === 'Completed' ? UI.h('Arrival checklist') + TripUI.arrivalHtml(t, ins, arr) : ''}
       ${r.incidents.length ? UI.h('Incidents') + r.incidents.map(i => `<div class="border rounded p-2 mb-2 small"><div class="d-flex justify-content-between"><b>${UI.esc(i.incident_ref)} · ${UI.esc(i.incident_type)}</b>${UI.badge(i.status)}</div>
           ${UI.esc(i.problem)} · ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}${i.recommendation ? '<br>Recommendation: ' + UI.esc(i.recommendation) : ''}${i.job_ref ? '<br>Maintenance record: ' + UI.esc(i.job_ref) + (i.job_status ? ' (' + UI.esc(i.job_status) + ')' : '') : ''}${i.severity ? '<br>Damage classification: ' + UI.esc(i.severity) : ''}${i.clearance ? '<br>Motorpool clearance: <b>' + UI.esc(i.clearance) + '</b> · ' + UI.esc(i.cleared_by_name || '') + ' · ' + UI.datetime(i.cleared_at) + '<br><span class="text-muted">' + UI.esc(i.clearance_findings || '') + '</span>' : ''}${i.resumed_at ? '<br>Resumed by ' + UI.esc(i.resumed_by_name || '') + ' · ' + UI.datetime(i.resumed_at) : ''}
