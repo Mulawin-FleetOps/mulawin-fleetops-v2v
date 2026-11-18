@@ -142,7 +142,7 @@ App.page('mechanic_attendance', {
     } else {
     // Session history for the chosen dates.
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
-    const hist = document.createElement('section'); hist.className = 'mt-4 mp-session-section'; ctx.el.append(hist);
+    const hist = document.createElement('section'); hist.className = 'mp-session-section'; ctx.el.append(hist);
     hist.innerHTML = `<h2 class="ref-h">Time In / Time Out sessions · ${UI.esc(label)}</h2>`
       + UI.generalFilters(ctx, [{ name: 'from', label: 'Sessions from', type: 'date' }, { name: 'to', label: 'Sessions to', type: 'date' }])
       + UI.table([
