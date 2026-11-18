@@ -546,12 +546,9 @@ const HeadRouteWorkspace = {
       +'<button type="button" class="btn btn-sm btn-outline-success record-workspace-export"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</button>';
     const state={tab:initial,client:'',type:'',status:'',sort:'default'};
     ctx.el.innerHTML='<div class="head-route-workspace">'
-      +RecordComponents.kpis([
-        {label:'Total Routes',value:all.length,color:'blue',icon:'bi-signpost-2'},
-        {label:'Approved Routes',value:count(r=>r.status==='Approved'),color:'green',icon:'bi-check-circle'},
-        {label:'Needs Action',value:count(RouteUI.waiting),color:'amber',icon:'bi-exclamation-circle'},
-        {label:'Clients with Routes',value:new Set(all.map(r=>r.client_id).filter(id=>id!=null)).size,color:'purple',icon:'bi-buildings'}
-      ])
+      +'<div class="small text-muted mb-2">Routes: '+UI.num(all.length)
+        +' · Approved: '+UI.num(count(r=>r.status==='Approved'))
+        +' · Needs action: '+UI.num(count(RouteUI.waiting))+'</div>'
       +'<div data-head-route-workspace></div></div>';
     const target=ctx.el.querySelector('[data-head-route-workspace]');
     let tableId=null;
