@@ -1363,7 +1363,7 @@ UI.metricVisual = (card) => {
     [/inactive|archived|draft|not timed in/, 'bi-clock-history', 'gray']
   ];
   const matched = rules.find(([pattern]) => pattern.test(label));
-  const icon = /^bi-[a-z0-9-]+$/.test(String(card.icon || '')) ? card.icon : (matched?.[1] || 'bi-bar-chart-line');
+  const icon = UI.kpiGlyph(card.label, card.icon || matched?.[1]);
   const color = UI.kpiIconColor(card.label, card.color || matched?.[2] || 'blue');
   return {icon,color};
 };
