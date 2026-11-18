@@ -1573,3 +1573,33 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 #pageContent.billing-design-v2 .bil-v2-queue>.bil-v2-item{
   height:80px;min-height:80px;max-height:80px;
 }
+
+/* BILLING_WIREFRAME_2COL_LAYOUT_V4 */
+/* Exact Billing reference arrangement: left = Trips to Bill / Overdue,
+   right = Receivables Aging / Recent Collections. Scroll caps stay 4/3/5. */
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid{
+  display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);
+  align-items:start;gap:12px;margin-top:12px;
+}
+#pageContent.billing-design-v2 .bil-v2-left,
+#pageContent.billing-design-v2 .bil-v2-right{
+  display:flex;flex-direction:column;gap:12px;min-width:0;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-aging{
+  margin-top:0;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-aging-body{
+  display:block;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-bar{
+  margin:0 0 13px;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-aging-body>p{
+  margin:5px 0 0;
+}
+#pageContent.billing-design-v2 .bil-v2-wireframe-grid .bil-v2-panel{
+  margin:0;min-width:0;
+}
+@media(max-width:1000px){
+  #pageContent.billing-design-v2 .bil-v2-wireframe-grid{grid-template-columns:1fr;}
+}

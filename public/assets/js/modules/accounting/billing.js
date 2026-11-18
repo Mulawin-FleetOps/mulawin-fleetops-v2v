@@ -229,9 +229,12 @@ App.page('billing_overview', {
       +'<p>Open invoice balance: '+UI.money(total)+' across '+aging.length+' client(s).</p>':'<p>No outstanding receivables.</p>')+'</div></section>';
     const warning=d._errors?.pendingAdjustments?'<div class="alert alert-warning small">Adjustment counts are temporarily unavailable. Check the required database migration.</div>':'';
     ctx.el.innerHTML='<div class="bil-v2-dashboard">'+warning+UI.kpiTiles(k)
-      +'<div class="bil-v2-queues">'+queue('Trips to bill','bi-receipt',todo,'No completed trips waiting.',4)
+      +'<div class="bil-v2-wireframe-grid"><div class="bil-v2-left">'
+      +queue('Trips to bill','bi-receipt',todo,'No completed trips waiting.',4)
       +queue('Overdue invoices to follow up','bi-alarm',overdue,'No overdue invoices.',3)
-      +queue('Recent collections','bi-cash-stack',recent,'No collections recorded.',5)+'</div>'+age+'</div>';
+      +'</div><div class="bil-v2-right">'+age
+      +queue('Recent collections','bi-cash-stack',recent,'No collections recorded.',5)
+      +'</div></div></div>';
     ctx.el.querySelectorAll('[data-bill]').forEach(el=>{
       el.onclick=()=>BillUI.open(+el.dataset.bill);
       el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();BillUI.open(+el.dataset.bill);}};
