@@ -1329,22 +1329,22 @@ UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
 UI.metricVisual = (card) => {
   const label = String(card.label || '').toLowerCase();
   const rules = [
-    [/incident|delay|overdue|problem|rejected|critical|failed|unavailable/, 'bi-exclamation-triangle', 'red'],
-    [/complete|finished|resolved|approved|collected|paid|success/, 'bi-check-circle', 'purple'],
-    [/schedule|pending|awaiting|prepar|review|due/, 'bi-calendar-check', 'blue'],
-    [/truck|vehicle|fleet|trip|dispatch|route|delivery/, 'bi-truck', 'green'],
+    [/overdue|incident|cancelled|canceled|critical|failed|shortage|out of stock|unavailable|rejected|problem/, 'bi-exclamation-triangle', 'red'],
+    [/under maintenance|repair|needs attention|low stock|pending|awaiting|for approval|for review|follow.up|verification|verify/, 'bi-tools', 'amber'],
+    [/completed|complete|finished|resolved|collected|paid|delivered|available|success/, 'bi-check-circle', 'green'],
+    [/ongoing|in progress|in transit|on trip|active trip|dispatched|dispatch|route|to bill|for billing/, 'bi-truck', 'blue'],
+    [/finance|revenue|receivable|invoice|billing|expense|cost|budget|amount|payment|fund|rate|money/, 'bi-wallet2', 'purple'],
     [/fuel|diesel|liter|consumption/, 'bi-fuel-pump', 'blue'],
-    [/driver|helper|personnel|mechanic|employee|staff|user/, 'bi-people', 'purple'],
-    [/client|customer|contract/, 'bi-buildings', 'blue'],
-    [/maintenance|repair|job order/, 'bi-tools', 'amber'],
-    [/inventory|stock|parts|purchase|warehouse/, 'bi-box-seam', 'amber'],
-    [/billing|invoice|receipt|collection/, 'bi-receipt', 'purple'],
-    [/fund|expense|cost|budget|amount|payment|finance|revenue|rate/, 'bi-wallet2', 'green'],
-    [/document|report|record/, 'bi-file-earmark-text', 'blue']
+    [/driver|helper|personnel|mechanic|employee|staff|user/, 'bi-people', 'green'],
+    [/client|customer|contract/, 'bi-buildings', 'purple'],
+    [/inventory|stock|parts|purchase|warehouse|order/, 'bi-box-seam', 'blue'],
+    [/truck|vehicle|fleet|trip|delivery/, 'bi-truck', 'blue'],
+    [/document|report|record/, 'bi-file-earmark-text', 'blue'],
+    [/inactive|archived|draft|not timed in/, 'bi-clock-history', 'gray']
   ];
   const matched = rules.find(([pattern]) => pattern.test(label));
   const icon = /^bi-[a-z0-9-]+$/.test(String(card.icon || '')) ? card.icon : (matched?.[1] || 'bi-bar-chart-line');
-  const color = ['green','blue','amber','red','purple'].includes(card.color) ? card.color : (matched?.[2] || 'green');
+  const color = ['green','blue','amber','red','purple','gray'].includes(card.color) ? card.color : (matched?.[2] || 'green');
   return {icon,color};
 };
 UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
