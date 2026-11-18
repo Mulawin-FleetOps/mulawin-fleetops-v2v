@@ -426,6 +426,23 @@ const App = {
           title:'Other Tools', icon:'bi-grid-3x3-gap',
           items:remaining.map(wsLink).join('')
         });
+      } else if (u.role === 'billing') {
+        // BILLING_WIREFRAME_NAV_V2 — curated visible menu matching the
+        // Billing interactive wireframe; authorization and deep links stay
+        // server-owned (me.routes), not restricted by this sidebar.
+        const items = ws.groups.flatMap(g => g.items);
+        const lookup = id => items.find(n => n.id === id);
+        const home = lookup('billing_overview');
+        nav = home ? wsLink({ ...home, label: 'Dashboard' }) : '';
+        const ordered = ['billing', 'billing_collections', 'billing_receivables', 'reports']
+          .map(lookup).filter(Boolean);
+        if (ordered.length) nav += UI.sidebarGroup({
+          title: 'Billing', icon: 'bi-columns-gap',
+          items: ordered.map(n => wsLink(n.id === 'reports'
+            ? { ...n, label: 'Billing Reports' } : n)).join('')
+        });
+        // Clients, routes, trips and documents are supporting pages, opened
+        // from authorized record links, not primary Billing menu entries.
       } else {
         nav = ws.groups.map((g,i)=>UI.sidebarGroup({
           title:g.title,
