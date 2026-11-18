@@ -175,6 +175,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
 <?php foreach ($jsModules as $m): ?>
   <script src="assets/js/modules/<?= $m ?>.js?v=<?= $v('assets/js/modules/' . $m . '.js') ?>"></script>
 <?php endforeach; ?>
+  <script src="assets/js/kpi-palette.js?v=<?= $v('assets/js/kpi-palette.js') ?>"></script>
   <script>App.start();</script>
 </body>
 </html>
