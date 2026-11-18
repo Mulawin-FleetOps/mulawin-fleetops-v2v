@@ -638,6 +638,10 @@ App.page('admin_reports', {
       + [['management','Management'],['audit','Audit']].map(([id,name])=>'<a class="'+(kind===id?'active':'')+'" href="#'+analyticsPage+'?topic='+encodeURIComponent(topic)+'&report='+id+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'')+'">'+name+'</a>').join('')+'</div>';
     const visuals = '<div class="ax-charts">' + charts.join('') + '</div>';
     const css = '<style>'
+      // Keep the actual analytics heading inside .ax-shell; hide only the duplicate
+      // generic page title/subtitle for these two Admin analytics screens.
+      + '#pageContent:has(.ax-shell) > .page-head .page-head-text{display:none!important;}'
+      + '#pageContent:has(.ax-shell) > .page-head{min-height:0!important;margin:0!important;padding:0!important;gap:0!important;}'
       + '.ax-shell{background:#f6f9f7;border:1px solid #e0e9e2;border-radius:16px;padding:20px;max-width:100%;}'
       + '.ax-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:15px;}'
       + '.ax-header h2{font-size:22px;font-weight:750;margin:4px 0 5px;letter-spacing:-.03em}.ax-header p{font-size:12px;color:#69786f;margin:0;max-width:750px;}'
