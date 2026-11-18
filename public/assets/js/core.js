@@ -1417,7 +1417,7 @@ UI.metricVisual = (card) => {
 UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
   const go = c.go && UI.canGo(c.go);
   const visual = UI.metricVisual(c);
-  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
+  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" data-kpi-color="${UI.esc(visual.color)}" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
     <span class="metric-icon metric-icon-${visual.color}" aria-hidden="true"><i class="bi ${visual.icon}"></i></span>
     <div class="metric-content"><div class="metric-label">${UI.esc(UI.operationsLabel(c.label))}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
