@@ -1007,6 +1007,8 @@ final class Trips {
                 if ($truckDefects) {
                     Actions::load('Maintenance');
                     $job = Maintenance::fromPreDispatchChecklist($p, $u, $t, $truckDefects);
+                    run($p, "UPDATE inspections SET maintenance_job_id=? WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch'",
+                        [$job['job_id'], $id, $t['attempt_number']]);
                     // A defective Assigned truck must not stay reserved or become
                     // dispatchable. Reuse existing fixed-pair resource-loss logic.
                     $next = self::resourceLost($p, $u, $id,
