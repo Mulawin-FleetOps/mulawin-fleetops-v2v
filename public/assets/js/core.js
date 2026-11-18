@@ -878,17 +878,7 @@ const App = {
         <div class="module-down"><i class="bi bi-exclamation-triangle"></i><div>This page's screen file (assets/js/modules/${UI.esc(nav.js)}.js) did not load. The other pages still work. Reload the page or check the file.</div></div>`;
       return;
     }
-    // One shared page heading for every authenticated role. Access identifies
-    // the current account's authorized role, not an exhaustive access list.
-    const dashboardHeader = page === 'dashboard' || page === 'maintenance_overview' || page === 'purchasing_overview';
-    const sourceTitle = UI.operationsLabel(def.title || nav.label);
-    const headerTitle = dashboardHeader
-      ? (sourceTitle.replace(/\bOverview\b/gi, 'Dashboard'))
-      : sourceTitle;
-    const accessLabel = u.role === 'admin' ? 'Management access'
-      : (u.role_label || u.role.replace(/_/g, ' ')) + ' access';
-    el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(headerTitle)}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
-        <span class="page-access-tag" title="Current account role"><i class="bi bi-shield-check" aria-hidden="true"></i>${UI.esc(accessLabel)}</span>
+    el.innerHTML = `<div class="page-head"><div class="page-head-text"><h1 class="page-title" id="pageTitle">${UI.esc(UI.operationsLabel(def.title || nav.label))}</h1>${def.subtitle ? `<p class="page-subtitle" id="pageSubtitle">${UI.esc(def.subtitle)}</p>` : ''}</div>
         <div class="page-actions no-print" id="pageTools"></div>
         <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
