@@ -113,13 +113,14 @@ App.page('mechanic_attendance', {
     const range = d.range || {};
     const isAdmin = App.me.user.role === 'admin';
     if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
-    const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
+    const tab = q.tab === 'sessions' ? 'sessions' : 'attendance';
     const on = board.filter(m => m.open_time_in);
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
       </div></div>`;
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'duty', [['', 'All mechanics', board.length], ['in', 'On duty', on.length], ['out', 'Not timed in', board.length - on.length]], duty);
-    const rows = board.filter(m => !duty || (duty === 'in' ? !!m.open_time_in : !m.open_time_in)).map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'tab', [['attendance', 'Attendance', board.length], ['sessions', 'Sessions', sessions.length]], tab);
+    const rows = board.map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
+    if (tab === 'attendance') {
     const box = document.createElement('div'); ctx.el.append(box);
     // Buttons call the existing actions only (MechUI.toggle -> Mechanics.time_in / time_out, server-checked; MechUI.open -> Mechanics.details).
     box.innerHTML = UI.table([
@@ -131,13 +132,14 @@ App.page('mechanic_attendance', {
       ['Current repair', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck || '')} · ${UI.esc(m.job_status || '')}</div>` : '<span class="text-muted">—</span>'],
       ...(isAdmin ? [['Daily mark', 'daily_mark', (v) => v ? UI.badge(v) : '<span class="text-muted">Not marked</span>']] : [])], rows,
       { showAllColumns: true, directActions: true,
-        actions: (m) => (can.edit ? UI.ibtn('toggle', m.open_time_in ? 'Time Out' : 'Time In', 'bi-clock', m.open_time_in ? 'outline-secondary' : 'outline-primary') : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
+        actions: (m) => (can.edit ? `<button type="button" class="btn btn-sm ${m.open_time_in ? 'btn-outline-secondary' : 'btn-outline-primary'}" data-act="toggle" aria-label="${m.open_time_in ? 'Time Out' : 'Time In'} ${UI.esc(m.full_name)}">${m.open_time_in ? 'Time Out' : 'Time In'}</button>` : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
         onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
 
     box.classList.add('mp-reference-table', 'mp-ops-table');
     box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Attendance Records</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Duty status and current assignments</small></div>`);
 
+    } else {
     // Session history for the chosen dates.
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
     const hist = document.createElement('section'); hist.className = 'mt-4 mp-session-section'; ctx.el.append(hist);
@@ -151,5 +153,6 @@ App.page('mechanic_attendance', {
         ['Timed in by', 'time_in_by'],
         ['Timed out by', 'time_out_by'],
       ], sessions, { showAllColumns: true, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
+    }
   },
 });
