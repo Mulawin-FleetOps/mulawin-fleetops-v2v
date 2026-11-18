@@ -1643,3 +1643,34 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   cursor:default !important;
   padding-right:12px !important;
 }
+
+/* MOTORPOOL_REPAIR_OVERVIEW_ACTION_HIERARCHY_V1 */
+/* Simple repair overview in the record drawer. Preserve other page layouts. */
+#appShell .offcanvas .mp-repair-overview-summary {
+  display:flex;flex-direction:column;gap:11px;
+  padding:14px 16px;margin:0 0 12px;
+  background:#f8fbf9;border:1px solid #dfe9e2;border-radius:10px;
+}
+#appShell .offcanvas .mp-repair-overview-top {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+#appShell .offcanvas .mp-repair-next{
+  display:flex;flex-direction:column;gap:4px;
+  padding:10px 0;border-top:1px solid #e3ebe5;color:#294d38;font-size:13px;
+}
+#appShell .offcanvas .mp-repair-next strong,
+#appShell .offcanvas .mp-repair-support-actions>strong{
+  font-family:var(--font-heading,"Poppins",sans-serif);font-size:12.5px;
+}
+#appShell .offcanvas .mp-repair-main-action{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;
+}
+#appShell .offcanvas .mp-repair-main-action .btn{min-height:37px;padding:7px 14px}
+#appShell .offcanvas .mp-repair-support-actions{
+  padding:12px 16px;margin:0 0 16px;border:1px solid #e1eae3;
+  border-radius:10px;background:#fff;
+}
+#appShell .offcanvas .mp-repair-support-buttons{
+  display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;
+}
+#appShell .offcanvas .mp-repair-support-buttons .btn{white-space:normal;text-align:left}
