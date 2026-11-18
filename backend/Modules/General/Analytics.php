@@ -134,7 +134,6 @@ final class Analytics {
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM trips WHERE status IN ('Pre-Assigned','Ready for Dispatch') AND scheduled_at < NOW()"), 'trip(s) past the schedule and not yet dispatched (delayed)', 'trips', 'danger');
             if ($r === 'admin') {
                 $alert(self::n($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval' AND approver_role='admin'"), 'purchase order(s) above the limit waiting for your approval', 'purchase_orders');
-                if (empty(one($p, 'SELECT recovery_hash FROM users WHERE id=?', [$u['id']])['recovery_hash'])) $alerts[] = ['text' => 'No Admin recovery code yet. Make one from your name menu > Recovery code.', 'level' => 'info'];
             }
             $docDays = (int)Settings::value('document_alert_days');
             $alert(self::n($p, "SELECT COUNT(*) AS n FROM vehicles WHERE active=1 AND ((registration_expiry IS NOT NULL AND registration_expiry<=DATE_ADD(CURRENT_DATE(), INTERVAL ? DAY)) OR (insurance_expiry IS NOT NULL AND insurance_expiry<=DATE_ADD(CURRENT_DATE(), INTERVAL ? DAY)))", [$docDays, $docDays]), "truck(s) with registration or insurance expiring within $docDays days", 'trucks', 'info');
