@@ -479,7 +479,7 @@ App.page('maintenance', {
         if (UI.canGo('mp_parts_requests')) return App.go('mp_parts_requests');
       }
     } catch { /* storage unavailable: stay on Repair Management */ }
-    // New repair reports remain available from the Motorpool dashboard quick action.
+    // Garage problems may be reported here or from the Motorpool Dashboard; no trip is required.
     const q = ctx.query;
     const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
     // STAGE_A_MOTORPOOL_UI: filters (truck, source, mechanic, stage). Field names = URL keys, so a filter survives a reload and can be linked.
@@ -523,7 +523,9 @@ App.page('maintenance', {
         <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
         <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
         <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3">
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary
+      + (d.can.act ? UI.quickBar([{ label: 'Report truck problem', icon: 'bi-plus-lg', act: 'report', primary: true }]) : '')
+      + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3">
        <div class="d-flex flex-wrap align-items-center gap-2 small">
          <strong class="me-1"><i class="bi bi-tools me-1" aria-hidden="true"></i>Repair process</strong>
          <span>Report</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
@@ -560,6 +562,7 @@ App.page('maintenance', {
     else if (tab === 'all') tableBody.innerHTML = UI.table(cols, shownJobs, { ...opt, title: label + ' (' + shownJobs.length + ')', empty: 'No record matches these filters.' });
     else { const rows = view ? open.filter(view[1]) : open.filter(j => j.status !== 'Completed');
       tableBody.innerHTML = UI.table(openCols, rows, { ...opt, title: label + ' (' + rows.length + ')', empty: active.length || view ? 'No open record matches.' : 'No truck has an open repair. Report a problem when a truck needs inspection or repair.' }); }
+    ctx.el.querySelector('[data-qa="report"]')?.addEventListener('click', () => MaintUI.report());
     const once = UI.takeQuery(ctx, 'report', 'open');
     if (once.report) MaintUI.report(once.report === 'new' ? undefined : once.report);
     if (once.open) MaintUI.open(once.open);
