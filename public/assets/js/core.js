@@ -1069,14 +1069,14 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
 UI.WS_MENUS = {
   motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
     ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
-    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['reports_center', 'Reports', 'bi-bar-chart-line'], ['approvals', 'Approvals', 'bi-check2-square']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
-    ['purchasing_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+    ['reports_center', 'Reports', 'bi-bar-chart-line'], ['approvals', 'Approvals', 'bi-check2-square']] },
   finance: { dept: 'Finance', items: [['finance_overview', 'Overview', 'bi-speedometer2'], ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['approvals', 'Approvals', 'bi-check2-square'],
     ['funds', 'Trip Funds', 'bi-cash-coin'], ['finance', 'Payables & Payments', 'bi-wallet2'], ['finance_budgets', 'Budgets & Expenses', 'bi-piggy-bank']] },
   billing: { dept: 'Billing', items: [['billing_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['billing', 'Billing & Invoices', 'bi-receipt'],
-    ['billing_collections', 'Collections', 'bi-cash-stack'], ['billing_receivables', 'Receivables', 'bi-hourglass-split'], ['reports', 'Billing Reports', 'bi-bar-chart-line']] },
+    ['billing_collections', 'Collections', 'bi-cash-stack'], ['billing_receivables', 'Receivables', 'bi-hourglass-split'], ['reports_center', 'Reports', 'bi-bar-chart-line']] },
   // HEAD_MANAGEMENT_V1: the Admin's own sidebar (exclusive: no extra groups). Other pages the Admin may open stay reachable
   // from the Records shortcuts of each monitoring page; permissions are unchanged (me.nav / Access::canOpen).
   admin: { dept: 'Head Management', section: 'Management', exclusive: true, items: [['admin_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'],
@@ -1084,7 +1084,7 @@ UI.WS_MENUS = {
     ['admin_finance', 'Financial Oversight', 'bi-cash-coin'], ['admin_reports', 'Executive Reports', 'bi-clipboard-check'], ['admin_analytics', 'Analytics', 'bi-graph-up'],
     ['admin', 'Users & Roles', 'bi-people'], ['audit_logs', 'Audit Trail', 'bi-journal-text']] },
   audit: { dept: 'Audit', items: [['audit_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['audit_logs', 'Audit Logs', 'bi-journal-text'],
-    ['audit_history', 'Transaction History', 'bi-clock-history'], ['audit_reports', 'Audit Reports', 'bi-clipboard-data']] },
+    ['audit_history', 'Transaction History', 'bi-clock-history'], ['reports_center', 'Reports', 'bi-bar-chart-line']] },
 };
 UI.WS_GROUPS = [
   ['Fleet & trips', ['trips', 'trucks', 'crew', 'clients', 'routes']],
