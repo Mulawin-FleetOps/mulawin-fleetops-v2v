@@ -520,21 +520,37 @@ CREATE TABLE part_warranty_batches (
   po_line_id INT NOT NULL,
   part_id INT NOT NULL,
   received_qty INT NOT NULL,
-  warranty_months SMALLINT UNSIGNED NOT NULL,
-  warranty_start DATE NOT NULL,
-  warranty_expires DATE NOT NULL,
+  warranty_status VARCHAR(24) NOT NULL DEFAULT 'With Warranty',
+  start_basis VARCHAR(24) NULL,
+  warranty_months SMALLINT UNSIGNED NULL,
+  warranty_start DATE NULL,
+  warranty_expires DATE NULL,
   received_by INT NOT NULL,
+  updated_by INT NULL,
+  updated_at DATETIME NULL,
   received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (po_line_id) REFERENCES purchase_order_lines(id),
   FOREIGN KEY (part_id) REFERENCES parts(id),
   FOREIGN KEY (received_by) REFERENCES users(id),
+  CONSTRAINT fk_warranty_updated_by FOREIGN KEY (updated_by) REFERENCES users(id),
   INDEX idx_warranty_expiry (warranty_expires),
   INDEX idx_warranty_part (part_id, warranty_expires),
+  INDEX idx_warranty_status (warranty_status, part_id),
   CONSTRAINT chk_part_warranty_qty CHECK (received_qty > 0),
   CONSTRAINT chk_part_warranty_months CHECK (warranty_months BETWEEN 1 AND 120),
-  CONSTRAINT chk_part_warranty_dates CHECK (warranty_expires > warranty_start)
+  CONSTRAINT chk_part_warranty_dates CHECK (warranty_expires > warranty_start),
+  CONSTRAINT chk_warranty_status CHECK (warranty_status IN ('With Warranty','No Warranty','Not Yet Confirmed')),
+  CONSTRAINT chk_warranty_complete CHECK (
+    (warranty_status='With Warranty' AND warranty_months BETWEEN 1 AND 120
+      AND warranty_start IS NOT NULL AND warranty_expires IS NOT NULL AND start_basis IS NOT NULL)
+    OR (warranty_status IN ('No Warranty','Not Yet Confirmed') AND warranty_months IS NULL
+      AND warranty_start IS NULL AND warranty_expires IS NULL AND start_basis IS NULL)
+    OR (warranty_status='With Warranty' AND start_basis IS NULL
+      AND warranty_months BETWEEN 1 AND 120 AND warranty_start IS NOT NULL AND warranty_expires IS NOT NULL)
+  )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_20_part_warranty_batches');
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_22_warranty_receipt_confirmation');
 
 -- Every stock change (stock-in, stock-out, adjustment) for inventory history (Objective 2.6, 5.5).
 CREATE TABLE stock_movements (
