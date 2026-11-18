@@ -478,7 +478,7 @@ const DispatcherUI = {
       return q.sort==='earliest'?left.localeCompare(right):right.localeCompare(left);
     });
     let page=0,grouped=true;const collapsed=new Set();
-    const pageSize=10;const draw=()=>{
+    const pageSize=5;const draw=()=>{
       const displayed=grouped?RecordComponents.clientTripSort(filtered,'client'):filtered;
       const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.min(page,pages-1);
       ctx.el.querySelector('[data-trip-record-count]').textContent=filtered.length+' matching record'+(filtered.length===1?'':'s');

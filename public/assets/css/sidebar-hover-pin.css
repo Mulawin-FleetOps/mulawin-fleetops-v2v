@@ -1074,3 +1074,37 @@
     margin-left:0 !important;
   }
 }
+
+
+/* HTML-reference sizing: keep the gold workspace centered and content-height,
+   rather than stretching edge-to-edge or filling unused viewport height. */
+#appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)),
+#appShell.sidebar-manual-toggle #pageContent.billing-design-v2:not(:has(.ax-shell)) {
+  width:calc(100% - 16px) !important;
+  max-width:1440px !important;
+  margin:0 auto !important;
+  flex:0 0 auto !important;
+  align-self:center !important;
+  height:auto !important;
+  min-height:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent:has(.ax-shell) {
+  width:100% !important;
+  max-width:1440px !important;
+  margin:0 auto !important;
+  flex:0 0 auto !important;
+  align-self:center !important;
+  height:auto !important;
+  min-height:0 !important;
+}
+#appShell.sidebar-manual-toggle #pageContent .ax-shell { min-height:0 !important; height:auto !important; }
+@media(max-width:767.98px) {
+  #appShell.sidebar-manual-toggle #pageContent:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle.ws-app #pageContent.ws-scope:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle #pageContent.ref-scope:not(:has(.ax-shell)),
+  #appShell.sidebar-manual-toggle #pageContent.billing-design-v2:not(:has(.ax-shell)) {
+    width:100% !important;
+  }
+}

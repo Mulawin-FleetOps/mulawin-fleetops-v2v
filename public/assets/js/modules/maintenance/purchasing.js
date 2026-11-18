@@ -746,7 +746,7 @@ App.page('purchasing_reports', {
     UI.bindTips(ctx.el); UI.bindPeriod(ctx.el);
 
     // ---- summary details drawers (each total equals the figure shown)
-    const T = (cols, rows, empty) => UI.table(cols, rows, { plain: true, limit: 12, empty });
+    const T = (cols, rows, empty) => UI.table(cols, rows, { plain: true, limit: 5, empty });
     const poCol = ['PO', 'po_ref', (v, r) => `<b>${UI.esc(v)}</b>`];
     ctx.el.querySelectorAll('[data-sum]').forEach(btn => btn.addEventListener('click', () => {
       const k = btn.dataset.sum, period = UI.date(per.from) + ' – ' + UI.date(per.to);
