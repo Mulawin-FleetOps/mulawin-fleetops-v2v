@@ -380,12 +380,6 @@ App.page('head-approvals',{
         cols:[['Fund','fund_ref'],['Trip','trip_ref'],['Status','status','badge']],
         empty:'No fund requests awaiting approval.'}
     ];
-    const metrics=[
-      {label:'Route Rates',value:sections[0].rows.length,icon:'bi-signpost-split',color:'blue'},
-      {label:'Maintenance Exceptions',value:sections[1].rows.length,icon:'bi-tools',color:'amber'},
-      {label:'Open Incidents',value:sections[2].rows.length,icon:'bi-exclamation-triangle',color:'red'},
-      {label:'Fund Requests',value:sections[3].rows.length,icon:'bi-wallet2',color:'green'}
-    ];
     // Legacy action center already has category counts in its record tabs.
     ctx.el.innerHTML='<div class="head-approvals-workspace"><div data-head-approvals-records></div></div>';
     const root=ctx.el.querySelector('[data-head-approvals-records]');
