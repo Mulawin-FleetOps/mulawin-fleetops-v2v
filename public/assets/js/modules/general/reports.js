@@ -173,4 +173,10 @@ const ReportsPage = {
   },
 };
 App.page('reports', ReportsPage);
+// Reuse the exact report renderer for separately authorized report aggregates.
+for (const [page,title] of [
+  ['operations_reports','Operations Reports'],
+  ['financial_reports','Financial Reports'],
+  ['billing_reports','Billing Reports']
+]) App.page(page, {...ReportsPage, title});
 // PURCHASING_ANALYTICS_V1: 'purchasing_reports' has its own analytics screen (maintenance/purchasing.js).
