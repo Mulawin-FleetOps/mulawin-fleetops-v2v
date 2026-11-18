@@ -154,14 +154,35 @@ const PurUI = {
   },
   async receive(o) {
     const r = await App.api('Purchasing.po_details', { po_id: o.id });
-    const rows = r.lines.map(l => { const left = l.quantity - l.received_qty;
-      return `<tr><td>${UI.esc(l.part_number)}<div class="small text-muted">${UI.esc(l.description)}</div></td><td class="num">${l.quantity}</td><td class="num">${l.received_qty}</td>
-        <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${left}" data-rcv="${l.id}" ${left ? '' : 'disabled'}></td></tr>`; }).join('');
-    UI.modal('Receive parts for ' + UI.esc(o.po_ref), `<p class="small text-muted">Check the actual parts and quantities against the approved PO. Enter only what arrived; a short delivery stays "Partially Received".</p>
-      <table class="data-table"><thead><tr><th>Part</th><th class="num">Ordered</th><th class="num">Received</th><th>Received now</th></tr></thead><tbody>${rows}</tbody></table>
-      ${UI.fields([{ name: 'supplier_invoice_no', label: 'Supplier invoice / delivery receipt no.', col: 6 }, { name: 'receipt', label: 'Delivery receipt / invoice file (optional)', type: 'file', col: 6 }])}`,
-      async (x, form) => { const receive = [...form.querySelectorAll('[data-rcv]')].map(i => ({ line_id: i.dataset.rcv, qty: +i.value || 0 }));
-        const res = await App.apiForm('Purchasing.po_receive', { po_id: o.id, receive, supplier_invoice_no: x.supplier_invoice_no }, form); UI.result(res); App.route(); }, { submit: 'Record received parts' });
+    const ready = !!r.warrantyReady;
+    const today = new Date();
+    const localDate = [today.getFullYear(), String(today.getMonth()+1).padStart(2,'0'), String(today.getDate()).padStart(2,'0')].join('-');
+    const rows = r.lines.map(l => {
+      const left = l.quantity - l.received_qty;
+      return `<tr><td>${UI.esc(l.part_number)}<div class="small text-muted">${UI.esc(l.description)}</div></td>
+        <td class="num">${l.quantity}</td><td class="num">${l.received_qty}</td>
+        <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${left}" data-rcv="${l.id}" ${left ? '' : 'disabled'}></td>
+        ${ready ? `<td><input class="form-control form-control-sm" type="number" min="0" max="120" step="1" value="${UI.esc(l.warranty_months || 0)}" data-wmonths="${l.id}" ${left ? '' : 'disabled'}><small class="text-muted">months; 0 = none</small></td>
+        <td><input class="form-control form-control-sm" type="date" value="${localDate}" data-wstart="${l.id}" ${left ? '' : 'disabled'}></td>` : ''}</tr>`;
+    }).join('');
+    UI.modal('Receive parts for ' + UI.esc(o.po_ref), `<p class="small text-muted">Check the delivered quantities against this approved PO. Partial deliveries are supported.</p>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th>Ordered</th><th>Received</th><th>Received now</th>
+      ${ready ? '<th>Warranty duration</th><th>Warranty start</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
+      ${ready ? '<p class="small text-muted mt-2">Each receipt is tracked separately. Set warranty months to 0 for no coverage; otherwise confirm the actual warranty start date.</p>' :
+      '<p class="small text-warning mt-2">Dated warranty tracking will be available after the warranty database migration. Existing receiving remains available.</p>'}
+      ${UI.fields([{ name: 'supplier_invoice_no', label: 'Supplier invoice / delivery receipt no.', col: 6 },
+        { name: 'receipt', label: 'Delivery receipt / invoice file (optional)', type: 'file', col: 6 }])}`,
+      async (x, form) => {
+        const receive = [...form.querySelectorAll('[data-rcv]')].map(i => ({ line_id: i.dataset.rcv, qty: +i.value || 0 }));
+        const warranty = ready ? receive.filter(i => i.qty > 0).map(i => ({
+          line_id: i.line_id,
+          months: form.querySelector('[data-wmonths="' + i.line_id + '"]').value,
+          start: form.querySelector('[data-wstart="' + i.line_id + '"]').value
+        })) : [];
+        const res = await App.apiForm('Purchasing.po_receive', { po_id: o.id, receive, warranty,
+          supplier_invoice_no: x.supplier_invoice_no }, form);
+        UI.result(res); App.route();
+      }, { submit: 'Record received parts', size: 'modal-xl' });
   },
 };
 
@@ -207,9 +228,13 @@ PurUI.kit = (d, can) => {
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
       { name: 'unit_cost', label: 'Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Cost per unit, not total stock value.' },
       { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
-      { name: 'warranty_info', label: 'Warranty (optional)', col: 12, value: p.warranty_info, placeholder: 'e.g. 12 months', attrs: 'maxlength="150"' },
+      ...(d.warrantyReady ? [{ name: 'warranty_months', label: 'Default Warranty (months)', type: 'number',
+        col: 12, value: p.warranty_months ?? 0, min: 0, attrs: 'max="120" step="1"',
+        help: '0 = no warranty. Actual start and expiry are tracked separately when parts are received.' }] : []),
+      ...(p.warranty_info ? [{ name: 'warranty_info', label: 'Historical warranty note', col: 12, value: p.warranty_info,
+        attrs: 'readonly aria-readonly="true"', help: 'Retained from old records; does not create expiration alerts.' }] : []),
       ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
-        transform: ({ part_id_display, ...data }) => data,
+        transform: ({ part_id_display, warranty_info, ...data }) => data,
         intro: p.id ? 'Update part details. The Part ID and stock on hand will not change.' : 'Part ID is assigned automatically. New parts start with 0 on hand; stock is added through purchase-order receiving or an Admin-approved stock count.' });
     const partAct = (a, p) => a === 'edit' ? partForm(p) : a === 'count' ? PurUI.countForm(d, p) : null;
   return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
@@ -355,6 +380,10 @@ PurUI.openPO = async (o, k) => {
     ${UI.h('Items')}<div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th>Received / ordered</th><th class="money-col">Unit price</th><th class="money-col">Amount</th></tr></thead>
     <tbody>${x.lines.map(l => `<tr><td><b>${UI.esc(l.part_number)}</b><div class="cell-sub">${UI.esc(l.description)}</div></td><td class="cell-nowrap">${PurUI.bar(+l.received_qty, +l.quantity)} ${UI.esc(l.unit)}</td><td class="money-col">${UI.money(l.unit_price)}</td><td class="money-col">${UI.money(l.line_total)}</td></tr>`).join('')}</tbody></table></div>
     ${(x.payments || []).length ? UI.h('Payments') + UI.table([['Voucher', 'voucher_number'], ['Released', 'released_on', 'date'], ['Method', 'payment_method'], ['Amount', 'amount', 'money']], x.payments, { plain: true }) : ''}
+    ${UI.h('Warranty receipt batches')}
+    ${UI.table([['Part','description'],['Quantity','received_qty','num'],['Start','warranty_start','date'],
+      ['Expiry','warranty_expires','date']], x.warrantyBatches || [],
+      { plain:true, empty:'No dated warranty receipts recorded.' })}
     ${UI.h('Documents')}${UI.docs(x.documents)}
     ${UI.h('Activity')}${PurUI.timeline(x.history)}
     <div class="d-flex flex-wrap gap-2 mt-3">${k.poActs(row, true)}</div>`;
@@ -369,7 +398,15 @@ PurUI.openPart = async (pt, k) => {
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
   const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
-      p.warranty_info ? ['Warranty', UI.esc(p.warranty_info)] : null])}
+      p.warranty_months ? ['Default warranty', UI.num(p.warranty_months) + ' months'] : null,
+      p.warranty_info ? ['Historical warranty note', UI.esc(p.warranty_info)] : null])}
+    ${UI.h('Warranty receipt batches')}
+    ${UI.table([['PO','po_ref'],['Quantity','received_qty','num'],['Start','warranty_start','date'],
+      ['Expires','warranty_expires','date'],['Status','warranty_expires', (v) => {
+        const now = new Date(), today = [now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+        const soon = new Date(now.getFullYear(),now.getMonth(),now.getDate()+30).toLocaleDateString('sv-SE');
+        return v < today ? 'Expired' : v <= soon ? 'Expiring soon' : 'Active';
+      }]], x.warrantyBatches || [], { plain:true, empty:'No dated warranty receipts recorded.' })}
     ${UI.h('Stock movements (latest 50)')}${UI.table([['Date and time', 'created_at', 'datetime'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => (v > 0 ? '+' : '') + UI.num(v)], ['Reference', 'reference', (v, m) => UI.e(v || m.reason)], ['Truck', 'plate_number'], ['By', 'actor']], x.movements, { plain: true, limit: 10, empty: 'No stock movement recorded.' })}
     <div class="d-flex flex-wrap gap-2 mt-3">${k.partActs(pt, true)}</div>`;
   const el = UI.drawer(UI.esc(p.description), html, { subtitle: 'Part ID · ' + UI.esc(p.part_number) });
