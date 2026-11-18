@@ -246,7 +246,9 @@ final class Purchasing {
         // Never accept a user-supplied part number on new records or change an existing identifier.
         $row = ['description' => field($d, 'description', 200), 'category' => optField($d, 'category', 80),
                 'unit' => field($d, 'unit', 20), 'unit_cost' => moneyField($d, 'unit_cost', true), 'reorder_level' => intField($d, 'reorder_level', 0),
-                'warranty_info' => optField($d, 'warranty_info', 150)];
+                ]; 
+        // Do not blank historical free-text warranty notes when the new form edits duration only.
+        if (array_key_exists('warranty_info', $d)) $row['warranty_info'] = optField($d, 'warranty_info', 150);
         $warrantyDb = self::warrantyReady(db());
         if (array_key_exists('warranty_months', $d)) {
             must($warrantyDb, 'Install and verify the part warranty migration before editing warranty terms.', 503);
