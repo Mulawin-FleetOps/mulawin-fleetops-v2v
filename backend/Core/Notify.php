@@ -93,6 +93,21 @@ final class Notify {
             foreach (many($p, "SELECT id, full_name, license_expiry FROM personnel WHERE active=1 AND license_expiry IS NOT NULL AND license_expiry <= DATE_ADD(CURRENT_DATE(), INTERVAL ? DAY)", [$licDays]) as $c) {
                 self::roles($p, ['admin', 'operations_head'], 'Driver license', $c['full_name'] . ' license expires on ' . $c['license_expiry'], 'crew', 'lic-' . $c['id'] . '-' . $today);
             }
+            // A notification is sent once when a warranty enters each reminder window.
+            // No estimated dates are fabricated for historic receipts without a recorded batch.
+            $warrantyTable = (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='part_warranty_batches'")['n'] ?? 0);
+            if ($warrantyTable === 1) {
+                foreach (many($p, "SELECT w.id, w.received_qty, w.warranty_expires, pt.part_number, pt.description
+                    FROM part_warranty_batches w JOIN parts pt ON pt.id=w.part_id
+                    WHERE w.warranty_expires <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)") as $w) {
+                    $days = (int)floor((strtotime($w['warranty_expires']) - strtotime($today)) / 86400);
+                    $stage = $days < 0 ? 'expired' : ($days <= 7 ? '7-day' : '30-day');
+                    self::roles($p, ['purchasing', 'admin'], 'Part warranty',
+                        $w['part_number'] . ' ' . $w['description'] . ' (' . $w['received_qty'] . ' received): warranty ' .
+                        ($days < 0 ? 'expired on ' : 'expires on ') . $w['warranty_expires'],
+                        'inventory', 'warranty-' . $w['id'] . '-' . $stage);
+                }
+            }
             foreach (many($p, 'SELECT id, part_number, description, quantity_on_hand, reorder_level FROM parts WHERE active=1 AND reorder_level > 0 AND quantity_on_hand <= reorder_level') as $pt) {
                 self::roles($p, ['purchasing'], 'Low stock', $pt['part_number'] . ' ' . $pt['description'] . ': ' . $pt['quantity_on_hand'] . ' left (reorder level ' . $pt['reorder_level'] . ')', 'inventory', 'stock-' . $pt['id'] . '-' . $today);
             }
