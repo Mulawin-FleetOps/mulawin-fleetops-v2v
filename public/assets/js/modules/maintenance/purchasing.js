@@ -233,7 +233,7 @@ PurUI.countForm = (d, part) => {
     <div class="stock-count-section-label">Physical count details</div>
     ${UI.fields([{ name: 'counted_qty', label: 'Actual quantity counted', type: 'number', required: true, col: 12,
       placeholder: 'Enter the number physically counted', attrs: 'min="0" max="100000" step="1"' },
-      { name: 'reason', label: 'Reason for discrepancy', required: true, col: 12,
+      { name: 'reason', label: 'Reason for Stock Difference', required: true, col: 12,
         placeholder: 'Explain why the actual stock differs from the system', attrs: 'maxlength="255"' }])}
     <div class="stock-count-section-label">Supporting document (optional)</div>
     ${UI.fields([{ name: 'evidence', label: 'Photo or stock count sheet', type: 'file',
@@ -251,7 +251,7 @@ PurUI.countForm = (d, part) => {
     const diff = raw === '' ? null : Math.trunc(+raw) - +p.quantity_on_hand;
     fig.innerHTML = `<div class="sc-fig"><span>System quantity</span><b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b></div>
       <div class="sc-fig"><span>Counted</span><b>${raw === '' ? '—' : UI.num(+raw) + ' ' + UI.esc(p.unit)}</b></div>
-      <div class="sc-fig ${diff ? (diff < 0 ? 'is-short' : 'is-over') : ''}"><span>Discrepancy</span><b>${diff === null ? '—' : (diff > 0 ? '+' : '') + UI.num(diff)}</b>
+      <div class="sc-fig ${diff ? (diff < 0 ? 'is-short' : 'is-over') : ''}"><span>Stock Difference</span><b>${diff === null ? '—' : (diff > 0 ? '+' : '') + UI.num(diff)}</b>
         ${diff ? `<small>${UI.money(Math.abs(diff) * +p.unit_cost)} at the recorded unit cost</small>` : ''}</div>
       ${open ? `<div class="alert alert-warning py-1 px-2 small mb-0 w-100">${UI.esc(open.count_ref)} for this part is still waiting for review. Only one open count per part is allowed.</div>` : ''}
       ${diff === 0 ? '<div class="alert alert-success py-1 px-2 small mb-0 w-100">The count matches the system: nothing to reconcile.</div>' : ''}`;
@@ -275,7 +275,7 @@ PurUI.openCount = async (c, can) => {
   const el = UI.drawer(UI.esc(k.count_ref), `${PurUI.nextBox(next)}
     ${UI.kv([['Status', UI.badge(k.status)], ['Part', `<b>${UI.esc(k.part_number)}</b> · ${UI.esc(k.description)}`],
       ['System quantity', UI.num(k.system_qty) + ' ' + UI.esc(k.unit)], ['Counted quantity', UI.num(k.counted_qty) + ' ' + UI.esc(k.unit)],
-      ['Discrepancy', `<b>${+k.variance > 0 ? '+' : ''}${UI.num(k.variance)}</b> · ${UI.money(Math.abs(+k.variance_value))} at ${UI.money(k.unit_cost)} each`],
+      ['Stock Difference', `<b>${+k.variance > 0 ? '+' : ''}${UI.num(k.variance)}</b> · ${UI.money(Math.abs(+k.variance_value))} at ${UI.money(k.unit_cost)} each`],
       ['Reason', UI.e(k.reason)], ['Counted by', UI.esc(k.counted_by_name) + ' · ' + UI.datetime(k.counted_at)],
       ['Review', k.reviewed_at ? UI.esc(k.reviewed_by_name) + ' · ' + UI.datetime(k.reviewed_at) + (k.review_notes ? `<div class="cell-sub">${UI.esc(k.review_notes)}</div>` : '') : 'Waiting for the Admin'],
       k.status === 'Posted' ? ['Posted change', UI.num(k.qty_before) + ' → ' + UI.num(k.qty_after) + ' ' + UI.esc(k.unit)] : null])}
@@ -619,7 +619,7 @@ App.page('inventory', {
           ['Count', 'count_ref', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.datetime(c.counted_at)}</div>`],
           ['Part ID / Name', 'part_number', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(c.description)}</div>`],
           ['System', 'system_qty', 'num'], ['Counted', 'counted_qty', 'num'],
-          ['Discrepancy', 'variance', (v, c) => `<span class="cell-nowrap ${+v < 0 ? 'text-danger' : ''}"><b>${+v > 0 ? '+' : ''}${UI.num(v)}</b> ${UI.esc(c.unit)}</span><div class="cell-sub">${UI.money(Math.abs(+c.variance_value))}</div>`],
+          ['Stock Difference', 'variance', (v, c) => `<span class="cell-nowrap ${+v < 0 ? 'text-danger' : ''}"><b>${+v > 0 ? '+' : ''}${UI.num(v)}</b> ${UI.esc(c.unit)}</span><div class="cell-sub">${UI.money(Math.abs(+c.variance_value))}</div>`],
           ['Status', 'status', 'badge'],
           ['Waiting for', 'status', (v) => PurUI.chip(v === 'Submitted' ? ['admin', 'Admin'] : [null, 'Completed'])],
           ['Counted by', 'counted_by_name']], rows,
@@ -757,7 +757,7 @@ App.page('purchasing_reports', {
 
     ctx.el.innerHTML = `${UI.wsPeriod('purchasing_reports', per)}${UI.kpiTiles(tiles, 'ws-kpi4')}
       <div class="ws-grid2 ws-report-row">
-        ${UI.wsPanel('Stock in vs stock out', 'bi-graph-up', chartBody, { cls: 'ws-l1', tipHtml: PurReport.sug(flowTips, 'No delivery, shortage or stock discrepancy needs follow-up.') })}
+        ${UI.wsPanel('Stock in vs stock out', 'bi-graph-up', chartBody, { cls: 'ws-l1', tipHtml: PurReport.sug(flowTips, 'No delivery, shortage or stock difference needs follow-up.') })}
         ${UI.wsPanel('Most used parts', 'bi-trophy', rank, { cls: 'ws-r1', tipHtml: PurReport.sug(d.partTips, 'No part is low on stock right now.'), foot: 'Units released to repairs in the period.' })}
       </div>
       ${UI.wsPanel('Orders & stock summary', 'bi-clipboard-data', summary, { go: 'purchase_orders?tab=all', goLabel: 'Open records',
