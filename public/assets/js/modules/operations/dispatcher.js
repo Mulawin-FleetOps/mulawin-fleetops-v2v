@@ -1009,14 +1009,11 @@ const DispatcherUI = {
     const d=ctx.data,q=ctx.query,rows=d.rows;if(!Array.isArray(rows)){ctx.el.innerHTML='<p role="alert">Attendance roster unavailable.</p>';return;}
     const crewRows=rows.filter(r=>r.person_type===crewType);
     const fields=[{name:'attendance_status',label:'Attendance Status',type:'select',placeholder:'All attendance states',options:this.options(crewRows,'attendance_status')}],opts={base:{view:'attendance',crew_type:crewType}};
-    // Use the same four-card KPI component as Trip and Funds records. Count the
-    // complete authorized roster, not the current search/filter result.
-    const kpis=this.recordKpis([
-      ['Total '+crewLabel+'s',crewRows.length,'bi-people','resources'],
-      ['Timed In',crewRows.filter(r=>r.attendance_status==='Timed In').length,'bi-person-check','active'],
-      ['Not Timed In',crewRows.filter(r=>r.attendance_status==='Not Timed In').length,'bi-clock-history','attendance'],
-      ['Timed Out',crewRows.filter(r=>r.attendance_status==='Timed Out').length,'bi-box-arrow-right','blue']
-    ]);
+    // Compact attendance status counts; the roster and action buttons remain intact.
+    const kpis='<div class="small text-muted mb-2">'+UI.esc(crewLabel)+'s: <b>'+UI.num(crewRows.length)+'</b>'
+      +' · Timed In: <b>'+UI.num(crewRows.filter(r=>r.attendance_status==='Timed In').length)+'</b>'
+      +' · Not Timed In: <b>'+UI.num(crewRows.filter(r=>r.attendance_status==='Not Timed In').length)+'</b>'
+      +' · Timed Out: <b>'+UI.num(crewRows.filter(r=>r.attendance_status==='Timed Out').length)+'</b></div>';
     ctx.el.innerHTML=(!d.schema_ready?'<p role="alert" class="alert alert-warning">Dispatcher attendance sessions are not installed. Apply the additive Dispatcher attendance migration.</p>':'')+kpis+this.filters(ctx,fields,{...opts,placeholder:'Search '+crewLabel.toLowerCase()+' name…'})+'<nav class="ds-attendance-crew-tabs" aria-label="Attendance pages"><div class="ds-attendance-crew-links">'+['Driver','Helper'].map(type=>'<a href="'+UI.esc(this.href(ctx.page,{view:'attendance',crew_type:type}))+'" '+(type===crewType?'class="active" aria-current="page"':'')+'>'+type+' Attendance ('+rows.filter(r=>r.person_type===type).length+')</a>').join('')+'</div></nav><p class="ds-record-context">Attendance date: '+UI.esc(d.attendance_date||d.shift?.date||'Unavailable')+' <span class="ds-attendance-reset-note">· Resets daily at 6:00 AM (PH)</span></p><div data-attendance-records></div><p class="small text-muted">Time Out is blocked while personnel are held by an active trip. One Time In and Time Out cycle is allowed per attendance date; previous records remain in History.</p>';
     const checklist={mode:'time_in',selected:new Set()};
     const selectable=r=>r.can_record!==false&&r.action===(checklist.mode==='time_in'?'Time In':'Time Out');
