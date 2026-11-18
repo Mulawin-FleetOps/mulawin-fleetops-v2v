@@ -415,6 +415,41 @@ PurUI.openRequest = async (r, k) => {
   PurUI.bindDrawerActions(root.querySelector('.d-flex.flex-wrap.gap-2.mt-3'), r, k.reqAct);
 };
 
+/** Purchasing may finish an unknown warranty or correct supplier-confirmed terms later. */
+PurUI.confirmWarranty = (batch, onSaved) => {
+  const has = batch.warranty_status === 'With Warranty';
+  const wrap = UI.modal('Update warranty · ' + UI.esc(batch.part_number || batch.description || 'Part'),
+    UI.fields([
+      { name:'status', label:'Warranty Status', type:'select', required:true, col:12,
+        value:batch.warranty_status,
+        options:[['Not Yet Confirmed','Not Yet Confirmed'],['With Warranty','With Warranty'],['No Warranty','No Warranty']] },
+      { name:'start_basis', label:'Start date basis', type:'select', col:12, value:batch.start_basis || '',
+        options:[['','Choose basis'],['Delivery','Delivery date'],['Purchase','Purchase date'],
+          ['Invoice','Invoice date'],['Installation','Installation date'],['Other','Other documented date']] },
+      { name:'start', label:'Warranty Start Date', type:'date', col:6, value:batch.warranty_start },
+      { name:'months', label:'Warranty Duration (months)', type:'number', col:6,
+        value:batch.warranty_months || '', attrs:'min="1" max="120" step="1"' },
+      { type:'html', col:12, html:'<div class="form-text">Use the actual supplier-confirmed start date. Changes are recorded in the audit history.</div>' }
+    ]),
+    async x => {
+      const result = await App.api('Purchasing.warranty_confirm', { batch_id:batch.id, ...x });
+      UI.result(result); if (onSaved) onSaved();
+    }, { submit:'Save warranty', onShow: (wrap) => {
+      const status = wrap.querySelector('[name="status"]');
+      const update = () => {
+        const covered = status.value === 'With Warranty';
+        for (const name of ['start_basis','start','months']) {
+          const inp=wrap.querySelector('[name="'+name+'"]');
+          inp.disabled=!covered; inp.required=covered;
+          const column=inp.closest('[class*="col-"]');
+          if(column) column.hidden=!covered;
+        }
+      };
+      status.addEventListener('change', update); update();
+    }});
+  return wrap;
+};
+
 /** Purchase order drawer: supplier, amounts (total / received / paid / balance), line progress, payments, documents, activity. */
 PurUI.openPO = async (o, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.po_details', { po_id: o.id }); const p = x.po;
@@ -432,15 +467,20 @@ PurUI.openPO = async (o, k) => {
     <tbody>${x.lines.map(l => `<tr><td><b>${UI.esc(l.part_number)}</b><div class="cell-sub">${UI.esc(l.description)}</div></td><td class="cell-nowrap">${PurUI.bar(+l.received_qty, +l.quantity)} ${UI.esc(l.unit)}</td><td class="money-col">${UI.money(l.unit_price)}</td><td class="money-col">${UI.money(l.line_total)}</td></tr>`).join('')}</tbody></table></div>
     ${(x.payments || []).length ? UI.h('Payments') + UI.table([['Voucher', 'voucher_number'], ['Released', 'released_on', 'date'], ['Method', 'payment_method'], ['Amount', 'amount', 'money']], x.payments, { plain: true }) : ''}
     ${UI.h('Warranty receipt batches')}
-    ${UI.table([['Part','description'],['Quantity','received_qty','num'],['Start','warranty_start','date'],
-      ['Expiry','warranty_expires','date']], x.warrantyBatches || [],
-      { plain:true, empty:'No dated warranty receipts recorded.' })}
+    ${UI.table([['Part','description'],['Quantity','received_qty','num'],['Warranty Status','warranty_status'],
+      ['Start','warranty_start','date'],['Expires','warranty_expires','date'],
+      ...(App.me?.user?.role === 'purchasing' ? [['Edit','id',v => '<button type="button" class="btn btn-sm btn-outline-secondary" data-warranty-batch="'+UI.esc(v)+'">Update</button>']] : [])],
+      x.warrantyBatches || [], { plain:true, empty:'No warranty receipt records yet.' })}
     ${UI.h('Documents')}${UI.docs(x.documents)}
     ${UI.h('Activity')}${PurUI.timeline(x.history)}
     <div class="d-flex flex-wrap gap-2 mt-3">${k.poActs(row, true)}</div>`;
   const el = UI.drawer(UI.esc(p.po_ref), html, { subtitle: 'Purchase order · ' + UI.esc(p.supplier) });
   const root = el || document.querySelector('.offcanvas.app-drawer');
   PurUI.bindDrawerActions(root.querySelector('.d-flex.flex-wrap.gap-2.mt-3'), row, k.poAct);
+  root.querySelectorAll('[data-warranty-batch]').forEach(btn => btn.addEventListener('click', () => {
+    const batch = (x.warrantyBatches || []).find(b => String(b.id) === btn.dataset.warrantyBatch);
+    if (batch) PurUI.confirmWarranty(batch, () => PurUI.openPO(o, k));
+  }));
 };
 
 /** Part drawer: stock figures, 90-day usage and the last 50 movements with their PO / request references. */
@@ -449,20 +489,22 @@ PurUI.openPart = async (pt, k) => {
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
   const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
-      p.warranty_months ? ['Default warranty', UI.num(p.warranty_months) + ' months'] : null,
+
       p.warranty_info ? ['Historical warranty note', UI.esc(p.warranty_info)] : null])}
     ${UI.h('Warranty receipt batches')}
-    ${UI.table([['PO','po_ref'],['Quantity','received_qty','num'],['Start','warranty_start','date'],
-      ['Expires','warranty_expires','date'],['Status','warranty_expires', (v) => {
-        const now = new Date(), today = [now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
-        const soon = new Date(now.getFullYear(),now.getMonth(),now.getDate()+30).toLocaleDateString('sv-SE');
-        return v < today ? 'Expired' : v <= soon ? 'Expiring soon' : 'Active';
-      }]], x.warrantyBatches || [], { plain:true, empty:'No dated warranty receipts recorded.' })}
+    ${UI.table([['PO','po_ref'],['Quantity','received_qty','num'],['Warranty Status','warranty_status'],
+      ['Start','warranty_start','date'],['Expires','warranty_expires','date'],
+      ...(App.me?.user?.role === 'purchasing' ? [['Edit','id',v => '<button type="button" class="btn btn-sm btn-outline-secondary" data-warranty-batch="'+UI.esc(v)+'">Update</button>']] : [])],
+      x.warrantyBatches || [], { plain:true, empty:'No warranty receipt records yet.' })}
     ${UI.h('Stock movements (latest 50)')}${UI.table([['Date and time', 'created_at', 'datetime'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => (v > 0 ? '+' : '') + UI.num(v)], ['Reference', 'reference', (v, m) => UI.e(v || m.reason)], ['Truck', 'plate_number'], ['By', 'actor']], x.movements, { plain: true, limit: 10, empty: 'No stock movement recorded.' })}
     <div class="d-flex flex-wrap gap-2 mt-3">${k.partActs(pt, true)}</div>`;
   const el = UI.drawer(UI.esc(p.description), html, { subtitle: 'Part ID · ' + UI.esc(p.part_number) });
   const root = el || document.querySelector('.offcanvas.app-drawer');
   PurUI.bindDrawerActions(root.querySelector('.d-flex.flex-wrap.gap-2.mt-3'), pt, k.partAct);
+  root.querySelectorAll('[data-warranty-batch]').forEach(btn => btn.addEventListener('click', () => {
+    const batch = (x.warrantyBatches || []).find(b => String(b.id) === btn.dataset.warrantyBatch);
+    if (batch) PurUI.confirmWarranty({ ...batch, part_number:p.part_number }, () => PurUI.openPart(pt, k));
+  }));
 };
 
 /** Opens the record named by ?open=<id> once (links from the Overview, notifications and other drawers). */
