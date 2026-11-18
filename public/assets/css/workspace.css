@@ -1897,6 +1897,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 .purchasing-receive-modal .purchasing-receive-warranty-details label{
  display:flex;flex-direction:column;gap:5px;min-width:0;font-weight:600;font-size:12px;
 }
+.purchasing-receive-modal .purchasing-receive-warranty-details label[hidden]{display:none!important}
 .purchasing-receive-modal .purchasing-receive-warranty-details .purchasing-receive-expiry{
  grid-column:1/-1;font-size:12px;color:#24553b;
 }
