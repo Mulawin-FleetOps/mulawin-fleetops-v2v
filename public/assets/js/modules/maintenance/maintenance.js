@@ -513,13 +513,13 @@ App.page('maintenance', {
     if (Object.prototype.hasOwnProperty.call(EXTRA, q.view)) TABS.push([q.view, ...EXTRA[q.view]]);
     const tab = TABS.some(t => t[0] === (q.view || '')) ? (q.view || '') : '';
     const stageTiles = [
-      ['Reported', reported.length, 'bi-exclamation-circle', 'maintenance?view=reported', 'New issue to assess'],
-      ['Inspection', inspection.length, 'bi-search', 'maintenance?view=inspection', 'Record findings'],
-      ['Under Repair', repair.length, 'bi-wrench-adjustable', 'maintenance?view=repair', 'Complete corrective work'],
-      ['Verify', verify.length, 'bi-shield-check', 'maintenance?view=verify', 'Return to service check']
+      ['Reported', reported.length, 'bi-exclamation-circle', 'maintenance?view=reported', 'New issue to assess', 'gray'],
+      ['Inspection', inspection.length, 'bi-search', 'maintenance?view=inspection', 'Record findings', 'blue'],
+      ['Under Repair', repair.length, 'bi-wrench-adjustable', 'maintenance?view=repair', 'Complete corrective work', 'amber'],
+      ['Verify', verify.length, 'bi-shield-check', 'maintenance?view=verify', 'Return to service check', 'purple']
     ];
-    const stageSummary = `<div class="mp-action-stages mp-reference-stages mb-3">${stageTiles.map(([name, count, icon, go, hint]) =>
-      `<button type="button" class="mp-action-stage" data-go="${UI.esc(go)}">
+    const stageSummary = `<div class="mp-action-stages mp-reference-stages mb-3">${stageTiles.map(([name, count, icon, go, hint, color]) =>
+      `<button type="button" class="mp-action-stage" data-kpi-color="${color}" data-go="${UI.esc(go)}">
         <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
         <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
         <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
