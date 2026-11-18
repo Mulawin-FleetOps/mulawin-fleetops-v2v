@@ -1108,3 +1108,46 @@
     width:100% !important;
   }
 }
+
+
+/* Uniform desktop viewport breathing room across ALL role workspaces.
+   Supersedes the old 8px-per-side width and zero top margin without
+   touching component layout, pagination or page content. */
+#appShell.sidebar-manual-toggle > .main > #pageContent,
+#appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
+#appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
+#appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2 {
+  box-sizing:border-box !important;
+  width:calc(100% - 48px) !important;
+  max-width:1360px !important;
+  min-width:0 !important;
+  margin:24px auto 36px !important;
+  align-self:center !important;
+  flex:0 0 auto !important;
+}
+/* Workspace and Analytics wrappers both retain their single gold border. */
+#appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+  width:calc(100% - 48px) !important;
+  max-width:1360px !important;
+  margin:24px auto 36px !important;
+}
+@media(max-width:991.98px) {
+  #appShell.sidebar-manual-toggle > .main > #pageContent,
+  #appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2,
+  #appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+    width:calc(100% - 32px) !important;
+    margin:20px auto 28px !important;
+  }
+}
+@media(max-width:575.98px) {
+  #appShell.sidebar-manual-toggle > .main > #pageContent,
+  #appShell.sidebar-manual-toggle.ws-app > .main > #pageContent.ws-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.ref-scope,
+  #appShell.sidebar-manual-toggle > .main > #pageContent.billing-design-v2,
+  #appShell.sidebar-manual-toggle > .main > #pageContent:has(.ax-shell) {
+    width:calc(100% - 20px) !important;
+    margin:14px auto 22px !important;
+  }
+}
