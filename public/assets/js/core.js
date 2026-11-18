@@ -436,11 +436,9 @@ const App = {
         nav = home ? wsLink({ ...home, label: 'Dashboard' }) : '';
         const ordered = ['billing', 'billing_collections', 'billing_receivables', 'reports']
           .map(lookup).filter(Boolean);
-        if (ordered.length) nav += UI.sidebarGroup({
-          title: 'Billing', icon: 'bi-columns-gap',
-          items: ordered.map(n => wsLink(n.id === 'reports'
-            ? { ...n, label: 'Billing Reports' } : n)).join('')
-        });
+        // BILLING_FLAT_NAV_V3: four primary links, no expandable Billing parent.
+        if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports'
+          ? { ...n, label: 'Billing Reports' } : n)).join('');
         // Clients, routes, trips and documents are supporting pages, opened
         // from authorized record links, not primary Billing menu entries.
       } else {
