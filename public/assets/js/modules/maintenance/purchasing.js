@@ -721,11 +721,12 @@ App.page('inventory', {
     if (can.count && d.countsReady) PurUI.tool(ctx, 'Record stock count', 'bi-clipboard-check', () => PurUI.countForm(d));
     const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +p.quantity_on_hand <= 0);
     const counts = d.counts || [], pending = counts.filter(c => c.status === 'Submitted');
+    // Keep inventory-health KPIs; avoid summing incompatible part units
+    // (pieces, liters, sets, etc.) into a misleading single quantity.
     const inventoryCards = PurRef.cards([
-      {label:'Active Parts',value:active.length,note:'In masterlist',icon:'bi-boxes',go:'inventory?stock=active'},
-      {label:'Low / Out of Stock',value:low.length,note:'At or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
-      {label:'Inventory Units',value:UI.num(active.reduce((v,p)=>v+(+p.quantity_on_hand||0),0)),note:'Total units on hand',icon:'bi-collection'},
-      {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On hand × unit cost',icon:'bi-cash-coin'}
+      {label:'Low / Out of Stock',value:low.length,note:'Parts at or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
+      {label:'Stock Counts Awaiting Review',value:d.countsReady?pending.length:'—',note:'Submitted physical counts for Admin review',icon:'bi-clipboard-check',go:d.countsReady?'inventory?view=counts':undefined},
+      {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On-hand stock × recorded unit cost',icon:'bi-cash-coin'}
     ]);
     const view = q.view === 'counts' ? 'counts' : 'parts';
     const cats = [...new Set(parts.map(p => p.category).filter(Boolean))].sort();
