@@ -1317,3 +1317,31 @@
     .panel:has(> .panel-body.flush > .table-tools) > .panel-body.flush > .table-tools
   ) { padding:10px 12px !important; }
 }
+
+
+/* KPI_GOLD_OUTLINE_V1
+   Billing-reference gold edge on actual KPI tile surfaces across roles.
+   Avoid KPI grid containers, inner icons, semantic status chips and tables. */
+#appShell.sidebar-manual-toggle #pageContent :is(
+  .kpi-tile,
+  .rpm-kpi,
+  .metric-icon-card,
+  .head-fleet-kpi,
+  .head-kpi,
+  .mp-action-stage,
+  .pr-sum-card,
+  .oh-metric,
+  .ds-summary-card,
+  .ax-kpi,
+  .ws-kpi-card
+) {
+  border:1px solid #E7B447 !important;
+  border-radius:10px !important;
+  box-shadow:0 1px 5px rgba(231,180,71,.10) !important;
+}
+/* Keep existing tile backgrounds; preserve selected/semantic KPI states. */
+#appShell.sidebar-manual-toggle #pageContent :is(.mp-action-stage,.oh-metric,.ds-summary-card).active,
+#appShell.sidebar-manual-toggle #pageContent :is(.mp-action-stage,.oh-metric,.ds-summary-card).selected,
+#appShell.sidebar-manual-toggle #pageContent .ax-category.active {
+  border-color:#258553 !important;
+}
