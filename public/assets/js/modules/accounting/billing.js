@@ -296,7 +296,6 @@ App.page('billing', {
   subtitle: 'Billing drafts of dispatched trips, completed trips to verify and invoice, and invoices issued.',
   render(ctx) {
     if (UI.role('admin')) return HeadBillingPage.render(ctx);
-    if (UI.role('billing') || UI.role('audit')) UI.tool(ctx, 'Pricing Impact', () => BillUI.pricingReport(), 'bi-clock-history', 'outline-secondary');
     const d=BillUI.data=ctx.data,q=ctx.query||{},all=d.billings||[],open=all.filter(b=>['Invoiced','Partially Paid'].includes(b.status));
     const tabs={
       for:['To bill',b=>b.status==='For Billing'],
@@ -324,6 +323,8 @@ App.page('billing', {
     const show=x=>BillUI.open(x.billing_id||x.id);
     const clients=[...new Set(all.map(x=>x.client).filter(Boolean))].sort();
     const filters=tab==='approvals'?'':UI.generalFilters(ctx,[{name:'client',label:'Clients',options:clients}]);
+    const pricingAction=(UI.role('billing')||UI.role('audit'))?'<button type="button" class="btn btn-sm btn-outline-secondary" data-pricing-impact><i class="bi bi-clock-history"></i> Pricing Impact</button>':'';
+    const filterActions='<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><div class="flex-grow-1">'+filters+'</div><div class="d-flex align-items-center gap-2 ms-auto">'+pricingAction+'</div></div>';
     const rows=tab==='approvals'?(d.adjustments||[]):all.filter(tabs[tab][1]).filter(x=>!q.client||x.client===q.client);
     const iconView=UI.ibtn('open','View billing details','bi-eye','outline-primary');
     const cols={
@@ -341,7 +342,7 @@ App.page('billing', {
         ['Dispatched','dispatched_at','datetime'],['Draft amount','total_amount','money']]
     };
     if(tab==='approvals'){
-      root.innerHTML=UI.table([['Trip','trip_ref',(v,x)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(x.client)+'</div>'],
+      root.innerHTML=filterActions+UI.table([['Trip','trip_ref',(v,x)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(x.client)+'</div>'],
         ['Request','id',(v,x)=>BillUI.reqText(x)],['Reason','reason',(v)=>'<span class="cell-clamp">'+UI.esc(v||'')+'</span>'],
         ['Requested','created_at',(v,x)=>UI.esc(x.added_by_name)+'<div class="cell-sub">'+UI.datetime(v)+'</div>'],
         ['Current total','total_amount','money'],['Waiting for','id',()=>BillUI.chip(['admin','Admin','Approve or reject'])]],rows,
@@ -349,7 +350,7 @@ App.page('billing', {
         actions:x=>(d.can.decide&&+x.added_by!==d.can.me?UI.ibtn('approve','Approve','bi-check-lg','success')+UI.ibtn('reject','Reject','bi-x-lg','outline-danger'):'')+iconView,
         onAction:(a,x)=>a==='open'?show(x):BillUI.decide(x,a,()=>App.route()),rowClick:show,empty:'No pending adjustments.'});
     }else{
-      root.innerHTML=filters+UI.table(cols[tab],rows,{
+      root.innerHTML=filterActions+UI.table(cols[tab],rows,{
         title:tabs[tab][0]+' ('+rows.length+')',showAllColumns:true,directActions:true,
         actions:b=>(d.can.act&&['Invoiced','Partially Paid'].includes(b.status)?UI.ibtn('collect','Record collection','bi-cash-stack','success'):'')
           +(d.can.act&&b.status==='For Billing'&&!+b.pending_adjustments&&+b.waybill_docs&&+b.dr_docs&&+b.ar_docs
@@ -357,6 +358,8 @@ App.page('billing', {
         onAction:(a,b)=>a==='collect'?BillUI.collectForm(b):show(b),rowClick:show,empty:'No billing records match.'
       });
     }
+    const pricingButton=root.querySelector('[data-pricing-impact]');
+    if(pricingButton)pricingButton.onclick=()=>BillUI.pricingReport();
   },
 });
 
