@@ -159,6 +159,9 @@ final class Access {
 
             'documents'   => ['Documents', 'bi-folder2-open', 'Records', 'Documents', 'general/documents', $all],
             'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'operations_reports' => ['Operations Reports', 'bi-truck', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'financial_reports' => ['Financial Reports', 'bi-wallet2', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'billing_reports' => ['Billing Reports', 'bi-receipt', 'Records', 'Analytics', 'general/reports', ['admin']],
             'reports_center' => ['Reports', 'bi-bar-chart-line', 'Records', 'ReportAccess', 'general/reports-center', $all],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
             // AUDIT_WORKSPACE_V1: read-only audit pages (Admin module, audit_events). Audit uses them instead of its former
@@ -247,7 +250,7 @@ final class Access {
     }
 
     private static function reportPage(string $page): bool {
-        return in_array($page, ['reports','maintenance_reports','purchasing_reports','audit_reports',
+        return in_array($page, ['reports','operations_reports','financial_reports','billing_reports','maintenance_reports','purchasing_reports','audit_reports',
             'admin_reports','admin_analytics','admin_descriptive_analytics','admin_diagnostic_analytics'], true);
     }
 
