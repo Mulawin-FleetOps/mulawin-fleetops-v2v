@@ -29,7 +29,10 @@ final class Analytics {
     }
     public static function action(array $u, string $action, array $d): array {
         if(in_array($action,['operations_export','operations_incident'],true)){
-            requireRole($u,'operations_head');core('OperationsReports');
+            requireRole($u,'operations_head');
+            core('Access');
+            must(Access::canOpen($u, 'reports') || Access::canOpen($u, 'operations_reports'), 'You do not have report access.', 403);
+            core('OperationsReports');
             return $action==='operations_export'?OperationsReports::export($u,$d):OperationsReports::incident($u,$d);
         }
         throw new BusinessRuleException('Unknown action.', 404);
