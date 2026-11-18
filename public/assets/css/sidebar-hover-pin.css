@@ -1328,14 +1328,14 @@
   .metric-icon-card,
   .head-fleet-kpi,
   .head-kpi,
-  .mp-action-stage,
-  .pr-sum-card,
+  .metric,
+  .stat-card,
   .oh-metric,
   .ds-summary-card,
   .ax-kpi,
   .ws-kpi-card
 ) {
-  border:1px solid #dfe9e2 !important;
+  border:1px solid #E7B447 !important;
   border-radius:10px !important;
   box-shadow:none !important;
 }
