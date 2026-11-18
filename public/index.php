@@ -30,7 +30,7 @@ if (isset($_GET['api'])) {
     try {
         // Security S1: login, logout and the password-change workflow remain reachable;
         // a user who must still replace a temporary password cannot call document, backup, map, or other APIs directly.
-        if (!in_array($api, ['whoami','login','logout','me','Admin.password_change_force','Admin.password_change_request','Admin.password_change_confirm'], true)
+        if (!in_array($api, ['whoami','login','logout','me','password_recovery_request','password_recovery_confirm','Admin.password_change_force','Admin.password_change_request','Admin.password_change_confirm'], true)
             && !empty($_SESSION['uid'])) {
             $setupUser = currentUser();
             core('SecurityPasswordChange');
@@ -39,6 +39,14 @@ if (isset($_GET['api'])) {
         switch ($api) {
             case 'whoami':
                 jsonOut(['ok' => true, 'signedIn' => (bool)($_SESSION['uid'] ?? false), 'csrf' => $_SESSION['csrf']]);
+            case 'password_recovery_request':
+            case 'password_recovery_confirm':
+                must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
+                $d = inputData();
+                checkCsrf($d['csrf'] ?? '');
+                core('PasswordRecovery');
+                jsonOut(['ok' => true, 'data' => $api === 'password_recovery_request'
+                    ? PasswordRecovery::request($d) : PasswordRecovery::confirm($d)]);
             case 'login':
                 // Username (or email) + password. A correct password signs the user in; there is no second step.
                 must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
