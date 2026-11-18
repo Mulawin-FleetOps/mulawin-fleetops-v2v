@@ -152,15 +152,15 @@ const PurUI = {
       <div class="pf-note">Status: ${UI.esc(p.status)}${approved ? ' · Approved by ' + UI.esc(p.decided_by_name) + ' (' + (p.approver_role === 'finance' ? 'Finance' : 'Admin') + ') on ' + UI.datetime(p.decided_at) + '. Budget reserved by the system.' : ' · NOT APPROVED — do not use for purchasing.'}</div>
       <div class="pf-signs">${UI.sign('Requested by (Purchasing Officer)', p.requested_by_name, p.requested_by, 'purchase_order', p.id)}${UI.sign('Approved by (' + (p.approver_role === 'finance' ? 'Finance' : 'Admin') + ')' + (approved ? ' · approved in the system' : ''), approved ? p.decided_by_name : '', approved ? p.decided_by : null, 'purchase_order', p.id)}</div>`, { number: p.po_ref });
   },
-/** Date-only warranty preview using the same end-of-month clamp as the PHP backend. */
-PurUI.warrantyExpiry = (start, months) => {
+  /** Date-only warranty preview using the same end-of-month clamp as the PHP backend. */
+  warrantyExpiry(start, months) {
   const parts = String(start).split('-').map(Number);
   if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return '—';
   const first = new Date(parts[0], parts[1] - 1 + Number(months), 1);
   const last = new Date(first.getFullYear(),first.getMonth() + 1,0).getDate();
   first.setDate(Math.min(parts[2],last));
   return [first.getFullYear(),String(first.getMonth()+1).padStart(2,'0'),String(first.getDate()).padStart(2,'0')].join('-');
-};
+  },
   async receive(o) {
     const r = await App.api('Purchasing.po_details', { po_id: o.id });
     const ready = !!r.warrantyReady;
