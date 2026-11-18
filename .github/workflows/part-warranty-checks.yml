@@ -1,0 +1,36 @@
+name: Part Warranty Checks
+on:
+  push:
+    branches: [luis]
+    paths:
+      - 'backend/Modules/Maintenance/Purchasing.php'
+      - 'backend/Core/Notify.php'
+      - 'backend/Data.php'
+      - 'public/assets/js/modules/maintenance/purchasing.js'
+      - 'database/migrations/2026-11-18_20_part_warranty_batches.sql'
+      - 'tests/Unit/PartWarrantyTest.php'
+      - '.github/workflows/part-warranty-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  warranty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: Syntax checks
+        run: |
+          php -l backend/Modules/Maintenance/Purchasing.php
+          php -l backend/Core/Notify.php
+          php -l backend/Data.php
+          php -l tests/Unit/PartWarrantyTest.php
+          node --check public/assets/js/modules/maintenance/purchasing.js
+      - name: Install locked development dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Isolated warranty date unit tests
+        run: php vendor/bin/phpunit --testsuite Unit --filter PartWarrantyTest --do-not-cache-result
