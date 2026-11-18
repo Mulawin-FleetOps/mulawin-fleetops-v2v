@@ -584,46 +584,37 @@ final class Purchasing {
         $invoice = optField($d, 'supplier_invoice_no', 80);
         return transaction(function (PDO $p) use ($u, $d, $id, $invoice) {
             $warrantyReady = self::warrantyReady($p);
-            $warrantyInput = [];
-            foreach ((array)($d['warranty'] ?? []) as $w) {
-                must(is_array($w) && !empty($w['line_id']), 'Invalid warranty item.');
-                $key = (int)$w['line_id'];
-                must(!isset($warrantyInput[$key]), 'Duplicate warranty item.');
-                $warrantyInput[$key] = $w;
-            }
-            must($warrantyReady || !$warrantyInput, 'Install the part warranty migration before recording warranty dates.', 503);
+            // Warranty terms come from the Part Masterlist. A receipt creates a new
+            // dated batch using the server's actual receiving date, not client overrides.
+            must(!array_key_exists('warranty', $d) || empty($d['warranty']),
+                'Warranty terms are assigned in Add/Edit Part and calculated automatically at receiving. Refresh this page.', 409);
             $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
             must((bool)$o, 'Purchase order not found.', 404);
             must(in_array($o['status'], ['Approved', 'Partially Received'], true), 'Only approved purchase orders can be received (this one is ' . $o['status'] . ').', 409);
             $got = [];
             foreach ((array)($d['receive'] ?? []) as $x) if (is_array($x) && !empty($x['line_id'])) $got[(int)$x['line_id']] = (int)($x['qty'] ?? 0);
             $total = 0;
-            foreach (many($p, 'SELECT l.*, pt.part_number FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? FOR UPDATE', [$id]) as $l) {
+            foreach (many($p, 'SELECT l.*, pt.part_number' . ($warrantyReady ? ', pt.warranty_months' : '') . ' FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? FOR UPDATE', [$id]) as $l) {
                 $q = $got[(int)$l['id']] ?? 0;
                 if ($q <= 0) continue;
                 must($q <= (int)$l['quantity'] - (int)$l['received_qty'], 'Received quantity of ' . $l['part_number'] . ' is more than the remaining ordered quantity.');
                 self::move($p, $u, (int)$l['part_id'], 'Stock In', $q, (float)$l['unit_price'], 'Received from ' . $o['po_ref'], 'purchase_order', $id);
                 run($p, 'UPDATE parts SET unit_cost=? WHERE id=?', [$l['unit_price'], $l['part_id']]);
                 run($p, 'UPDATE purchase_order_lines SET received_qty=received_qty+? WHERE id=?', [$q, $l['id']]);
-                if (isset($warrantyInput[(int)$l['id']])) {
-                    $w = $warrantyInput[(int)$l['id']];
-                    unset($warrantyInput[(int)$l['id']]);
-                    $months = filter_var($w['months'] ?? null, FILTER_VALIDATE_INT);
-                    must($months !== false && $months >= 0 && $months <= 120, 'Warranty duration must be 0 to 120 months.');
-                    if ($months > 0) {
-                        $start = trim((string)($w['start'] ?? ''));
-                        $end = self::warrantyExpiry($start, $months);
-                        insert($p, 'part_warranty_batches', [
-                            'po_line_id' => $l['id'], 'part_id' => $l['part_id'],
-                            'received_qty' => $q, 'warranty_months' => $months,
-                            'warranty_start' => $start, 'warranty_expires' => $end,
-                            'received_by' => $u['id'],
-                        ]);
-                    }
+                if ($warrantyReady && (int)($l['warranty_months'] ?? 0) > 0) {
+                    $months = (int)$l['warranty_months'];
+                    must($months <= 120, 'Part warranty duration is invalid. Review the Part Masterlist.');
+                    $start = date('Y-m-d');
+                    insert($p, 'part_warranty_batches', [
+                        'po_line_id' => $l['id'], 'part_id' => $l['part_id'],
+                        'received_qty' => $q, 'warranty_months' => $months,
+                        'warranty_start' => $start,
+                        'warranty_expires' => self::warrantyExpiry($start, $months),
+                        'received_by' => $u['id'],
+                    ]);
                 }
                 $total += $q;
             }
-            must(!$warrantyInput, 'Warranty details must match PO lines actually received in this transaction.');
             must($total > 0, 'Enter the quantities actually received.');
             Files::store($p, $u, 'receipt', 'purchase', $id, 'Delivery Receipt / Supplier Invoice');
             $left = (int)one($p, 'SELECT COALESCE(SUM(quantity-received_qty),0) AS n FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['n'];
@@ -687,7 +678,12 @@ final class Purchasing {
         $warrantyReady = self::warrantyReady($p);
         return ['po' => $o, 'warrantyReady' => $warrantyReady,
             'warrantyBatches' => $warrantyReady ? many($p, "SELECT wb.*, pt.part_number, pt.description FROM part_warranty_batches wb JOIN parts pt ON pt.id=wb.part_id JOIN purchase_order_lines l ON l.id=wb.po_line_id WHERE l.purchase_order_id=? ORDER BY wb.received_at DESC, wb.id DESC", [$id]) : [],
-            'lines' => many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit' . ($warrantyReady ? ', pt.warranty_months' : '') . ' FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id', [$id]),
+            'lines' => array_map(static function (array $line) use ($warrantyReady): array {
+                $months = (int)($line['warranty_months'] ?? 0);
+                $line['warranty_expiry_preview'] = $warrantyReady && $months > 0 && $months <= 120
+                    ? self::warrantyExpiry(date('Y-m-d'), $months) : null;
+                return $line;
+            }, many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit' . ($warrantyReady ? ', pt.warranty_months' : '') . ' FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id', [$id])),
             // S4B-2D-B: detailed disbursement records contain Finance-only payment data.
             // Purchasing/Motorpool still receive PO payment_status, but not bank/payment details.
             'payments' => hasRole($u, 'finance', 'admin', 'audit')
