@@ -128,7 +128,7 @@ App.page('admin_approvals', {
     const TABS = [['pending', 'Pending', r => r.status === 'Pending'], ['decided', 'Decided (90 days)', r => r.status !== 'Pending'], ['all', 'All', () => true]];
     const tab = TABS.some(t => t[0] === q.tab) ? q.tab : 'pending';
     const rows = base.filter(TABS.find(t => t[0] === tab)[2]);
-    ctx.el.innerHTML = UI.statusTabs('admin_approvals', q, 'tab', TABS.map(([k, l, f]) => [k, l, base.filter(f).length]), tab)
+    ctx.el.innerHTML = UI.statusTabs(ctx.page, q, 'tab', TABS.map(([k, l, f]) => [k, l, base.filter(f).length]), tab)
       + UI.generalFilters(ctx, [{ name: 'type', label: 'Request types', options: types }])
       + `<div class="small text-muted mb-2">Only decisions the system assigns to the Admin appear here: purchase orders above the approval limit, stock count adjustments and billing charge requests.
          Purchase orders up to the limit are approved by Finance and trip funds by the Operations Head.</div>`;
