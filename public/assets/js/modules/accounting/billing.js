@@ -199,10 +199,10 @@ App.page('billing_overview', {
   render(ctx) {
     const d = BillUI.data = ctx.data, c = d.counts || {}, collected = d.collectedMonth || {};
     const k = [
-      {label:'Trips to bill',value:+c.for_billing||0,note:'Completed trips to verify and invoice',icon:'bi-receipt',tone:'amber',go:'billing?tab=for'},
+      {label:'Trips to bill',value:+c.for_billing||0,note:'Completed trips to verify and invoice',icon:'bi-receipt',tone:'blue',go:'billing?tab=for'},
       {label:'Ongoing drafts',value:+c.ongoing||0,note:'View-only while trips are ongoing',icon:'bi-hourglass',tone:'gray',go:'billing?tab=ongoing'},
       {label:'Adjustments pending',value:d._errors?.pendingAdjustments?'—':(+d.pendingAdjustments||0),note:'Waiting for Admin approval',icon:'bi-hourglass-split',tone:'amber',go:'billing?tab=approvals'},
-      {label:'Outstanding',value:UI.money(c.outstanding||0),note:(+c.unpaid||0)+' unpaid invoice(s)',icon:'bi-file-earmark-text',tone:'blue',go:'billing_receivables'},
+      {label:'Outstanding',value:UI.money(c.outstanding||0),note:(+c.unpaid||0)+' unpaid invoice(s)',icon:'bi-file-earmark-text',tone:'purple',go:'billing_receivables'},
       {label:'Overdue',value:UI.money(c.overdue||0),note:(+c.overdue_n||0)+' invoices past due',icon:'bi-exclamation-triangle',tone:'red',go:'billing_receivables?state=overdue'},
       {label:'Collected this month',value:UI.money(collected.total||0),note:(+collected.n||0)+' payment(s)',icon:'bi-cash-stack',tone:'green',go:'billing_collections'},
     ];
@@ -310,7 +310,7 @@ App.page('billing', {
       {label:'Ongoing trips (drafts)',value:count('ongoing'),note:'View-only while in progress',icon:'bi-hourglass',tone:'gray'},
       {label:'For billing',value:count('for'),note:'Completed trips awaiting review',icon:'bi-receipt',tone:'amber'},
       {label:'Unpaid invoices',value:open.length,note:'Invoiced or partially paid',icon:'bi-file-earmark',tone:'blue'},
-      {label:'Outstanding balance',value:UI.money(open.reduce((s,x)=>s+(+x.balance||0),0)),note:'Total unpaid balance',icon:'bi-wallet2',tone:'blue'},
+      {label:'Outstanding balance',value:UI.money(open.reduce((s,x)=>s+(+x.balance||0),0)),note:'Total unpaid balance',icon:'bi-wallet2',tone:'purple'},
       {label:'Overdue',value:UI.money(open.filter(x=>+x.days_overdue>0).reduce((s,x)=>s+(+x.balance||0),0)),note:'Past due invoice balances',icon:'bi-alarm',tone:'red'}
     ];
     const tabMarkup='<div class="bil-v2-tabstrip" role="tablist">'+Object.entries(tabs).map(([id,[label]])=>
