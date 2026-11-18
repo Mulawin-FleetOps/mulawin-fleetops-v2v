@@ -69,7 +69,7 @@ final class Maintenance {
         return [
             'trucks' => fn() => many($p, "SELECT v.id, v.plate_number, v.truck_number, v.truck_type, v.status,
                     (SELECT m.job_ref FROM maintenance_jobs m WHERE m.vehicle_id=v.id AND m.open_key=1 LIMIT 1) AS open_job,
-                    (SELECT t.trip_ref FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='vehicle' AND a.resource_id=v.id AND t.status IN ('Dispatched','On Hold - Incident Reported','In Transit') LIMIT 1) AS on_road
+                    (SELECT t.trip_ref FROM trip_assignments a JOIN trips t ON t.id=a.trip_id WHERE a.resource_type='vehicle' AND a.resource_id=v.id AND t.status IN ('Dispatched','On Hold - Incident Reported','In Transit','Completed') LIMIT 1) AS on_road
                 FROM vehicles v WHERE v.active=1 ORDER BY v.plate_number"),
             'mechanics' => fn() => many($p, "SELECT id, mechanic_code, full_name, specialization, availability FROM mechanics WHERE active=1 ORDER BY full_name"),
         ];
@@ -355,6 +355,7 @@ final class Maintenance {
         return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks) {
             $v = one($p, 'SELECT * FROM vehicles WHERE id=? FOR UPDATE', [$vid]);
             must($v && (int)$v['active'], 'Truck not found or inactive.', 404);
+            must(in_array((string)$v['status'], ['Available', 'Assigned'], true), 'Only Available or Assigned trucks at the garage can be reported here. On-trip, returning, unavailable and under-maintenance trucks are excluded.', 409);
             $open = FleetState::openJob($p, $vid);
             must(!$open, 'Truck ' . $v['plate_number'] . ' already has an unresolved maintenance record (' . ($open['job_ref'] ?? '') . '). Add the new findings to that record.', 409);
             $trip = FleetState::activeTrip($p, $vid);
