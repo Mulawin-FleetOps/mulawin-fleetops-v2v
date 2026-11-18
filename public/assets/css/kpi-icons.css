@@ -101,3 +101,20 @@
    width:36px;min-width:36px;height:36px;flex-basis:36px;font-size:17px;
  }
 }
+
+/* SEMANTIC_KPI_CLASSES_V2
+   Shared renderers attach dedicated color classes regardless of count.
+   These icon-only rules are intentionally last so older role-specific gray
+   fallback tones cannot override the semantic icon palette. */
+#pageContent .kpi-tile.kpi-color-green .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-green .rpm-kpi-icon{background:var(--kpi-green) !important}
+#pageContent .kpi-tile.kpi-color-blue .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-blue .rpm-kpi-icon{background:var(--kpi-blue) !important}
+#pageContent .kpi-tile.kpi-color-amber .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-amber .rpm-kpi-icon{background:var(--kpi-amber) !important}
+#pageContent .kpi-tile.kpi-color-red .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-red .rpm-kpi-icon{background:var(--kpi-red) !important}
+#pageContent .kpi-tile.kpi-color-purple .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-purple .rpm-kpi-icon{background:var(--kpi-purple) !important}
+#pageContent .kpi-tile.kpi-color-gray .kpi-icon,
+#pageContent .rpm-kpi.rpm-kpi-color-gray .rpm-kpi-icon{background:var(--kpi-slate) !important}
