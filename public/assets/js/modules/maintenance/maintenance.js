@@ -238,7 +238,9 @@ const MaintUI = {
         ${mainAction ? `<div class="mp-repair-main-action"><span class="small text-muted">Recommended action</span>${actionButton(mainAction)}</div>` : ''}
       </div>
       ${supportActions.length ? `<div class="mp-repair-support-actions"><strong>Other actions</strong><div class="mp-repair-support-buttons">${supportActions.map(actionButton).join('')}</div></div>` : ''}
-      ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at) : 'Reported at the garage')],
+      ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at)
+          : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.preDispatch.actor) + ' · ' + UI.datetime(r.preDispatch.completed_at)
+          : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
         ])}
@@ -543,7 +545,7 @@ App.page('maintenance', {
        + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
     const waited = (j) => { const days = Math.max(0, Math.floor((Date.now() - new Date(String(j.reported_on) + 'T00:00:00').getTime()) / 86400000));
       return days === 0 ? '<span class="text-muted">today</span>' : `<span class="${days >= 7 ? 'text-danger fw-semibold' : ''}">${days} day${days === 1 ? '' : 's'}</span>`; };
-    const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Arrival checklist ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
+    const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Checklist / garage ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
       ['Truck', 'plate_number', (v, j) => `${UI.esc(v)}<div class="cell-sub">${UI.esc(j.truck_type)}</div>`],
       ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`],
       ['Mechanic', 'mechanic', (v, j) => { const n = (d.helpers || []).filter(h => +h.job_id === +j.id).length; return v ? UI.esc(v) + (n ? ` <span class="badge-s blue" title="${n} assisting mechanic(s)">+${n}</span>` : '') : '<span class="text-muted">Not assigned</span>'; }],
