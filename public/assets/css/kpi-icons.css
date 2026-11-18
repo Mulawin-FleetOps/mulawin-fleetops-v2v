@@ -175,3 +175,113 @@
   width:36px;height:36px;min-width:36px;flex-basis:36px
  }
 }
+
+/* UNIFIED_KPI_TILE_LAYOUT_V4
+   All shared KPI tiles align with Maintenance/Purchasing:
+   leading solid icon, compact label / prominent number / note on the right.
+   No changes to KPI values, click handlers, gold outline or other panels. */
+#pageContent .kpi-tiles .kpi-tile {
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:12px !important;
+  min-width:0;
+  border-top-width:1px !important;
+  padding:15px !important;
+  min-height:103px;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-icon {
+  display:inline-flex !important;
+  flex:0 0 42px !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:42px !important;
+  height:42px !important;
+  min-width:42px !important;
+  margin:0 !important;
+  grid-row:auto !important;
+  grid-column:auto !important;
+  border-radius:11px !important;
+  font-size:19px !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-body {
+  display:flex !important;
+  flex:1 1 0;
+  flex-direction:column !important;
+  gap:0;
+  order:initial;
+  grid-row:auto !important;
+  grid-column:auto !important;
+  min-width:0;
+  margin:0;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-label {
+  order:0 !important;
+  margin:0 !important;
+  line-height:1.35;
+  font-size:12px;
+  font-weight:650;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-value {
+  order:1 !important;
+  margin:5px 0 2px !important;
+  font-family:var(--font-heading,"Poppins",sans-serif);
+  font-size:clamp(21px,1.8vw,27px);
+  line-height:1.16;
+  font-weight:750;
+}
+#pageContent .kpi-tiles .kpi-tile .kpi-note {
+  order:2 !important;
+  margin:2px 0 0 !important;
+  font-size:11.5px;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+#pageContent .kpi-tiles .kpi-tile > .kpi-go{display:none !important}
+/* Billing-specific uniform rows: 6 KPIs on Overview, 5 on Invoices.
+   At narrower widths, cards wrap without reducing the icon to a tiny square. */
+#pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+#pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+  display:grid;
+  gap:10px;
+  margin:0 0 13px;
+}
+#pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles{
+  grid-template-columns:repeat(6,minmax(0,1fr));
+}
+#pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+}
+#pageContent.billing-design-v2 :is(.bil-v2-dashboard,.bil-v2-records) .kpi-tile{
+  border-radius:11px;
+  background:#fff;
+  min-height:110px;
+}
+@media(max-width:1350px){
+  #pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+  #pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+@media(max-width:720px){
+  #pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+  #pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:460px){
+  #pageContent.billing-design-v2 .bil-v2-dashboard .kpi-tiles,
+  #pageContent.billing-design-v2 .bil-v2-records .kpi-tiles{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:600px){
+  #pageContent .kpi-tiles .kpi-tile > .kpi-icon{
+    width:38px !important;height:38px !important;
+    min-width:38px !important;flex-basis:38px !important;
+    font-size:17px !important;
+  }
+}
