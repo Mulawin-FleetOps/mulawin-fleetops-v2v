@@ -1736,28 +1736,37 @@
 
 
 
-/* CONTENT_BORDER_NEUTRAL_V2
-   Applies to the content surface for every account. Orange remains available
-   to sidebar and top navigation (outside #pageContent), as requested.
-   Preserve layouts, search/filter/sort positions, status chips, and actions. */
-#pageContent > .page-body,
-#pageContent .page-body,
-#pageContent :is(
-  .panel,.ws-panel,.record-workspace-panel,.record-panel,.table-panel,
-  .chart-panel,.chart-card,.data-table-wrap,.ref-tablebox,
-  .purchasing-records-card,.purchasing-ref-records,.purchasing-full-panel,
-  .purchasing-ref-panels>.panel,.bil-v2-panel,.bil-v2-record-panel,
-  .head-report-config,.head-report-performance,.head-report-details,
-  .head-report-secondary-item,.head-report-insight,
-  .kpi-tile,.head-kpi,.metric-icon-card,.metric,.stat-card,
-  .rpm-kpi,.rpm-feature-card,.mp-action-stage,.mo-quickbar,
-  .record-workspace-kpis .metric
-) {
-  border-color:#dfe9e2 !important;
+/* CONTENT_BORDER_NEUTRAL_V3
+   Global: NO orange/gold outlines on any content surface, all roles.
+   Deliberately applies only inside #pageContent so sidebar and topbar
+   retain their own existing accents. Does not change position/layout.
+   Avoid recoloring status labels, warnings, or primary action buttons. */
+#pageContent,
+#pageContent :is(div,section,article,aside,main,header,footer,fieldset,table,form) {
+  border-color: #dfe8e1 !important;
 }
-/* Actions are outlined in neutral green-gray, without changing their
-   enabled states or the functional meaning of colored status elements. */
+/* Components rendered as links or buttons rather than containers. */
+#pageContent :is(
+  .head-kpi,.head-fleet-kpi,.kpi-tile,.metric,.metric-icon-card,
+  .stat-card,.rpm-kpi,.rpm-feature-card,.mp-action-stage,
+  .bil-v2-panel,.bil-v2-record-panel,.panel,.ws-panel,
+  .record-workspace-panel,.head-report-config,.head-report-performance,
+  .head-report-details,.purchasing-full-panel
+) {
+  border-color: #dfe8e1 !important;
+  box-shadow: none !important;
+}
+/* Specific orange glow and inset rings on content cards, including
+   Maintenance, Purchasing and KPI dashboard presentation. */
+#pageContent :is(
+  .head-kpi,.head-fleet-kpi,.kpi-tile,.metric,.metric-icon-card,
+  .stat-card,.rpm-kpi,.rpm-feature-card,.panel,.ws-panel,
+  .record-workspace-panel,.bil-v2-panel,.bil-v2-record-panel,
+  .purchasing-full-panel,.mp-action-stage
+):not(:focus-visible) {
+  outline-color: #dfe8e1 !important;
+}
 #pageContent :is(
   [data-report-print-actions] .btn,[data-pricing-impact],
-  .head-report-print>summary,.head-report-print-menu button
-) {border-color:#d6e3d9 !important;}
+  .head-report-print > summary,.head-report-print-menu button
+) { border-color: #dfe8e1 !important; }
