@@ -419,6 +419,99 @@ PurUI.timeline = (rows) => (rows || []).length ? `<ul class="ws-timeline">${rows
 PurUI.bar = (done, total) => `${UI.num(done)} / ${UI.num(total)}<span class="qty-bar" aria-hidden="true"><span style="width:${total ? Math.min(100, Math.round(done / total * 100)) : 0}%"></span></span>`;
 PurUI.bindDrawerActions = (root, row, onAct) => root.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { UI.closeDrawer(); onAct(b.dataset.act, row); }));
 
+/* PURCHASING_WORKFLOW_PROGRESS_V1 — read-only progress from actual persisted
+   request/PO records. No invented delivery, approval dates or sample records. */
+PurUI.waitingControl = (next, kind, id) =>
+  `<button type="button" class="purchasing-waiting-link" data-purchasing-workflow="${UI.esc(kind)}" data-workflow-id="${UI.esc(id)}" aria-label="View full workflow progress">
+    ${PurUI.chip(next)}<span class="cell-sub">${UI.esc(next[2])}</span><span class="purchasing-workflow-hint"><i class="bi bi-diagram-3" aria-hidden="true"></i> View progress</span>
+  </button>`;
+
+PurUI.progressStage = (label, state, at, note) => ({
+  label, state, ...(at ? { at } : {}), ...(note ? { note } : {})
+});
+
+PurUI.showWorkflow = async (kind, id) => {
+  try {
+    if (kind !== 'request' && kind !== 'po') return;
+    const data = await App.api(kind === 'request' ? 'Purchasing.request_details' : 'Purchasing.po_details',
+      kind === 'request' ? { request_id:id } : { po_id:id });
+    if (kind === 'request') {
+      const r = data.request, lines = data.lines || [], linked = data.orders || [];
+      const total = lines.reduce((sum, line) => sum + (+line.quantity || 0), 0);
+      const released = lines.reduce((sum, line) => sum + (+line.released_qty || 0), 0);
+      const reserved = lines.reduce((sum, line) => sum + (+line.reserved_qty || 0), 0);
+      const pending = Math.max(0, total - released - reserved);
+      const complete = r.status === 'Released';
+      const cancelled = r.status === 'Cancelled';
+      const stages = [
+        PurUI.progressStage('Motorpool submitted the request', 'complete', r.created_at, 'Request recorded for '+r.plate_number),
+        PurUI.progressStage('Inventory allocation', reserved > 0 || released > 0 ? 'complete' : cancelled ? 'exception' : 'current', null,
+          UI.num(reserved)+' reserved · '+UI.num(pending)+' not yet reserved'),
+        PurUI.progressStage('Purchasing released parts', released === total && total > 0 ? 'complete' : released > 0 ? 'current' : cancelled ? 'exception' : 'pending', null,
+          UI.num(released)+' of '+UI.num(total)+' units physically released'),
+        PurUI.progressStage('Request fulfilled', complete ? 'complete' : cancelled ? 'exception' : 'pending', null,
+          complete ? 'All requested units released' : cancelled ? 'Request cancelled; no further release' : 'Still waiting for remaining parts')
+      ];
+      const linkedBlock = linked.length
+        ? UI.h('Linked purchase orders (only when needed)') +
+          `<div class="purchasing-workflow-links">${linked.map(po => `<div class="purchasing-workflow-po"><b>${UI.esc(po.po_ref)}</b> ${UI.badge(po.status)}<small>${UI.esc(po.supplier || 'Supplier not recorded')}</small></div>`).join('')}</div>`
+        : '<p class="small text-muted mb-0">No linked purchase order. A parts request does not require a PO when inventory can supply it.</p>';
+      UI.modal('Workflow progress · '+UI.esc(r.request_ref),
+        UI.workflow(stages, {status:r.status, label:'Parts request workflow progress'}) +
+        UI.h('Actual quantities') + UI.kv([['Requested',UI.num(total)],['Reserved',UI.num(reserved)],['Released',UI.num(released)],['Not yet reserved',UI.num(pending)]]) +
+        linkedBlock + UI.h('Recorded processing') + UI.kv([
+          ['Submitted', UI.datetime(r.created_at)],
+          ['Last processed', r.processed_at ? UI.datetime(r.processed_at) : 'Not recorded'],
+          ['Processed by', UI.e(r.processed_by_name)]
+        ]) + (data.history && data.history.length ? UI.h('Recorded activity') + PurUI.timeline(data.history) : ''),
+        null,{size:'modal-lg'});
+    } else {
+      const po = data.po, lines = data.lines || [];
+      const total = lines.reduce((sum,line) => sum + (+line.quantity || 0), 0);
+      const received = lines.reduce((sum,line) => sum + (+line.received_qty || 0), 0);
+      const rejected = String(po.status).startsWith('Rejected');
+      const closed = po.status === 'Closed';
+      const approved = ['Approved','Partially Received','Received','Closed'].includes(po.status);
+      const ordered = !!po.ordered_at;
+      const legacy = !po.order_confirmation_required;
+      const stages = [
+        PurUI.progressStage('Purchasing submitted PO', 'complete', po.created_at),
+        PurUI.progressStage('Finance / Admin approval', rejected ? 'exception' : approved ? 'complete' : 'current',
+          po.decided_at, rejected ? 'Rejected: '+(po.decision_notes || 'Decision recorded') :
+          (approved ? 'Approved by '+(po.approver_role === 'finance' ? 'Finance' : 'Admin') : 'Awaiting approval by '+(po.approver_role === 'finance' ? 'Finance' : 'Admin'))),
+        PurUI.progressStage('Supplier order confirmed', ordered ? 'complete' : rejected ? 'exception' : legacy ? 'pending' : approved ? 'current' : 'pending',
+          po.ordered_at, ordered ? 'Confirmed by Purchasing' :
+          legacy ? 'Legacy PO — supplier order date not recorded' : 'Purchasing must confirm actual supplier order'),
+        PurUI.progressStage('Physical delivery recorded', received >= total && total > 0 ? 'complete' :
+          received > 0 ? 'current' : rejected || closed ? 'exception' : 'pending', null,
+          UI.num(received)+' of '+UI.num(total)+' units recorded as physically received'),
+        PurUI.progressStage('PO receiving finished', po.status === 'Received' ? 'complete' : closed ? 'exception' : 'pending', null,
+          po.status === 'Received' ? 'All ordered units received' :
+          closed ? 'PO closed; any undelivered balance was closed' : 'Receiving not yet complete')
+      ];
+      UI.modal('Workflow progress · '+UI.esc(po.po_ref),
+        UI.workflow(stages,{status:po.status === 'Approved' && ordered ? 'Ordered' : po.status, label:'Purchase order workflow progress'}) +
+        UI.h('Actual quantities') + UI.kv([
+          ['Ordered quantity',UI.num(total)],['Received quantity',UI.num(received)],
+          ['Awaiting delivery',UI.num(Math.max(0,total-received))],
+          ['Linked Motorpool request',UI.e(po.request_ref) || 'None — independent PO']
+        ]) +
+        (data.history && data.history.length ? UI.h('Recorded activity') + PurUI.timeline(data.history) : ''),
+        null,{size:'modal-lg'});
+    }
+  } catch(err) { UI.toast(err.message || 'Unable to load recorded workflow progress.', 'error'); }
+};
+
+/* Event delegation survives paging/filtering when UI.table redraws rows. */
+PurUI.bindWorkflowLinks = root => root.addEventListener('click', e => {
+  const button = e.target.closest('[data-purchasing-workflow]');
+  if (!button || !root.contains(button)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  PurUI.showWorkflow(button.dataset.purchasingWorkflow, button.dataset.workflowId);
+});
+
+
 /** Parts request drawer: summary, next step, lines (requested / released / outstanding / on hand), linked POs, activity. */
 PurUI.openRequest = async (r, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.request_details', { request_id: r.id }); const q = x.request;
@@ -672,11 +765,12 @@ App.page('parts_requests', {
       ['Released', 'released_units', (v, r) => `<span class="cell-nowrap">${PurUI.bar(+v, +r.requested_units)}</span>`],
       ['Reserved', 'reserved_units', 'num'],
       ['Status', 'status', 'badge'],
-      ['Waiting for', 'status', (v, r) => { const n = PurUI.reqNext(r); return PurUI.chip(n) + `<div class="cell-sub">${UI.esc(n[2])}</div>`; }],
-      ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>']], rows,
+      ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>'],
+      ['Waiting for', 'status', (v, r) => PurUI.waitingControl(PurUI.reqNext(r), 'request', r.id)]], rows,
       { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
         empty: 'No parts request in this list.' });
     PurRef.inlineFilters(box, ctx.el);
+    PurUI.bindWorkflowLinks(box);
     PurUI.openFromQuery(ctx, all, open);
   },
 });
@@ -711,12 +805,13 @@ App.page('purchase_orders', {
       ['Supplier', 'supplier', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
       ['Total', 'total_amount', 'money'],
       ['Parts Status', 'status', (v, o) => UI.badge(v === 'Approved' && o.ordered_at ? 'Ordered' : v)],
-      ['Waiting for', 'status', (v, o) => { const n = PurUI.poNext(o); return PurUI.chip(n) + `<div class="cell-sub">${UI.esc(n[2])}</div>`; }]], rows,
+      ['Waiting for', 'status', (v, o) => PurUI.waitingControl(PurUI.poNext(o), 'po', o.id)]], rows,
       { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
     PurRef.inlineFilters(box, ctx.el);
+    PurUI.bindWorkflowLinks(box);
     PurUI.openFromQuery(ctx, all, open);
   },
 });
