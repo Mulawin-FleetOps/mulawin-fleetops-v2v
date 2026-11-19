@@ -692,7 +692,7 @@ App.page('maintenance', {
     // Open records: "Waiting" (days since reported) instead of the date column; all six columns stay visible.
     const openCols = [...cols.slice(0, 5), ['Waiting', 'reported_on', (v, j) => waited(j)]];
     // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
-    const opt = { directActions: true, showAllColumns: true,
+    const opt = { directActions: true, showAllColumns: true, groupBy: 'display_status', groupLabel: 'Repair status',
       actions: (j) => { const st = MaintUI.rowStep(j);
         return (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
           + (d.can.act && !d.motorpoolCatalogReady && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.btn('helpers', 'Add mechanics', 'outline-secondary') : '')
@@ -790,7 +790,7 @@ App.page('mp_parts_requests', {
     ];
     const cancel = (r) => UI.confirmAction('Cancel ' + UI.esc(r.request_ref), 'The request will not be processed by Purchasing.',
       'Purchasing.request_cancel', { request_id: r.id }, { danger: true, submit: 'Cancel request' });
-    const opt = { directActions: true, showAllColumns: true,
+    const opt = { directActions: true, showAllColumns: true, groupBy: 'status', groupLabel: 'Request status',
       actions: (r) => (r.status === 'Requested' && can.act ? UI.ibtn('cancel', 'Cancel request', 'bi-x-lg', 'outline-danger') : '') + UI.ibtn('view', 'Details', 'bi-eye'),
       onAction: (a, r) => (a === 'cancel' ? cancel(r) : MaintUI.openRequest(r)),
       rowClick: (r) => MaintUI.openRequest(r),
