@@ -142,14 +142,15 @@ App.page('mechanic_attendance', {
         ['attendance', 'Attendance', board.length],
         ['sessions', 'Sessions', sessions.length],
       ], tab);
-    const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
-    const rows = board.filter(m => duty === 'in' ? !!m.open_time_in : duty === 'out' ? !m.open_time_in : true)
+    const duty = ['in', 'out', 'never'].includes(q.duty) ? q.duty : '';
+    const rows = board.filter(m => duty === 'in' ? !!m.open_time_in : duty === 'out' ? (!m.open_time_in && !!m.last_time_out) : duty === 'never' ? (!m.open_time_in && !m.last_time_out) : true)
       .map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
     if (tab === 'attendance') {
     const dutyTabs = [
       ['', 'All', board.length],
       ['in', 'Timed In', on.length],
-      ['out', 'Timed Out / Not Timed In', board.length - on.length],
+      ['out', 'Timed Out', board.filter(m => !m.open_time_in && !!m.last_time_out).length],
+      ['never', 'Not Timed In', board.filter(m => !m.open_time_in && !m.last_time_out).length],
     ];
     ctx.el.insertAdjacentHTML('beforeend', UI.statusTabs('mechanic_attendance', q, 'duty', dutyTabs, duty));
     const box = document.createElement('section'); ctx.el.append(box);
