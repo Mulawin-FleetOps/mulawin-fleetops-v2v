@@ -362,6 +362,7 @@ final class Trips {
             'checklist' => self::checklist($u, $d),
             'dispatch' => self::dispatch($u, $d),
             'incident' => self::incident($u, $d),
+            'incident_clarify' => self::incidentClarify($u, $d),
             'resume' => self::resume($u, $d),
             'incident_reschedule' => self::incidentReschedule($u, $d),
             'reschedule' => self::reschedule($u, $d),
@@ -1165,6 +1166,30 @@ final class Trips {
         });
     }
 
+    /** Extra dispatcher information is appended separately and never overwrites the original incident report. */
+    private static function incidentClarify(array $u, array $d): array {
+        $id = idField($d, 'trip_id');
+        $details = field($d, 'details', 1800);
+        return transaction(function(PDO $p) use ($u,$id,$details) {
+            $t = self::lockTrip($p,$id);
+            self::mustBeTripDispatcher($u,$t);
+            must($t['status']==='On Hold - Incident Reported', 'The trip is not awaiting incident assessment.',409);
+            must((bool)one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'"),
+                'Incident clarification database update has not been installed.',409);
+            $i=one($p,"SELECT id,incident_ref,severity FROM incidents WHERE trip_id=? AND attempt_number=? AND vehicle_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE",
+                [$id,$t['attempt_number'],$t['vehicle_id']]);
+            must($i && $i['severity']===null,'Additional incident information is only accepted before Motorpool classifies the current incident.',409);
+            run($p,'INSERT INTO incident_clarifications (incident_id,trip_id,actor_id,details) VALUES (?,?,?,?)',
+                [(int)$i['id'],$id,(int)$u['id'],$details]);
+            Files::store($p,$u,'photos','incident',(int)$i['id'],'Incident Photo');
+            self::event($p,(int)$u['id'],$id,'dispatcher submitted additional incident information',$t['status'],$t['status'],cut($i['incident_ref'].': '.$details,500));
+            audit($p,(int)$u['id'],'Incident','incident '.(int)$i['id'],'dispatcher supplied clarification',$i['incident_ref'].': '.cut($details,200));
+            Notify::roles($p,['motorpool'],'Additional incident details',
+                $t['trip_ref'].' / '.$i['incident_ref'].': Dispatcher supplied more information for Motorpool assessment.','maintenance','incident-extra-'.(int)$i['id']);
+            return ['message'=>'Additional information sent to Motorpool. The original report remains unchanged and the trip stays On Hold.'];
+        });
+    }
+
     /** Scenario C.1 step 7: Resume Trip after a minor repair (In Transit, NOT a second attempt). */
     private static function resume(array $u, array $d): array {
         $id = idField($d, 'trip_id');
@@ -1481,6 +1506,7 @@ final class Trips {
                 : [],
             'funds' => $funds,
             'incidents' => $incidents,
+            'incidentClarifications' => one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'") ? many($p,'SELECT c.id,c.incident_id,c.details,c.created_at,u.full_name AS actor FROM incident_clarifications c JOIN users u ON u.id=c.actor_id WHERE c.trip_id=? ORDER BY c.id',[$id]) : [],
             'documents' => $docs,
             'billing' => one($p, 'SELECT * FROM billings WHERE trip_id=?', [$id]),
         ];
