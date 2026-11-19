@@ -7,12 +7,31 @@
 const MechUI = {
   data: null,
   form(m = {}) {
-    UI.formModal(m.id ? 'Edit ' + UI.esc(m.full_name) : 'Add mechanic', [
-      { name: 'full_name', label: 'Full name (LAST NAME, FIRST NAME)', required: true, col: 12, value: m.full_name },
-      { name: 'contact_number', label: 'Contact number', col: 12, value: m.contact_number, placeholder: '0917 123 4567' },
-      { name: 'specialization', label: 'Specialization / skills', col: 6, value: m.specialization, placeholder: 'e.g. engine, electrical, brakes' },
-      { name: 'notes', label: 'Notes', col: 12, value: m.notes }],
-      'Mechanics.save', { extra: m.id ? { id: m.id } : {}, size: '', intro: m.id ? '' : 'The Mechanic ID (MEC-###) is given by the system. New mechanics start Unavailable until they Time In.' });
+    const d = MechUI.data || {}, choices = d.specializations || [];
+    // Preserve the legacy edit form before the additive skill catalog migration is installed.
+    if (!d.skillsReady) {
+      return UI.formModal(m.id ? 'Edit ' + UI.esc(m.full_name) : 'Add mechanic', [
+        { name: 'full_name', label: 'Full name (LAST NAME, FIRST NAME)', required: true, col: 12, value: m.full_name },
+        { name: 'contact_number', label: 'Contact number', col: 12, value: m.contact_number },
+        { name: 'specialization', label: 'Specialization / skills (legacy)', col: 12, value: m.specialization },
+        { name: 'notes', label: 'Notes', col: 12, value: m.notes }
+      ], 'Mechanics.save', { extra: m.id ? { id: m.id } : {} });
+    }
+    const active = (d.skillAssignments || []).filter(a => +a.mechanic_id === +m.id).map(a => +a.specialization_id);
+    const field = (name,label,val='',type='text') => `<label class="form-label" for="mp-mech-${name}">${label}</label><input id="mp-mech-${name}" class="form-control" name="${name}" type="${type}" value="${UI.esc(val || '')}">`;
+    const body = `<div class="row g-3"><div class="col-12">${field('full_name','Full name (LAST NAME, FIRST NAME) *',m.full_name)}</div><div class="col-md-6">${field('contact_number','Contact number',m.contact_number)}</div><div class="col-12"><label class="form-label">Specializations *</label><div class="small text-muted mb-2">Choose all verified skills. Only preset specializations are accepted.</div><div class="row g-2">${choices.map(sk => `<div class="col-md-6"><label class="d-flex align-items-center gap-2 border rounded p-2"><input type="checkbox" data-skill="${+sk.id}" ${active.includes(+sk.id)?'checked':''}><span>${UI.esc(sk.name)}</span></label></div>`).join('')}</div><div class="small mt-2" data-skills-selected aria-live="polite"></div></div><div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" name="notes" rows="2">${UI.esc(m.notes || '')}</textarea></div></div>`;
+    const dialog = UI.modal(m.id ? 'Edit mechanic' : 'Add mechanic', body, async (values, form) => {
+      const ids = [...form.querySelectorAll('[data-skill]:checked')].map(x => +x.dataset.skill);
+      if (!ids.length) throw new Error('Select at least one specialization.');
+      const response = await App.api('Mechanics.save', { ...values, id: m.id || undefined, specialization_ids: ids });
+      UI.result(response); App.route();
+    }, {submit: m.id ? 'Save changes' : 'Add mechanic',size:'modal-lg'});
+    const repaint = () => {
+      const picked = [...dialog.querySelectorAll('[data-skill]:checked')].map(x => choices.find(k => +k.id === +x.dataset.skill)?.name).filter(Boolean);
+      const target = dialog.querySelector('[data-skills-selected]');
+      if (target) target.textContent = picked.length ? 'Selected: ' + picked.join(' · ') : 'No specialization selected';
+    };
+    dialog.querySelectorAll('[data-skill]').forEach(x=>x.addEventListener('change',repaint)); repaint();
   },
   /** Attendance page only: the server checks saved Time In / Time Out state. */
   async toggle(m, btn) {
