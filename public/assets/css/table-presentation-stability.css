@@ -1,123 +1,123 @@
 /* PURCHASING_TABLE_LAYOUT_V3 — one source of truth, loaded after legacy styles.
    No changes to business data, filters, pagination, permissions or row actions.
    All measurements are scoped to Purchasing; no global reference-table overrides. */
-#pageContent.purchasing-live-v1 .ref-list,
-#pageContent.purchasing-live-v1 .ref-tablebox,
-#pageContent.purchasing-live-v1 .ref-tablebox > .table-wrap {
+#pageContent .purchasing-live-v1 .ref-list,
+#pageContent .purchasing-live-v1 .ref-tablebox,
+#pageContent .purchasing-live-v1 .ref-tablebox > .table-wrap {
   width:100%;max-width:100%;min-width:0;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox > .table-wrap {
+#pageContent .purchasing-live-v1 .ref-tablebox > .table-wrap {
   overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table {
   width:100%;min-width:0;max-width:none;table-layout:fixed;border-collapse:collapse;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td) {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td) {
   box-sizing:border-box;vertical-align:middle;padding:10px 8px;
   min-width:0;max-width:none;white-space:normal;overflow-wrap:break-word;
   line-height:1.4;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td):not(.actions-col) {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td):not(.actions-col) {
   width:auto !important;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .cell-nowrap {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-nowrap {
   white-space:nowrap;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .cell-clamp {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clamp {
   display:block;max-width:100%;white-space:normal;overflow-wrap:break-word;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-actions,
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-icons {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-icons {
   display:flex;align-items:center;justify-content:center;
   flex-wrap:wrap;gap:5px;min-width:0;max-width:100%;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-icons > .btn:not(.icon-act),
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-actions .btn:not(.icon-act) {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-icons > .btn:not(.icon-act),
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions .btn:not(.icon-act) {
   display:inline-flex;align-items:center;justify-content:center;gap:5px;
   width:auto;height:auto;min-width:0;max-width:100%;min-height:32px;
   padding:6px 8px;line-height:1.25;font-size:12px;font-weight:650;
   text-align:center;white-space:normal;overflow-wrap:break-word;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-icons > .btn .bi {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-icons > .btn .bi {
   flex:0 0 auto;
 }
-#pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col {
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col {
   width:auto !important;min-width:0;max-width:none;
   text-align:center;white-space:normal;padding:8px 6px;
 }
 
 /* Parts Requests: 8 record columns + Actions. */
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table{min-width:0;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(1){width:11% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(3){width:13% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(4){width:10% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(5){width:8% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(6){width:10% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(7){width:11% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(8){width:12% !important;}
-#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(9){width:14% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table{min-width:0;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(1){width:11% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(3){width:13% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(4){width:10% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(5){width:8% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(6){width:10% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(7){width:11% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(8){width:12% !important;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(9){width:14% !important;}
 
 /* Purchase Orders: PO / Supplier / Total / Status / Waiting for / Actions. */
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:0;}
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(1){width:15% !important;}
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(2){width:19% !important;}
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important;}
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(4){width:15% !important;}
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(5){width:21% !important;}
-#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(6){width:16% !important;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:0;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(1){width:15% !important;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(2){width:19% !important;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(4){width:15% !important;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(5){width:21% !important;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(6){width:16% !important;}
 
 /* Inventory parts: 9 data columns + Actions. Stacked text buttons prevent overflow. */
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:0;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1){width:8% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4){width:9% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5){width:7% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(7){width:10% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(8){width:9% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(9){width:10% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(10){width:15% !important;}
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons {
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:0;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1){width:8% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4){width:9% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5){width:7% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(7){width:10% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(8){width:9% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(9){width:10% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(10){width:15% !important;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons {
   width:100%;flex-direction:column;align-items:stretch;flex-wrap:nowrap;
 }
-#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons > .btn:not(.icon-act) {
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons > .btn:not(.icon-act) {
   width:100%;max-width:100%;
 }
 
 /* Stock Counts (inventory count tab): 8 record columns plus Actions. */
-#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table {
+#pageContent .purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table {
   min-width:0;
 }
-#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table :is(th,td):last-child {
+#pageContent .purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table :is(th,td):last-child {
   width:17% !important;
 }
-#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table .row-icons{
+#pageContent .purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table .row-icons{
   flex-direction:column;align-items:stretch;
 }
-#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table .row-icons > .btn:not(.icon-act){width:100%;}
+#pageContent .purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table .row-icons > .btn:not(.icon-act){width:100%;}
 
 /* Stock Movements: 7 data columns + Actions. */
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table{min-width:0;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(1){width:14% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(2){width:14% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(3){width:9% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(4){width:7% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(5){width:23% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(7){width:11% !important;}
-#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(8){width:15% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table{min-width:0;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(1){width:14% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(2){width:14% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(3){width:9% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(4){width:7% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(5){width:23% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(7){width:11% !important;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(8){width:15% !important;}
 
 /* On compact widths, preserve full labels and scroll the table container only.
    Avoid forcing scrolling on normal desktop widths. */
 @media(max-width:1199px) {
-  #pageContent.purchasing-table-parts-requests .ref-tablebox .data-table{min-width:1080px;}
-  #pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1040px;}
-  #pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:900px;}
-  #pageContent.purchasing-table-stock-movements .ref-tablebox .data-table{min-width:950px;}
-  #pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table{min-width:980px;}
+  #pageContent .purchasing-table-parts-requests .ref-tablebox .data-table{min-width:1080px;}
+  #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1040px;}
+  #pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:900px;}
+  #pageContent .purchasing-table-stock-movements .ref-tablebox .data-table{min-width:950px;}
+  #pageContent .purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table{min-width:980px;}
 }
 @media(max-width:575px) {
-  #pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 7px;}
+  #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 7px;}
 }
