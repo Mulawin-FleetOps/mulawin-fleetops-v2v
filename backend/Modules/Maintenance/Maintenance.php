@@ -425,7 +425,6 @@ final class Maintenance {
                 'problem' => $problem, 'reported_on' => $date, 'priority' => $priority, 'status' => 'Reported', 'remarks' => $remarks, 'created_by' => $u['id']]);
             $ref = refNumber('CM', $jid);
             run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$ref, $jid]);
-            Files::store($p, $u, 'photos', 'maintenance', $jid, 'Inspection Photo', true, 'photos of the damaged parts or truck condition');
             self::event($p, $jid, null, 'Reported', $u['id'], $problem);
             if ($mechanicId) {
                 $j = self::lockJob($p, $jid);
@@ -452,6 +451,7 @@ final class Maintenance {
                 Actions::load('Purchasing');
                 $request = Purchasing::createForRepair($p, $u, $vid, $jid, (string)$partsPurpose, $rawParts);
             }
+            Files::store($p, $u, 'photos', 'maintenance', $jid, 'Inspection Photo', true, 'photos of the damaged parts or truck condition');
             $msg = "Problem reported ($ref). Truck " . $v['plate_number'] . ' is Under Maintenance and cannot be assigned to trips.';
             if ($trip) { Actions::load('Trips'); $msg .= ' ' . Trips::resourceLost($p, $u, (int)$trip['id'], 'Truck ' . $v['plate_number'] . ' has a reported problem'); }
             FleetState::reconcile($p, $vid, $u['id'], "Corrective maintenance $ref");
