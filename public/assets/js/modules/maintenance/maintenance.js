@@ -70,10 +70,10 @@ const MaintUI = {
     const trucks = (d.trucks || []).filter(v => ['Available', 'Assigned'].includes(v.status) && !v.open_job && !v.on_road);
     const fields = UI.fields([
       { type:'html', col:12, html:`<label class="form-label" for="motorpool-truck-search">Affected truck *</label>
-        <input id="motorpool-truck-search" type="search" class="form-control" data-report-truck-search list="motorpool-truck-list" placeholder="Type plate or truck number, then choose a suggestion…" autocomplete="off" required>
+        <input id="motorpool-truck-search" type="search" class="form-control" data-report-truck-search placeholder="Search plate or truck number…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="motorpool-truck-results" required>
         <input type="hidden" name="vehicle_id" value="">
-        <datalist id="motorpool-truck-list">${trucks.map(v=>`<option value="${UI.esc(v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')')}"></option>`).join('')}</datalist>
-        <div class="form-help" data-truck-search-count aria-live="polite">Select one exact truck suggestion to continue.</div>` },
+        <div id="motorpool-truck-results" class="mp-truck-results" data-truck-results role="listbox" aria-label="Matching trucks" hidden></div>
+        <div class="form-help" data-truck-search-count aria-live="polite">Type at least 2 characters to search for a truck.</div>` },
       { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
         placeholder:'Describe what is wrong and where the problem is located.' },
       { name:'remarks', label:'Additional remarks (optional)', col:12 },
@@ -92,17 +92,58 @@ const MaintUI = {
       const search=form.querySelector('[data-report-truck-search]');
       const select=form.querySelector('[name="vehicle_id"]');
       const count=form.querySelector('[data-truck-search-count]');
-      const truckOptions=trucks.map(v=>({id:String(v.id),label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')'}));
-      const syncTruck=()=>{
-        const found=truckOptions.find(v=>v.label===search.value);
-        select.value=found?found.id:'';
-        count.textContent=found?'Selected: '+found.label:'Choose an exact truck suggestion to continue.';
+      const results=form.querySelector('[data-truck-results]');
+      const truckOptions=trucks.map(v=>({
+        id:String(v.id),
+        label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')',
+        haystack:(v.plate_number+' '+(v.truck_number||'')+' '+v.truck_type).toLowerCase()
+      }));
+      let matches=[],active=-1;
+      const close=()=>{
+        results.hidden=true;results.replaceChildren();active=-1;
+        search.setAttribute('aria-expanded','false');search.removeAttribute('aria-activedescendant');
       };
+      const choose=v=>{
+        search.value=v.label;select.value=v.id;
+        count.textContent='Selected: '+v.label;close();
+      };
+      const highlight=()=>{
+        results.querySelectorAll('[data-truck-id]').forEach((button,i)=>{
+          button.classList.toggle('active',i===active);
+          button.setAttribute('aria-selected',i===active?'true':'false');
+        });
+        if(active>=0)search.setAttribute('aria-activedescendant','motorpool-truck-option-'+active);
+      };
+      const update=()=>{
+        const term=search.value.trim().toLowerCase();
+        const chosen=truckOptions.find(v=>v.id===select.value);
+        if(chosen&&search.value===chosen.label){close();return;}
+        select.value='';
+        if(term.length<2){close();count.textContent='Type at least 2 characters to search for a truck.';return;}
+        const found=truckOptions.filter(v=>v.haystack.includes(term));
+        matches=found.slice(0,6);active=-1;
+        if(!found.length){close();count.textContent='No matching trucks found.';return;}
+        results.innerHTML=matches.map((v,i)=>`<button type="button" class="mp-truck-option" id="motorpool-truck-option-${i}" role="option" aria-selected="false" data-truck-id="${UI.esc(v.id)}">${UI.esc(v.label)}</button>`).join('');
+        results.hidden=false;search.setAttribute('aria-expanded','true');
+        count.textContent=found.length>6?'Showing 6 of '+found.length+' matches. Type more to narrow results.':'Choose a matching truck below.';
+      };
+      results.addEventListener('mousedown',e=>{if(e.target.closest('[data-truck-id]'))e.preventDefault();});
+      results.addEventListener('click',e=>{
+        const button=e.target.closest('[data-truck-id]');
+        const found=button&&matches.find(v=>v.id===button.dataset.truckId);
+        if(found)choose(found);
+      });
+      search.addEventListener('input',update);
+      search.addEventListener('keydown',e=>{
+        if(e.key==='Escape'){close();return;}
+        if(results.hidden||!matches.length)return;
+        if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+          e.preventDefault();active=e.key==='ArrowDown'?(active+1)%matches.length:(active<=0?matches.length-1:active-1);highlight();
+        }else if(e.key==='Enter'&&active>=0){e.preventDefault();choose(matches[active]);}
+      });
+      search.addEventListener('blur',()=>{if(!results.contains(document.activeElement))close();});
       const current=truckOptions.find(v=>v.id===String(vehicleId||''));
-      if(current)search.value=current.label;
-      search.addEventListener('input',syncTruck);
-      search.addEventListener('change',syncTruck);
-      syncTruck();
+      if(current)choose(current);else close();
     }});
     return wrap;
   },
