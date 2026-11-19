@@ -359,6 +359,19 @@ final class Maintenance {
      *
      * One unresolved job per vehicle: append findings rather than duplicate it.
      */
+    /** Mirror only Tractor Head / Trailer NOT OK keys into the repair component catalog.
+     * Existing checklist submissions remain the source of truth; no duplicate repair record. */
+    public static function linkChecklistComponents(PDO $p, int $jobId, array $check): void {
+        if (!self::catalogReady($p)) return;
+        foreach (['tractor_head','trailer'] as $section) {
+            foreach (($check['items'] ?? []) as $key => $value) {
+                if (!str_starts_with((string)$key,$section.'_') || ($value['condition'] ?? '') !== 'NOT OK') continue;
+                $c = one($p,'SELECT id FROM motorpool_components WHERE component_key=? AND active=1',[$key]);
+                if ($c) run($p,'INSERT IGNORE INTO maintenance_job_components (maintenance_job_id,component_id) VALUES (?,?)',[$jobId,(int)$c['id']]);
+            }
+        }
+    }
+
     public static function fromPreDispatchChecklist(PDO $p, array $u, array $t, array $defects): array {
         must(count($defects) > 0, 'No truck defects were provided.');
         $vid = (int)$t['vehicle_id'];
@@ -950,6 +963,8 @@ final class Maintenance {
                 FROM part_requests r JOIN part_request_lines l ON l.part_request_id=r.id
                 WHERE r.maintenance_job_id=? AND r.status <> 'Cancelled'", [$id])['n'] ?? 0),
             'incident' => $inc, 'arrival' => $arrival, 'preDispatch' => $preDispatch, 'preDispatchFindings' => $preDispatchFindings, 'documents' => $docs,
+            'selectedComponents' => self::catalogReady($p) ? array_map('intval',array_column(many($p,'SELECT component_id FROM maintenance_job_components WHERE maintenance_job_id=?',[$id]),'component_id')) : [],
+            'excludedComponents' => self::catalogReady($p) ? array_map('intval',array_column(many($p,'SELECT component_id FROM motorpool_vehicle_component_exclusions WHERE vehicle_id=?',[(int)$j['vehicle_id']]),'component_id')) : [],
             // JOB_HELPER_MECHANICS_V1: assisting mechanics, active and past (who assigned / released them and why).
             'helpers' => self::helpersReady($p) ? many($p, 'SELECT h.mechanic_id, h.assigned_at, h.released_at, h.release_reason, mc.full_name, mc.mechanic_code, au.full_name AS assigned_by_name, ru.full_name AS released_by_name
                 FROM maintenance_job_helpers h JOIN mechanics mc ON mc.id=h.mechanic_id JOIN users au ON au.id=h.assigned_by LEFT JOIN users ru ON ru.id=h.released_by
