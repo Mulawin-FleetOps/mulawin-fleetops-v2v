@@ -51,22 +51,16 @@ final class DispatcherResources {
         foreach($options['drivers'] as $r)
             if((int)$r['vehicle_id']===$vehicle && (int)$r['id']===$driver){$primary=$r;break;}
         must($primary!==null,'Choose an authorized, eligible Driver and available Truck for this trip.',409);
-        $other=(int)optId($d,'driver2_id');$helper=(int)optId($d,'helper_id');
-        if($t['truck_type']==='Car Carrier'){
-            must(!($other&&$helper),'Select either a second authorized Driver or an eligible Helper, not both.',409);
-            if($other){
-                must($other!==$driver&&array_filter($options['drivers'],fn($pair)=>(int)$pair['id']===$other&&(int)$pair['vehicle_id']===$vehicle),'Choose a second eligible Car Carrier Driver authorized for the selected Truck.',409);
-            }else{
-                must($helper>0&&in_array($helper,array_column($options['helpers'],'id'),true),'Choose an eligible, timed-in Car Carrier Helper from your operational group.',409);
-            }
-        }else{
-            must(!$other,'This truck type uses one driver and a helper.');
-            must($helper>0&&in_array($helper,array_column($options['helpers'],'id'),true),'Choose an eligible, timed-in helper from your operational group.',409);
-        }
+        // One Driver + one Helper for every newly assigned trip, including Car Carrier.
+        // driver2_id is retained on historical trips only; never accepted on a new assignment.
+        $other=optId($d,'driver2_id');$helper=(int)optId($d,'helper_id');
+        must($other===null,'Second Driver assignment is retired. Choose one Driver and one Helper.',409);
+        must($helper>0&&in_array($helper,array_column($options['helpers'],'id'),true),
+            'Choose an eligible, timed-in Helper from your operational group.',409);
         $reason = optField($d, 'helper_substitution_reason', 255);
         if ($helper && (int)$primary['regular_helper_id'] !== $helper) must($reason !== null, 'Explain why the regular Helper is being replaced for this trip.');
         $warnings=[];foreach([...$options['drivers'],...$options['helpers'],...$options['second_drivers']] as $r)if(in_array($r['id'],[$driver,$other,$helper],true)&&!empty($r['shift_warning']))$warnings[$r['id']]=$r['name'].' ('.$r['shift_warning'].')';
-        return ['ok'=>true,'vehicle_id'=>$primary['vehicle_id'],'plate'=>$primary['plate_number'],'driver_id'=>$driver,'driver2_id'=>$other?:null,'helper_id'=>$helper?:null,'helper_substitution_reason'=>$helper&&(int)$primary['regular_helper_id']!==$helper?$reason:null,'shift_fallback_note'=>$warnings?'Current timed-in crew outside the planning shift in Warn mode: '.implode(', ',$warnings).'.':''];
+        return ['ok'=>true,'vehicle_id'=>$primary['vehicle_id'],'plate'=>$primary['plate_number'],'driver_id'=>$driver,'driver2_id'=>null,'helper_id'=>$helper?:null,'helper_substitution_reason'=>$helper&&(int)$primary['regular_helper_id']!==$helper?$reason:null,'shift_fallback_note'=>$warnings?'Current timed-in crew outside the planning shift in Warn mode: '.implode(', ',$warnings).'.':''];
     }
     public static function automatic(PDO $p,array $t): array {
         return ['ok'=>false,'reason'=>'Manual Dispatcher Driver and Truck selection is required.'];
