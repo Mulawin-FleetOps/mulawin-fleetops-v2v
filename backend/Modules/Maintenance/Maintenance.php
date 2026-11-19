@@ -383,6 +383,7 @@ final class Maintenance {
             ]);
             $ref = refNumber('CM', $id);
             run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$ref, $id]);
+            if (self::catalogReady($p)) run($p, "UPDATE maintenance_jobs SET parts_requirement='To Be Determined' WHERE id=?", [$id]);
             run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)',
                 [$id, null, 'Reported', $description, $u['id']]);
         }
@@ -437,6 +438,7 @@ final class Maintenance {
             $ref = refNumber('CM', $jid);
             run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$ref, $jid]);
             self::event($p, $jid, null, 'Reported', $u['id'], $problem);
+            if (self::catalogReady($p)) run($p, "UPDATE maintenance_jobs SET parts_requirement='To Be Determined' WHERE id=?", [$jid]);
             if ($mechanicId) {
                 $j = self::lockJob($p, $jid);
                 self::setMechanic($p, $j, $mechanicId);
@@ -481,7 +483,7 @@ final class Maintenance {
         $lead = idField($d,'mechanic_id');
         $helpers = $d['assistant_mechanic_ids'] ?? [];
         $components = $d['component_ids'] ?? [];
-        $parts = choiceField($d,'parts_requirement',['No Parts Needed','Parts Required','To Be Determined']);
+        $parts = choiceField($d,'parts_requirement',['No Parts Needed','Parts Required']);
         must(is_array($helpers) && count($helpers)<=10 && is_array($components) && count($components)<=31,'Invalid repair selections.',422);
         $helpers = array_map('intval',$helpers);
         $components = array_map('intval',$components);
@@ -530,6 +532,7 @@ final class Maintenance {
                 $missing=array_diff(array_column($needed,'name'),array_column($have,'name'));
                 must(!$missing,'Mechanic team lacks: '.implode(', ',$missing),409);
             }
+            if ($parts === 'No Parts Needed') must(!one($p,"SELECT id FROM part_requests WHERE maintenance_job_id=? AND status<>'Cancelled' LIMIT 1",[$jobId]),'Existing parts requests must be resolved; cannot claim No Parts Needed.',409);
             if($lines) {
                 Actions::load('Purchasing');
                 Purchasing::createForRepair($p,$u,(int)$j['vehicle_id'],$jobId,cut((string)$j['problem'],255),$lines);
@@ -721,7 +724,7 @@ final class Maintenance {
             $j = self::lockJob($p, $id);
             must($j['status'] === 'Under Repair', $j['status'] === 'Under Inspection' ? 'Record the inspection findings and diagnosis first.' : 'Only records Under Repair can be completed (now: ' . $j['status'] . ').', 409);
             must($done >= (string)$j['reported_on'], 'Completion date is before the date reported.');
-            if (self::catalogReady($p)) {
+            if (self::catalogReady($p) && $j['parts_requirement'] !== null) {
                 must((bool)$j['assignment_finalized_at'], 'Finalize the repair assignment before completion.', 409);
                 must(in_array($j['parts_requirement'], ['No Parts Needed','Parts Required'], true), 'Confirm parts requirement before repair completion.', 409);
                 if ($j['parts_requirement'] === 'Parts Required') must((bool)one($p, "SELECT id FROM part_requests WHERE maintenance_job_id=? AND status<>'Cancelled' LIMIT 1", [$id]), 'Parts are required but no active linked request exists.', 409);
