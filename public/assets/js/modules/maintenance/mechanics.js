@@ -173,8 +173,8 @@ App.page('mechanic_attendance', {
 
     } else {
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
-    const hist = document.createElement('section'); hist.className = 'mp-session-section'; ctx.el.append(hist);
-    hist.innerHTML = `<h2 class="ref-h">Time In / Time Out Records · ${UI.esc(label)}</h2>`
+    const hist = document.createElement('section'); hist.className = 'mp-session-section mp-reference-table mp-ops-table'; ctx.el.append(hist);
+    hist.innerHTML = `<div class="mp-records-heading"><div><strong>Time In / Time Out Records</strong><small>${UI.esc(label)}</small></div><small>Mechanic attendance sessions</small></div>`
       + UI.generalFilters(ctx, [{ name: 'from', label: 'Sessions from', type: 'date' }, { name: 'to', label: 'Sessions to', type: 'date' }])
       + UI.table([
         ['Mechanic', 'full_name', (v, s) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(s.mechanic_code)}</div>`],
@@ -184,6 +184,7 @@ App.page('mechanic_attendance', {
         ['Timed in by', 'time_in_by'],
         ['Timed out by', 'time_out_by'],
       ], sessions, { showAllColumns: true, limit: 10, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
+    if (typeof RecordComponents !== 'undefined') RecordComponents.maintenanceWorkspace(ctx.el, {box:'.mp-session-section'});
     }
   },
 });
