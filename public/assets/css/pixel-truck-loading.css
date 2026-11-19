@@ -1,0 +1,29 @@
+/* Compact, green-first pixel-truck modal. Scoped to avoid changing app layout. */
+.fleet-truck-overlay{position:fixed;inset:0;z-index:1090;background:rgba(19,41,30,.32);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;transition:opacity .16s ease;pointer-events:auto}
+.fleet-truck-overlay.is-visible{opacity:1}
+.fleet-truck-card{position:relative;overflow:hidden;width:min(100%,500px);padding:26px 28px 22px;background:#fcfff7;border:3px solid #155638;box-shadow:0 9px 0 #c8a03b,0 18px 48px #102e2152;border-radius:14px;text-align:center;color:#17472f;font-family:inherit}
+.fleet-truck-card:before{content:"";position:absolute;inset:8px;border:1px dashed #adc8ab;pointer-events:none;border-radius:7px}
+.fleet-truck-title{font-size:clamp(15px,2.7vw,20px);font-weight:900;letter-spacing:.11em}
+.fleet-truck-dots{color:#b98c22}
+.fleet-truck-scene{position:relative;height:140px;margin:8px 0 0;overflow:hidden}
+.fleet-truck-road{position:absolute;left:2%;right:2%;bottom:16px;height:23px;background:#25744c;border:3px solid #17472f;box-shadow:0 5px 0 #e2bc55;border-radius:3px}
+.fleet-truck-road:before{content:"";position:absolute;top:8px;left:5px;right:5px;height:4px;background:repeating-linear-gradient(90deg,#fff8dc 0 23px,transparent 23px 44px)}
+.fleet-truck-road span{position:absolute;top:-3px;bottom:-3px;left:0;width:85%;background:linear-gradient(90deg,#1b693f,#2b9759);opacity:.43;transition:width .45s ease}
+.fleet-truck-destination{position:absolute;right:0;bottom:43px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;font-weight:900;letter-spacing:.05em;color:#145139}
+.fleet-truck-flag{display:flex;align-items:center;justify-content:center;font-size:25px;color:#c5962b;border:3px solid #19543c;background:#f9eec8;border-radius:50%;width:41px;height:41px}
+.fleet-truck-vehicle{position:absolute;left:0;bottom:28px;width:140px;z-index:1;filter:drop-shadow(3px 4px 0 rgba(23,71,47,.18));animation:fleet-truck-drive 4s cubic-bezier(.25,.5,.65,1) forwards}
+.fleet-truck-vehicle svg{display:block;width:100%}
+.fleet-truck-wheels{transform-origin:center;animation:fleet-truck-rattle .22s linear infinite alternate}
+.fleet-truck-caption{font-size:14px;font-weight:700;margin-top:3px}
+.fleet-truck-track{margin:16px auto 7px;height:12px;max-width:370px;border:2px solid #1f6544;border-radius:3px;background:#e9f2e9;overflow:hidden}
+.fleet-truck-track span{display:block;height:100%;width:85%;background:repeating-linear-gradient(110deg,#1e7649 0 18px,#32905a 18px 28px,#dab347 28px 31px);animation:fleet-truck-fill 4s ease-out forwards}
+.fleet-truck-note{font-size:11px;font-weight:700;color:#587362}
+.fleet-truck-overlay.is-arrived .fleet-truck-vehicle{animation:fleet-truck-arrive .42s ease forwards;left:calc(100% - 155px)}
+.fleet-truck-overlay.is-arrived .fleet-truck-track span{animation:none;width:100%;background:#1e7649}
+.fleet-truck-overlay.is-arrived .fleet-truck-wheels{animation:none}
+@keyframes fleet-truck-drive{0%{left:0}100%{left:calc(85% - 132px)}}
+@keyframes fleet-truck-arrive{from{left:calc(85% - 132px)}to{left:calc(100% - 155px)}}
+@keyframes fleet-truck-rattle{from{transform:translateY(0)}to{transform:translateY(1px)}}
+@keyframes fleet-truck-fill{from{width:0}to{width:85%}}
+@media(max-width:540px){.fleet-truck-card{padding:21px 15px 18px}.fleet-truck-scene{height:118px}.fleet-truck-vehicle{width:113px;bottom:28px}.fleet-truck-destination{bottom:43px}.fleet-truck-title{letter-spacing:.055em}@keyframes fleet-truck-drive{0%{left:0}100%{left:calc(85% - 105px)}}@keyframes fleet-truck-arrive{from{left:calc(85% - 105px)}to{left:calc(100% - 120px)}}.fleet-truck-overlay.is-arrived .fleet-truck-vehicle{left:calc(100% - 120px)}}
+@media(prefers-reduced-motion:reduce){.fleet-truck-overlay,.fleet-truck-vehicle,.fleet-truck-wheels,.fleet-truck-track span{animation:none!important;transition:none!important}.fleet-truck-vehicle{left:35%}.fleet-truck-overlay.is-arrived .fleet-truck-vehicle{left:calc(100% - 155px)}}
