@@ -1013,10 +1013,10 @@ App.page('inventory', {
     // UI_REFERENCE_V1: stock tabs (?stock=) and the Stock counts tab (?view=counts) instead of a KPI row.
     const stockKey = view === 'counts' ? '' : (['low', 'out', 'inactive', 'all'].includes(q.stock) ? q.stock : 'active');
     const tabBtn = (spec, label, n, on) => `<button type="button" role="tab" aria-selected="${on}" class="tab ${on ? 'active' : ''}" data-go="${UI.esc(spec)}">${UI.esc(label)} <span class="tab-count">${UI.num(n)}</span></button>`;
-    ctx.el.innerHTML = inventoryCards + identityNotice + `<div class="line-tabs ws-status-tabs no-print" role="tablist">
+    ctx.el.innerHTML = inventoryCards + identityNotice + `<div class="purchasing-record-tabs-slot"><div class="line-tabs ws-status-tabs no-print" role="tablist">
         ${tabBtn(link({ view: '', stock: '' }), 'Active parts', active.length, stockKey === 'active')}${tabBtn(link({ view: '', stock: 'low' }), 'Low stock', low.length, stockKey === 'low')}
         ${tabBtn(link({ view: '', stock: 'out' }), 'Out of stock', out.length, stockKey === 'out')}${tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, stockKey === 'inactive')}
-        ${d.countsReady ? tabBtn(link({ view: 'counts', part_type: '', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div>
+        ${d.countsReady ? tabBtn(link({ view: 'counts', part_type: '', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div></div>
       <div class="small text-muted mb-2">Inventory value of active parts: <b>${UI.money(active.reduce((a, p) => a + +p.stock_value, 0))}</b> (on hand × recorded unit cost).
         ${d.countsReady && pending.length ? `${UI.num(pending.length)} stock count(s) wait for the Admin.` : ''}</div>
       ${d.countsReady ? '' : `<div class="alert alert-secondary small py-2"><i class="bi bi-lock me-1"></i> Direct stock adjustments are disabled. Stock changes only when a purchase order is received or parts are released.
@@ -1027,9 +1027,8 @@ App.page('inventory', {
     const body = document.createElement('div'); body.className='purchasing-ref-records-body'; box.append(body);
     if (view === 'counts') {
       const st = ['Submitted', 'Posted', 'Rejected'].includes(q.count) ? q.count : '';
-      const rows = counts.filter(c => !st || c.status === st);
-      body.innerHTML = UI.generalFilters(ctx, [{ name: 'count', label: 'Count statuses', options: [['Submitted', 'Waiting for review'], ['Posted', 'Posted'], ['Rejected', 'Rejected']] }])
-        + UI.table([
+      const rows = PurRef.sortRecords(counts.filter(c => !st || c.status === st), q, 'counted_at', 'count_ref');
+      body.innerHTML = UI.table([
           ['Count', 'count_ref', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.datetime(c.counted_at)}</div>`],
           ['Part ID / Name', 'part_number', (v, c) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(c.description)}</div>`],
           ['System', 'system_qty', 'num'], ['Counted', 'counted_qty', 'num'],
@@ -1040,7 +1039,11 @@ App.page('inventory', {
           { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary'),
             onAction: (a, c) => a === 'view' ? PurUI.openCount(c, can) : PurUI.countReview(c, a), rowClick: (c) => PurUI.openCount(c, can),
             empty: 'No stock count recorded yet.' });
-      PurRef.inlineFilters(box, body);
+      PurRef.recordLayout(ctx, box, {
+        filters: [{ name: 'count', label: 'Count status', type: 'select', col: 12, options: [['Submitted', 'Waiting for review'], ['Posted','Posted'], ['Rejected','Rejected']] }],
+        sortOptions: [['newest','Newest first'], ['oldest','Oldest first'], ['reference','Count number']],
+        sort: ['oldest','reference'].includes(q.sort) ? q.sort : 'newest'
+      });
       const once = UI.takeQuery(ctx, 'open');
       if (once.open) { const c = counts.find(x => String(x.id) === String(once.open)); if (c) PurUI.openCount(c, can); }
       return;
@@ -1049,10 +1052,15 @@ App.page('inventory', {
     ctx.el.classList.add('purchasing-inventory-parts-view');
     const selectedType = q.part_type || '';
     const rows = parts.filter(p => (!selectedType || p.part_type === selectedType)
-      && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +(p.available_qty ?? p.quantity_on_hand) <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)));
+      && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +(p.available_qty ?? p.quantity_on_hand) <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)))
+      .sort((a,b) => {
+        if (q.sort === 'stock_high') return (+b.quantity_on_hand || 0) - (+a.quantity_on_hand || 0);
+        if (q.sort === 'stock_low') return (+a.quantity_on_hand || 0) - (+b.quantity_on_hand || 0);
+        if (q.sort === 'name') return String(a.description || '').localeCompare(String(b.description || ''));
+        return String(a.part_number || '').localeCompare(String(b.part_number || ''));
+      });
     const openCount = new Set(pending.map(c => +c.part_id));
-    body.innerHTML = UI.generalFilters(ctx, [{ name: 'part_type', label: 'Part Types', options: types }])
-      + UI.table([
+    body.innerHTML = UI.table([
         ['Part ID', 'part_number', (v, p) => `<span class="cell-nowrap">${UI.esc(v)}</span>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
         ['Part Type', 'part_type', (v) => v ? UI.esc(v) : '<span class="text-muted">Not classified</span>'],
         ['Part Name', 'description', (v, p) => {
@@ -1069,7 +1077,11 @@ App.page('inventory', {
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
         { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, groupBy: 'part_type', groupLabel: 'Part type', actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
-    PurRef.inlineFilters(box, body);
+    PurRef.recordLayout(ctx, box, {
+      filters: [{ name: 'part_type', label: 'Part Type', type: 'select', col: 12, options: types.map(type => [type, type]) }],
+      sortOptions: [['reference','Part ID'], ['name','Part Name'], ['stock_high','Highest on-hand'], ['stock_low','Lowest on-hand']],
+      sort: ['name','stock_high','stock_low'].includes(q.sort) ? q.sort : 'reference'
+    });
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
   },
 });
