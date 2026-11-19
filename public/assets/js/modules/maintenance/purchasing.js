@@ -29,7 +29,7 @@ const PurUI = {
     const parts = (PurUI.data.parts || []).filter(p => +p.active);
     const row = (l = {}) => `<div class="purchasing-line pl-row">
       <div class="purchasing-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part aria-label="Select part to purchase"><option value="">Choose part…</option>
-        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.description)} · ${UI.esc(p.part_number)}${withPrice ? "" : " · " + UI.num(p.available_qty ?? p.quantity_on_hand) + " " + UI.esc(p.unit) + " available"}</option>`).join('')}</select></div>
+        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.description)}${withPrice ? "" : " · Available: " + UI.num(p.available_qty ?? p.quantity_on_hand) + " " + UI.esc(p.unit)}</option>`).join('')}</select></div>
         <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
         ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"></div>` : ''}</div>
       ${withPrice ? '<div class="purchasing-line-amount" data-lt></div>' : ''}
