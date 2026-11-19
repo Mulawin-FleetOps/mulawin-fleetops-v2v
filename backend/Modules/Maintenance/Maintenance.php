@@ -388,8 +388,9 @@ final class Maintenance {
         requireRole($u, ...self::ACT);
         $vid = idField($d, 'vehicle_id');
         $problem = field($d, 'problem', 500);
-        $date = dateField($d, 'reported_on');
-        must($date <= date('Y-m-d'), 'The date reported cannot be in the future.');
+        // The Report Truck Problem form does not ask for a date. The server is
+        // authoritative, so never require or trust a client-supplied reported_on.
+        $date = date('Y-m-d');
         $priority = 'Normal'; // Legacy DB field; users no longer choose priority (#41).
         $mechanicId = optId($d, 'mechanic_id');
         $remarks = optField($d, 'remarks', 500);
