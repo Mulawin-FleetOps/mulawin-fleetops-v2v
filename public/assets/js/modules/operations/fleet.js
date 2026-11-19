@@ -289,12 +289,13 @@ const FleetUI = {
         const authorized=[...form.querySelectorAll('[data-driver-truck-selector] input:checked')]
           .map(input=>Number(input.name.slice('auth_truck_'.length)));
         for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
-        const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked');
-        // When changing Trucks, use the Helper linked to the target Truck.
-        // Never move the previous Truck's Helper without explicit selection.
         const chosenTruck=allTrucks.find(t=>Number(t.id)===authorized[0]);
-        const regularHelper=selectedHelper?Number(selectedHelper.name.slice('regular_helper_choice_'.length))
-          :Number(chosenTruck?.assigned_helper_id||0)||null;
+        // Existing fixed pairings are immutable here. For an unpaired Truck,
+        // require the Helper that the user explicitly selected in this form.
+        const fixedHelper=Number(chosenTruck?.assigned_helper_id||0);
+        const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked:not(:disabled)');
+        const regularHelper=fixedHelper||(selectedHelper
+          ? Number(selectedHelper.name.slice('regular_helper_choice_'.length)) : null);
         for(const key of Object.keys(values).filter(k=>/^regular_helper_choice_\d+$/.test(k)))delete values[key];
         return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||''};
       },
@@ -377,47 +378,63 @@ const FleetUI = {
           helperEmpty.hidden=visible>0;
           helperResults.textContent='Showing '+visible+' of '+helperOptions.length+' helpers';
         };
+        // Keep a user's explicit Helper selection when a Truck changes. The old
+        // implementation silently unchecked every Helper during each refresh.
         syncHelpersForTruck=()=>{
           const selected=inputs.find(input=>input.checked);
           const truckId=selected?Number(selected.name.slice('auth_truck_'.length)):0;
           const truck=allTrucks.find(v=>Number(v.id)===truckId);
           const fixedHelper=Number(truck?.assigned_helper_id||0);
-          // All truck types use one regular Driver and one regular Helper.
+          const selectedHelperId=Number(helperInputs.find(input=>input.checked&&!input.disabled)?.name.slice('regular_helper_choice_'.length)||0);
           helperInputs.forEach(input=>{
             const helperId=Number(input.name.slice('regular_helper_choice_'.length));
             const helper=(d.assignmentHelpers||[]).find(h=>Number(h.id)===helperId);
             const otherTruck=!!helper?.assigned_vehicle_id&&Number(helper.assigned_vehicle_id)!==truckId;
-            const selectedFixed=fixedHelper>0&&helperId===fixedHelper;
-            input.checked=selectedFixed;
-            input.disabled=!truck||otherTruck||fixedHelper>0;
+            const isFixed=fixedHelper>0&&helperId===fixedHelper;
+            const locked=!truck||otherTruck||fixedHelper>0;
+            input.checked=isFixed||(fixedHelper===0&&!otherTruck&&!!truck&&helperId===selectedHelperId);
+            input.disabled=locked;
             const option=input.closest('.driver-auth-option');
-            option?.classList.toggle('is-locked',input.disabled);
+            option?.classList.toggle('is-locked',locked);
+            // Never hide available Helpers when an authorized Truck is selected.
             const status=option?.querySelector('.driver-auth-option-status');
             if(status){
-              status.className='driver-auth-option-status '+(selectedFixed?'is-selected':input.disabled?'is-unavailable':'is-available');
-              status.textContent=selectedFixed?'Regular Helper · Locked'
+              status.className='driver-auth-option-status '+(input.checked?'is-selected':locked?'is-unavailable':'is-available');
+              status.textContent=isFixed?'Regular Helper · Locked'
                 :!truck?'Select Truck first'
                 :otherTruck?'Assigned to another Truck'
-                :fixedHelper?'Truck has a fixed Helper'
-                :'Available';
+                :fixedHelper?'Truck already has a Regular Helper'
+                :input.checked?'Selected · Pending Save':'Available';
             }
           });
+          const available=helperInputs.filter(input=>!input.disabled).length;
           helperCount.textContent=!truck?'Select an authorized Truck first'
-            :fixedHelper?'Regular Helper of selected Truck'
-            :'Select an available Helper if needed';
+            :fixedHelper?'This Truck already has a fixed Regular Helper'
+            :helperInputs.some(input=>input.checked&&!input.disabled)?'1 Helper selected'
+            :available?'Choose one of '+available+' available Helpers'
+            :'No unassigned Helpers available for this Truck';
+          refreshHelpers();
         };
         helperInputs.forEach(input=>input.addEventListener('change',()=>{
           if(input.checked)helperInputs.forEach(other=>{if(other!==input)other.checked=false;});
-          helperCount.textContent=helperInputs.some(input=>input.checked)?'1 Helper selected':'No Helper selected';
+          // Truck and Helper are one fixed pair; never retain a stale check.
+          syncHelpersForTruck();
         }));
         helperSearch.addEventListener('input',refreshHelpers);
         syncHelpersForTruck();refreshHelpers();
         form.addEventListener('submit',event=>{
-          if(inputs.some(input=>input.checked))return;
+          const truck=inputs.find(input=>input.checked);
+          const truckId=truck?Number(truck.name.slice('auth_truck_'.length)):0;
+          const fixed=Number(allTrucks.find(t=>Number(t.id)===truckId)?.assigned_helper_id||0);
+          const helper=helperInputs.find(input=>input.checked&&!input.disabled);
+          if(truck&&(fixed||helper))return;
           event.preventDefault();event.stopImmediatePropagation();
           const error=wrap.querySelector('.form-error');
-          if(error){error.textContent='Select at least one authorized truck.';error.style.display='block';}
-          inputs[0]?.focus();
+          if(error){
+            error.textContent=!truck?'Select exactly one Truck before saving.':'Select one available Regular Helper for the chosen Truck.';
+            error.style.display='block';
+          }
+          (!truck?inputs[0]:helperInputs.find(input=>!input.disabled)||helperSearch)?.focus();
         },true);
       },
     });
