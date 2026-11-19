@@ -457,17 +457,41 @@ final class Purchasing {
         return array_values($out);
     }
 
+    /** Shared request writer for same-transaction Motorpool repair intake.
+     * The Purchasing review/release workflow remains unchanged. */
+    public static function createForRepair(PDO $p, array $u, int $vid, int $jobId, string $purpose, array $rawLines): array {
+        requireRole($u, 'motorpool');
+        $lines = self::lines(['lines' => $rawLines]);
+        $v = one($p, 'SELECT plate_number FROM vehicles WHERE id=? AND active=1', [$vid]);
+        must((bool)$v, 'Choose an active truck.');
+        must((bool)one($p, "SELECT id FROM maintenance_jobs WHERE id=? AND vehicle_id=? AND status IN ('Under Inspection','Under Repair')", [$jobId, $vid]),
+            'The maintenance record does not belong to this truck or is already closed.');
+        foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
+        $rid = insert($p, 'part_requests', ['request_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'maintenance_job_id' => $jobId,
+            'purpose' => $purpose, 'status' => 'Requested', 'requested_by' => $u['id']]);
+        $ref = refNumber('RF', $rid);
+        run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
+        foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
+        auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
+            [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
+        Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'parts_requests', 'parts-req-' . $rid);
+        return ['request_id' => $rid, 'request_ref' => $ref, 'message' => "Request $ref sent to the Purchasing Officer."];
+    }
+
     private static function requestCreate(array $u, array $d): array {
         requireRole($u, 'motorpool');
         $vid = idField($d, 'vehicle_id'); $jobId = optId($d, 'maintenance_job_id');
         $purpose = field($d, 'purpose', 255);
+        if ($jobId) {
+            return transaction(static fn(PDO $p) => self::createForRepair($p, $u, $vid, $jobId, $purpose, (array)($d['lines'] ?? [])));
+        }
+        // Standalone requests may be made before a repair record exists.
         $lines = self::lines($d);
-        return transaction(function (PDO $p) use ($u, $vid, $jobId, $purpose, $lines) {
+        return transaction(function (PDO $p) use ($u, $vid, $purpose, $lines) {
             $v = one($p, 'SELECT plate_number FROM vehicles WHERE id=? AND active=1', [$vid]);
             must((bool)$v, 'Choose an active truck.');
-            if ($jobId) must((bool)one($p, "SELECT id FROM maintenance_jobs WHERE id=? AND vehicle_id=? AND status IN ('Under Inspection','Under Repair')", [$jobId, $vid]), 'The maintenance record does not belong to this truck or is already closed.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            $rid = insert($p, 'part_requests', ['request_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'maintenance_job_id' => $jobId,
+            $rid = insert($p, 'part_requests', ['request_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'maintenance_job_id' => null,
                 'purpose' => $purpose, 'status' => 'Requested', 'requested_by' => $u['id']]);
             $ref = refNumber('RF', $rid);
             run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
