@@ -702,7 +702,7 @@ const MpParts = {
   nextStep(r) {
     // MOTORPOOL_UI_V2: order state for open requests (from Purchasing records; no supplier or cost shown).
     if (MpParts.OPEN.includes(r.status) && r.last_received_at && (!r.last_released_at || r.last_received_at > r.last_released_at))
-      return 'Ordered parts arrived on ' + UI.date(r.last_received_at) + '. Waiting for release.';
+      return 'Some linked PO parts were physically received on ' + UI.date(r.last_received_at) + '. Waiting for Purchasing release.';
     if (MpParts.OPEN.includes(r.status) && +r.on_order) return 'Ordered by Purchasing. Waiting for delivery.';
     return {
       'Requested': 'Waiting for the Purchasing Officer to check the stock and release.',
@@ -751,6 +751,7 @@ App.page('mp_parts_requests', {
       ['Truck / repair', 'plate_number', (v, r) => `${UI.esc(v)}${r.job_ref ? `<div class="cell-sub">${UI.esc(r.job_ref)}</div>` : ''}`],
       ['Items', 'items', (v) => `<span class="cell-clip">${UI.esc(v || '')}</span>`],
       ['Progress', 'progress'],
+      ['Reserved', 'reserved_units', (v) => UI.num(v || 0)],
       ['Last released', 'last_released_at', (v) => v ? UI.datetime(v) : '<span class="text-muted">Not yet</span>'],
       ['Status', 'status', 'badge'],
       ['Next step', 'next', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
