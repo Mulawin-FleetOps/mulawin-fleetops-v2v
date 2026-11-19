@@ -430,7 +430,7 @@ const TripUI = {
     const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
     const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
-    const crew = [['Driver', t.driver_name], ...(t.truck_type === 'Car Carrier' ? [['Driver 2', t.driver2_name]] : [['Helper', t.helper_name]])];
+    const crew = [['Driver', t.driver_name], ['Helper', t.helper_name], ...(t.driver2_id ? [['Legacy Driver 2', t.driver2_name]] : [])];
     // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: attendance per crew member for the date of "dispatch now" (server data).
     const att = t.crew_attendance;
     const attBadge = (role) => {
