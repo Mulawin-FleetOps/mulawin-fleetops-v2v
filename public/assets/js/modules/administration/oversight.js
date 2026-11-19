@@ -488,14 +488,14 @@ const AnalyticsAutoSync = {
           const rows = job.ctx._incidentEvidenceRows || [];
           const i = rows.findIndex(r => String(r.incident_ref) === chosen);
           const btn = i >= 0 ? job.ctx.el.querySelector('[data-ax-evidence="'+i+'"]') : null;
-          btn?.click();
+          if (btn) { job.restoring = true; btn.click(); job.restoring = false; }
         }
         scrollers.forEach(saved => {
           const node = saved.id ? root.querySelector('#'+CSS.escape(saved.id))
             : [...root.querySelectorAll('*')].find(n => n.className === saved.cls);
           if(node){node.scrollTop=saved.top;node.scrollLeft=saved.left;}
         });
-        window.scrollTo({top:scrollY,behavior:'instant'});
+        window.scrollTo(0,scrollY);
         job.last = fingerprint;
       }
       job.updated = new Date();
@@ -823,7 +823,7 @@ const AnalyticsAutoSync = {
         +(row.job_id?'<button class="btn btn-sm btn-outline-success" type="button" data-ax-open-source="maintenance">Open Repair Management</button>':'')
         +'</div></div></section>';
       target.querySelectorAll('[data-ax-open-source]').forEach(b=>b.addEventListener('click',()=>App.go(b.dataset.axOpenSource)));
-      target.scrollIntoView({block:'nearest',behavior:'smooth'});
+      if (!AnalyticsAutoSync.active?.restoring) target.scrollIntoView({block:'nearest',behavior:'smooth'});
     }));
 
     chartJobs.forEach(job=>{try{job();}catch(err){console.error('Analytics chart error',err);}});
