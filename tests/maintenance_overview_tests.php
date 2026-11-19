@@ -328,6 +328,50 @@ try {
 } finally { $p->exec('SET SESSION sql_mode = ' . $p->quote($mode)); }
 
 // ---------------------------------------------------------------------
+section('I. Combined Report Truck Problem: one submit for repair, mechanics and parts');
+$combinedTruck = insert($p, 'vehicles', ['plate_number' => 'MNT-77', 'truck_number' => '177', 'truck_type' => 'Wing Van']);
+$lead = Mechanics::action($mp, 'save', ['full_name' => 'COMBINED LEAD', 'specialization' => 'Engine'])['id'];
+$assistant = Mechanics::action($mp, 'save', ['full_name' => 'COMBINED ASSIST', 'specialization' => 'Engine'])['id'];
+Mechanics::action($mp, 'time_in', ['id' => $lead]);
+Mechanics::action($mp, 'time_in', ['id' => $assistant]);
+$_FILES = ['photos' => $png('combined-report.png')];
+$combined = Maintenance::action($mp, 'report', [
+    'vehicle_id' => $combinedTruck, 'problem' => 'Air line leak',
+    'mechanic_id' => $lead, 'assistant_mechanic_ids' => [$assistant],
+    'parts_lines' => [['part_id' => $hose, 'quantity' => 2]],
+]);
+$_FILES = [];
+$combinedJob = (int)$combined['job_id'];
+$combinedRequest = one($p, 'SELECT * FROM part_requests WHERE maintenance_job_id=?', [$combinedJob]);
+ok($job($combinedJob)['status'] === 'Under Inspection'
+    && (int)$job($combinedJob)['mechanic_id'] === (int)$lead,
+    'combined submission starts inspection with chosen lead mechanic');
+ok((bool)one($p, 'SELECT id FROM maintenance_job_helpers WHERE maintenance_job_id=? AND mechanic_id=? AND released_at IS NULL',
+    [$combinedJob, $assistant]), 'assisting mechanic linked to the new repair');
+ok((bool)$combinedRequest && (int)$combinedRequest['vehicle_id'] === (int)$combinedTruck
+    && $combinedRequest['status'] === 'Requested'
+    && (int)one($p, 'SELECT quantity FROM part_request_lines WHERE part_request_id=?', [$combinedRequest['id']])['quantity'] === 2,
+    'one linked parts request sent to Purchasing with correct quantity');
+ok((int)one($p, 'SELECT COUNT(*) AS n FROM stock_movements WHERE reference_type=? AND reference_id=?',
+    ['part_request', $combinedRequest['id']])['n'] === 0, 'combined intake never releases stock automatically');
+ok(one($p, 'SELECT status FROM vehicles WHERE id=?', [$combinedTruck])['status'] === 'Under Maintenance',
+    'reported truck taken out of service');
+
+$invalidTruck = insert($p, 'vehicles', ['plate_number' => 'MNT-78', 'truck_number' => '178', 'truck_type' => 'Wing Van']);
+$_FILES = ['photos' => $png('invalid-combined.png')];
+fails(fn() => Maintenance::action($mp, 'report', [
+    'vehicle_id' => $invalidTruck, 'problem' => 'Brake issue',
+    'mechanic_id' => $M[2], 'parts_lines' => [
+        ['part_id' => $hose, 'quantity' => 1], ['part_id' => $hose, 'quantity' => 2]
+    ],
+]), 'duplicate requested parts roll back entire combined repair', 422);
+$_FILES = [];
+ok(!one($p, 'SELECT id FROM maintenance_jobs WHERE vehicle_id=?', [$invalidTruck])
+    && !one($p, 'SELECT id FROM part_requests WHERE vehicle_id=?', [$invalidTruck])
+    && one($p, 'SELECT status FROM vehicles WHERE id=?', [$invalidTruck])['status'] === 'Available',
+    'failed combined submission leaves no job, request or truck-state changes');
+
+// ---------------------------------------------------------------------
 foreach (glob($tmpDir . '/*') ?: [] as $f) @unlink($f); @rmdir($tmpDir);
 echo "\nRESULT: $PASS passed, $FAIL failed\n";
 if ($FAILED) { echo "Failed:\n"; foreach ($FAILED as $f) echo "  - $f\n"; }
