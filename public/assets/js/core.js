@@ -935,6 +935,8 @@ const App = {
     // Billing-only compact presentation; never leak styles into other roles or pages.
     el.classList.toggle('billing-design-v2', UI.role('billing') && ['billing_overview','billing','billing_collections','billing_receivables','reports'].includes(page));
     el.classList.toggle('ref-scope', UI.REF_PAGES.has(page) && document.body.classList.contains('ref-body'));
+    // Report-specific layout works in both Admin and delegated-role shells.
+    el.classList.toggle('report-layout-scope', ['maintenance_reports','purchasing_reports','admin_reports'].includes(page));
     const def = this.pages[page];
     if (!def) {
       el.innerHTML = `<div class="page-head"><div><h1 class="page-title">${UI.esc(nav.label)}</h1></div></div>
@@ -948,6 +950,22 @@ const App = {
         <div class="page-actions no-print" id="pageTools"></div>
         <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
+    // Only Admin can return directly to the central Reports listing.
+    // Delegated reports must not expose this control to other roles.
+    if (this.me?.user?.role === 'admin' &&
+        ['reports','operations_reports','financial_reports','billing_reports','maintenance_reports',
+          'purchasing_reports','audit_reports','admin_reports','admin_analytics',
+          'admin_descriptive_analytics','admin_diagnostic_analytics'].includes(page)) {
+      const actions = el.querySelector('#pageTools');
+      if (actions) {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'btn btn-sm btn-outline-secondary report-back-btn';
+        back.innerHTML = '<i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Reports';
+        back.addEventListener('click', () => App.go('reports_center'));
+        actions.prepend(back);
+      }
+    }
     // Add only an access indicator to the existing header, without replacing
     // the page shell or the page-body DOM structure used by every module.
     if (!['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
