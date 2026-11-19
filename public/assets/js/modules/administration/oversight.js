@@ -743,14 +743,17 @@ const AnalyticsAutoSync = {
       + [['management','Management'],['audit','Audit']].map(([id,name])=>'<a class="'+(kind===id?'active':'')+'" href="#'+analyticsPage+'?topic='+encodeURIComponent(topic)+'&report='+id+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'')+'">'+name+'</a>').join('')+'</div>';
     const visuals = '<div class="ax-charts">' + charts.join('') + '</div>';
     const css = '<style>'
-      // Keep the actual analytics heading inside .ax-shell; hide only the duplicate
-      // generic page title/subtitle for these two Admin analytics screens.
-      + '#pageContent:has(.ax-shell) > .page-head .page-head-text{display:none!important;}'
-      + '#pageContent:has(.ax-shell) > .page-head{min-height:0!important;margin:0!important;padding:0!important;gap:0!important;}'
+      // The analytics card owns the full header, just like the other reports.
+      // Hide the generic page heading so no empty band remains above the card.
+      + '#pageContent:has(.ax-shell) > .page-head{display:none!important;}'
       + '.ax-shell{background:#f6f9f7;border:1px solid #e0e9e2;border-radius:16px;padding:20px;max-width:100%;}'
       + '.ax-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:15px;}'
       + '.ax-header h2{font-size:22px;font-weight:750;margin:4px 0 5px;letter-spacing:-.03em}.ax-header p{font-size:12px;color:#69786f;margin:0;max-width:750px;}'
-      + '.ax-sync-meta{display:flex;align-items:center;gap:5px;align-self:flex-start;margin-top:5px;color:#687c70;font-size:12px;white-space:normal;}'
+      + '.ax-header-right{display:flex;align-items:flex-end;flex-direction:column;gap:9px;min-width:190px;}'
+      + '.ax-header-right .page-access-actions{display:flex;flex-direction:column;align-items:flex-end;gap:7px;margin:0;}'
+      + '.ax-header-right .page-access-tag{margin:0;}'
+      + '.ax-sync-meta{display:flex;align-items:center;justify-content:flex-end;gap:5px;color:#687c70;font-size:12px;white-space:normal;text-align:right;}'
+      + '@media(max-width:650px){.ax-header-right{align-items:flex-start;width:100%;}.ax-header-right .page-access-actions{align-items:flex-start;}.ax-sync-meta{text-align:left;justify-content:flex-start;}}'
       + '.ax-objective{display:inline-block;border-radius:20px;background:#e5f2e9;color:#207549;padding:5px 10px;font-size:11px;font-weight:650;}'
       + '.ax-mode-tabs{display:flex;gap:10px;border-bottom:1px solid #dfe7e2;margin:12px 0 18px;flex-wrap:wrap;}'
       + '.ax-mode-tabs a{padding:11px 13px;text-decoration:none;color:#63766a;font-size:13px;font-weight:650;border-bottom:3px solid transparent;}'
@@ -779,7 +782,11 @@ const AnalyticsAutoSync = {
     ctx.el.innerHTML = css + '<div class="ax-shell"><div class="ax-header"><div><span class="ax-objective">OBJECTIVE 5 · HEAD ADMIN ONLY</span>'
       + '<h2>'+(diagnostic?'Diagnostic':'Descriptive')+' Analytics · '+escape(kind==='management'?'Management Reports':kind==='audit'?'Audit Reports':selected[1])+'</h2>'
       + '<p>'+(diagnostic?'Investigate recurring issues, ranked contributors, receivables aging and part consumption.':'Recorded performance summaries, totals and trends by reporting period.')+'</p></div>'
-      + '<div class="ax-sync-meta"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span id="ax-sync-status" class="small text-muted" aria-live="polite"></span></div></div>'
+      + '<div class="ax-header-right no-print"><div class="page-access-actions">'
+      + '<span class="page-access-tag"><i class="bi bi-shield-check" aria-hidden="true"></i> <span>Management access</span></span>'
+      + '<button type="button" class="btn btn-sm btn-outline-secondary report-back-btn" data-ax-back-reports>'
+      + '<i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Reports</button></div>'
+      + '<div class="ax-sync-meta"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span id="ax-sync-status" class="small text-muted" aria-live="polite"></span></div></div></div>'
       + modeNav
       + '<div class="ax-filters"><div><label for="ax-from">From</label><input type="date" class="form-control form-control-sm" id="ax-from" value="'+escape(per.from||'')+'"></div>'
       + '<div><label for="ax-to">To</label><input type="date" class="form-control form-control-sm" id="ax-to" value="'+escape(per.to||'')+'"></div>'
@@ -789,6 +796,7 @@ const AnalyticsAutoSync = {
       + '</div>'
       + focusHtml + '<h3 class="h6 mb-3">'+escape(diagnostic?'Diagnostic findings':'Performance overview')+'</h3>'
       + metricHtml + visuals + supporting + '<p class="ax-note">'+escape(note)+'</p>' + reportNav + '</div>';
+    ctx.el.querySelector('[data-ax-back-reports]')?.addEventListener('click', () => App.go('reports_center'));
     ctx.el.querySelectorAll('[data-ax-topic]').forEach(button => button.addEventListener('click',()=>categoryGo(button.dataset.axTopic)));
     ctx.el.querySelector('#ax-apply')?.addEventListener('click',()=>{
       const from=ctx.el.querySelector('#ax-from').value,to=ctx.el.querySelector('#ax-to').value;
