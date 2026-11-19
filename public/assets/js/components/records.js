@@ -484,6 +484,7 @@ const RecordComponents = Object.freeze({
       };
       if (statuses.length) row.append(filterBtn);
       row.append(sortBtn, pop);
+      toolbar.replaceWith(row);
       this.bindDropdowns(box, {
         apply: panel => {
           selected = panel.querySelector('[data-maint-status]')?.value || '';
@@ -500,7 +501,7 @@ const RecordComponents = Object.freeze({
         sort: value => { direction = value; apply(); }
       }, {filter:filterId, sort:sortId});
     }
-    toolbar.replaceWith(row);
+    if (!state) toolbar.replaceWith(row);
     const tabs = options.tabs || root.querySelector('.line-tabs.ws-status-tabs, .record-workspace-tabs');
     if (tabs && !box.contains(tabs)) {
       const category = document.createElement('div');
