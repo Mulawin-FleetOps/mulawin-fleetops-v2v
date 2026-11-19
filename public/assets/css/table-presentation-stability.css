@@ -1,0 +1,97 @@
+/* TABLE_PRESENTATION_STABILITY_V1
+ * Final, shared display rules loaded after legacy workspace styles.
+ * Preserve columns, real records, pagination, filters and delegated actions.
+ * Do not alter icon-only controls or backend logic.
+ */
+#pageContent .ref-list,
+#pageContent .ref-tablebox,
+#pageContent .ref-tablebox > .table-wrap,
+#pageContent .table-tools,
+#pageContent .ref-toolbar { min-width:0; max-width:100%; }
+#pageContent .ref-tablebox > .table-wrap { overflow-x:auto; overscroll-behavior-x:contain; }
+
+/* Global reference-table fix: a labelled button cannot be forced into the
+   previous 32x32 icon grid. The button owns both icon and readable wording. */
+#pageContent.ref-scope .ref-tablebox .row-icons > .btn:not(.icon-act),
+#pageContent.ref-scope .ref-tablebox .row-actions .btn:not(.icon-act),
+#pageContent .purchasing-live-v1 .ref-tablebox .row-icons > .btn:not(.icon-act) {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  vertical-align:middle;
+  gap:5px;
+  width:auto;
+  height:auto;
+  min-width:max-content;
+  min-height:34px;
+  padding:7px 10px;
+  white-space:nowrap;
+  line-height:1.3;
+  font-size:12px;
+  font-weight:650;
+  text-align:center;
+}
+#pageContent.ref-scope .ref-tablebox .row-icons > .btn:not(.icon-act) i,
+#pageContent .purchasing-live-v1 .ref-tablebox .row-icons > .btn:not(.icon-act) i {flex:0 0 auto;}
+#pageContent.ref-scope .ref-tablebox .row-icons,
+#pageContent .purchasing-live-v1 .ref-tablebox .row-icons {
+  display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;
+  width:auto; max-width:100%;
+}
+#pageContent.ref-scope .ref-tablebox .data-table :is(th,td).actions-col{
+  white-space:normal; text-align:center; padding:9px 10px;
+  min-width:130px; max-width:none;
+}
+#pageContent.ref-scope .ref-tablebox .data-table :is(th,td) {
+  box-sizing:border-box;vertical-align:middle;
+}
+
+/* Purchasing tables: let content determine column width instead of conflicting
+   nth-child percentage rules (which assumed icon-only actions). Horizontal
+   scrolling stays inside the table card on narrow laptop widths. */
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table{
+  table-layout:auto;
+  width:100%;
+  max-width:none;
+  border-collapse:collapse;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td):not(.actions-col) {
+  width:auto !important;
+  max-width:none;
+  min-width:0;
+  padding:11px 10px;
+  white-space:normal;
+  overflow-wrap:break-word;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col {
+  width:auto !important;
+  min-width:170px;
+  max-width:none;
+  padding:10px 12px;
+  white-space:normal;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions {
+  display:flex;justify-content:center;align-items:center;
+  flex-wrap:wrap;gap:6px;min-width:0;max-width:none;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions .btn{
+  max-width:100%;
+}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table {min-width:1060px;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(1){min-width:145px;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(2){min-width:120px;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(5){min-width:190px;}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(7){min-width:135px;}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table {min-width:1180px;}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table {min-width:1050px;}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table {min-width:1170px;}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clamp{
+  display:block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-nowrap{
+  white-space:nowrap;
+}
+@media(max-width:768px) {
+  #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 8px;}
+  #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col{min-width:150px;}
+}
