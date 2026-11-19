@@ -1678,7 +1678,7 @@ UI.overviewDetails = (id, row) => {
 UI.table = (columns, rows, opts = {}) => {
   const id = opts.id || 'tbl' + Math.random().toString(36).slice(2, 8);
   const visibleColumns = UI.overviewColumns(columns, opts);
-  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(100, Math.max(1, Number(opts.limit) || 5)), page: 0, filter: '' };
+  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(10, Math.max(1, Number(opts.limit) || 10)), page: 0, filter: '' };
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   if (UI.refPage()) {   // REF_FIDELITY_V1: search + Reset toolbar, then the bordered table (reference list layout)
     return `<div class="ref-list"><div class="ref-toolbar no-print"><div class="table-search ref-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" type="search" placeholder="Search records..." aria-label="Search records" data-tsearch="${id}"></div>
@@ -2821,7 +2821,7 @@ UI.signatureModal = () => {
         <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">List</span></button>
         <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">${UI.role('operations_head')||UI.isDispatcher()?'Grid':'Cards'}</span></button>
       </div>
-      <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select></label>
+      <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="10">10</option></select></label>
     </div>`;
     const originalTools = opts.tools || '';
     const result = oldTable(columns, rows, { ...opts, tools: originalTools + actions });
@@ -2829,7 +2829,7 @@ UI.signatureModal = () => {
     if (t) {
       t.rpmView = 'list';
       t.rpmMarker = marker;
-      t.limit = 12;
+      t.limit = 10;
     }
     return result;
   };
@@ -2927,7 +2927,7 @@ UI.signatureModal = () => {
         if (!result) return;
         const [id, t] = result;
         const count = Number(e.target.value);
-        if (![12, 24, 48].includes(count)) return;
+        if (count !== 10) return;
         t.limit = count;
         t.page = 0;
         UI.drawTable(id);
