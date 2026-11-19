@@ -2264,14 +2264,14 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 }
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1){width:10%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2){width:13%}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:16%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:12%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4){width:15%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5){width:7%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(6){width:8%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(7){width:10%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(8){width:9%}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(9){width:7%}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(10){width:5%;min-width:105px}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(10){width:9%;min-width:100px}
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):last-child{
   white-space:nowrap;
   text-align:center;
