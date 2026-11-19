@@ -83,6 +83,7 @@ const MaintUI = {
       <button type="button" class="btn btn-outline-danger btn-sm mp-parts-remove" data-remove-part aria-label="Remove part"><i class="bi bi-trash"></i></button>
     </div>`;
     const fields = UI.fields([
+      { type:'html', col:12, html:'<label class="form-label" for="motorpool-truck-search">Search affected truck</label><input id="motorpool-truck-search" type="search" class="form-control form-control-sm" data-report-truck-search placeholder="Search plate number, truck number, or truck type…" autocomplete="off"><div class="form-help" data-truck-search-count aria-live="polite"></div>' },
       { name:'vehicle_id', label:'Affected truck', type:'select', required:true, col:6, value:vehicleId,
         options:trucks.map(v=>[v.id, v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')']),
         help:'Trucks on trips, returning, unavailable or already under repair are excluded.' },
@@ -140,7 +141,7 @@ const MaintUI = {
       const sync=()=>{
         if (!list) return;
         const rows=[...list.querySelectorAll('[data-part-row]')];
-        rows.forEach(row=>row.querySelector('[data-remove-part]').disabled=rows.length===1);
+        rows.forEach(row=>row.querySelector('[data-remove-part]').disabled=false);
         // Empty parts list is allowed until the Motorpool confirms actual parts.
       };
       add?.addEventListener('click',()=>{if(list&&list.children.length<30){list.insertAdjacentHTML('beforeend',item());sync();}});
@@ -149,6 +150,30 @@ const MaintUI = {
         if(!button)return;
         button.closest('[data-part-row]').remove();sync();
       });
+      const search=form.querySelector('[data-report-truck-search]');
+      const select=form.querySelector('[name="vehicle_id"]');
+      const count=form.querySelector('[data-truck-search-count]');
+      const truckOptions=trucks.map(v=>({
+        id:String(v.id),
+        label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')',
+        search:[v.plate_number,v.truck_number,v.truck_type,v.status].join(' ').toLowerCase()
+      }));
+      const filterTrucks=()=>{
+        const term=(search.value||'').trim().toLowerCase();
+        const selected=select.value;
+        const matches=truckOptions.filter(v=>v.search.includes(term));
+        const visible=matches.slice();
+        // Keep an already selected truck visible even while typing another search.
+        const chosen=truckOptions.find(v=>v.id===selected);
+        if(chosen&&!visible.some(v=>v.id===chosen.id))visible.unshift(chosen);
+        select.replaceChildren(new Option('Choose truck…',''));
+        visible.forEach(v=>select.add(new Option(v.label,v.id)));
+        if(selected&&visible.some(v=>v.id===selected))select.value=selected;
+        count.textContent=matches.length+' matching available truck'+(matches.length===1?'':'s')+
+          (term&&selected&&!matches.some(v=>v.id===selected)?' · currently selected truck retained':'');
+      };
+      search?.addEventListener('input',filterTrucks);
+      filterTrucks();
       const lead=form.querySelector('[name="mechanic_id"]');
       const updateLead=()=>{
         dialog.querySelectorAll('[data-assistant-id]').forEach(box=>{
