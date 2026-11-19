@@ -112,11 +112,15 @@ final class Purchasing {
 
     /** Parts requests as Purchasing needs them to fulfil: no incident notes, driver or employee data. */
     private static function requestRows(PDO $p): array {
+        $reserveExpr = self::reservationsReady($p)
+            ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
+            : '0';
         // STAGE_B_PURCHASING_UI: requested/released units and the linked purchase orders (ref + status) per request.
         return many($p, "SELECT r.id, r.request_ref, r.vehicle_id, r.status, r.purpose, r.notes, r.created_at, r.processed_at, v.plate_number, m.job_ref,
                 ru.full_name AS requested_by_name, pu.full_name AS processed_by_name,
                 (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
+                $reserveExpr AS reserved_units,
                 (SELECT GROUP_CONCAT(CONCAT(o.po_ref, ' (', o.status, ')') ORDER BY o.id SEPARATOR '; ') FROM purchase_orders o WHERE o.part_request_id=r.id) AS linked_pos,
                 (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
                    FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
@@ -571,6 +575,9 @@ final class Purchasing {
             must((bool)$r, 'Request not found.', 404);
             must(in_array($r['status'], ['Requested', 'Partially Released', 'Not Available'], true), 'This request is ' . $r['status'] . '.', 409);
             $lines = many($p, 'SELECT l.*, pt.part_number, pt.unit_cost AS cost FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? FOR UPDATE', [$id]);
+            if ($notAvailable && self::reservationsReady($p)) {
+                foreach ($lines as $l) must((int)$l['reserved_qty'] === 0, 'Reserved parts are available: release them before marking the request Not Available.', 409);
+            }
             $released = 0;
             if (!$notAvailable) {
                 $want = [];
