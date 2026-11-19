@@ -301,7 +301,9 @@ CREATE TABLE suppliers (
 CREATE TABLE parts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   part_number VARCHAR(70) NOT NULL UNIQUE,
-  description VARCHAR(200) NOT NULL,
+  part_type VARCHAR(100) NULL COMMENT 'General part type; legacy rows require classification',
+  description VARCHAR(200) NOT NULL COMMENT 'Specific part name / specification',
+  brand VARCHAR(100) NULL,
   category VARCHAR(80) NULL,
   unit VARCHAR(20) NOT NULL DEFAULT 'pc',
   unit_cost DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'latest purchase cost',
@@ -311,6 +313,7 @@ CREATE TABLE parts (
   warranty_months SMALLINT UNSIGNED NULL COMMENT 'default coverage for future receipts; legacy text retained',
   active TINYINT NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_parts_type_name (part_type, description),
   CONSTRAINT chk_parts_qty CHECK (quantity_on_hand >= 0),
   CONSTRAINT chk_parts_cost CHECK (unit_cost >= 0 AND reorder_level >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
