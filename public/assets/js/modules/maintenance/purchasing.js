@@ -781,6 +781,17 @@ const PurRef = {
     filterWrap.insertAdjacentElement('afterend', sortWrap);
     const tabs = ctx.el.querySelector('.purchasing-record-tabs-slot, .purchasing-po-tabs-slot');
     if (tabs) toolbar.insertAdjacentElement('afterend', tabs);
+    // Move original permission-checked buttons; retain their existing click handlers.
+    const header = box.querySelector('.purchasing-ref-records-head');
+    if (header && ctx.tools) {
+      const buttons = [...ctx.tools.querySelectorAll(':scope > button')];
+      if (buttons.length) {
+        const actions = document.createElement('div');
+        actions.className = 'purchasing-record-header-actions';
+        buttons.forEach(button => actions.appendChild(button));
+        header.appendChild(actions);
+      }
+    }
   },
   sortRecords(rows, q, dateKey, referenceKey, amountKey) {
     const sort = ['newest', 'oldest', 'reference', 'amount_high', 'amount_low'].includes(q.sort) ? q.sort : 'newest';
@@ -960,36 +971,11 @@ App.page('purchase_orders', {
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
-    // Match the Operations Head hierarchy: header/action, search + Filter + Sort, then quick tabs.
-    const toolbar = box.querySelector('.ref-toolbar, .table-tools');
-    const tabs = ctx.el.querySelector('.purchasing-po-tabs-slot');
-    const search = toolbar?.querySelector('.table-search');
-    if (toolbar && tabs && search) {
-      toolbar.classList.add('purchasing-po-toolbar');
-      const filterWrap = document.createElement('div');
-      filterWrap.className = 'purchasing-po-filter';
-      filterWrap.innerHTML = UI.filterModal(ctx, [{ name: 'supplier', label: 'Supplier', type: 'select', col: 12,
-        options: suppliers.map(name => [name, name]) }], { hint: '' });
-      filterWrap.querySelector('.ui-filter-toolbar > span:not(.filter-chip)')?.remove();
-      search.insertAdjacentElement('afterend', filterWrap);
-      const sortWrap = document.createElement('label');
-      sortWrap.className = 'purchasing-po-sort';
-      sortWrap.innerHTML = `<i class="bi bi-sort-down" aria-hidden="true"></i><span>Sort</span>
-        <select class="form-select form-select-sm" aria-label="Sort purchase orders">
-          <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
-          <option value="po">PO number</option><option value="amount_high">Highest amount</option>
-          <option value="amount_low">Lowest amount</option>
-        </select>`;
-      const select = sortWrap.querySelector('select');
-      select.value = sort;
-      select.addEventListener('change', () => {
-        const next = { ...q, sort: select.value };
-        if (select.value === 'newest') delete next.sort;
-        App.go('purchase_orders', next);
-      });
-      filterWrap.insertAdjacentElement('afterend', sortWrap);
-      toolbar.insertAdjacentElement('afterend', tabs);
-    }
+    PurRef.recordLayout(ctx, box, {
+      filters: [{ name: 'supplier', label: 'Supplier', type: 'select', col: 12, options: suppliers.map(name => [name, name]) }],
+      sortOptions: [['newest','Newest first'], ['oldest','Oldest first'], ['po','PO number'], ['amount_high','Highest amount'], ['amount_low','Lowest amount']],
+      sort
+    });
     PurUI.bindWorkflowLinks(box);
     PurUI.openFromQuery(ctx, all, open);
   },
