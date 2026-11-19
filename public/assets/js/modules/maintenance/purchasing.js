@@ -220,12 +220,13 @@ const PurUI = {
       return `<tr><td>${UI.esc(l.part_number)}<div class="small text-muted">${PurUI.partLabel(l)}</div></td><td class="num">${l.quantity}</td><td class="num">${l.released_qty}</td><td class="num">${l.quantity_on_hand}</td>
         <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${can > 0 ? can : 0}" data-rel="${l.id}" ${left ? '' : 'disabled'}></td></tr>`; }).join('');
     const missing = r.lines.some(l => (+l.quantity - +l.released_qty) > (+l.reserved_qty || 0) + Math.max(0, (+l.quantity_on_hand || 0) - ((PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.reserved_qty || 0)));
+    const canRelease = r.lines.some(l => (+l.reserved_qty || 0) + Math.max(0, (+l.quantity_on_hand || 0) - ((PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.reserved_qty || 0)) > 0 && +l.quantity > +l.released_qty);
     const wrap = UI.modal('Handle request · ' + UI.esc(rq.request_ref), `<p class="small text-muted">Truck ${UI.esc(rq.plate_number)} · ${UI.esc(rq.purpose)}. Available stock is prefilled for release. If stock is short, use the purchase order shortcut below.</p>
       <table class="data-table"><thead><tr><th>Part</th><th class="num">Requested</th><th class="num">Released</th><th class="num">On hand</th><th>Release now</th></tr></thead><tbody>${rows}</tbody></table>
       ${UI.fields([{ name: 'notes', label: 'Notes', col: 12 }])}`,
       async (x, form) => { const release = [...form.querySelectorAll('[data-rel]')].map(i => ({ line_id: i.dataset.rel, qty: +i.value || 0 }));
         const res = await App.api('Purchasing.request_process', { request_id: rq.id, release, notes: x.notes }); UI.result(res); App.route(); },
-      { submit: 'Release available parts', extraFooter: (missing ? '<button type="button" class="btn btn-outline-primary btn-sm me-auto" data-shortage-po>Create PO for shortage</button>' : '') + '<button type="button" class="btn btn-outline-secondary btn-sm" data-na>None available</button>' });
+      { submit: 'Release available parts', extraFooter: (missing ? '<button type="button" class="btn btn-outline-primary btn-sm me-auto" data-shortage-po>Create PO for shortage</button>' : '') + (!canRelease ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-na>None available</button>' : '') });
     wrap.querySelector('[data-shortage-po]')?.addEventListener('click', () => {
       const pending = r.lines.filter(l => +l.quantity > +l.released_qty + (+l.reserved_qty || 0)).map(l => ({
         part_id: l.part_id,
@@ -233,8 +234,10 @@ const PurUI = {
         unit_price: (PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.unit_cost ?? 0
       }));
       if (!pending.length) return UI.toast('There is no unreserved shortage for this request.', 'warning');
+      wrap.addEventListener('hidden.bs.modal', () => {
+        PurUI.newPO({ part_request_id: rq.id, purpose: 'Parts for ' + rq.plate_number + ' (' + rq.request_ref + ')', lines: pending });
+      }, { once: true });
       bootstrap.Modal.getInstance(wrap)?.hide();
-      PurUI.newPO({ part_request_id: rq.id, purpose: 'Parts for ' + rq.plate_number + ' (' + rq.request_ref + ')', lines: pending });
     });
     wrap.querySelector('[data-na]').onclick = async () => { if (!await UI.confirmProceed('Confirm no stock', 'Mark this parts request as not available because the required stock is unavailable?', 'Confirm not available')) return; try { const res = await App.api('Purchasing.request_process', { request_id: rq.id, not_available: 1 }); UI.result(res); bootstrap.Modal.getInstance(wrap).hide(); App.route(); } catch (e) { UI.toast(e.message, 'error'); } };
   },
