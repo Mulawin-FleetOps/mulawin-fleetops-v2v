@@ -26,24 +26,3 @@ App.page('notifications', {
   },
 });
 
-/** Read-only, role-scoped audit history separate from actionable notifications. */
-App.page('recent_activity', {
-  title: 'Recent System Activity',
-  subtitle: 'Recorded actions from the existing audit trail. Only authorized activity is visible.',
-  render(ctx) {
-    const d = ctx.data || {}, rows = d.items || [];
-    const scope = d.scope === 'own' ? 'My recorded activity' : 'System activity';
-    ctx.el.innerHTML = '<section class="panel"><div class="panel-head"><h2 class="panel-title">'
-      + UI.esc(scope) + '</h2><div class="small text-muted">Latest 100 records · read-only</div></div>'
-      + '<div class="panel-body"><p class="small text-muted">Audit activity records who performed an action and when. '
-      + 'Notifications remain separate and are used for tasks requiring attention.</p>'
-      + UI.table([
-        ['Date and time', 'created_at', 'datetime'],
-        ['Area', 'area'],
-        ['Action', 'action'],
-        ['Record', 'record_ref'],
-        ['Performed by', 'actor']
-      ], rows, {empty:'No recorded activity is available for this account.'})
-      + '</div></section>';
-  }
-});
