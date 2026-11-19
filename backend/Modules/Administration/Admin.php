@@ -382,23 +382,57 @@ final class Admin {
     private static function fundCategorySave(array $u, array $d): array {
         requireRole($u, 'admin');
         $id = optId($d, 'id');
-        $name = field($d, 'name', 80); $amount = moneyField($d, 'amount'); $active = !empty($d['active']) ? 1 : 0;
-        $order = (int)(intField($d, 'sort_order', 0, false) ?? 0);
-        return transaction(function (PDO $p) use ($u, $id, $name, $amount, $active, $order) {
-            must(!one($p, 'SELECT id FROM fund_categories WHERE name=? AND id<>?', [$name, $id ?? 0]), 'Category "' . $name . '" already exists.', 409);
-            $old = $id ? one($p, 'SELECT name, amount, active, sort_order FROM fund_categories WHERE id=? FOR UPDATE', [$id]) : null;
-            if ($id) {
-                must((bool)$old, 'Fund category not found.', 404);
-                run($p, 'UPDATE fund_categories SET name=?, amount=?, active=?, sort_order=?, updated_by=? WHERE id=?', [$name, $amount, $active, $order, $u['id'], $id]);
-            } else {
-                $id = insert($p, 'fund_categories', ['name' => $name, 'amount' => $amount, 'active' => $active, 'sort_order' => $order, 'updated_by' => $u['id']]);
-            }
-            auditWithChanges($p, $u['id'], 'Settings', 'fund category ' . $id, $old ? 'fund category updated' : 'fund category created',
-                "$name PHP $amount" . ($active ? '' : ' (inactive)'),
-                $old ? ['Name' => $old['name'], 'Amount (PHP)' => $old['amount'], 'Active' => (int)$old['active'] ? 'Yes' : 'No', 'Sort order' => $old['sort_order']] : [],
-                ['Name' => $name, 'Amount (PHP)' => $amount, 'Active' => $active ? 'Yes' : 'No', 'Sort order' => $order]);
-            return ['message' => 'Fund category saved. Old fund requests keep their amounts.'];
-        });
+        $name = field($d, 'name', 80);
+        $amount = moneyField($d, 'amount');
+        // New entries are Active by default. Status can be changed only
+        // through Manage on an existing category, never during Add.
+        $active = $id ? (!empty($d['active']) ? 1 : 0) : 1;
+
+        // Serialize reordering across concurrent admin saves. This prevents
+        // new categories from receiving the same display position.
+        $p = db();
+        $lockName = 'mulawin_fund_categories_order';
+        must((int)(one($p, 'SELECT GET_LOCK(?, 10) AS acquired', [$lockName])['acquired'] ?? 0) === 1,
+            'Categories are being updated. Please try saving again.', 409);
+        try {
+            return transaction(function (PDO $p) use ($u, $id, $name, $amount, $active) {
+                must(!one($p, 'SELECT id FROM fund_categories WHERE name=? AND id<>?', [$name, $id ?? 0]),
+                    'Category "' . $name . '" already exists.', 409);
+                // Preserve the existing order. Legacy duplicate or zero positions
+                // are normalized into stable positions (sort_order, name, id).
+                $rows = many($p, 'SELECT id, name, sort_order FROM fund_categories ORDER BY sort_order, name, id FOR UPDATE');
+                $old = $id ? one($p, 'SELECT name, amount, active, sort_order FROM fund_categories WHERE id=?', [$id]) : null;
+                if ($id) {
+                    must((bool)$old, 'Fund category not found.', 404);
+                    run($p, 'UPDATE fund_categories SET name=?, amount=?, active=?, updated_by=? WHERE id=?',
+                        [$name, $amount, $active, $u['id'], $id]);
+                } else {
+                    // Append after all existing categories, regardless of status.
+                    $id = insert($p, 'fund_categories', [
+                        'name' => $name, 'amount' => $amount, 'active' => 1,
+                        'sort_order' => count($rows) + 1, 'updated_by' => $u['id']
+                    ]);
+                    $rows[] = ['id' => $id, 'sort_order' => count($rows) + 1];
+                }
+                $order = 0;
+                foreach ($rows as $row) {
+                    $order++;
+                    if ((int)$row['sort_order'] !== $order)
+                        run($p, 'UPDATE fund_categories SET sort_order=? WHERE id=?', [$order, $row['id']]);
+                }
+                $savedOrder = (int)(one($p, 'SELECT sort_order FROM fund_categories WHERE id=?', [$id])['sort_order'] ?? 0);
+                auditWithChanges($p, $u['id'], 'Settings', 'fund category ' . $id,
+                    $old ? 'fund category updated' : 'fund category created',
+                    "$name PHP $amount" . ($active ? '' : ' (inactive)'),
+                    $old ? ['Name' => $old['name'], 'Amount (PHP)' => $old['amount'],
+                        'Active' => (int)$old['active'] ? 'Yes' : 'No', 'Sort order' => $old['sort_order']] : [],
+                    ['Name' => $name, 'Amount (PHP)' => $amount,
+                        'Active' => $active ? 'Yes' : 'No', 'Sort order' => $savedOrder]);
+                return ['message' => 'Fund category saved. Display order is assigned automatically. Old fund requests keep their amounts.'];
+            }, $p);
+        } finally {
+            one($p, 'SELECT RELEASE_LOCK(?) AS released', [$lockName]);
+        }
     }
 
     // ---------------------------------------------------------------- backup
