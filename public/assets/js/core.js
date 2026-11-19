@@ -1744,7 +1744,7 @@ UI.drawTable = (id) => {
   if (!rows.length) {
     if((!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
       const message=t.filter?'No records match the current search or filters.':t.opts.empty||'No records found.';
-      box.innerHTML='<table class="data-table"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
+      box.innerHTML='<table class="data-table'+(!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : '')+'"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
       if(pager&&!t.opts.dsServerPaged)pager.innerHTML=UI.recordPager({total:0});
     } else { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; }
     return;
@@ -1756,7 +1756,7 @@ UI.drawTable = (id) => {
   const cellClass = (f) => f === 'money' ? 'num money-col' : f === 'num' ? 'count-col' : (f === 'badge' || f === 'yes') ? 'status-col' : '';
   // COMPACT_TABLES_V1: on reference pages, columns hug their content; only long-text columns (cell-clip / cell-clamp) take the spare width.
   const grow = UI.refPage() ? t.columns.map(([, k, f]) => typeof f === 'function' && shown.some(r => /cell-cl(?:ip|amp)/.test(String(f(r[k], r) || '')))) : [];
-  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
+  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}${!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : ''}"><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
     <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
   if(pager&&t.opts.dsServerPaged){pager.innerHTML='';}
   else if(pager&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
