@@ -3072,38 +3072,126 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .table-wrap > .data-table.fleet-balanced-table td { padding: 9px 10px; }
 }
 
-/* PURCHASING_WORKFLOW_PROGRESS_V1 — Purchasing-only table and progress action.
-   Keep Linked PO beside Waiting for and the final Actions column; other roles unchanged. */
-.purchasing-table-parts-requests .data-table th,
-.purchasing-table-parts-requests .data-table td,
-.purchasing-table-purchase-orders .data-table th,
-.purchasing-table-purchase-orders .data-table td {
-  padding-left: 11px;
-  padding-right: 11px;
+/* PURCHASING_TABLE_LAYOUT_V2 — role-scoped record grids.
+   Preserve the linked PO -> waiting for -> actions order and all existing workflows.
+   Table columns have a usable minimum; on narrow viewports the table scrolls,
+   never squeezes labels/buttons into overlapping cells. */
+.purchasing-live-v1 .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.purchasing-live-v1 .table-wrap > table.data-table {
+  width: 100%;
+  max-width: none;
+  table-layout: fixed;
+  border-spacing: 0;
+}
+.purchasing-live-v1 .table-wrap > table.data-table th,
+.purchasing-live-v1 .table-wrap > table.data-table td {
+  box-sizing: border-box;
+  padding: 11px 12px;
+  min-width: 0;
+  max-width: none;
   vertical-align: middle;
-}
-.purchasing-table-parts-requests .data-table th:nth-last-child(3),
-.purchasing-table-parts-requests .data-table td:nth-last-child(3) {
-  min-width: 136px;
-  max-width: 195px;
+  line-height: 1.42;
   white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.purchasing-live-v1 .table-wrap > table.data-table .cell-clamp,
+.purchasing-live-v1 .table-wrap > table.data-table .cell-clip {
+  display: block;
+  max-width: 100%;
   overflow-wrap: anywhere;
-}
-.purchasing-table-parts-requests .data-table th:nth-last-child(2),
-.purchasing-table-parts-requests .data-table td:nth-last-child(2),
-.purchasing-table-purchase-orders .data-table th:nth-last-child(2),
-.purchasing-table-purchase-orders .data-table td:nth-last-child(2) {
-  min-width: 175px;
-  width: 195px;
-  max-width: 235px;
   white-space: normal;
 }
-.purchasing-table-parts-requests .data-table td:last-child,
-.purchasing-table-purchase-orders .data-table td:last-child {
-  width: 1%;
-  min-width: 100px;
+.purchasing-live-v1 .table-wrap > table.data-table .cell-nowrap { white-space: nowrap; }
+.purchasing-live-v1 .table-wrap > table.data-table th.money-col,
+.purchasing-live-v1 .table-wrap > table.data-table td.money-col { text-align: right; white-space: nowrap; }
+.purchasing-live-v1 .table-wrap > table.data-table th.count-col,
+.purchasing-live-v1 .table-wrap > table.data-table td.count-col,
+.purchasing-live-v1 .table-wrap > table.data-table th.status-col,
+.purchasing-live-v1 .table-wrap > table.data-table td.status-col { text-align: center; }
+.purchasing-live-v1 .table-wrap > table.data-table th.actions-col,
+.purchasing-live-v1 .table-wrap > table.data-table td.actions-col {
+  width: auto;
+  min-width: 0;
+  max-width: none;
   white-space: nowrap;
+  text-align: center;
 }
+.purchasing-live-v1 .table-wrap > table.data-table .row-actions,
+.purchasing-live-v1 .table-wrap > table.data-table .row-icons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  max-width: 100%;
+}
+.purchasing-live-v1 .table-wrap > table.data-table .row-actions .btn,
+.purchasing-live-v1 .table-wrap > table.data-table .row-icons .btn { flex: 0 0 auto; }
+/* Parts Requests: request / truck / parts / released / reserved / status / linked PO / waiting / actions. */
+.purchasing-table-parts-requests .table-wrap > table.data-table { min-width: 1350px; }
+.purchasing-table-parts-requests .data-table th:nth-child(1) { width: 11%; }
+.purchasing-table-parts-requests .data-table th:nth-child(2) { width: 11%; }
+.purchasing-table-parts-requests .data-table th:nth-child(3) { width: 15%; }
+.purchasing-table-parts-requests .data-table th:nth-child(4) { width: 10%; }
+.purchasing-table-parts-requests .data-table th:nth-child(5) { width: 7%; }
+.purchasing-table-parts-requests .data-table th:nth-child(6) { width: 9%; }
+.purchasing-table-parts-requests .data-table th:nth-child(7) { width: 13%; }
+.purchasing-table-parts-requests .data-table th:nth-child(8) { width: 16%; }
+.purchasing-table-parts-requests .data-table th:nth-child(9) { width: 8%; }
+/* Purchase Orders: PO / supplier / total / parts status / waiting for / actions. */
+.purchasing-table-purchase-orders .table-wrap > table.data-table { min-width: 990px; }
+.purchasing-table-purchase-orders .data-table th:nth-child(1) { width: 17%; }
+.purchasing-table-purchase-orders .data-table th:nth-child(2) { width: 20%; }
+.purchasing-table-purchase-orders .data-table th:nth-child(3) { width: 13%; }
+.purchasing-table-purchase-orders .data-table th:nth-child(4) { width: 17%; }
+.purchasing-table-purchase-orders .data-table th:nth-child(5) { width: 23%; }
+.purchasing-table-purchase-orders .data-table th:nth-child(6) { width: 10%; }
+/* Inventory / stock counts render separate tables within one page. */
+.purchasing-inventory-parts-view .table-wrap > table.data-table { min-width: 1370px; }
+.purchasing-inventory-parts-view .data-table th:nth-child(1) { width: 10%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(2) { width: 11%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(3) { width: 18%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(4) { width: 13%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(5),
+.purchasing-inventory-parts-view .data-table th:nth-child(6) { width: 7%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(7) { width: 9%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(8) { width: 9%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(9) { width: 9%; }
+.purchasing-inventory-parts-view .data-table th:nth-child(10) { width: 7%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .table-wrap > table.data-table { min-width: 1250px; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(1) { width: 12%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(2) { width: 17%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(3),
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(4) { width: 8%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(5) { width: 14%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(6) { width: 10%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(7) { width: 14%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(8) { width: 9%; }
+.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(9) { width: 8%; }
+/* Stock Movements: date / part / type / qty / reason / truck / by / actions. */
+.purchasing-table-stock-movements .table-wrap > table.data-table { min-width: 1130px; }
+.purchasing-table-stock-movements .data-table th:nth-child(1) { width: 14%; }
+.purchasing-table-stock-movements .data-table th:nth-child(2) { width: 19%; }
+.purchasing-table-stock-movements .data-table th:nth-child(3) { width: 11%; }
+.purchasing-table-stock-movements .data-table th:nth-child(4) { width: 8%; }
+.purchasing-table-stock-movements .data-table th:nth-child(5) { width: 20%; }
+.purchasing-table-stock-movements .data-table th:nth-child(6) { width: 11%; }
+.purchasing-table-stock-movements .data-table th:nth-child(7) { width: 9%; }
+.purchasing-table-stock-movements .data-table th:nth-child(8) { width: 8%; }
+.purchasing-live-v1 .purchasing-waiting-link { min-width: 0; }
+.purchasing-live-v1 .purchasing-waiting-link .cell-sub { overflow-wrap: break-word; }
+@media (max-width: 767.98px) {
+  .purchasing-live-v1 .table-wrap > table.data-table th,
+  .purchasing-live-v1 .table-wrap > table.data-table td { padding: 9px 10px; }
+}
+
 .purchasing-waiting-link {
   display: inline-flex;
   flex-direction: column;
