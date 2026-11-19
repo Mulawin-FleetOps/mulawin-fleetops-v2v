@@ -932,7 +932,12 @@ final class Purchasing {
 
     /** In stock / Low stock / Out of stock, so Motorpool can see availability without stock counts or costs. */
     private static function availabilitySql(string $alias): string {
-        return "CASE WHEN $alias.quantity_on_hand<=0 THEN 'Out of stock' WHEN $alias.reorder_level>0 AND $alias.quantity_on_hand<=$alias.reorder_level THEN 'Low stock' ELSE 'In stock' END";
+        // Motorpool sees physical availability after existing reservations, not just gross on-hand.
+        $reserved = self::reservationsReady(db())
+            ? "(SELECT COALESCE(SUM(rl.reserved_qty),0) FROM part_request_lines rl WHERE rl.part_id=$alias.id)"
+            : '0';
+        $free = "GREATEST(0,$alias.quantity_on_hand-$reserved)";
+        return "CASE WHEN $free<=0 THEN 'Out of stock' WHEN $alias.reorder_level>0 AND $free<=$alias.reorder_level THEN 'Low stock' ELSE 'In stock' END";
     }
 
     /** Parts Motorpool may pick in the request form: identification and availability only. */
