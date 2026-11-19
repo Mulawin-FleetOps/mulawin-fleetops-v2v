@@ -571,7 +571,7 @@ const App = {
               </div>
             </div>
             <div class="dropdown">
-              <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Recent System Activity" title="Recent System Activity" id="activityBtn"><i class="bi bi-clock-history" aria-hidden="true"></i></button>
+              <button class="icon-btn bell updated-bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Recent System Activity" title="Recent System Activity" id="activityBtn"><i class="bi bi-clock-history" aria-hidden="true"></i></button>
               <div class="dropdown-menu dropdown-menu-end bell-menu">
                 <div class="bell-head"><span>Recent System Activity</span></div>
                 <div id="activityList" class="bell-list"><div class="bell-empty">Loading recorded activity…</div></div>
