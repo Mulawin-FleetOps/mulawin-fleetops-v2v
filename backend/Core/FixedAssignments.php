@@ -35,8 +35,8 @@ final class FixedAssignments {
         foreach ($links as $link) if ((int)$link['id'] === $vehicleId) $target = $link;
         must($target !== null, 'Select an active existing Truck.', 409);
         must(!$target['assigned_driver_id'] || (int)$target['assigned_driver_id'] === $driverId, 'That Truck already has another fixed Driver. Release its permanent pairing first.', 409);
-        if ($target['truck_type'] !== 'Car Carrier') must($helperId !== null, 'Select a Regular Helper for this Truck.');
-        else must($helperId === null, 'Car Carrier keeps its existing two-driver workflow; a regular Helper is not used.');
+        // Same regular crew requirement for Car Carrier, Container and Wing Van.
+        must($helperId !== null, 'Select a Regular Helper for this Truck.');
         if (count($links) === 1 && (int)$target['assigned_driver_id'] === $driverId && (int)$target['assigned_helper_id'] === (int)$helperId) {
             run($p,'INSERT IGNORE INTO driver_truck_authorizations(driver_id,vehicle_id,authorized_by) VALUES(?,?,?)',[$driverId,$vehicleId,$u['id']]);
             return;
