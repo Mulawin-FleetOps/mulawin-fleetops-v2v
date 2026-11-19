@@ -73,7 +73,7 @@ const MaintUI = {
     let parts = [];
     try { parts = (await App.api('Purchasing.request_catalog')).parts || []; }
     catch (e) { UI.toast('Parts catalog unavailable. You can report the problem and request parts later.', 'warning'); }
-    const partOptions = parts.map(p => `<option value="${+p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)} (${UI.esc(p.availability)})</option>`).join('');
+    const partOptions = parts.map(p => `<option value="${+p.id}">${UI.esc([p.part_type, p.description, p.brand].filter(Boolean).join(" — "))}${p.part_type ? "" : " (type not classified)"} · ${UI.esc(p.availability)}</option>`).join('');
     const item = () => `<div class="mp-parts-line" data-part-row>
       <div class="mp-parts-line-fields">
         <div><label class="form-label">Part</label><select class="form-select" data-part>
@@ -365,7 +365,7 @@ const MaintUI = {
         ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}
       ${UI.h('Parts and costs', UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-link btn-sm p-0" data-partspage="${+j.vehicle_id}"><i class="bi bi-box-seam"></i> Open in Parts Requests</button>` : '')}
       ${+r.pending_parts_units > 0 ? '<div class="alert alert-warning small">Repair completion is blocked: ' + UI.num(r.pending_parts_units) + ' requested unit(s) await Purchasing release. Open Parts Requests to follow up.</div>' : ''}
-      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
+      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part ID', 'part_number'], ['Part Type', 'part_type'], ['Part Name', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
       ${r.costs.length ? UI.table([['Type', 'cost_type'], ['Description', 'description'], ['Provider', 'provider'], ['Date', 'incurred_on', 'date'], ['Amount', 'amount', 'money']], r.costs, { plain: true }) : '<div class="text-muted small mb-2">No labor or outside costs.</div>'}
       <div class="text-end small">Parts ${UI.money(partsCost)} + other ${UI.money(other)} = <b>${UI.money(partsCost + other)}</b></div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
