@@ -400,4 +400,114 @@ const RecordComponents = Object.freeze({
       closeAll();
     }));
   },
+  // Apply the same Operations record hierarchy to Motorpool's existing
+  // server-authorized tables. Move live DOM nodes: never clone search inputs,
+  // tabs, row actions, or filter controls (which would lose their listeners).
+  maintenanceWorkspace(root, options = {}) {
+    const box = root.querySelector(options.box || '.mp-reference-table');
+    if (!box || box.dataset.operationsWorkspace === '1') return;
+    const list = box.querySelector('.ref-list, .panel');
+    const toolbar = list?.querySelector('.ref-toolbar, .table-tools');
+    const search = toolbar?.querySelector('.table-search');
+    if (!list || !search) return;
+    box.dataset.operationsWorkspace = '1';
+    box.classList.add('record-workspace-panel', 'maintenance-operations-records');
+    const heading = box.querySelector('.mp-records-heading');
+    if (heading) {
+      heading.classList.add('record-workspace-heading');
+      const oldTitle = heading.querySelector('strong');
+      if (oldTitle) {
+        const h = document.createElement('h2');
+        h.textContent = oldTitle.textContent;
+        oldTitle.replaceWith(h);
+      }
+      heading.querySelector('small')?.classList.add('record-workspace-count');
+    }
+    const actions = [...(options.actions || [])].filter(Boolean);
+    if (options.includeTools !== false && options.tools)
+      actions.push(...options.tools.querySelectorAll(':scope > button'));
+    if (heading) actions.forEach(button => heading.append(button));
+    const row = document.createElement('div');
+    row.className = 'record-workspace-search';
+    row.append(search);
+    // Existing Motorpool date/truck filters remain URL-backed and authoritative.
+    const oldFilter = root.querySelector('.ui-filter-toolbar, .ws-filters, .filter-summary');
+    if (oldFilter && !box.contains(oldFilter)) {
+      const host = oldFilter.closest('.ui-filter-toolbar') || oldFilter;
+      row.append(host);
+    }
+    const id = list.querySelector('[data-tbody]')?.dataset.tbody;
+    const state = id ? UI._tables[id] : null;
+    if (state) {
+      const baseline = state.rows.slice();
+      const field = ['status', 'display_status', 'availability', 'movement_type']
+        .find(name => baseline.some(item => item[name] != null));
+      const statuses = field
+        ? [...new Set(baseline.map(item => String(item[field] ?? '')).filter(Boolean))].sort()
+        : [];
+      const filterBtn = document.createElement('button');
+      filterBtn.type = 'button';
+      filterBtn.className = 'btn btn-sm btn-outline-secondary record-workspace-filter-trigger';
+      filterBtn.textContent = 'Filter';
+      filterBtn.setAttribute('aria-expanded', 'false');
+      const sortBtn = document.createElement('button');
+      sortBtn.type = 'button';
+      sortBtn.className = 'btn btn-sm btn-outline-secondary record-workspace-sort-trigger';
+      sortBtn.textContent = 'Sort';
+      sortBtn.setAttribute('aria-expanded', 'false');
+      const pop = document.createElement('div');
+      pop.className = 'record-workspace-popovers';
+      const filterId = 'maintenance-filter-' + id, sortId = 'maintenance-sort-' + id;
+      pop.innerHTML = '<div id="' + filterId + '" class="record-workspace-popover" hidden>'
+        + '<strong>Filter records</strong><label>Status<select class="form-select form-select-sm" data-maint-status>'
+        + '<option value="">All statuses</option>'
+        + statuses.map(s => '<option value="' + UI.esc(s) + '">' + UI.esc(s) + '</option>').join('')
+        + '</select></label><div class="record-workspace-popover-actions">'
+        + '<button type="button" class="btn btn-sm btn-outline-secondary" data-record-filter-reset>Clear</button>'
+        + '<button type="button" class="btn btn-sm btn-primary" data-record-filter-apply>Apply</button></div></div>'
+        + '<div id="' + sortId + '" class="record-workspace-popover record-workspace-sort-panel" hidden>'
+        + '<strong>Sort records</strong>'
+        + '<label class="record-workspace-sort-option"><input type="radio" name="' + sortId + '" data-record-sort value="default" checked> Default</label>'
+        + '<label class="record-workspace-sort-option"><input type="radio" name="' + sortId + '" data-record-sort value="asc"> Reference A–Z</label>'
+        + '<label class="record-workspace-sort-option"><input type="radio" name="' + sortId + '" data-record-sort value="desc"> Reference Z–A</label></div>';
+      let selected = '', direction = 'default';
+      const apply = () => {
+        const rows = baseline.filter(item => !selected || String(item[field] ?? '') === selected);
+        if (direction !== 'default') {
+          const key = state.allColumns[0]?.[1];
+          if (key) rows.sort((a, b) => (direction === 'asc' ? 1 : -1)
+            * String(a[key] ?? '').localeCompare(String(b[key] ?? ''), undefined, {numeric:true}));
+        }
+        state.rows = rows;
+        state.page = 0;
+        UI.drawTable(id);
+      };
+      if (statuses.length) row.append(filterBtn);
+      row.append(sortBtn, pop);
+      this.bindDropdowns(box, {
+        apply: panel => {
+          selected = panel.querySelector('[data-maint-status]')?.value || '';
+          apply();
+          filterBtn.click();
+        },
+        reset: () => {
+          selected = '';
+          const select = box.querySelector('[data-maint-status]');
+          if (select) select.value = '';
+          apply();
+          filterBtn.click();
+        },
+        sort: value => { direction = value; apply(); }
+      }, {filter:filterId, sort:sortId});
+    }
+    toolbar.replaceWith(row);
+    const tabs = options.tabs || root.querySelector('.line-tabs.ws-status-tabs, .record-workspace-tabs');
+    if (tabs && !box.contains(tabs)) {
+      const category = document.createElement('div');
+      category.className = 'record-workspace-category-row record-workspace-view-tabs';
+      tabs.parentNode.insertBefore(category, tabs);
+      category.append(tabs);
+      row.insertAdjacentElement('afterend', category);
+    }
+  },
 });
