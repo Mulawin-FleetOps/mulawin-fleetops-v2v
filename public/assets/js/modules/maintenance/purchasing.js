@@ -1094,17 +1094,16 @@ App.page('stock_movements', {
     ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-stock-movements');
     const { d } = PurUI.prep(ctx), q = ctx.query, all = d.movements || [];
     const parts = [...new Set(all.map(m => m.part_number))].sort();
-    const rows = all.filter(m => (!q.type || m.movement_type === q.type) && (!q.part || m.part_number === q.part)
-      && (!q.from || String(m.created_at).slice(0, 10) >= q.from) && (!q.to || String(m.created_at).slice(0, 10) <= q.to));
+    const rows = PurRef.sortRecords(all.filter(m => (!q.type || m.movement_type === q.type) && (!q.part || m.part_number === q.part)
+      && (!q.from || String(m.created_at).slice(0, 10) >= q.from) && (!q.to || String(m.created_at).slice(0, 10) <= q.to)), q, 'created_at', 'part_number');
     const sum = (t) => rows.filter(m => m.movement_type === t).reduce((a, m) => a + Math.abs(+m.quantity_delta), 0);
     const val = (t) => rows.filter(m => m.movement_type === t).reduce((a, m) => a + Math.abs(+m.quantity_delta) * +m.unit_cost, 0);
     // UI_REFERENCE_V1: movement-type tabs (?type=) with counts, filters with Reset, and a one-line total that follows the filters.
     const base = all.filter(m => (!q.part || m.part_number === q.part) && (!q.from || String(m.created_at).slice(0, 10) >= q.from) && (!q.to || String(m.created_at).slice(0, 10) <= q.to));
     const types = ['Stock In', 'Stock Out', 'Adjustment'];
-    ctx.el.innerHTML = `${UI.statusTabs('stock_movements', q, 'type', [['', 'All', base.length], ['Stock In', 'Stock In', base.filter(m => m.movement_type === 'Stock In').length],
+    ctx.el.innerHTML = `<div class="purchasing-record-tabs-slot">${UI.statusTabs('stock_movements', q, 'type', [['', 'All', base.length], ['Stock In', 'Stock In', base.filter(m => m.movement_type === 'Stock In').length],
         ['Stock Out','Stock Out',base.filter(m => m.movement_type === 'Stock Out').length],
-        ...(q.type === 'Adjustment' ? [['Adjustment','Adjustment',base.filter(m => m.movement_type === 'Adjustment').length]] : [])], types.includes(q.type) ? q.type : '')}
-      ${UI.generalFilters(ctx, [{ name: 'part', label: 'Parts', options: parts }, { name: 'from', label: 'From date', type: 'date' }, { name: 'to', label: 'To date', type: 'date' }])}
+        ...(q.type === 'Adjustment' ? [['Adjustment','Adjustment',base.filter(m => m.movement_type === 'Adjustment').length]] : [])], types.includes(q.type) ? q.type : '')}</div>
       <div class="small text-muted mb-2">Shown: stock in <b>${UI.num(sum('Stock In'))}</b> units (${UI.money(val('Stock In'))}) · stock out <b>${UI.num(sum('Stock Out'))}</b> units (${UI.money(val('Stock Out'))})
         · ${UI.num(rows.filter(m => m.movement_type === 'Adjustment').length)} adjustment(s). Values use the unit cost recorded on each movement.</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
@@ -1120,7 +1119,13 @@ App.page('stock_movements', {
       { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true,
         actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary') : '',
         onAction: (a, m) => UI.goTo(ref(m)), empty: 'No stock movement matches.' });
-    PurRef.inlineFilters(box, ctx.el);
+    PurRef.recordLayout(ctx, box, {
+      filters: [{ name: 'part', label: 'Part', type: 'select', col: 12, options: parts.map(part => [part, part]) },
+        { name: 'from', label: 'From date', type: 'date', col: 6 },
+        { name: 'to', label: 'To date', type: 'date', col: 6 }],
+      sortOptions: [['newest', 'Newest first'], ['oldest','Oldest first'], ['reference','Part ID']],
+      sort: ['oldest','reference'].includes(q.sort) ? q.sort : 'newest'
+    });
   },
 });
 
