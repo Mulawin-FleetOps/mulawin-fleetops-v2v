@@ -3372,3 +3372,28 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   outline: 2px solid #247f49;
   outline-offset: -2px;
 }
+
+
+/* MOTORPOOL_ATTENDANCE_ACTIONS_SCOPED_V3 — keep duty actions readable, no global table overrides. */
+.mp-mechanic-attendance-table .data-table :is(th,td).actions-col {
+  min-width: 156px;
+  width: 156px;
+  text-align: right;
+}
+.mp-mechanic-attendance-table .data-table td.actions-col .row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 9px;
+  white-space: nowrap;
+}
+.mp-mechanic-attendance-table .data-table td.actions-col .row-actions > .btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+}
+.mp-mechanic-attendance-table .data-table [data-act="toggle"] {
+  min-width: 84px;
+  padding-inline: 11px;
+  white-space: nowrap;
+}
