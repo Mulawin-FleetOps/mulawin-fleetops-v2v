@@ -27,6 +27,10 @@ final class Mechanics {
     // Head Management monitors them read-only (Admin's own daily Present / Absent marks stay in Administration/Attendance).
     private const EDIT = ['motorpool'];
 
+    private static function skillsReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mechanic_skills'");
+    }
+
     public static function read(array $u, string $page, array $q): array {
         $p = db();
         if ($page === 'mechanic_attendance') return self::attendancePage($u, $p, $q);
@@ -39,6 +43,9 @@ final class Mechanics {
                 FROM mechanics mc LEFT JOIN maintenance_jobs m ON m.id=" . self::jobOfSql() . " LEFT JOIN vehicles v ON v.id=m.vehicle_id
                 ORDER BY mc.active DESC, mc.full_name"),
         ]);
+        $data['specializations'] = self::skillsReady($p) ? many($p, 'SELECT id, name FROM mechanic_specializations WHERE active=1 ORDER BY name') : [];
+        $data['skillAssignments'] = self::skillsReady($p) ? many($p, 'SELECT mechanic_id, specialization_id FROM mechanic_skills ORDER BY mechanic_id, specialization_id') : [];
+        $data['skillsReady'] = self::skillsReady($p);
         $data['can'] = ['edit' => hasRole($u, ...self::EDIT)];
         return $data;
     }
@@ -109,13 +116,28 @@ final class Mechanics {
                 'notes' => optField($d, 'notes', 255)];
         // No Day/Night shift is requested or written here. An existing duty_shift is left untouched (history only: no screen reads it any more).
         if ($row['contact_number'] !== null) must((bool)preg_match('/^[0-9+()\-\s]{7,40}$/', $row['contact_number']), 'Contact number: digits, spaces, + ( ) - only.');
-        return transaction(function (PDO $p) use ($u, $id, $row) {
+        $requestedSkills = $d['specialization_ids'] ?? null;
+        return transaction(function (PDO $p) use ($u, $id, $row, $requestedSkills) {
+            if (self::skillsReady($p)) {
+                must(is_array($requestedSkills) && count($requestedSkills) > 0, 'Select at least one preset specialization.', 422);
+                $ids = array_map('intval', $requestedSkills);
+                must(count($ids) === count(array_unique($ids)) && min($ids) > 0, 'Invalid or duplicate specialization.', 422);
+                $marks = implode(',', array_fill(0, count($ids), '?'));
+                $names = many($p, "SELECT id, name FROM mechanic_specializations WHERE active=1 AND id IN ($marks) ORDER BY name", $ids);
+                must(count($names) === count($ids), 'Unknown or inactive specialization.', 422);
+                // Compatibility field for existing reports; canonical data is mechanic_skills.
+                $row['specialization'] = implode(', ', array_column($names, 'name'));
+            }
             must(!one($p, 'SELECT id FROM mechanics WHERE full_name=? AND id<>?', [$row['full_name'], $id ?? 0]), 'A mechanic named ' . $row['full_name'] . ' is already in the masterlist.', 409);
             if ($id) {
                 $old = one($p, 'SELECT * FROM mechanics WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$old, 'Mechanic not found.', 404);
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE mechanics SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
+                if (self::skillsReady($p)) {
+                    run($p, 'DELETE FROM mechanic_skills WHERE mechanic_id=?', [$id]);
+                    foreach ($ids as $skillId) run($p, 'INSERT INTO mechanic_skills(mechanic_id,specialization_id) VALUES (?,?)', [$id,$skillId]);
+                }
                 $before = ['Full name' => $old['full_name'], 'Specialization' => $old['specialization']];
                 $after = ['Full name' => $row['full_name'], 'Specialization' => $row['specialization']];
                 auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic updated', $row['full_name'], $before, $after);
@@ -123,6 +145,7 @@ final class Mechanics {
             }
             // A new mechanic is Unavailable until the first Time In.
             $id = insert($p, 'mechanics', ['mechanic_code' => 'TMP-' . bin2hex(random_bytes(4)), 'availability' => 'Unavailable'] + $row);
+            if (self::skillsReady($p)) foreach ($ids as $skillId) run($p, 'INSERT INTO mechanic_skills(mechanic_id,specialization_id) VALUES (?,?)', [$id,$skillId]);
             $code = 'MEC-' . str_pad((string)$id, 3, '0', STR_PAD_LEFT);
             run($p, 'UPDATE mechanics SET mechanic_code=? WHERE id=?', [$code, $id]);
             auditWithChanges($p, $u['id'], 'Mechanics', 'mechanic ' . $id, 'mechanic added', "$code " . $row['full_name'], [],
