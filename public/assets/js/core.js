@@ -315,7 +315,7 @@ const App = {
     const roleShortNames = { motorpool: { maintenance: 'Repair management', trucks: 'Truck masterlist', mechanics: 'Mechanic masterlist' } };
     const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
-    const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
+    const allowed = me.nav.filter(n => !['notifications','recent_activity'].includes(n.id)); // topbar icons own these pages
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
