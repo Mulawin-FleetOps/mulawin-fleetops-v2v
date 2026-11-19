@@ -45,6 +45,14 @@ const PurUI = {
     const host = w.querySelector('[data-lines]');
     const template = host.querySelector('.pl-row').outerHTML;
     const calc = () => {
+      // Prevent a catalog part being selected twice in one PO / request.
+      // Disabled options refresh after selection, row addition and row removal.
+      const selected = new Set([...host.querySelectorAll('[data-part]')].map(el => el.value).filter(Boolean));
+      host.querySelectorAll('[data-part]').forEach(select => {
+        [...select.options].forEach(option => {
+          if (option.value) option.disabled = selected.has(option.value) && option.value !== select.value;
+        });
+      });
       let total = 0;
       host.querySelectorAll('.pl-row').forEach(r => {
         const qty = +r.querySelector('[data-qty]').value || 0;
@@ -82,8 +90,11 @@ const PurUI = {
     calc();
   },
   readLines(w, withPrice) {
-    return [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value, ...(withPrice ? { unit_price: r.querySelector('[data-price]').value } : {}) }))
+    const lines = [...w.querySelectorAll('.pl-row')].map(r => ({ part_id: r.querySelector('[data-part]').value, quantity: r.querySelector('[data-qty]').value, ...(withPrice ? { unit_price: r.querySelector('[data-price]').value } : {}) }))
       .filter(l => l.part_id || l.quantity);
+    const ids = lines.map(l => l.part_id).filter(Boolean);
+    if (new Set(ids).size !== ids.length) throw new Error('Each part can only appear once. Update its quantity in the existing row.');
+    return lines;
   },
   /** Supplier fields of the PO form; picking a suggested supplier fills the empty fields. */
   supplierFields() {
@@ -674,21 +685,19 @@ App.page('purchase_orders', {
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query, all = d.orders || [];
     if (can.stock) PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => PurUI.newPO());
     const TABS = { approval: ['Awaiting approval', o => o.status === 'Pending Approval'], receive: ['To receive', o => ['Approved', 'Partially Received'].includes(o.status)],
-      payment: ['Awaiting payment', o => ['Pending Payment', 'Partially Paid'].includes(o.payment_status) && (+o.received_value || 0) > (+o.paid_amount || 0)],
-      done: ['Completed', o => ['Received', 'Closed'].includes(o.status) && !(['Pending Payment', 'Partially Paid'].includes(o.payment_status))],
+      done: ['Completed', o => ['Received', 'Closed'].includes(o.status)],
       rejected: ['Rejected', o => /^Rejected/.test(o.status)], all: ['All', () => true] };
     const mine = PurUI.waitingForMe(d, can);
     const cnt = (t) => all.filter(TABS[t][1]).length;
     // Default tab: what waits for this user; an empty 'To receive' list falls back to All.
     const tab = TABS[q.tab] ? q.tab : (mine.length ? 'approval' : (can.stock && cnt('receive') ? 'receive' : 'all'));
     const suppliers = [...new Set(all.map(o => o.supplier).filter(Boolean))].sort();
-    const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) && (!q.payment || o.payment_status === q.payment));
+    const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) );
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
     ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
-        ...(tab === 'payment' ? [['payment','Awaiting payment',cnt('payment')]] : []),
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
         ['all','All',cnt('all')]], tab)}
-      ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }, { name: 'payment', label: 'Payment statuses', options: [...new Set(all.map(o => o.payment_status).filter(Boolean))].sort() }])}`;
+      ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Purchase Order Records','Approval and receiving status',rows.length);
     const open = (o) => PurUI.openPO(o, k);
@@ -696,8 +705,7 @@ App.page('purchase_orders', {
       ['PO', 'po_ref', (v, o) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.date(o.created_at)}</div>`],
       ['Supplier', 'supplier', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
       ['Total', 'total_amount', 'money'],
-      ['Received', 'received_value', 'money'],
-      ['Status', 'status', 'badge'], ['Payment', 'payment_status', 'badge'],
+      ['Parts Status', 'status', 'badge'],
       ['Waiting for', 'status', (v, o) => { const n = PurUI.poNext(o); return PurUI.chip(n) + `<div class="cell-sub">${UI.esc(n[2])}</div>`; }]], rows,
       { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
         empty: 'No purchase order in this list.' });
