@@ -3485,10 +3485,28 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 
 /* PURCHASING_PO_HEADER_TOOLBAR_V1 — Purchase Orders matches the Driver Records hierarchy.
    Header + create action stay above; search/filter/sort and page tabs sit inside one records card. */
-.purchasing-table-purchase-orders .purchasing-ref-records-head {
-  display: none; /* The page title and Create Purchase Order already share the header row. */
+.purchasing-live-v1 .purchasing-ref-records-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.purchasing-table-purchase-orders .purchasing-po-toolbar {
+.purchasing-live-v1 .purchasing-ref-records-head > span { margin-left: auto; }
+.purchasing-live-v1 .purchasing-record-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+.purchasing-live-v1 .purchasing-ref-records-head:has(.purchasing-record-header-actions) > span { display: none; }
+.purchasing-live-v1 .purchasing-record-header-actions .btn { white-space: nowrap; }
+@media (max-width: 575.98px) {
+  .purchasing-live-v1 .purchasing-ref-records-head { align-items: flex-start; }
+  .purchasing-live-v1 .purchasing-record-header-actions { width: 100%; justify-content: flex-start; }
+}
+.purchasing-live-v1 .purchasing-po-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3496,14 +3514,14 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   padding: 12px 15px;
   min-width: 0;
 }
-.purchasing-table-purchase-orders .purchasing-po-toolbar > .table-search {
+.purchasing-live-v1 .purchasing-po-toolbar > .table-search {
   flex: 1 1 340px;
   min-width: 180px;
 }
-.purchasing-table-purchase-orders .purchasing-po-filter {
+.purchasing-live-v1 .purchasing-po-filter {
   flex: 0 0 auto;
 }
-.purchasing-table-purchase-orders .purchasing-po-filter .filter-summary {
+.purchasing-live-v1 .purchasing-po-filter .filter-summary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3512,17 +3530,17 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   border: 0;
   background: transparent;
 }
-.purchasing-table-purchase-orders .purchasing-po-filter .filter-chip {
+.purchasing-live-v1 .purchasing-po-filter .filter-chip {
   max-width: 190px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.purchasing-table-purchase-orders .purchasing-po-filter [data-fopen] {
+.purchasing-live-v1 .purchasing-po-filter [data-fopen] {
   white-space: nowrap;
   min-height: 36px;
 }
-.purchasing-table-purchase-orders .purchasing-po-sort {
+.purchasing-live-v1 .purchasing-po-sort {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3532,24 +3550,24 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   color: #285c3e;
   font-size: 12px;
 }
-.purchasing-table-purchase-orders .purchasing-po-sort .form-select {
+.purchasing-live-v1 .purchasing-po-sort .form-select {
   width: 145px;
   max-width: 145px;
   min-height: 36px;
   font-size: 12px;
 }
-.purchasing-table-purchase-orders .purchasing-po-toolbar > .table-count {
+.purchasing-live-v1 .purchasing-po-toolbar > .table-count {
   white-space: nowrap;
 }
-.purchasing-table-purchase-orders .purchasing-po-toolbar > .fleet-group-control {
+.purchasing-live-v1 .purchasing-po-toolbar > .fleet-group-control {
   margin-left: 0;
 }
-.purchasing-table-purchase-orders .purchasing-po-tabs-slot {
+.purchasing-live-v1 .purchasing-po-tabs-slot {
   padding: 10px 15px 12px;
   border-bottom: 1px solid #dce8df;
   min-width: 0;
 }
-.purchasing-table-purchase-orders .purchasing-po-tabs-slot .line-tabs {
+.purchasing-live-v1 .purchasing-po-tabs-slot .line-tabs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3558,12 +3576,12 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   border: 0;
   padding: 0;
 }
-.purchasing-table-purchase-orders .purchasing-ref-records-body > .ref-list {
+.purchasing-live-v1 .purchasing-ref-records-body > .ref-list {
   border-top: 0;
 }
 @media (max-width: 767.98px) {
-  .purchasing-table-purchase-orders .purchasing-po-toolbar { padding: 10px; gap: 7px; }
-  .purchasing-table-purchase-orders .purchasing-po-toolbar > .table-search { flex-basis: 100%; }
-  .purchasing-table-purchase-orders .purchasing-po-tabs-slot { padding: 9px 10px 12px; }
-  .purchasing-table-purchase-orders .purchasing-po-sort .form-select { width: 130px; }
+  .purchasing-live-v1 .purchasing-po-toolbar { padding: 10px; gap: 7px; }
+  .purchasing-live-v1 .purchasing-po-toolbar > .table-search { flex-basis: 100%; }
+  .purchasing-live-v1 .purchasing-po-tabs-slot { padding: 9px 10px 12px; }
+  .purchasing-live-v1 .purchasing-po-sort .form-select { width: 130px; }
 }
