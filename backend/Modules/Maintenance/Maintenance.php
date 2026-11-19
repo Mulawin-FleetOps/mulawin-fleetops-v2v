@@ -60,6 +60,11 @@ final class Maintenance {
         $data['helpers'] = self::helpersReady($p) ? many($p, "SELECT h.maintenance_job_id AS job_id, h.mechanic_id, mc.full_name, mc.mechanic_code FROM maintenance_job_helpers h
                 JOIN mechanics mc ON mc.id=h.mechanic_id WHERE h.released_at IS NULL ORDER BY h.id") : [];
         $data['helpersReady'] = self::helpersReady($p);
+        $data['motorpoolCatalogReady'] = self::catalogReady($p);
+        $data['components'] = self::catalogReady($p) ? many($p, "SELECT c.id,c.component_key,c.section_key,c.label, GROUP_CONCAT(s.name ORDER BY s.name SEPARATOR ', ') AS suggested_skills
+            FROM motorpool_components c LEFT JOIN motorpool_component_skills cs ON cs.component_id=c.id
+            LEFT JOIN mechanic_specializations s ON s.id=cs.specialization_id WHERE c.active=1 GROUP BY c.id,c.component_key,c.section_key,c.label ORDER BY c.id") : [];
+        $data['mechanicSkills'] = self::catalogReady($p) ? many($p, 'SELECT ms.mechanic_id, s.name FROM mechanic_skills ms JOIN mechanic_specializations s ON s.id=ms.specialization_id') : [];
         $data['costTypes'] = self::COST_TYPES;
         $data['can'] = ['act' => hasRole($u, ...self::ACT)];
         return $data;
@@ -271,6 +276,7 @@ final class Maintenance {
             'clearance' => self::clearance($u, $d),
             'cancel' => self::cancel($u, $d),
             'details' => self::details($u, $d),
+            'finalize_assignment' => self::finalizeAssignment($u, $d),
             default => throw new BusinessRuleException('Unknown action.', 404),
         };
     }
@@ -303,6 +309,10 @@ final class Maintenance {
             must(!$helps, $m['full_name'] . ' is already assisting on ' . ($helps['job_ref'] ?? '') . '. Choose an Available mechanic.', 409);
         }
         return $m;
+    }
+
+    private static function catalogReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='maintenance_jobs' AND COLUMN_NAME='assignment_finalized_at'");
     }
 
     /** JOB_HELPER_MECHANICS_V1 — true once migration 2026-11-12_12 created maintenance_job_helpers (checked once per request). */
@@ -463,6 +473,74 @@ final class Maintenance {
         });
     }
 
+
+    /** Finalize the whole mechanic team and component selection in one transaction. */
+    private static function finalizeAssignment(array $u, array $d): array {
+        requireRole($u, ...self::ACT);
+        $jobId = idField($d,'job_id');
+        $lead = idField($d,'mechanic_id');
+        $helpers = $d['assistant_mechanic_ids'] ?? [];
+        $components = $d['component_ids'] ?? [];
+        $parts = choiceField($d,'parts_requirement',['No Parts Needed','Parts Required','To Be Determined']);
+        must(is_array($helpers) && count($helpers)<=10 && is_array($components) && count($components)<=31,'Invalid repair selections.',422);
+        $helpers = array_map('intval',$helpers);
+        $components = array_map('intval',$components);
+        must(count($helpers)===count(array_unique($helpers)) && !in_array($lead,$helpers,true),'Invalid duplicate mechanic.',422);
+        must(count($components)===count(array_unique($components)),'Duplicate component.',422);
+        $lines = $d['parts_lines'] ?? [];
+        must(is_array($lines) && count($lines)<=30 && (!$lines || $parts==='Parts Required'),'Invalid parts requirement.',422);
+        return transaction(function(PDO $p) use($u,$jobId,$lead,$helpers,$components,$parts,$lines) {
+            must(self::catalogReady($p),'Apply the approved Motorpool catalog migration before finalizing.',409);
+            $j=self::lockJob($p,$jobId);
+            must(in_array($j['status'],['Under Inspection','Under Repair'],true),'Repair must be under inspection or repair.',409);
+            must(!$j['assignment_finalized_at'],'Repair assignment is finalized and locked.',409);
+            if ($j['source']==='Incident') must($j['severity']!==null,'Assess the incident first.',409);
+            // Allow the initial lead to be changed once before finalization.
+            if ((int)$j['mechanic_id']!==$lead) {
+                self::freeMechanic($p,$lead,$jobId);
+                self::setMechanic($p,$j,$lead);
+            }
+            $old=self::helpersReady($p)?many($p,'SELECT mechanic_id FROM maintenance_job_helpers WHERE maintenance_job_id=? AND released_at IS NULL FOR UPDATE',[$jobId]):[];
+            $current=array_map('intval',array_column($old,'mechanic_id'));
+            must(self::helpersReady($p)||!$helpers,'Assisting mechanics need the helpers migration.',409);
+            foreach($helpers as $mid) if(!in_array($mid,$current,true)) self::freeMechanic($p,$mid,$jobId);
+            if(self::helpersReady($p)) {
+                foreach($current as $mid) if(!in_array($mid,$helpers,true)) {
+                    run($p,"UPDATE maintenance_job_helpers SET released_at=NOW(),released_by=?,release_reason='changed before finalization' WHERE maintenance_job_id=? AND mechanic_id=? AND released_at IS NULL",[$u['id'],$jobId,$mid]);
+                    self::refreshMechanic($p,$mid);
+                }
+                foreach($helpers as $mid) if(!in_array($mid,$current,true)) {
+                    run($p,'INSERT INTO maintenance_job_helpers (maintenance_job_id,mechanic_id,assigned_at,assigned_by) VALUES (?,?,NOW(),?)',[$jobId,$mid,$u['id']]);
+                    self::refreshMechanic($p,$mid);
+                }
+            }
+            if($components) {
+                $marks=implode(',',array_fill(0,count($components),'?'));
+                must(count(many($p,"SELECT id FROM motorpool_components WHERE active=1 AND id IN ($marks)",$components))===count($components),'Unknown component.',422);
+                $block=one($p,"SELECT COUNT(*) AS n FROM motorpool_vehicle_component_exclusions WHERE vehicle_id=? AND component_id IN ($marks)",array_merge([(int)$j['vehicle_id']],$components));
+                must((int)$block['n']===0,'Selected component is not applicable to this truck.',422);
+            }
+            run($p,'DELETE FROM maintenance_job_components WHERE maintenance_job_id=?',[$jobId]);
+            foreach($components as $cid) run($p,'INSERT INTO maintenance_job_components (maintenance_job_id,component_id) VALUES (?,?)',[$jobId,$cid]);
+            $needed=many($p,'SELECT DISTINCT s.name FROM maintenance_job_components jc JOIN motorpool_component_skills cs ON cs.component_id=jc.component_id JOIN mechanic_specializations s ON s.id=cs.specialization_id WHERE jc.maintenance_job_id=?',[$jobId]);
+            if($needed) {
+                $team=array_merge([$lead],$helpers);
+                $marks=implode(',',array_fill(0,count($team),'?'));
+                $have=many($p,"SELECT DISTINCT s.name FROM mechanic_skills ms JOIN mechanic_specializations s ON s.id=ms.specialization_id WHERE ms.mechanic_id IN ($marks)",$team);
+                $missing=array_diff(array_column($needed,'name'),array_column($have,'name'));
+                must(!$missing,'Mechanic team lacks: '.implode(', ',$missing),409);
+            }
+            if($lines) {
+                Actions::load('Purchasing');
+                Purchasing::createForRepair($p,$u,(int)$j['vehicle_id'],$jobId,cut((string)$j['problem'],255),$lines);
+            }
+            run($p,'UPDATE maintenance_jobs SET assignment_finalized_at=NOW(),assignment_finalized_by=?,parts_requirement=? WHERE id=?',[$u['id'],$parts,$jobId]);
+            self::event($p,$jobId,$j['status'],$j['status'],$u['id'],'repair assignment finalized; parts: '.$parts);
+            audit($p,$u['id'],'Maintenance','job '.$jobId,'repair assignment finalized',$j['job_ref']);
+            return ['message'=>'Repair assignment finalized. Assigned mechanics are locked.'];
+        });
+    }
+
     /** Assign (or change) the mechanic. Reported -> Under Inspection. */
     private static function assignMechanic(array $u, array $d): array {
         requireRole($u, ...self::ACT);
@@ -472,6 +550,7 @@ final class Maintenance {
             $j = self::lockJob($p, $id);
             must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
             must(!($j['source'] === 'Incident' && $j['status'] === 'Reported'), 'Assess the incident first (Minor or Major) before assigning a mechanic.', 409);
+            must(!self::catalogReady($p) || !$j['assignment_finalized_at'], 'Finalized mechanic assignment is locked.', 409);
             if ((int)$j['mechanic_id'] === $mechanicId) return ['message' => 'This mechanic is already assigned.'];
             if ($j['mechanic_id']) must($reason !== null, 'Give the reason for changing the mechanic.');
             $oldMechanic = $j['mechanic_id'] ? one($p, 'SELECT full_name FROM mechanics WHERE id=?', [$j['mechanic_id']]) : null;
@@ -503,6 +582,7 @@ final class Maintenance {
             must(self::helpersReady($p), 'Assigning several mechanics needs the pending database update (migration 12). Ask the administrator.', 409);
             $j = self::lockJob($p, $id);
             must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
+            must(!self::catalogReady($p) || !$j['assignment_finalized_at'], 'Finalized mechanic assignment is locked.', 409);
             must((bool)$j['mechanic_id'], 'Assign the lead mechanic first.', 409);
             $names = [];
             sort($ids); // fixed lock order on the mechanic rows (no deadlock between two custodians)
@@ -533,6 +613,7 @@ final class Maintenance {
             must(self::helpersReady($p), 'Assigning several mechanics needs the pending database update (migration 12).', 409);
             $j = self::lockJob($p, $id);
             must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
+            must(!self::catalogReady($p) || !$j['assignment_finalized_at'], 'Finalized mechanic assignment is locked.', 409);
             $h = one($p, 'SELECT h.id, mc.full_name FROM maintenance_job_helpers h JOIN mechanics mc ON mc.id=h.mechanic_id WHERE h.maintenance_job_id=? AND h.mechanic_id=? AND h.released_at IS NULL FOR UPDATE', [$id, $mid]);
             must((bool)$h, 'This mechanic is not assisting on this repair.', 404);
             run($p, 'UPDATE maintenance_job_helpers SET released_at=NOW(), released_by=?, release_reason=? WHERE id=?', [$u['id'], $reason, $h['id']]);
@@ -640,6 +721,11 @@ final class Maintenance {
             $j = self::lockJob($p, $id);
             must($j['status'] === 'Under Repair', $j['status'] === 'Under Inspection' ? 'Record the inspection findings and diagnosis first.' : 'Only records Under Repair can be completed (now: ' . $j['status'] . ').', 409);
             must($done >= (string)$j['reported_on'], 'Completion date is before the date reported.');
+            if (self::catalogReady($p)) {
+                must((bool)$j['assignment_finalized_at'], 'Finalize the repair assignment before completion.', 409);
+                must(in_array($j['parts_requirement'], ['No Parts Needed','Parts Required'], true), 'Confirm parts requirement before repair completion.', 409);
+                if ($j['parts_requirement'] === 'Parts Required') must((bool)one($p, "SELECT id FROM part_requests WHERE maintenance_job_id=? AND status<>'Cancelled' LIMIT 1", [$id]), 'Parts are required but no active linked request exists.', 409);
+            }
             // A parts request is fulfilled only after Purchasing releases the
             // requested quantity to this repair. PO receipt into inventory alone
             // does not satisfy the mechanic's request.
