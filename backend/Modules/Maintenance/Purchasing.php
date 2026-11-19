@@ -914,10 +914,11 @@ final class Purchasing {
             LEFT JOIN part_requests r ON r.id=o.part_request_id WHERE o.id=?', [$id]);
         must((bool)$o, 'Purchase order not found.', 404);
         $warrantyReady = self::warrantyConfirmationReady($p);
+        $partIdentity = self::partIdentitySql($p);
         $o = self::poPublicRow($o, hasRole($u, 'purchasing'));
         return ['po' => $o, 'warrantyReady' => $warrantyReady,
             'warrantyBatches' => $warrantyReady ? many($p, "SELECT wb.*, pt.part_number, pt.description FROM part_warranty_batches wb JOIN parts pt ON pt.id=wb.part_id JOIN purchase_order_lines l ON l.id=wb.po_line_id WHERE l.purchase_order_id=? ORDER BY wb.received_at DESC, wb.id DESC", [$id]) : [],
-            'lines' => many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id', [$id]),
+            'lines' => many($p, "SELECT l.*, pt.part_number, pt.description, $partIdentity, pt.unit FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id", [$id]),
             // S4B-2D-B: detailed disbursement records contain Finance-only payment data.
             // Purchasing/Motorpool still receive PO payment_status, but not bank/payment details.
             'payments' => hasRole($u, 'finance', 'admin', 'audit')
