@@ -36,10 +36,10 @@ const PurUI = {
         <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
         ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"></div>` : ''}</div>
       ${withPrice ? '<div class="purchasing-line-amount" data-lt></div>' : ''}
-      <button type="button" class="btn btn-outline-danger btn-sm purchasing-remove" data-remove-row title="Remove item" aria-label="Remove item"><i class="bi bi-trash"></i></button>
+      <button type="button" class="btn btn-outline-danger btn-sm purchasing-remove" data-remove-row title="Remove item" aria-label="Remove item">Remove</button>
     </div>`;
     return `<section class="purchasing-line-editor"><div class="purchasing-line-title"><div><strong>Items to purchase</strong><small>Choose the part to order, quantity and unit price. Items with zero on-hand stock can still be purchased; stock increases only after receiving.</small></div>
-      <button type="button" class="btn btn-outline-primary btn-sm" data-addrow><i class="bi bi-plus-lg me-1"></i>Add item</button></div>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-addrow>Add Item</button></div>
       ${parts.length ? '' : '<div class="alert alert-warning small">No parts in catalog. Add a part through Inventory before creating a PO.</div>'}
       ${withPrice ? '<p class="small text-muted mb-2" data-part-supplier-hint aria-live="polite">Choose a part to check previous supplier records.</p>' : ''}
       <div data-lines>${(lines.length ? lines : [{}]).map(row).join('')}</div>
@@ -221,12 +221,12 @@ const PurUI = {
         <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${can > 0 ? can : 0}" data-rel="${l.id}" ${left ? '' : 'disabled'}></td></tr>`; }).join('');
     const missing = r.lines.some(l => (+l.quantity - +l.released_qty) > (+l.reserved_qty || 0) + Math.max(0, (+l.quantity_on_hand || 0) - ((PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.reserved_qty || 0)));
     const canRelease = r.lines.some(l => (+l.reserved_qty || 0) + Math.max(0, (+l.quantity_on_hand || 0) - ((PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.reserved_qty || 0)) > 0 && +l.quantity > +l.released_qty);
-    const wrap = UI.modal('Check stock & release · ' + UI.esc(rq.request_ref), `<p class="small text-muted">Truck ${UI.esc(rq.plate_number)} · ${UI.esc(rq.purpose)}. Available stock is prefilled for release. If stock is short, use the purchase order shortcut below.</p>
+    const wrap = UI.modal('Release Parts · ' + UI.esc(rq.request_ref), `<p class="small text-muted">Truck ${UI.esc(rq.plate_number)} · ${UI.esc(rq.purpose)}. Available stock is prefilled for release. If stock is short, use the purchase order shortcut below.</p>
       <table class="data-table"><thead><tr><th>Part</th><th class="num">Requested</th><th class="num">Released</th><th class="num">On hand</th><th>Release now</th></tr></thead><tbody>${rows}</tbody></table>
       ${UI.fields([{ name: 'notes', label: 'Notes', col: 12 }])}`,
       async (x, form) => { const release = [...form.querySelectorAll('[data-rel]')].map(i => ({ line_id: i.dataset.rel, qty: +i.value || 0 }));
         const res = await App.api('Purchasing.request_process', { request_id: rq.id, release, notes: x.notes }); UI.result(res); App.route(); },
-      { submit: 'Release Selected Parts', extraFooter: (missing ? '<button type="button" class="btn btn-outline-primary btn-sm me-auto" data-shortage-po>Buy Missing Parts (Create PO)</button>' : '') + (!canRelease ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-na>Mark as No Stock</button>' : ''), onShow: (modal) => { if (!canRelease) { const submit = modal.querySelector('button[type="submit"]'); if (submit) submit.disabled = true; } } });
+      { submit: 'Release Available Parts', extraFooter: (missing ? '<button type="button" class="btn btn-outline-primary btn-sm me-auto" data-shortage-po>Buy Missing Parts</button>' : '') + (!canRelease ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-na>Mark as No Stock</button>' : ''), onShow: (modal) => { if (!canRelease) { const submit = modal.querySelector('button[type="submit"]'); if (submit) submit.disabled = true; } } });
     wrap.querySelector('[data-shortage-po]')?.addEventListener('click', () => {
       const pending = r.lines.filter(l => +l.quantity > +l.released_qty + (+l.reserved_qty || 0)).map(l => ({
         part_id: l.part_id,
@@ -470,7 +470,7 @@ PurUI.countReview = (c, decision) => decision === 'post'
   : UI.confirmAction('Reject ' + UI.esc(c.count_ref), 'The stock does not change. The Purchasing Officer is notified with your reason.', 'Purchasing.count_review',
       { count_id: c.id, decision: 'reject' }, { danger: true, submit: 'Reject count', fields: [{ name: 'notes', label: 'Reason', required: true, col: 12 }] });
 PurUI.countActs = (c, can) => c.status === 'Submitted' && can.reviewCount && +c.counted_by !== +App.me.user.id
-  ? UI.ibtn('post', 'Post adjustment', 'bi-check-lg', 'success') + UI.ibtn('reject', 'Reject count', 'bi-x-lg', 'outline-danger') : '';
+  ? UI.btn('post', 'Approve Stock Count', 'success') + UI.btn('reject', 'Reject Stock Count', 'outline-danger') : '';
 PurUI.openCount = async (c, can) => {
   const seq = App.navSeq; let x; try { x = await App.api('Purchasing.count_details', { count_id: c.id }); } catch (e) { return UI.toast(e.message, 'error'); }
   if (seq !== App.navSeq) return;
@@ -485,7 +485,7 @@ PurUI.openCount = async (c, can) => {
       k.status === 'Posted' ? ['Posted change', UI.num(k.qty_before) + ' → ' + UI.num(k.qty_after) + ' ' + UI.esc(k.unit)] : null])}
     ${UI.h('Evidence')}${UI.docs(x.documents, 'No evidence file attached.')}
     <div class="d-flex flex-wrap gap-2 mt-3" data-cacts>${k.status === 'Submitted' && can.reviewCount && +k.counted_by !== +App.me.user.id
-      ? UI.btn('post', 'Post adjustment', 'success', 'bi-check-lg') + UI.btn('reject', 'Reject count', 'outline-danger', 'bi-x-lg') : ''}</div>`, { subtitle: 'Stock count · ' + UI.esc(k.part_number) });
+      ? UI.btn('post', 'Approve Stock Count', 'success') + UI.btn('reject', 'Reject Stock Count', 'outline-danger') : ''}</div>`, { subtitle: 'Stock count · ' + UI.esc(k.part_number) });
   PurUI.bindDrawerActions(el.querySelector('[data-cacts]'), k, (a, row) => PurUI.countReview(row, a));
 };
 
