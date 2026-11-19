@@ -65,6 +65,88 @@ const FleetUI = {
   truckRows(d,q) {
     return d.trucks.filter(v=>(q.inactive?true:+v.active)&&(!q.truck_type||v.truck_type===q.truck_type)&&(!q.status||v.status===q.status)&&(!q.docs||(q.docs==='expiring'&&((v.reg_days!==null&&+v.reg_days<=+d.alertDays)||(v.ins_days!==null&&+v.ins_days<=+d.alertDays)))));
   },
+  /** Unfinished Add Driver/Helper/Truck form, stored per account on the server. */
+  bindDraft(wrap, type) {
+    if (!wrap || !['driver','helper','truck'].includes(type)) return;
+    const form=wrap.querySelector('form');
+    const footer=wrap.querySelector('.modal-footer');
+    const save=document.createElement('button');
+    save.type='button';
+    save.className='btn btn-outline-secondary btn-sm';
+    save.innerHTML='<i class="bi bi-floppy" aria-hidden="true"></i> Save Draft';
+    footer?.insertBefore(save,footer.querySelector('[data-bs-dismiss="modal"]'));
+    const names=type==='truck'
+      ? ['plate_number','truck_type','truck_number','make_brand','model','mv_file_number',
+        'chassis_number','engine_number','or_number','cr_number','registration_expiry',
+        'insurance_provider','insurance_policy_number','insurance_expiry','notes']
+      : ['full_name','person_type','attendance_group','employee_no','contact_number','date_hired',
+        'license_number','license_expiry','address','notes'];
+    const capture=()=>{
+      const fields={};
+      names.forEach(name=>{
+        const el=form.elements.namedItem(name);
+        if (el && 'value' in el) fields[name]=String(el.value||'');
+      });
+      if(type==='driver') {
+        fields.auth_truck=String(form.querySelector('[data-driver-truck-selector] input:checked')?.name.slice('auth_truck_'.length)||'');
+        fields.regular_helper_choice=String(form.querySelector('[data-driver-helper-selector] input:checked')?.name.slice('regular_helper_choice_'.length)||'');
+      }
+      return fields;
+    };
+    save.addEventListener('click',async()=>{
+      save.disabled=true;
+      try {
+        const result=await App.api('Fleet.draft_save',{draft_type:type,fields:capture()});
+        wrap.dataset.draftId=String(result.draft_id);
+        wrap.dataset.draftSaved='1';
+        UI.toast('Draft saved. Open Add '+(type==='truck'?'Truck':type==='driver'?'Driver':'Helper')+' later to continue.','success');
+        bootstrap.Modal.getInstance(wrap)?.hide();
+      } catch(e) {
+        UI.toast(e.message,'error');
+      } finally { save.disabled=false; }
+    });
+    const restore=fields=>{
+      names.forEach(name=>{
+        const el=form.elements.namedItem(name);
+        if (!el || !('value' in el) || !Object.prototype.hasOwnProperty.call(fields,name)) return;
+        el.value=String(fields[name]??'');
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      if(type==='driver') {
+        const truck=form.querySelector('[name="auth_truck_'+Number(fields.auth_truck)+'"]');
+        if(truck && !truck.disabled) {
+          truck.checked=true;
+          truck.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+        const helper=form.querySelector('[name="regular_helper_choice_'+Number(fields.regular_helper_choice)+'"]');
+        if(helper && !helper.disabled) {
+          helper.checked=true;
+          helper.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+      }
+    };
+    // Prompt before overwriting fields in the new Add form. No means return
+    // to the masterlist; the owned draft remains untouched.
+    (async()=>{
+      try{
+        const result=await App.api('Fleet.draft_get',{draft_type:type});
+        if(!wrap.isConnected || !result.draft) return;
+        const draft=result.draft;
+        const proceed=await UI.askWithinModal(wrap,'Continue unfinished '+(type==='truck'?'Truck':type==='driver'?'Driver':'Helper')+' form?',
+          'A saved draft was found from '+String(draft.updated_at||'an earlier session')+
+          '. Continue with the saved details? Select Go back to keep it for later.',
+          'Yes, Continue Draft');
+        if(!wrap.isConnected)return;
+        if(!proceed) {
+          bootstrap.Modal.getInstance(wrap)?.hide();
+          return;
+        }
+        wrap.dataset.draftId=String(draft.id);
+        restore(draft.fields||{});
+        UI.toast('Draft restored. Review truck and helper availability before final Save.','success');
+      }catch(e){if(wrap.isConnected) UI.toast(e.message,'error');}
+    })();
+  },
   truckForm(v, d) {
     const truckInfo = [
       { name: 'plate_number', label: 'Plate Number', required: true, col: 6, value: v.plate_number, placeholder: 'NAJ5941' },
@@ -95,15 +177,19 @@ const FleetUI = {
       UI.fields(fixedCrew.map(field=>({name:field.name,type:'hidden',value:field.value}))),
       FormComponents.collapsible('Registration & Insurance', 'Vehicle documents, insurance and notes', 'bi-file-earmark-text', documents),
     ];
-    return FormComponents.modal(
+    const wrap = FormComponents.modal(
       v.id ? 'Edit Truck ' + UI.esc(v.plate_number) : 'Add Truck',
       groups, 'Fleet.truck_save', {
         extra: v.id ? { id: v.id } : {},
         intro: 'Truck authorizations are now managed in Drivers & Helpers. OR/CR and insurance files can be attached from Truck Details → Documents.',
         submit: v.id ? 'Save Changes' : 'Save Truck',
+        transform: (values, form) => !v.id && form.closest('.modal')?.dataset.draftId
+          ? { ...values, draft_id: form.closest('.modal').dataset.draftId } : values,
         after: v.id ? () => FleetUI.truckDetails(v.id, d) : undefined,
       }
     );
+    if (!v.id) this.bindDraft(wrap,'truck');
+    return wrap;
   },
   async truckDetails(id, d) {
     let r; try { r = await App.api('Fleet.truck_details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
@@ -278,14 +364,15 @@ const FleetUI = {
       ...(driver?[section,authorization,helperSection]:[]),
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
-    return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
+    const wrap=FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
       intro:'Role: '+type+'. A fixed Truck can be reassigned by the Operations Head if both resources are free from active trips.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
       compactSize:driver?'normal':'small',
       transform:(values,form)=>{
-        if(!driver)return values;
+        const draftId=form.closest('.modal')?.dataset.draftId;
+        if(!driver)return draftId?{...values,draft_id:draftId}:values;
         const authorized=[...form.querySelectorAll('[data-driver-truck-selector] input:checked')]
           .map(input=>Number(input.name.slice('auth_truck_'.length)));
         for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
@@ -297,7 +384,7 @@ const FleetUI = {
         const regularHelper=fixedHelper||(selectedHelper
           ? Number(selectedHelper.name.slice('regular_helper_choice_'.length)) : null);
         for(const key of Object.keys(values).filter(k=>/^regular_helper_choice_\d+$/.test(k)))delete values[key];
-        return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||''};
+        return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||'',...(draftId?{draft_id:draftId}:{})};
       },
       after(){UI.closeDrawer();App.route();},
       onShow(wrap,form){
@@ -438,6 +525,8 @@ const FleetUI = {
         },true);
       },
     });
+    if(!p.id)this.bindDraft(wrap,type.toLowerCase());
+    return wrap;
   },
   async crewDetails(id, d) {
     let r; try { r = await App.api('Fleet.crew_details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
