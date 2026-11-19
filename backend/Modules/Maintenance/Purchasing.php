@@ -334,7 +334,7 @@ final class Purchasing {
         $id = optId($d, 'id');
         // Part ID is system-owned. "description" remains the existing database field for the Part Name.
         // Never accept a user-supplied part number on new records or change an existing identifier.
-        $row = ['description' => field($d, 'description', 200), 'category' => optField($d, 'category', 80),
+        $row = ['description' => field($d, 'description', 200),
                 'unit' => field($d, 'unit', 20), 'unit_cost' => moneyField($d, 'unit_cost', true), 'reorder_level' => intField($d, 'reorder_level', 0)];
         // These values distinguish variants sharing the same Part Type. Do not backfill legacy guesses.
         $type = optField($d, 'part_type', 100);
@@ -384,7 +384,7 @@ final class Purchasing {
             must(!one($p, 'SELECT id FROM parts WHERE part_number=? AND id<>?', [$partNumber, $id]),
                 'Generated part ID already exists in the legacy catalog. Contact the administrator.', 409);
             run($p, 'UPDATE parts SET part_number=? WHERE id=?', [$partNumber, $id]);
-            $added = ['Part ID' => $partNumber, 'Part type' => $row['part_type'], 'Part name' => $row['description'], 'Brand' => $row['brand'], 'Category' => $row['category'],
+            $added = ['Part ID' => $partNumber, 'Part type' => $row['part_type'], 'Part name' => $row['description'], 'Brand' => $row['brand'],
                 'Unit' => $row['unit'], 'Unit cost' => $row['unit_cost'], 'Reorder level' => $row['reorder_level']];
             auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part added', $partNumber, [], $added);
             return ['message' => 'Part ' . $partNumber . ' added.', 'id' => $id, 'part_number' => $partNumber];
