@@ -1,136 +1,123 @@
-/* TABLE_PRESENTATION_STABILITY_V1
- * Final, shared display rules loaded after legacy workspace styles.
- * Preserve columns, real records, pagination, filters and delegated actions.
- * Do not alter icon-only controls or backend logic.
- */
-#pageContent .ref-list,
-#pageContent .ref-tablebox,
-#pageContent .ref-tablebox > .table-wrap,
-#pageContent .table-tools,
-#pageContent .ref-toolbar { min-width:0; max-width:100%; }
-#pageContent .ref-tablebox > .table-wrap { overflow-x:auto; overscroll-behavior-x:contain; }
-
-/* Global reference-table fix: a labelled button cannot be forced into the
-   previous 32x32 icon grid. The button owns both icon and readable wording. */
-#pageContent.ref-scope .ref-tablebox .row-icons > .btn:not(.icon-act),
-#pageContent.ref-scope .ref-tablebox .row-actions .btn:not(.icon-act),
-#pageContent .purchasing-live-v1 .ref-tablebox .row-icons > .btn:not(.icon-act) {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  vertical-align:middle;
-  gap:5px;
-  width:auto;
-  height:auto;
-  min-width:max-content;
-  min-height:34px;
-  padding:7px 10px;
-  white-space:nowrap;
-  line-height:1.3;
-  font-size:12px;
-  font-weight:650;
-  text-align:center;
+/* PURCHASING_TABLE_LAYOUT_V3 — one source of truth, loaded after legacy styles.
+   No changes to business data, filters, pagination, permissions or row actions.
+   All measurements are scoped to Purchasing; no global reference-table overrides. */
+#pageContent.purchasing-live-v1 .ref-list,
+#pageContent.purchasing-live-v1 .ref-tablebox,
+#pageContent.purchasing-live-v1 .ref-tablebox > .table-wrap {
+  width:100%;max-width:100%;min-width:0;
 }
-#pageContent.ref-scope .ref-tablebox .row-icons > .btn:not(.icon-act) i,
-#pageContent .purchasing-live-v1 .ref-tablebox .row-icons > .btn:not(.icon-act) i {flex:0 0 auto;}
-#pageContent.ref-scope .ref-tablebox .row-icons,
-#pageContent .purchasing-live-v1 .ref-tablebox .row-icons {
-  display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;
-  width:auto; max-width:100%;
+#pageContent.purchasing-live-v1 .ref-tablebox > .table-wrap {
+  overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
 }
-#pageContent.ref-scope .ref-tablebox .data-table :is(th,td).actions-col{
-  white-space:normal; text-align:center; padding:9px 10px;
-  min-width:130px; max-width:none;
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table {
+  width:100%;min-width:0;max-width:none;table-layout:fixed;border-collapse:collapse;
 }
-#pageContent.ref-scope .ref-tablebox .data-table :is(th,td) {
-  box-sizing:border-box;vertical-align:middle;
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td) {
+  box-sizing:border-box;vertical-align:middle;padding:10px 8px;
+  min-width:0;max-width:none;white-space:normal;overflow-wrap:break-word;
+  line-height:1.4;
 }
-
-/* Purchasing tables: let content determine column width instead of conflicting
-   nth-child percentage rules (which assumed icon-only actions). Horizontal
-   scrolling stays inside the table card on narrow laptop widths. */
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table{
-  table-layout:auto;
-  width:100%;
-  max-width:none;
-  border-collapse:collapse;
-}
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td):not(.actions-col) {
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td):not(.actions-col) {
   width:auto !important;
-  max-width:none;
-  min-width:0;
-  padding:11px 10px;
-  white-space:normal;
-  overflow-wrap:break-word;
 }
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col {
-  width:auto !important;
-  min-width:170px;
-  max-width:none;
-  padding:10px 12px;
-  white-space:normal;
-}
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions {
-  display:flex;justify-content:center;align-items:center;
-  flex-wrap:wrap;gap:6px;min-width:0;max-width:none;
-}
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table .row-actions .btn{
-  max-width:100%;
-}
-#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table {min-width:1060px;}
-#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(1){min-width:145px;}
-#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(2){min-width:120px;}
-#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(5){min-width:190px;}
-#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(7){min-width:135px;}
-#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table {min-width:1180px;}
-#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table {min-width:1050px;}
-/* Inventory receives a dedicated fit-to-card layout below. */
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-clamp{
-  display:block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-#pageContent .purchasing-live-v1 .ref-tablebox .data-table .cell-nowrap{
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .cell-nowrap {
   white-space:nowrap;
 }
-@media(max-width:768px) {
-  #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 8px;}
-  #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col{min-width:150px;}
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .cell-clamp {
+  display:block;max-width:100%;white-space:normal;overflow-wrap:break-word;
 }
-
-/* INVENTORY_FIT_V2 — keep all 10 inventory columns visible on regular laptops.
-   Legacy minimum widths (1230px) and auto sizing forced needless scrolling.
-   The action buttons are stacked to avoid consuming 260px horizontally. */
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .table-wrap{
-  width:100%;max-width:100%;overflow-x:auto;
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-actions,
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-icons {
+  display:flex;align-items:center;justify-content:center;
+  flex-wrap:wrap;gap:5px;min-width:0;max-width:100%;
 }
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{
-  width:100%;min-width:0;max-width:100%;table-layout:fixed;
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-icons > .btn:not(.icon-act),
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-actions .btn:not(.icon-act) {
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  width:auto;height:auto;min-width:0;max-width:100%;min-height:32px;
+  padding:6px 8px;line-height:1.25;font-size:12px;font-weight:650;
+  text-align:center;white-space:normal;overflow-wrap:break-word;
 }
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):not(.actions-col){
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table .row-icons > .btn .bi {
+  flex:0 0 auto;
+}
+#pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td).actions-col {
   width:auto !important;min-width:0;max-width:none;
-  overflow-wrap:break-word;padding:10px 7px;
+  text-align:center;white-space:normal;padding:8px 6px;
 }
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1){width:8% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4){width:9% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5){width:7% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(7){width:10% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(8){width:9% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(9){width:10% !important}
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td).actions-col{
-  width:15% !important;min-width:0;max-width:none;white-space:normal;padding:8px 5px;
+
+/* Parts Requests: 8 record columns + Actions. */
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table{min-width:0;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(1){width:11% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(3){width:13% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(4){width:10% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(5){width:8% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(6){width:10% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(7){width:11% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(8){width:12% !important;}
+#pageContent.purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(9){width:14% !important;}
+
+/* Purchase Orders: PO / Supplier / Total / Status / Waiting for / Actions. */
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:0;}
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(1){width:15% !important;}
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(2){width:19% !important;}
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important;}
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(4){width:15% !important;}
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(5){width:21% !important;}
+#pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(6){width:16% !important;}
+
+/* Inventory parts: 9 data columns + Actions. Stacked text buttons prevent overflow. */
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:0;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1){width:8% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2){width:11% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4){width:9% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5){width:7% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(7){width:10% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(8){width:9% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(9){width:10% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(10){width:15% !important;}
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons {
+  width:100%;flex-direction:column;align-items:stretch;flex-wrap:nowrap;
 }
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons{
-  display:flex;flex-direction:column;gap:5px;align-items:stretch;flex-wrap:nowrap;
+#pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons > .btn:not(.icon-act) {
   width:100%;max-width:100%;
 }
-#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons > .btn:not(.icon-act){
-  display:inline-flex;width:100%;min-width:0;max-width:100%;
-  justify-content:center;align-items:center;gap:5px;
-  padding:7px 5px;white-space:normal;overflow-wrap:normal;line-height:1.25;
+
+/* Stock Counts (inventory count tab): 8 record columns plus Actions. */
+#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table {
+  min-width:0;
 }
-/* Narrow laptop/tablet: keep readable text and allow table-only scroll. */
-@media(max-width:1150px){
-  #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1030px;}
+#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table :is(th,td):last-child {
+  width:17% !important;
+}
+#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table .row-icons{
+  flex-direction:column;align-items:stretch;
+}
+#pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table .row-icons > .btn:not(.icon-act){width:100%;}
+
+/* Stock Movements: 7 data columns + Actions. */
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table{min-width:0;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(1){width:14% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(2){width:14% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(3){width:9% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(4){width:7% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(5){width:23% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(6){width:7% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(7){width:11% !important;}
+#pageContent.purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(8){width:15% !important;}
+
+/* On compact widths, preserve full labels and scroll the table container only.
+   Avoid forcing scrolling on normal desktop widths. */
+@media(max-width:1199px) {
+  #pageContent.purchasing-table-parts-requests .ref-tablebox .data-table{min-width:1080px;}
+  #pageContent.purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1040px;}
+  #pageContent.purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:900px;}
+  #pageContent.purchasing-table-stock-movements .ref-tablebox .data-table{min-width:950px;}
+  #pageContent.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .ref-tablebox .data-table{min-width:980px;}
+}
+@media(max-width:575px) {
+  #pageContent.purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 7px;}
 }
