@@ -100,6 +100,7 @@ final class Purchasing {
         ];
         $data['countsReady'] = self::countsReady($p);
         $data['warrantyReady'] = self::warrantyConfirmationReady($p);
+        $data['orderTrackingReady'] = self::orderTrackingReady($p);
         return $data;
     }
 
@@ -204,6 +205,7 @@ final class Purchasing {
             'request_cancel' => self::requestCancel($u, $d),
             'po_create' => self::poCreate($u, $d),
             'po_decide' => self::poDecide($u, $d),
+            'po_order' => self::poOrder($u, $d),
             'po_receive' => self::poReceive($u, $d),
             'warranty_confirm' => self::warrantyConfirm($u, $d),
             'po_close' => self::poClose($u, $d),
@@ -568,7 +570,8 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $supplier, $purpose, $reqId, $lines, $total, $approver, $threshold) {
             if ($reqId) must((bool)one($p, 'SELECT id FROM part_requests WHERE id=?', [$reqId]), 'Parts request not found.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'part_request_id' => $reqId, 'purpose' => $purpose] + $supplier + [
+            $orderFlag = self::orderTrackingReady($p) ? ['order_confirmation_required' => 1] : [];
+            $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'part_request_id' => $reqId, 'purpose' => $purpose] + $supplier + $orderFlag + [
                 'total_amount' => number_format($total, 2, '.', ''), 'approver_role' => $approver, 'status' => 'Pending Approval', 'requested_by' => $u['id']]);
             $ref = refNumber('PO', $id);
             run($p, 'UPDATE purchase_orders SET po_ref=? WHERE id=?', [$ref, $id]);
@@ -625,6 +628,30 @@ final class Purchasing {
         });
     }
 
+    /** Feature detection keeps pre-migration databases readable and legacy POs valid. */
+    private static function orderTrackingReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 AS ok FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='purchase_orders' AND column_name='order_confirmation_required'");
+    }
+
+    /** Explicit supplier-order confirmation; approval alone is not an order or a delivery. */
+    private static function poOrder(array $u, array $d): array {
+        requireRole($u, 'purchasing');
+        $id = idField($d, 'po_id');
+        return transaction(function (PDO $p) use ($u, $id) {
+            must(self::orderTrackingReady($p), 'Supplier-order tracking requires the purchasing database migration.', 503);
+            $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
+            must((bool)$o, 'Purchase order not found.', 404);
+            must($o['status'] === 'Approved', 'Only approved, unreceived purchase orders can be marked ordered.', 409);
+            must(empty($o['ordered_at']), 'This supplier order is already confirmed.', 409);
+            // Do not create a fabricated supplier order; an authorized user confirms a real action.
+            run($p, 'UPDATE purchase_orders SET ordered_at=NOW(), ordered_by=? WHERE id=?', [$u['id'], $id]);
+            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'supplier order placed', $o['po_ref'],
+                ['Supplier order' => 'Not confirmed'], ['Supplier order' => 'Confirmed by Purchasing']);
+            Notify::user($p, (int)$o['requested_by'], 'Supplier order confirmed', $o['po_ref'] . ' was marked as ordered with the supplier.', 'purchase_orders');
+            return ['message' => $o['po_ref'] . ' marked Ordered. Receiving remains a separate physical verification.'];
+        });
+    }
+
     /** Receiving (stock-in). Partial deliveries are allowed: "Partially Received". */
     private static function poReceive(array $u, array $d): array {
         requireRole($u, 'purchasing');
@@ -642,6 +669,8 @@ final class Purchasing {
             $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
             must((bool)$o, 'Purchase order not found.', 404);
             must(in_array($o['status'], ['Approved', 'Partially Received'], true), 'Only approved purchase orders can be received (this one is ' . $o['status'] . ').', 409);
+            if (self::orderTrackingReady($p) && (int)$o['order_confirmation_required'] === 1)
+                must(!empty($o['ordered_at']), 'Confirm that the approved purchase order was placed with the supplier before receiving.', 409);
             $got = [];
             foreach ((array)($d['receive'] ?? []) as $x) if (is_array($x) && !empty($x['line_id'])) $got[(int)$x['line_id']] = (int)($x['qty'] ?? 0);
             $total = 0;
