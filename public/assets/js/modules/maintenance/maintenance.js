@@ -93,7 +93,7 @@ const MaintUI = {
       { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
         placeholder:'Describe the truck problem and location of the damage.' },
       { name:'remarks', label:'Remarks', col:12 },
-      { name:'photos', label:'Photos of the damaged part or truck condition', type:'file', multiple:true, col:12,
+      { name:'photos', label:'Photo evidence of the truck problem', type:'file', multiple:true, required:true, col:12,
         attrs:'accept="image/png,image/jpeg"' }
     ]);
     const assistants = mechanics.length
