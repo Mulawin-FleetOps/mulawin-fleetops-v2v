@@ -304,7 +304,7 @@ const MaintUI = {
       if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Select repair plan', 'primary', 'bi-clipboard-pulse']);
       if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
       if (j.status === 'Under Inspection') acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
-      if (j.status === 'Under Repair') acts.push(['complete', 'Complete repair', 'primary', 'bi-check2-circle']);
+      if (j.status === 'Under Repair') acts.push(+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']);
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
       // INCIDENT_CLEARANCE_V1: Motorpool's Fit / Not Fit to Continue decision for a Minor trip incident.
       if (i && i.severity === 'Minor' && !['Repaired - Cleared to Continue', 'Resolved'].includes(i.status)) acts.push(['clearance', 'Vehicle clearance', j.verified_at ? 'primary' : 'outline-primary', 'bi-sign-stop']);
@@ -362,7 +362,8 @@ const MaintUI = {
         ['Vehicle clearance', i.clearance ? `${UI.badge(i.clearance)} · ${UI.e(i.cleared_by_name)} · ${UI.datetime(i.cleared_at)}<div class="small text-muted">${UI.e(i.clearance_findings)}</div>` : '<span class="text-muted">Not recorded</span>'],
         ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}
       ${UI.h('Parts and costs', UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-link btn-sm p-0" data-partspage="${+j.vehicle_id}"><i class="bi bi-box-seam"></i> Open in Parts Requests</button>` : '')}
-      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part', 'part_number'], ['Description', 'description'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
+      ${+r.pending_parts_units > 0 ? '<div class="alert alert-warning small">Repair completion is blocked: ' + UI.num(r.pending_parts_units) + ' requested unit(s) await Purchasing release. Open Parts Requests to follow up.</div>' : ''}
+      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
       ${r.costs.length ? UI.table([['Type', 'cost_type'], ['Description', 'description'], ['Provider', 'provider'], ['Date', 'incurred_on', 'date'], ['Amount', 'amount', 'money']], r.costs, { plain: true }) : '<div class="text-muted small mb-2">No labor or outside costs.</div>'}
       <div class="text-end small">Parts ${UI.money(partsCost)} + other ${UI.money(other)} = <b>${UI.money(partsCost + other)}</b></div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
@@ -394,6 +395,7 @@ const MaintUI = {
           { name: 'diagnosis', label: 'Diagnosis', type: 'textarea', required: true, col: 12, placeholder: 'Cause of the problem and what must be repaired or replaced' },
           { name: 'photos', label: 'More photos (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="image/png,image/jpeg"' }],
         'Maintenance.inspect', { extra: { job_id: j.id }, submit: 'Save and start repair', after: reopen });
+      if (a === 'complete' && +r.pending_parts_units > 0) return UI.toast('Purchasing must release the requested parts first (' + r.pending_parts_units + ' units pending).', 'error');
       if (a === 'complete') UI.formModalFiles('Complete repair ' + UI.esc(j.job_ref), [
           { name: 'repair_performed', label: 'Corrective action performed', type: 'textarea', required: true, col: 12 },
           { name: 'completed_on', label: 'Completion date', type: 'date', value: UI.today(), required: true, col: 6 }, { name: 'remarks', label: 'Remarks', col: 6 },
@@ -426,7 +428,7 @@ const MaintUI = {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Select repair plan', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Inspection') return ['inspect', 'Record findings', 'bi-search'];
-    if (j.status === 'Under Repair') return ['complete', 'Complete repair', 'bi-check2-circle'];
+    if (j.status === 'Under Repair') return +j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle'];
     if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
     return null;
   },
@@ -660,7 +662,7 @@ App.page('maintenance', {
     // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
     const opt = { directActions: true, showAllColumns: true,
       actions: (j) => { const st = MaintUI.rowStep(j);
-        return (st ? `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
+        return (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
           + (d.can.act && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.ibtn('helpers', 'Add mechanics', 'bi-people') : '')
           + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) ? UI.ibtn('parts', 'Request parts', 'bi-box-seam') : '')
           + UI.ibtn('view', 'Open record', 'bi-eye'); },
