@@ -182,9 +182,14 @@ $lines = many($p, 'SELECT id, part_id FROM part_request_lines WHERE part_request
 Purchasing::action($pur, 'request_process', ['request_id' => $req1['id'], 'release' => [['line_id' => $lines[0]['id'], 'qty' => 2], ['line_id' => $lines[1]['id'], 'qty' => 2]]]);
 $s = $sum();
 ok(one($p, 'SELECT status FROM part_requests WHERE id=?', [$req1['id']])['status'] === 'Partially Released' && $s['pending_parts'] === 1 && $s['parts_partially_released'] === 1, 'partial release: still 1 pending (Partially Released)');
+ok((int)Maintenance::action($mp, 'details', ['job_id'=>$j1])['pending_parts_units'] === 2, 'repair details expose two units waiting for release');
+fails(fn() => Maintenance::action($mp, 'complete', ['job_id'=>$j1, 'repair_performed'=>'Replaced hose', 'completed_on'=>date('Y-m-d')]),
+    'partial release blocks repair completion even before evidence validation', 409);
+ok($job($j1)['status'] === 'Under Repair', 'rejected completion retains Under Repair status');
 ok((int)one($p, 'SELECT quantity_on_hand AS q FROM parts WHERE id=?', [$hose])['q'] === 8, 'stock released (inventory unchanged behaviour)');
 Purchasing::action($pur, 'request_process', ['request_id' => $req1['id'], 'release' => [['line_id' => $lines[1]['id'], 'qty' => 2]]]);
 ok($sum()['pending_parts'] === 0, 'fully released request is no longer pending');
+ok((int)Maintenance::action($mp, 'details', ['job_id'=>$j1])['pending_parts_units'] === 0, 'fully released request removes repair completion blocker');
 $det = Maintenance::action($mp, 'details', ['job_id' => $j1]);
 ok(count($det['parts']) === 2 && (int)$det['parts'][0]['released_qty'] === 2, 'parts used still shown on the repair record');
 ok(count($det['costs']) === 1 && count($det['documents']) >= 1 && count($det['events']) >= 3, 'costs, photos and status history still shown');
@@ -221,6 +226,8 @@ Purchasing::action($mp, 'request_create', ['vehicle_id' => $V[2], 'maintenance_j
 $req2 = one($p, 'SELECT * FROM part_requests WHERE maintenance_job_id=?', [$j2]);
 ok($sum()['pending_parts'] === 1, 'new request pending');
 Purchasing::action($pur, 'request_process', ['request_id' => $req2['id'], 'not_available' => 1]);
+fails(fn() => Maintenance::action($mp, 'complete', ['job_id'=>$j2, 'repair_performed'=>'Brake work', 'completed_on'=>date('Y-m-d')]),
+    'Not Available parts must block completing repair', 409);
 $o = $ov($mp);
 ok($o['summary']['pending_parts'] === 0, 'Not Available is not counted as pending (as approved)');
 $a = $attFor($o, $req2['request_ref']);
