@@ -24,6 +24,25 @@ core('Money');
 final class Finance {
     public const EXPENSE_CATEGORIES = ['Fuel', 'RFID / Toll', 'Trip Allowance', 'Maintenance', 'Parts', 'Office', 'Utilities', 'Salaries', 'Other'];
 
+    /** Parent PO/payable is locked before checking this transactionally saved receipt. */
+    private static function paymentRequest(array $d, string $record, array $values): array {
+        $key = strtolower(field($d, 'request_key', 36));
+        must((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $key), 'Reload the payment form before recording a payment.');
+        return [$record, 'payment request ' . $key, hash('sha256', json_encode($values, JSON_THROW_ON_ERROR))];
+    }
+
+    private static function paymentReplay(PDO $p, array $request): bool {
+        [$record,$action,$fingerprint] = $request;
+        $old = one($p, "SELECT details FROM audit_events WHERE area='Finance' AND record_ref=? AND action=? ORDER BY id LIMIT 1", [$record,$action]);
+        if (!$old) return false;
+        must(hash_equals($old['details'],$fingerprint), 'This payment request was already used with different details. Reload the record before making another payment.', 409);
+        return true;
+    }
+
+    private static function paymentReceipt(PDO $p, array $u, array $request): void {
+        audit($p,$u['id'],'Finance',$request[0],$request[1],$request[2]);
+    }
+
     public static function read(array $u, string $page, array $q): array {
         $p = db();
         $from = (string)($q['from'] ?? date('Y-m-01')); $to = (string)($q['to'] ?? date('Y-m-d'));
@@ -57,18 +76,20 @@ final class Finance {
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id LEFT JOIN users du ON du.id=o.decided_by
                 WHERE o.payment_status IN ('Pending Payment','Partially Paid') ORDER BY o.id"),
             'payables' => fn() => many($p, "SELECT pa.id, pa.payable_ref, pa.payee, pa.category, pa.description, pa.due_on, pa.amount, pa.paid_amount, pa.status, (pa.amount-pa.paid_amount) AS balance, v.plate_number, s.name AS supplier FROM payables pa
-                LEFT JOIN vehicles v ON v.id=pa.vehicle_id LEFT JOIN suppliers s ON s.id=pa.supplier_id ORDER BY FIELD(pa.status,'Unpaid','Partially Paid','Paid'), pa.due_on, pa.id DESC LIMIT 500"),
+                LEFT JOIN vehicles v ON v.id=pa.vehicle_id LEFT JOIN suppliers s ON s.id=pa.supplier_id ORDER BY FIELD(pa.status,'Unpaid','Partially Paid','Paid'), pa.due_on, pa.id DESC"),
             'expenses' => fn() => many($p, "SELECT e.id, e.category, e.amount, e.incurred_on, e.payee, e.reference_number, e.description, e.source, t.trip_ref, v.plate_number, u.full_name AS recorded_by_name FROM expenses e LEFT JOIN trips t ON t.id=e.trip_id
-                LEFT JOIN vehicles v ON v.id=e.vehicle_id LEFT JOIN users u ON u.id=e.recorded_by WHERE e.incurred_on BETWEEN ? AND ? ORDER BY e.incurred_on DESC, e.id DESC LIMIT 2000", [$from, $to]),
+                LEFT JOIN vehicles v ON v.id=e.vehicle_id LEFT JOIN users u ON u.id=e.recorded_by WHERE e.incurred_on BETWEEN ? AND ? ORDER BY e.incurred_on DESC, e.id DESC", [$from, $to]),
             'disbursements' => fn() => many($p, "SELECT d.id, d.voucher_number, d.source_type, d.source_id, d.payee, d.payment_method, d.cheque_number, d.bank_name, d.reference_number, d.amount, d.released_on, u.full_name AS recorded_by_name,
                     CASE d.source_type WHEN 'purchase_order' THEN (SELECT po_ref FROM purchase_orders WHERE id=d.source_id) WHEN 'fund_request' THEN (SELECT fund_ref FROM fund_requests WHERE id=d.source_id)
                         WHEN 'payable' THEN (SELECT payable_ref FROM payables WHERE id=d.source_id) END AS source_ref
                 FROM disbursements d JOIN users u ON u.id=d.recorded_by
-                WHERE d.released_on BETWEEN ? AND ? ORDER BY d.released_on DESC, d.id DESC LIMIT 2000", [$from, $to]),
+                WHERE d.released_on BETWEEN ? AND ? ORDER BY d.released_on DESC, d.id DESC", [$from, $to]),
             'budgets' => fn() => many($p, "SELECT b.id, b.period_start, b.period_end, b.amount, b.reserved_amount, b.spent_amount, b.status, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.status, b.id DESC"),
             'cashflow' => fn() => many($p, "SELECT m, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (
                     SELECT DATE_FORMAT(payment_date,'%Y-%m') AS m, amount AS cash_in, 0 AS cash_out FROM collections WHERE payment_date>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
-                    UNION ALL SELECT DATE_FORMAT(released_on,'%Y-%m'), 0, amount FROM disbursements WHERE released_on>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)) x GROUP BY m ORDER BY m"),
+                    UNION ALL SELECT DATE_FORMAT(released_on,'%Y-%m'), 0, amount FROM disbursements WHERE released_on>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
+                    UNION ALL SELECT DATE_FORMAT(liquidated_at,'%Y-%m'), returned_amount, 0 FROM fund_requests
+                        WHERE liquidation_status='Liquidated' AND returned_amount>0 AND liquidated_at>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)) x GROUP BY m ORDER BY m"),
             'suppliers' => fn() => many($p, 'SELECT id, name FROM suppliers WHERE active=1 ORDER BY name'),
             'trucks' => fn() => many($p, 'SELECT id, plate_number FROM vehicles ORDER BY plate_number'),
             // Expenses of the period per category and source (descriptive; same rows as the expense list).
@@ -131,10 +152,12 @@ final class Finance {
         $amount = moneyField($d, 'amount');
         $invoice = field($d, 'supplier_invoice_no', 80);
         $pay = Money::paymentFields($d);
-        must(Files::has('or_doc'), 'Attach the official receipt or payment confirmation.', 422);
-        return transaction(function (PDO $p) use ($u, $id, $amount, $invoice, $pay) {
+        $request = self::paymentRequest($d,'po '.$id,[$amount,$invoice,$pay]);
+        return transaction(function (PDO $p) use ($u, $id, $amount, $invoice, $pay, $request) {
             $o = one($p, 'SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id WHERE o.id=? FOR UPDATE', [$id]);
             must((bool)$o, 'Purchase order not found.', 404);
+            if (self::paymentReplay($p,$request)) return ['message'=>'Payment was already recorded. No additional payment was created.','duplicate'=>true];
+            must(Files::has('or_doc'), 'Attach the official receipt or payment confirmation.', 422);
             must(in_array($o['payment_status'], ['Pending Payment', 'Partially Paid'], true), 'This purchase order is not waiting for payment.', 409);
             $received = (float)one($p, 'SELECT COALESCE(SUM(received_qty*unit_price),0) AS v FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['v'];
             $payable = round($received - (float)$o['paid_amount'], 2);
@@ -155,6 +178,7 @@ final class Finance {
                  'Reserved amount' => number_format(max(0, (float)$o['reserved_amount'] - $fromReserve), 2, '.', ''), 'Payment status' => $st]);
             Notify::user($p, (int)$o['requested_by'], 'PO paid', $o['po_ref'] . ' payment recorded (' . $st . ').', 'purchase_orders');
             if ($st === 'Paid') Notify::resolve($p, 'po-pay-' . $o['id']);
+            self::paymentReceipt($p,$u,$request);
             return ['message' => 'Payment recorded. ' . $o['po_ref'] . ' is ' . $st . '.'];
         });
     }
@@ -180,9 +204,11 @@ final class Finance {
         $id = idField($d, 'payable_id');
         $amount = moneyField($d, 'amount');
         $pay = Money::paymentFields($d);
-        return transaction(function (PDO $p) use ($u, $id, $amount, $pay) {
+        $request = self::paymentRequest($d,'payable '.$id,[$amount,$pay]);
+        return transaction(function (PDO $p) use ($u, $id, $amount, $pay, $request) {
             $a = one($p, 'SELECT * FROM payables WHERE id=? FOR UPDATE', [$id]);
             must((bool)$a, 'Payable not found.', 404);
+            if (self::paymentReplay($p,$request)) return ['message'=>'Payment was already recorded. No additional payment was created.','duplicate'=>true];
             $bal = round((float)$a['amount'] - (float)$a['paid_amount'], 2);
             must($bal > 0, 'This payable is already paid.', 409);
             must((float)$amount <= $bal, 'The amount is more than the balance (PHP ' . number_format($bal, 2) . ').');
@@ -194,6 +220,7 @@ final class Finance {
             auditWithChanges($p, $u['id'], 'Finance', 'payable ' . $id, 'payable paid', $a['payable_ref'] . ' PHP ' . $amount,
                 ['Paid amount' => $a['paid_amount'], 'Status' => $a['status']],
                 ['Paid amount' => number_format($paid, 2, '.', ''), 'Status' => $paid >= (float)$a['amount'] ? 'Paid' : 'Partially Paid']);
+            self::paymentReceipt($p,$u,$request);
             return ['message' => 'Payment recorded.'];
         });
     }
@@ -227,7 +254,7 @@ final class Finance {
             // reserved + spent stay consistent. The old budget keeps its spent amount (history) and loses only what moved.
             $old = many($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' FOR UPDATE");
             $carry = many($p, "SELECT id, po_ref, budget_id, reserved_amount FROM purchase_orders WHERE budget_id IN (SELECT id FROM budgets WHERE status='Active' AND category='Purchasing')
-                AND reserved_amount > 0 AND status IN ('Approved','Partially Received','Received') FOR UPDATE");
+                AND reserved_amount > 0 AND status IN ('Approved','Partially Received','Received','Closed') FOR UPDATE");
             $moved = round(array_sum(array_map(fn($o) => (float)$o['reserved_amount'], $carry)), 2);
             must((float)$amount >= $moved, 'The new budget (PHP ' . number_format((float)$amount, 2) . ') is less than the PHP ' . number_format($moved, 2)
                 . ' still reserved by approved purchase orders that will move to it. Enter at least that amount.');

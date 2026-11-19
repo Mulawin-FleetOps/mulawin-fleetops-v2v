@@ -200,8 +200,8 @@ const HeadFinancePage = {
           { name: 'period_end', label: 'End date', type: 'date', required: true, col: 6 }], 'Finance.budget_set', { intro: 'The current active budget is closed; reservations of approved POs stay with their budget.' })), 0);
         return h;
       }],
-      ['cash', 'Cash flow', () => UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections) vs cash out (disbursements), last 12 months', labels: d.cashflow.map(x => x.m),
-        datasets: [{ label: 'Cash in (collections)', data: d.cashflow.map(x => +x.cash_in) }, { label: 'Cash out (disbursements)', data: d.cashflow.map(x => +x.cash_out) }] }],
+      ['cash', 'Cash flow', () => UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections + returned trip cash) vs cash out (disbursements), last 12 months', labels: d.cashflow.map(x => x.m),
+        datasets: [{ label: 'Cash in (collections + returns)', data: d.cashflow.map(x => +x.cash_in) }, { label: 'Cash out (disbursements)', data: d.cashflow.map(x => +x.cash_out) }] }],
         tables: [{ title: 'Monthly cash flow', columns: [['Month', 'm'], ['Cash in', 'cash_in', 'money'], ['Cash out', 'cash_out', 'money'], ['Net', 'net', 'money']], rows: d.cashflow.map(x => ({ ...x, net: +x.cash_in - +x.cash_out })) }] })],
     ];
     const chosen = ctx.query.from ? 'expenses' : ctx.query.tab || 'po';
@@ -297,7 +297,7 @@ App.page('finance_budgets', {
         ['Trip / truck', 'trip_ref', (v, e) => UI.e(v || e.plate_number)], ['Payee', 'payee'], ['Description', 'description', (v) => `<span class="cell-clamp" title="${UI.esc(v)}">${UI.esc(v)}</span>`]], rows,
         { title: 'Expenses (' + rows.length + ')', showAllColumns: true, empty: 'No expense in this period.' })
       + `</div><div class="mo-side">${mix}</div></div>`
-      + UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections) vs cash out (payment vouchers), last 12 months', labels: (d.cashflow || []).map(x => x.m),
+      + UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections + returned trip cash) vs cash out (payment vouchers), last 12 months', labels: (d.cashflow || []).map(x => x.m),
         datasets: [{ label: 'Cash in', data: (d.cashflow || []).map(x => +x.cash_in) }, { label: 'Cash out', data: (d.cashflow || []).map(x => +x.cash_out) }] }] });
   },
 });

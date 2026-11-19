@@ -2276,12 +2276,17 @@ UI.takeQuery = (ctx, ...keys) => {
 };
 // ------------------------------------------------------------------ helpers added in the revision
 /** Form modal that also sends the files of the form (uses App.apiForm). */
-UI.formModalFiles = (title, fields, action, opts = {}) => UI.modal(title, (opts.intro ? `<div class="small text-muted mb-2">${opts.intro}</div>` : '') + UI.fields(fields), async (d, form, wrap) => {
+UI.formModalFiles = (title, fields, action, opts = {}) => {
+  // Keep one key for the lifetime of the payment form, including network retries.
+  if (['Finance.po_pay','Finance.payable_pay'].includes(action))
+    opts = { ...opts, extra: { ...opts.extra, request_key: UI.uuid() } };
+  return UI.modal(title, (opts.intro ? `<div class="small text-muted mb-2">${opts.intro}</div>` : '') + UI.fields(fields), async (d, form, wrap) => {
   const payload = opts.transform ? opts.transform(d, form, wrap) : d;
   const r = await App.apiForm(action, { ...(opts.extra || {}), ...payload }, form);
   UI.result(r);
   if (opts.after) opts.after(r); else App.route();
-}, opts);
+  }, opts);
+};
 
 /**
  * ONE simple filter modal per list (no permanent filter bar).

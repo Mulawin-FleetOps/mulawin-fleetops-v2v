@@ -161,7 +161,7 @@ ok($fi2['weekly']['prev_collections'] == 0 && $fi2['prevCollections'] === [], 'p
 $tmpDir = sys_get_temp_dir() . '/fleet_hm_' . bin2hex(random_bytes(4)); mkdir($tmpDir);
 $orf = $tmpDir . '/or.pdf'; file_put_contents($orf, "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
 $_FILES = ['or_doc' => ['name' => 'official_receipt.pdf', 'tmp_name' => $orf, 'error' => UPLOAD_ERR_OK, 'size' => filesize($orf)]];
-try { Finance::action($fin, 'po_pay', ['po_id' => $small, 'amount' => '3250', 'supplier_invoice_no' => 'INV-HM-1', 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); } finally { $_FILES = []; }
+try { Finance::action($fin, 'po_pay', ['request_key'=>'11111111-0000-4000-8000-000000000001', 'po_id' => $small, 'amount' => '3250', 'supplier_invoice_no' => 'INV-HM-1', 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); } finally { $_FILES = []; }
 $fi3 = Oversight::read($adm, 'admin_finance', []);
 ok(abs($fi3['weekly']['payments'] - 3250) < 0.01 && count($fi3['payments']) === 1 && $fi3['payments'][0]['source_ref'] !== null, 'a PO payment this week is listed once under payments, with its PO reference');
 ok(abs(($fi2['weekly']['commitments'] - $fi3['weekly']['commitments']) - 3250) < 0.01, 'the paid amount left commitments (moved, not added): no double counting');
