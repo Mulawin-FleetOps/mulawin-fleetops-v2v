@@ -93,8 +93,8 @@ const App = {
       <section class="auth-side" aria-hidden="true">
         <div class="auth-side-brand"><span class="auth-logo-frame"><img src="assets/img/logo.png" alt="" class="auth-logo" onerror="this.remove()"></span>
           <div><div class="auth-side-company">R.P. Mulawin Trucking Services</div><div class="auth-side-product">Mulawin FleetOps</div></div></div>
-        <div class="auth-side-copy"><h2>Fleet operations and financial monitoring</h2>
-          <p>Manage trips, fleet, maintenance, purchasing, billing and company records in one secure system.</p></div>
+        <div class="auth-side-copy"><h2>Driven by<br> <span>reliability.</span></h2>
+          <p>Manage trips, fleet, maintenance, purchasing, billing and company financial monitoring in one secure system.</p></div>
       </section>
       <main class="auth-main"><div class="auth-card" id="authCard">${inner}</div>
         <p class="auth-foot">Mulawin FleetOps &copy; ${new Date().getFullYear()} · Authorized personnel only</p></main>
