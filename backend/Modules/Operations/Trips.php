@@ -1026,6 +1026,7 @@ final class Trips {
                 if ($truckDefects) {
                     Actions::load('Maintenance');
                     $job = Maintenance::fromPreDispatchChecklist($p, $u, $t, $truckDefects);
+                    Maintenance::linkChecklistComponents($p, (int)$job['job_id'], $check);
                     run($p, "UPDATE inspections SET maintenance_job_id=? WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch'",
                         [$job['job_id'], $id, $t['attempt_number']]);
                     self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks, (int)$job['job_id']);
@@ -1155,6 +1156,7 @@ final class Trips {
                 'reported_on' => substr($row['incident_at'], 0, 10), 'priority' => 'High', 'created_by' => $u['id']]);
             run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)', [$jid, null, 'Reported', 'from incident ' . $iref, $u['id']]);
             run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [refNumber('JOB', $jid), $jid]);
+            if (one($p, "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='maintenance_jobs' AND COLUMN_NAME='parts_requirement'")) run($p, "UPDATE maintenance_jobs SET parts_requirement='To Be Determined' WHERE id=?", [$jid]);
             self::setStatus($p, $u['id'], $t, 'On Hold - Incident Reported', 'incident reported', $iref . ': ' . $row['problem'] . ' @ ' . $row['location']);
             $plate = one($p, 'SELECT plate_number FROM vehicles WHERE id=?', [$t['vehicle_id']])['plate_number'];
             Notify::roles($p, ['motorpool'], 'Incident reported', "$iref on $plate (" . $t['trip_ref'] . '): ' . $row['problem'] . ' @ ' . $row['location'] . '. Please assess (Minor or Major).', 'maintenance', 'incident-assess-' . $iid);
@@ -1370,10 +1372,12 @@ final class Trips {
                         'remarks' => cut('From the arrival checklist of ' . $t['trip_ref'], 500), 'created_by' => $u['id']]);
                     $jobRef = refNumber('CM', $jobId);
                     run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$jobRef, $jobId]);
+                    if (one($p, "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='maintenance_jobs' AND COLUMN_NAME='parts_requirement'")) run($p, "UPDATE maintenance_jobs SET parts_requirement='To Be Determined' WHERE id=?", [$jobId]);
                     run($p, 'INSERT INTO maintenance_events (maintenance_job_id, from_status, to_status, details, actor_id) VALUES (?,?,?,?,?)',
                         [$jobId, null, 'Reported', cut('from the arrival checklist of ' . $t['trip_ref'], 500), $u['id']]);
                 }
             }
+            if ($jobId !== null) { Actions::load('Maintenance'); Maintenance::linkChecklistComponents($p, (int)$jobId, $check); }
             $p->prepare("INSERT INTO inspections (trip_id, vehicle_id, attempt_number, kind, items_json, has_not_ok, odometer_km, fuel_level, remarks, damage_notes, maintenance_job_id, actor_id, started_at, completed_at)
                          VALUES (?,?,?,'Arrival',?,?,?,?,?,?,?,?,?,NOW())")
               ->execute([$id, $vid, $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $bad ? 1 : 0, $km, $fuel, $remarks, $damage, $jobId, $u['id'], $started]);
