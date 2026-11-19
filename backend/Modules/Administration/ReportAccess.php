@@ -57,9 +57,12 @@ final class ReportAccess {
         must($page === 'reports_center', 'Unknown reports page.', 404);
         $available = [];
         foreach (self::PAGES as $id => $label) {
-            // Keep the legacy mixed report route available to Admin deep-links only;
-            // it is not a selectable report card or delegated permission.
-            if ($id !== 'reports' && self::allowed($u, $id)) $available[] = ['page'=>$id,'label'=>$label];
+            // Hide legacy aggregate entry points from the Reports index.
+            // admin_analytics is an alias to descriptive analytics; keep the route
+            // for existing bookmarks but avoid a duplicate card.
+            if (!in_array($id, ['reports', 'admin_analytics'], true) && self::allowed($u, $id)) {
+                $available[] = ['page'=>$id,'label'=>$label];
+            }
         }
         $result = ['reports'=>$available, 'admin'=>($u['role'] ?? '') === 'admin'];
         if (!$result['admin']) return $result;
