@@ -1052,6 +1052,7 @@ App.page('inventory', {
     const identityNotice = !d.partIdentityReady
       ? '<div class="alert alert-warning small">Part Type / Brand migration has not been applied to this database. Existing parts remain visible, but Add/Edit Part will be unavailable until the migration is installed.</div>' : '';
     const inventoryCards = PurRef.cards([
+      {label:'Active Parts',value:active.length,note:'Active catalog entries',icon:'bi-box-seam',go:'inventory?stock=active'},
       {label:'Low / Out of Stock',value:low.length,note:'Parts at or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
       {label:'Stock Counts Awaiting Review',value:d.countsReady?pending.length:'—',note:'Submitted physical counts for Admin review',icon:'bi-clipboard-check',go:d.countsReady?'inventory?view=counts':undefined},
       {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On-hand stock × recorded unit cost',icon:'bi-cash-coin'}
