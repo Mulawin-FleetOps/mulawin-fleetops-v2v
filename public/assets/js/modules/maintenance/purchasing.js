@@ -925,6 +925,8 @@ App.page('inventory', {
   subtitle: 'See current stock and item availability.',
   render(ctx) {
     ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-inventory');
+    // Inventory Parts and Stock Counts are separate table layouts even when switching tabs.
+    ctx.el.classList.remove('purchasing-inventory-parts-view');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query;
     if (can.stock) PurUI.tool(ctx, 'Add part', 'bi-plus-lg', () => k.partForm(), 'btn-outline-secondary');
     if (can.count && d.countsReady) PurUI.tool(ctx, 'Record stock count', 'bi-clipboard-check', () => PurUI.countForm(d));
