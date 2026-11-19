@@ -2086,3 +2086,100 @@
   #pageContent .purchasing-operations-records .record-workspace-search .table-search {flex-basis:100%}
   #pageContent .mp-action-stages{gap:8px}
 }
+
+
+/* Preview fidelity: four KPI cards, sectioned forms and record detail drawers.
+   Dialog content and its real submit handlers are intentionally unchanged. */
+#pageContent .purchasing-live-v1 .ws-kpi4 > *,
+#pageContent .mp-wireframe-dashboard .head-trip-kpis > .head-kpi {
+  background:#fff;
+  border:1px solid #caa650;
+  border-radius:12px;
+  box-shadow:none;
+  padding:15px 16px;
+}
+#pageContent .purchasing-live-v1 .ws-kpi4,
+#pageContent .mp-wireframe-dashboard .head-trip-kpis {
+  gap:12px;
+  margin-bottom:19px;
+}
+#pageContent .mp-wireframe-dashboard .head-trip-kpis .head-kpi strong {
+  font-size:26px;
+  line-height:1.2;
+  color:#203e2b;
+}
+#pageContent .mp-wireframe-dashboard .head-trip-kpis .head-kpi span,
+#pageContent .mp-wireframe-dashboard .head-trip-kpis .head-kpi small {color:#698073}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels > .panel,
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .panel {
+  background:#fff;
+  border:1px solid #dfe8e1;
+  border-radius:12px;
+  box-shadow:0 2px 8px rgba(27,74,38,.05);
+  overflow:hidden;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels > .panel .panel-head,
+#pageContent .mp-wireframe-dashboard .mp-wireframe-layout .panel .panel-head {
+  padding:16px 18px;
+  border-bottom:1px solid #e3ece6;
+}
+body:has(#pageContent .purchasing-live-v1) .modal.show .modal-content,
+body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-content {
+  background:#fff;
+  border:1px solid #dfe8e1;
+  border-radius:13px;
+  overflow:hidden;
+  box-shadow:0 20px 65px rgba(9,48,26,.18);
+}
+body:has(#pageContent .purchasing-live-v1) .modal.show .modal-header,
+body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-header {
+  background:#fff;
+  padding:17px 20px;
+  border-bottom:1px solid #dfe8e1;
+}
+body:has(#pageContent .purchasing-live-v1) .modal.show .modal-title,
+body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-title {
+  font-size:17px;
+  font-weight:700;
+  color:#263b2d;
+}
+body:has(#pageContent .purchasing-live-v1) .modal.show .modal-body,
+body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-body {
+  background:#fff;
+  padding:18px 20px;
+  overflow-y:auto;
+  max-height:70vh;
+}
+body:has(#pageContent .purchasing-live-v1) .modal.show .modal-footer,
+body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-footer {
+  background:#fff;
+  border-top:1px solid #dfe8e1;
+  padding:13px 20px;
+}
+body:has(#pageContent .purchasing-live-v1) .modal.show :is(.form-control,.form-select),
+body:has(#pageContent .mp-wireframe-marker) .modal.show :is(.form-control,.form-select) {
+  font-size:13px;
+  border-radius:7px;
+  border-color:#d3dfd5;
+}
+body:has(#pageContent .purchasing-live-v1) .offcanvas.show .offcanvas-header,
+body:has(#pageContent .mp-wireframe-marker) .offcanvas.show .offcanvas-header {
+  padding:17px 20px;
+  border-bottom:1px solid #dfe8e1;
+}
+body:has(#pageContent .purchasing-live-v1) .offcanvas.show .offcanvas-body,
+body:has(#pageContent .mp-wireframe-marker) .offcanvas.show .offcanvas-body {
+  padding:18px 20px;
+}
+@media(max-width:900px) {
+  #pageContent .purchasing-live-v1 .ws-kpi4,
+  #pageContent .mp-wireframe-dashboard .head-trip-kpis {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:540px) {
+  #pageContent .purchasing-live-v1 .ws-kpi4 > *,
+  #pageContent .mp-wireframe-dashboard .head-trip-kpis > .head-kpi {padding:12px}
+  body:has(#pageContent .purchasing-live-v1) .modal.show .modal-body,
+  body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-body {padding:13px}
+}
