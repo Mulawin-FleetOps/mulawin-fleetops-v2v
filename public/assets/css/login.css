@@ -10,8 +10,8 @@
 .auth-page .auth-side-product { font-size:clamp(25px,2.55vw,44px); font-weight:750; line-height:1.2; letter-spacing:-.025em; color:#fff; }
 .auth-page .auth-side-copy { position:relative; z-index:1; margin-top:clamp(54px,5vw,86px); max-width:510px; }
 .auth-page .auth-side-copy h2 { margin:0; color:#fff; font-size:clamp(46px,4.45vw,78px); line-height:1.02; font-weight:800; font-style:italic; letter-spacing:-.035em; }
-.auth-page .auth-side-copy h2 span { color:#ffcb05; }
-.auth-page .auth-side-copy h2::after { content:''; display:block; width:105px; height:7px; border-radius:8px; margin:30px 0 26px; background:#ffcb05; }
+.auth-page .auth-side-copy h2 strong { color:#ffcb05; font-weight:inherit; }
+.auth-page .auth-side-rule { content:''; display:block; width:105px; height:7px; border-radius:8px; margin:30px 0 26px; background:#ffcb05; }
 .auth-page .auth-side-copy p { max-width:360px; font-size:clamp(18px,1.45vw,25px); line-height:1.3; color:#fff; margin:0; text-shadow:0 1px 12px #003d2840; }
 .auth-page .auth-main { position:relative; isolation:isolate; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; padding:65px clamp(28px,4.5vw,80px); background:radial-gradient(ellipse at 40% 40%,#fff 25%,#f7f9f8 100%); }
 .auth-page .auth-main::before { content:''; position:absolute; z-index:-1; width:130%; height:250px; border-radius:0 0 0 100%; right:-30%; top:-140px; background:linear-gradient(120deg,#eef2ef,#d9e8df); transform:rotate(15deg); pointer-events:none; }
@@ -59,7 +59,7 @@
  .auth-page .auth-side-copy { display:block; margin-top:32px; }
  .auth-page .auth-side-copy h2 { font-size:40px; }
  .auth-page .auth-side-copy h2 br { display:none; }
- .auth-page .auth-side-copy h2::after { width:70px; height:4px; margin:18px 0 0; }
+ .auth-page .auth-side-rule { width:70px; height:4px; margin:18px 0 0; }
  .auth-page .auth-side-copy p { display:none; }
  .auth-page .auth-main { padding:30px 24px 50px; overflow:hidden; }
  .auth-page .auth-card { max-width:560px; padding:32px; border-radius:20px; }
