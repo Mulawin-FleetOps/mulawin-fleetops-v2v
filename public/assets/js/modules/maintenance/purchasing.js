@@ -1031,7 +1031,7 @@ App.page('stock_movements', {
     const target = PurRef.recordBox(box,'Stock Movement Records','Stock in, stock out and adjustments',rows.length);
     const ref = (m) => m.reference_type === 'purchase_order' ? 'purchase_orders?open=' + m.reference_id : m.reference_type === 'part_request' ? 'parts_requests?open=' + m.reference_id
       : m.reference_type === 'stock_count' ? 'inventory?view=counts&open=' + m.reference_id : '';
-    const refLabel = { purchase_order: ['Open purchase order', 'bi-cart-check'], part_request: ['Open parts request', 'bi-box-arrow-up'], stock_count: ['Open stock count', 'bi-clipboard-check'] };
+    const refLabel = { purchase_order: ['View Purchase Order', 'bi-cart-check'], part_request: ['View Parts Request', 'bi-box-arrow-up'], stock_count: ['View Stock Count', 'bi-clipboard-check'] };
     target.innerHTML = UI.table([
       ['Date and time', 'created_at', 'datetime'],
       ['Part', 'part_number', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(m.description)}</div>`],
