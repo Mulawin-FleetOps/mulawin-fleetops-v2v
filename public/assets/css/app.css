@@ -3585,3 +3585,28 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .purchasing-live-v1 .purchasing-po-tabs-slot { padding: 9px 10px 12px; }
   .purchasing-live-v1 .purchasing-po-sort .form-select { width: 130px; }
 }
+
+/* PURCHASING_PAGED_RECORDS_V1 — rows are paginated (12 per page), not placed
+   inside a vertically scrolling records pane. Narrow screens retain horizontal
+   overflow as a fallback for wide columns; Previous/Next are always visible. */
+.purchasing-live-v1 .purchasing-ref-records .table-wrap,
+.purchasing-live-v1 .purchasing-ref-records .ref-tablebox,
+.purchasing-live-v1 .purchasing-ref-records .purchasing-ref-records-body {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
+.purchasing-live-v1 .purchasing-ref-records .table-wrap {
+  overflow-x: auto;
+}
+.purchasing-live-v1 .purchasing-ref-records .table-pager {
+  display: flex;
+  min-height: 48px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #dce8df;
+}
+.purchasing-live-v1 .purchasing-ref-records .table-pager:empty { display: none; }
