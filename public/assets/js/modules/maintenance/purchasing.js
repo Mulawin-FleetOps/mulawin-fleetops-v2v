@@ -670,6 +670,7 @@ App.page('parts_requests', {
       ['Truck / repair', 'plate_number', (v, r) => `${UI.esc(v)}${r.job_ref ? `<div class="cell-sub">${UI.esc(r.job_ref)}</div>` : ''}`],
       ['Parts', 'items', (v) => `<span class="cell-clamp" title="${UI.esc(v)}">${UI.esc(v)}</span>`],
       ['Released', 'released_units', (v, r) => `<span class="cell-nowrap">${PurUI.bar(+v, +r.requested_units)}</span>`],
+      ['Reserved', 'reserved_units', 'num'],
       ['Status', 'status', 'badge'],
       ['Waiting for', 'status', (v, r) => { const n = PurUI.reqNext(r); return PurUI.chip(n) + `<div class="cell-sub">${UI.esc(n[2])}</div>`; }],
       ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>']], rows,
@@ -731,7 +732,7 @@ App.page('inventory', {
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query;
     if (can.stock) PurUI.tool(ctx, 'Add part', 'bi-plus-lg', () => k.partForm(), 'btn-outline-secondary');
     if (can.count && d.countsReady) PurUI.tool(ctx, 'Record stock count', 'bi-clipboard-check', () => PurUI.countForm(d));
-    const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +p.quantity_on_hand <= 0);
+    const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +(p.available_qty ?? p.quantity_on_hand) <= 0);
     const counts = d.counts || [], pending = counts.filter(c => c.status === 'Submitted');
     // Keep inventory-health KPIs; avoid summing incompatible part units
     // (pieces, liters, sets, etc.) into a misleading single quantity.
