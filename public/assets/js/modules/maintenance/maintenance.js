@@ -662,10 +662,11 @@ App.page('maintenance', {
       ['Verify', verify.length, 'bi-shield-check', 'maintenance?view=verify', 'Return to service check', 'purple']
     ];
     // Stage shortcuts stay clickable without duplicating the page's full KPI-card row.
-    const stageSummary = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Repair stage shortcuts">${stageTiles.map(([name, count, icon, go, hint]) =>
-      `<button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2" data-go="${UI.esc(go)}" title="${UI.esc(hint)}">
-        <i class="bi ${icon}" aria-hidden="true"></i><span>${UI.esc(name)}</span>
-        <span class="badge rounded-pill text-bg-light border">${UI.num(count)}</span></button>`).join('')}</div>`;
+    const stageSummary = `<div class="mp-action-stages mp-reference-stages mb-3" role="group" aria-label="Repair stage shortcuts">${stageTiles.map(([name, count, icon, go, hint]) =>
+      `<button type="button" class="mp-action-stage" data-go="${UI.esc(go)}" title="${UI.esc(hint)}">
+        <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
+        <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
+        <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
     ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary
       + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3">
        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
