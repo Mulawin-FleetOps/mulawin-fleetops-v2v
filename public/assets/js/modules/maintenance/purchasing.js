@@ -494,7 +494,7 @@ PurUI.showWorkflow = async (kind, id) => {
         UI.h('Actual quantities') + UI.kv([
           ['Ordered quantity',UI.num(total)],['Received quantity',UI.num(received)],
           ['Awaiting delivery',UI.num(Math.max(0,total-received))],
-          ['Linked Motorpool request',UI.e(po.request_ref) || 'None — independent PO']
+          ['Linked Motorpool request', po.request_ref ? UI.esc(po.request_ref) : 'None — independent PO']
         ]) +
         (data.history && data.history.length ? UI.h('Recorded activity') + PurUI.timeline(data.history) : ''),
         null,{size:'modal-lg'});
