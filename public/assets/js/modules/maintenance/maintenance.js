@@ -83,11 +83,12 @@ const MaintUI = {
       <button type="button" class="btn btn-outline-danger btn-sm mp-parts-remove" data-remove-part aria-label="Remove part"><i class="bi bi-trash"></i></button>
     </div>`;
     const fields = UI.fields([
-      { type:'html', col:12, html:'<label class="form-label" for="motorpool-truck-search">Search affected truck</label><input id="motorpool-truck-search" type="search" class="form-control form-control-sm" data-report-truck-search placeholder="Search plate number, truck number, or truck type…" autocomplete="off"><div class="form-help" data-truck-search-count aria-live="polite"></div>' },
-      { name:'vehicle_id', label:'Affected truck', type:'select', required:true, col:6, value:vehicleId,
-        options:trucks.map(v=>[v.id, v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')']),
-        help:'Trucks on trips, returning, unavailable or already under repair are excluded.' },
-      { name:'mechanic_id', label:'Lead mechanic', type:'select', required:mechanics.length>0, col:6,
+      { type:'html', col:12, html:`<label class="form-label" for="motorpool-truck-search">Affected truck *</label>
+        <input id="motorpool-truck-search" type="search" class="form-control" data-report-truck-search list="motorpool-truck-list" placeholder="Type plate or truck number, then choose a suggestion…" autocomplete="off" required>
+        <input type="hidden" name="vehicle_id" value="">
+        <datalist id="motorpool-truck-list">${trucks.map(v=>`<option value="${UI.esc(v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')')}"></option>`).join('')}</datalist>
+        <div class="form-help" data-truck-search-count aria-live="polite">Available trucks only. Select one exact suggestion.</div>` },
+      { name:'mechanic_id', label:'Lead mechanic', type:'select', required:false, col:6,
         options:mechanics.map(m=>[m.id,m.full_name+' · '+m.mechanic_code+(m.specialization?' · '+m.specialization:'')]),
         placeholder:mechanics.length?'Choose lead mechanic…':'No available mechanic',
         help:'Only available, timed-in mechanics are listed.' },
@@ -128,6 +129,7 @@ const MaintUI = {
         throw new Error('Each parts request row must have a part and whole-number quantity (1 to 100000).');
       if (new Set(parts_lines.map(line=>String(line.part_id))).size!==parts_lines.length)
         throw new Error('The same part is listed twice. Combine the quantities.');
+      if (!values.vehicle_id) throw new Error('Choose a valid affected truck from the suggestions.');
       if (assistant_mechanic_ids.length && !values.mechanic_id)
         throw new Error('Choose a lead mechanic before assigning assisting mechanics.');
       if (parts_lines.length && !values.mechanic_id)
@@ -155,25 +157,18 @@ const MaintUI = {
       const count=form.querySelector('[data-truck-search-count]');
       const truckOptions=trucks.map(v=>({
         id:String(v.id),
-        label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')',
-        search:[v.plate_number,v.truck_number,v.truck_type,v.status].join(' ').toLowerCase()
+        label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')'
       }));
-      const filterTrucks=()=>{
-        const term=(search.value||'').trim().toLowerCase();
-        const selected=select.value;
-        const matches=truckOptions.filter(v=>v.search.includes(term));
-        const visible=matches.slice();
-        // Keep an already selected truck visible even while typing another search.
-        const chosen=truckOptions.find(v=>v.id===selected);
-        if(chosen&&!visible.some(v=>v.id===chosen.id))visible.unshift(chosen);
-        select.replaceChildren(new Option('Choose truck…',''));
-        visible.forEach(v=>select.add(new Option(v.label,v.id)));
-        if(selected&&visible.some(v=>v.id===selected))select.value=selected;
-        count.textContent=matches.length+' matching available truck'+(matches.length===1?'':'s')+
-          (term&&selected&&!matches.some(v=>v.id===selected)?' · currently selected truck retained':'');
+      const syncTruck=()=>{
+        const found=truckOptions.find(v=>v.label===search.value);
+        select.value=found?found.id:'';
+        count.textContent=found?'Selected: '+found.label:'Choose an exact truck suggestion to continue.';
       };
-      search?.addEventListener('input',filterTrucks);
-      filterTrucks();
+      const current=truckOptions.find(v=>v.id===String(vehicleId||''));
+      if (current) search.value=current.label;
+      search?.addEventListener('input',syncTruck);
+      search?.addEventListener('change',syncTruck);
+      syncTruck();
       const lead=form.querySelector('[name="mechanic_id"]');
       const updateLead=()=>{
         dialog.querySelectorAll('[data-assistant-id]').forEach(box=>{
