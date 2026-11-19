@@ -73,6 +73,7 @@ final class Purchasing {
                 // The "Create PO" shortcut needs the part list and supplier suggestions: Purchasing Officer only.
                 'parts' => fn() => $stock ? $partsFull() : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
+                'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
                 'budget' => $budget,
             ]),
             'purchase_orders' => readSections([
@@ -86,6 +87,7 @@ final class Purchasing {
                 'linkableRequests' => fn() => $stock ? many($p, "SELECT r.id, r.request_ref, r.status, v.plate_number FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id
                     WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY r.id DESC LIMIT 200") : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
+                'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
                 'budget' => $budget,
             ]),
             'inventory' => readSections(['parts' => $partsFull,
@@ -199,6 +201,22 @@ final class Purchasing {
         foreach (many($p, 'SELECT name, address, contact_person, contact_number, email FROM suppliers WHERE active=1') as $r) $add($r);
         ksort($out);
         return array_values($out);
+    }
+
+    /** Part-linked supplier history from real non-rejected purchase orders only. */
+    private static function partSupplierHistory(PDO $p): array {
+        return many($p, "SELECT l.part_id, o.id AS po_id, o.po_ref,
+                COALESCE(NULLIF(TRIM(o.supplier_name),''), s.name) AS name,
+                COALESCE(NULLIF(o.supplier_address,''), s.address) AS address,
+                COALESCE(NULLIF(o.supplier_contact,''), s.contact_person) AS contact_person,
+                COALESCE(NULLIF(o.supplier_phone,''), s.contact_number) AS contact_number,
+                COALESCE(NULLIF(o.supplier_email,''), s.email) AS email
+            FROM purchase_order_lines l
+            JOIN purchase_orders o ON o.id=l.purchase_order_id
+            LEFT JOIN suppliers s ON s.id=o.supplier_id
+            WHERE o.status IN ('Approved','Partially Received','Received','Closed')
+              AND COALESCE(NULLIF(TRIM(o.supplier_name),''), s.name) IS NOT NULL
+            ORDER BY o.id DESC, l.id DESC LIMIT 3000");
     }
 
     /** Supplier details typed in the PO form (saved with the PO). */
