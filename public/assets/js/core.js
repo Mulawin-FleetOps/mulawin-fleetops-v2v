@@ -404,7 +404,9 @@ const App = {
           +tripLink('Active Trips','bi-signpost-split','tab=active')
           +tripLink('Trip History','bi-clock-history','tab=history')
           +tripLink('Incidents','bi-exclamation-triangle','tab=incidents')
-          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('');
+          +primary.filter(n=>!['dashboard','trips'].includes(n.id)).map(link).join('')
+          +(['car_carrier_dispatcher','container_wingvan_dispatcher'].includes(u.role) && allowed.some(n=>n.id==='crew')
+            ? '<a href="#crew?view=attendance" class="nav-item-link" data-nav="crew" data-dispatch-section="attendance"><i class="bi bi-person-check" aria-hidden="true"></i><span>Crew Attendance</span></a>' : '');
         nav=UI.sidebarGroup({title:'Overview',icon:'bi-grid-1x2',items:overview})
           +UI.sidebarGroup({title:'Trip Operations',icon:'bi-signpost-split',items:tripItems})
           +UI.sidebarGroup({title:'Reference & Records',icon:'bi-folder2-open',items:extra.map(link).join('')});
@@ -544,7 +546,7 @@ const App = {
     try { pinned = localStorage.getItem(pinKey) !== '1'; } catch { /* storage unavailable */ }
     const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar sidebar-manual-toggle${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'finance' ? ' finance-tables' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar sidebar-manual-toggle${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
           ${ws || executiveSidebar ? (ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : '') : ''}</div>
@@ -833,6 +835,20 @@ const App = {
   renderBell() {
     const me = this.me; const badge = document.getElementById('bellBadge'); if (!badge) return;
     badge.textContent = me.unread > 99 ? '99+' : me.unread; badge.classList.toggle('d-none', !me.unread);
+    const bell = document.getElementById('bellBtn');
+    const unreadIds = me.notifications.filter(n => n.state === 'Unread').map(n => String(n.id));
+    const previousUnread = new Set(JSON.parse(bell.dataset.unreadIds || '[]'));
+    const hasNewUnread = unreadIds.some(id => !previousUnread.has(id));
+    bell.dataset.unreadIds = JSON.stringify(unreadIds);
+    if (hasNewUnread && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const icon = bell.querySelector('.bi');
+      icon.getAnimations().forEach(animation => animation.cancel());
+      icon.animate([0, -18, 16, -12, 8, 0].map(angle => ({ transform: `rotate(${angle}deg)` })),
+        { duration: 850, easing: 'ease-in-out' });
+      badge.getAnimations().forEach(animation => animation.cancel());
+      badge.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }],
+        { duration: 450, easing: 'ease-out' });
+    }
     const list = document.getElementById('bellList');
     list.innerHTML = me.notifications.length ? me.notifications.slice(0,5).map(n => `
       <div class="bell-item ${n.state === 'Unread' ? 'unread' : ''}" data-nid="${n.id}">
@@ -2464,12 +2480,17 @@ UI.takeQuery = (ctx, ...keys) => {
 };
 // ------------------------------------------------------------------ helpers added in the revision
 /** Form modal that also sends the files of the form (uses App.apiForm). */
-UI.formModalFiles = (title, fields, action, opts = {}) => UI.modal(title, (opts.intro ? `<div class="small text-muted mb-2">${opts.intro}</div>` : '') + UI.fields(fields), async (d, form, wrap) => {
+UI.formModalFiles = (title, fields, action, opts = {}) => {
+  // Keep one key for the lifetime of the payment form, including network retries.
+  if (['Finance.po_pay','Finance.payable_pay'].includes(action))
+    opts = { ...opts, extra: { ...opts.extra, request_key: UI.uuid() } };
+  return UI.modal(title, (opts.intro ? `<div class="small text-muted mb-2">${opts.intro}</div>` : '') + UI.fields(fields), async (d, form, wrap) => {
   const payload = opts.transform ? opts.transform(d, form, wrap) : d;
   const r = await App.apiForm(action, { ...(opts.extra || {}), ...payload }, form);
   UI.result(r);
   if (opts.after) opts.after(r); else App.route();
-}, opts);
+  }, opts);
+};
 
 /**
  * ONE simple filter modal per list (no permanent filter bar).

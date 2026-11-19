@@ -105,6 +105,14 @@ function inputData(): array {
     // Forms with files are sent as multipart/form-data: the normal fields are in
     // the "payload" field (JSON) and the files are in $_FILES (see Core/Files.php).
     if (str_starts_with(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'multipart/form-data')) {
+        // PHP discards both $_POST and $_FILES when the total request exceeds
+        // post_max_size. Report that before field validation hides the cause.
+        $limit = trim((string)ini_get('post_max_size'));
+        $unit = strtolower(substr($limit, -1));
+        $limitBytes = (float)$limit * match ($unit) { 'g' => 1073741824, 'm' => 1048576, 'k' => 1024, default => 1 };
+        must($limitBytes <= 0 || (float)($_SERVER['CONTENT_LENGTH'] ?? 0) <= $limitBytes,
+            'The form and attachments exceed the server upload limit (' . $limit . '). Reduce the file sizes and try again.', 413);
+        must(isset($_POST['payload']), 'The form data was not received. Reopen the form and try again.', 400);
         $parsed = json_decode((string)($_POST['payload'] ?? '{}'), true);
         must(is_array($parsed), 'Invalid request data.');
         return $parsed;

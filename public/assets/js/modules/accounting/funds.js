@@ -127,7 +127,7 @@ App.page('funds', {
         ['Status','status','badge']
       ];
       const table=UI.table([...compactCols,...(active.extra||[])],active.rows,{
-        tools:toolbar,actions,onAction,showAllColumns:true,empty:active.empty
+        tools:toolbar,actions,onAction,directActions:UI.role('finance'),showAllColumns:true,empty:active.empty
       });
       workspace.innerHTML=tabs+RecordComponents.panel(table);
       UI.activate(workspace);

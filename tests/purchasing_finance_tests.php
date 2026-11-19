@@ -72,7 +72,7 @@ $row = fn(int $id) => one($p, 'SELECT * FROM purchase_orders WHERE id=?', [$id])
 $lines = fn(int $id) => many($p, 'SELECT id, quantity, received_qty FROM purchase_order_lines WHERE purchase_order_id=? ORDER BY id', [$id]);
 $pay = function (int $id, float $amount, string $inv) use ($fin, $pdf) {
     $_FILES = ['or_doc' => $pdf('official_receipt.pdf')];
-    try { return Finance::action($fin, 'po_pay', ['po_id' => $id, 'amount' => $amount, 'supplier_invoice_no' => $inv, 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); }
+    try { return Finance::action($fin, 'po_pay', ['request_key'=>substr(bin2hex(random_bytes(4)),0,8).'-0000-4000-8000-'.bin2hex(random_bytes(6)), 'po_id' => $id, 'amount' => $amount, 'supplier_invoice_no' => $inv, 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); }
     finally { $_FILES = []; }
 };
 $payNotice = fn(int $id) => one($p, "SELECT state FROM notifications WHERE dedupe_key=? ORDER BY id DESC LIMIT 1", ['po-pay-' . $id])['state'] ?? null;
@@ -151,6 +151,21 @@ $au = one($p, "SELECT details FROM audit_events WHERE action='purchasing budget 
 ok(str_contains($au, '1 open PO(s) moved') && str_contains($au, $row($D)['po_ref']), 'audit names the moved PO', $au);
 
 // ---------------------------------------------------------------------
+section('D2. Closed PO retains received-but-unpaid reserve on renewal');
+$closed = $po([['part_id'=>$P1,'quantity'=>2,'unit_price'=>3250]], 'Partial delivery closed before payment');
+Purchasing::action($fin,'po_decide',['po_id'=>$closed,'decision'=>'approve']);
+$cl = $lines($closed);
+Purchasing::action($pur,'po_receive',['po_id'=>$closed,'receive'=>[['line_id'=>$cl[0]['id'],'qty'=>1]]]);
+Purchasing::action($pur,'po_close',['po_id'=>$closed,'reason'=>'Remaining delivery cancelled']);
+ok((float)$row($closed)['reserved_amount']===3250.0,'Closed PO retains reserve for received items');
+$beforeRenewal = $budget();
+Finance::action($fin,'budget_set',['amount'=>100000,'period_start'=>date('Y-m-01'),'period_end'=>date('Y-m-t')]);
+$renewed = $budget();
+ok((int)$row($closed)['budget_id']===(int)$renewed['id'],'Closed unpaid PO moves to renewed budget');
+ok((float)$renewed['reserved_amount']===(float)$beforeRenewal['reserved_amount'],'Renewal preserves all outstanding reserves');
+$pay($closed,3250,'SI-CLOSED');
+ok((float)$budget()['spent_amount']===3250.0,'Closed PO payment uses renewed budget');
+
 section('E. Purchasing read additions and refusals');
 $x = Purchasing::action($pur, 'po_details', ['po_id' => $A]);
 $acts = array_column($x['history'], 'action');

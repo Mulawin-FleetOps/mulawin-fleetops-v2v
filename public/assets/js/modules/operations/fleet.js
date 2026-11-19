@@ -254,6 +254,9 @@ const FleetUI = {
     catch(error){ return UI.toast(error.message,'error'); }
     const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
     const allTrucks=d.assignmentTrucks||[];
+    const helperTruck = !driver ? allTrucks.find(t => Number(t.assigned_helper_id) === Number(p.id)) : null;
+    const helperTrucks = allTrucks.filter(t => ['Container','Wing Van'].includes(t.truck_type)
+      && (Number(t.assigned_helper_id) === Number(p.id) || (!t.assigned_helper_id && !Number(t.has_active_trip) && !Number(t.has_open_job))));
     const already=String(p.authorized_truck_ids||'').split(',').map(Number).filter(id=>Number.isInteger(id)&&id>0);
     // Preserve legacy fixed links when upgrading a database that has not yet
     // displayed the additive authorization backfill.
@@ -362,6 +365,11 @@ const FleetUI = {
     const sections=[
       FormComponents.section('Personal Information','bi-person-badge',identity),
       ...(driver?[section,authorization,helperSection]:[]),
+      ...(!driver ? [FormComponents.section('Dispatcher Assignment','bi-truck',[
+        {name:'helper_vehicle_id',label:'Regular Truck',type:'select',required:true,col:12,
+          value:helperTruck?.id,options:helperTrucks.map(t=>[t.id,t.plate_number+' · '+t.truck_type]),
+          help:'Choose the Helper’s regular Container or Wing Van truck. This makes the Helper visible in that operational group’s Dispatcher attendance roster. The Dispatcher records Time In.'}
+      ])] : []),
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
     const wrap=FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
@@ -680,7 +688,6 @@ App.page('crew', {
   render(ctx) {
     const d = ctx.data, q = ctx.query;
     if (d.can.edit) UI.tool(ctx, 'Add driver or helper', () => FleetUI.crewForm({}), 'bi-plus-lg', 'primary');
-    if (App.me.user.role === 'admin') UI.tool(ctx, 'Attendance', () => AttendanceUI.open('Driver'), 'bi-clipboard-check', 'outline-primary');
     const act = d.crew.filter(p => +p.active);
     const rows = d.crew.filter(p => (q.inactive ? true : +p.active) && (!q.person_type || p.person_type === q.person_type) && (!q.availability || p.availability === q.availability)
       && (!q.license || (p.license_days !== null && +p.license_days <= +d.alertDays)));
@@ -696,6 +703,7 @@ App.page('crew', {
       { name: 'license', label: 'License', type: 'select', options: [['expiring', 'Expiring / expired']], col: 6 },
       { name: 'inactive', label: 'Include inactive drivers and helpers', type: 'checkbox', col: 12 }], { hint: 'Showing all active drivers and helpers.' }) + `</div>` + UI.table([
       ['Name', 'full_name', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${UI.esc(r.employee_no ? 'ID ' + r.employee_no : r.person_type)}</div>`], ['Type', 'person_type'],
+      ['Authorized / Regular Truck', 'regular_truck', (v, r) => UI.esc(v || (r.person_type === 'Driver' ? 'No authorized truck' : 'No regular truck'))],
       ['Availability', 'availability', (v, r) => UI.badge(v) + (r.unavailable_reason ? `<div class="small text-muted">${UI.esc(r.unavailable_reason)}</div>` : '')],
       ['Current trip', 'trip_ref', (v, r) => v ? `${UI.esc(v)} <span class="small text-muted">${UI.esc(r.trip_plate || '')} · ${UI.esc(r.trip_status)}</span>` : '—'],
       ['License expiry', 'license_expiry', (v, r) => FleetUI.docBadge(r.license_days, v)], ['Completed trips', 'completed_trips', 'num']], rows,

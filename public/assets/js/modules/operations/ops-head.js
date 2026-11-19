@@ -654,10 +654,17 @@ const OpsHead = {
        ${d.can?.edit ? '<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add ' + type + '</button>' : ''}`;
     const columns = [
       ['Name', 'full_name', (value, person) => '<b>' + UI.esc(value) + '</b>' + (!+person.active ? ' <span class="badge-s red">Inactive</span>' : '')],
-      [type === 'Driver' ? 'Authorized Trucks' : 'Regular Truck', 'regular_truck'],
+      [type === 'Driver' ? 'Authorized Trucks' : 'Regular Truck', 'regular_truck', value => {
+        if (!value) return UI.esc(type === 'Driver' ? 'No authorized truck' : 'No regular truck');
+        return String(value).split(',').map(plate => {
+          plate = plate.trim();
+          const truck = (d.assignmentTrucks || []).find(item => item.plate_number === plate);
+          return '<div>' + UI.esc(plate) + (truck?.truck_type ? ' <span class="cell-sub">' + UI.esc(truck.truck_type) + '</span>' : '') + '</div>';
+        }).join('');
+      }],
 
       ['Attendance Readiness', 'id', (value, person) => !Array.isArray(d.attendance)
-        ? 'Unavailable' : OpsHead.badge(d.attendance.find(entry => +entry.personnel_id === +person.id)?.status || 'Not Yet Marked')],
+        ? 'Unavailable' : OpsHead.badge(d.attendance.find(entry => +entry.personnel_id === +person.id)?.status || 'Not Timed In')],
       ['Availability', 'availability', 'badge'],
       ...(type === 'Driver' ? [['License Expiry', 'license_expiry', 'date']] : []),
     ];
@@ -837,7 +844,9 @@ const OpsHead = {
         const card = document.createElement('details'); card.className = 'oh-entry'; card.dataset.entry = e.id; card.open = e.expanded !== false;
         card.ontoggle = () => e.expanded = card.open;
         card.innerHTML = `<summary><b data-entry-label>Trip Details</b><span data-entry-summary></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="oh-entry-body">${i ? '<button type="button" class="btn btn-sm btn-outline-danger oh-remove" data-remove>Remove Entry</button>' : ''}<div class="oh-form-grid">${UI.fields([
-          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 12, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]) },
+          { name: 'client_id', label: 'Client', type: 'select', required: true, col: 12, value: e.data.client_id, options: clients.map(c => [c.id, c.company_name]),
+            placeholder: clients.length ? 'Choose a client...' : 'No active clients available',
+            help: clients.length ? '' : 'No active clients are available for trip planning. Ask Admin to add or activate a client in Client Management, then reopen Add Trip. The client also needs an approved route before you can create a trip.' },
           { type: 'html', col: 12, html: '<input type="hidden" name="truck_type" value="'+UI.esc(e.data.truck_type||'')+'">' },
           { name: 'client_route_id', label: 'Approved Route', type: 'select', required: true, col: 12, options: [], value: '' },
           { name: 'scheduled_at', label: 'Scheduled Date & Time', type: 'datetime', required: true, col: 12, value: e.data.scheduled_at, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"` },

@@ -217,7 +217,7 @@ fails(fn() => Finance::action($aud, 'po_pay', ['po_id' => $po['id'], 'amount' =>
 fails(fn() => Finance::action($pur, 'po_pay', ['po_id' => $po['id'], 'amount' => '3000', 'supplier_invoice_no' => 'SI-E2E-1', 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]), 'Purchasing cannot pay a PO', 403);
 $b1b = $budget();
 $_FILES = ['or_doc' => $file('official_receipt.pdf')];
-try { Finance::action($fin, 'po_pay', ['po_id' => $po['id'], 'amount' => '3000', 'supplier_invoice_no' => 'SI-E2E-1', 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); } finally { $_FILES = []; }
+try { Finance::action($fin, 'po_pay', ['request_key'=>'11111111-0000-4000-8000-000000000001', 'po_id' => $po['id'], 'amount' => '3000', 'supplier_invoice_no' => 'SI-E2E-1', 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); } finally { $_FILES = []; }
 $b2 = $budget();
 ok(abs((float)$b1b['reserved_amount'] - (float)$b2['reserved_amount'] - 3000) < 0.005 && abs((float)$b2['spent_amount'] - (float)$b1b['spent_amount'] - 3000) < 0.005, 'payment moves 3,000 from reserved to spent');
 fails(fn() => (function () use ($fin, $po, $file) { $_FILES = ['or_doc' => $file('or2.pdf')]; try { return Finance::action($fin, 'po_pay', ['po_id' => $po['id'], 'amount' => '1', 'supplier_invoice_no' => 'SI-E2E-1', 'payment_method' => 'Cash', 'released_on' => date('Y-m-d')]); } finally { $_FILES = []; } })(), 'payment above the unpaid received value refused');
