@@ -61,7 +61,7 @@ const TripUI = {
       case 'On Hold - Incident Reported':
         if (t.incident_status === 'Reported') return 'Maintenance assesses the damage (minor or major).';
         if (t.incident_status === 'Repaired - Cleared to Continue') return 'Motorpool recorded Fit to Continue. Dispatcher resumes the trip.';
-        return 'Mechanic is repairing the truck on site.';
+        return 'Motorpool is arranging inspection, repair or clearance. The trip remains On Hold.';
       case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Truck is repaired. Dispatcher reschedules the trip.' : 'Truck is being repaired (major damage). Then the dispatcher reschedules.';
       case 'Missed': return 'Scheduled dispatch missed. No resources were assigned before departure.';
       case 'Completed':
@@ -414,6 +414,7 @@ const TripUI = {
       if (['Pre-Assigned', 'Ready for Dispatch', 'Dispatched', 'On Hold - Incident Reported', 'In Transit', 'For Reschedule', 'Completed'].includes(t.status))
         acts.push(btn('dieselpo', +t.diesel_po_docs ? `Diesel PO (${+t.diesel_po_docs}) — attach more` : 'Attach Diesel PO', 'outline-secondary', 'bi-fuel-pump'));
       if (t.status === 'On Hold - Incident Reported') {
+        if (r.clarificationsReady && t.incident_status === 'Reported') acts.push(btn('incident_extra', 'Provide incident details', 'outline-primary', 'bi-chat-left-text'));
         const ok = t.incident_status === 'Repaired - Cleared to Continue';
         acts.push(btn('resume', 'Resume trip', ok ? 'success' : 'secondary', 'bi-play-circle', !ok));
         if (!ok) why = 'Resume is enabled after Maintenance confirms the on-site repair (now: ' + t.incident_status + ').';
@@ -534,6 +535,11 @@ const TripUI = {
         { name: 'diesel_po', label: 'Diesel PO file(s)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/jpeg,image/png,image/webp"', help: 'PDF, JPG, PNG or WebP, up to 10 MB each.' }],
         'Trips.diesel_po', { extra: { trip_id: t.id }, intro: 'Optional. The Diesel PO is kept with the trip documents (Finance can view it).', after: () => { TripUI.open(t.id); App.route(); } });
       if (a === 'incident') TripUI.incident(t);
+      if (a === 'incident_extra') UI.formModalFiles('Additional incident details · ' + UI.esc(t.trip_ref), [
+        { name: 'details', label: 'New information for Motorpool', type: 'textarea', required: true, col: 12 },
+        { name: 'photos', label: 'Additional incident photos (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }],
+        'Trips.incident_clarify', { extra: { trip_id: t.id }, submit: 'Send additional details', after: () => { TripUI.open(t.id); App.route(); },
+          intro: 'This appends new information without changing the original Incident Report. The trip remains On Hold until Motorpool clears it.' });
       if (a === 'increschedule') UI.formModal('For Reschedule · ' + UI.esc(t.trip_ref), [{ name: 'reason', label: 'Reason (Operations decision)', type: 'textarea', required: true, col: 12 }],
         'Trips.incident_reschedule', { extra: { trip_id: t.id }, submit: 'Move to For Reschedule', after: () => { TripUI.open(t.id); App.route(); },
           intro: 'Motorpool recorded <b>Not Fit to Continue</b> for this Minor incident. The classification and history are kept; the dispatcher reschedules after the repair is verified, or selects another eligible fixed pair.' });
