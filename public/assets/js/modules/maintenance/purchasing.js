@@ -858,11 +858,83 @@ App.page('parts_requests', {
 // ---------------------------------------------------------------- Purchase Orders (stock-in)
 App.page('purchase_orders', {
   title: 'Purchase Orders',
-  subtitle: 'Follow approvals and received deliveries.',
+  subtitle: 'Follow approvals, fuel orders and received deliveries.',
+  openDiesel(t, d) {
+    let docs = (d.dieselDocuments || []).filter(doc => +doc.trip_id === +t.id);
+    const el = UI.drawer('Diesel PO Documents', `<section class="ds-assignment-plan">
+      <div class="ds-assignment-plan-title"><i class="bi bi-fuel-pump" aria-hidden="true"></i><strong>Linked Trip Information</strong></div>
+      ${UI.kv([['Trip Ref', UI.e(t.trip_ref)], ['Truck Plate', UI.e(t.plate_number)], ['Truck Type', UI.e(t.truck_type)], ['Trip Status', UI.badge(t.status)]])}
+      </section>
+      ${UI.h('Attached Diesel PO Files')}${UI.docs(docs, 'No Diesel PO document attached for this trip.')}
+      <p class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>These are Diesel PO documents attached to the authorized trip. Review files and operational trip status above.</p>`,
+      { subtitle: UI.esc(t.trip_ref) + ' · Diesel PO' });
+  },
   render(ctx) {
     ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-purchase-orders');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query, all = d.orders || [];
-    if (can.stock) PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => PurUI.newPO());
+    const role = App.me?.user?.role || '';
+    const isFinanceOrAdmin = ['finance', 'admin', 'audit'].includes(role);
+    const poType = q.type === 'fuel' && isFinanceOrAdmin ? 'fuel' : 'parts';
+
+    if (can.stock && poType === 'parts') PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => PurUI.newPO());
+
+    // Switch between Parts PO and Fuel PO for authorized roles
+    const typeSwitcher = isFinanceOrAdmin ? `<div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+      <div class="btn-group" role="group" aria-label="PO Type Selection">
+        <a href="#purchase_orders?type=parts" class="btn btn-sm ${poType === 'parts' ? 'btn-primary active' : 'btn-outline-secondary'}">
+          <i class="bi bi-gear-wide-connected me-1"></i> Parts PO
+        </a>
+        <a href="#purchase_orders?type=fuel" class="btn btn-sm ${poType === 'fuel' ? 'btn-primary active' : 'btn-outline-secondary'}">
+          <i class="bi bi-fuel-pump me-1"></i> Fuel / Diesel PO
+        </a>
+      </div>
+      <div class="small text-muted">
+        ${poType === 'fuel' ? 'Trip-linked fuel purchase orders and documents' : 'Spare parts purchasing, approval and receiving'}
+      </div>
+    </div>` : '';
+
+    if (poType === 'fuel') {
+      const fuelTrips = d.fuelTrips || [];
+      const filter = q.doc_filter || 'all';
+      const rows = fuelTrips.filter(t => {
+        if (filter === 'attached') return +t.diesel_po_docs > 0;
+        if (filter === 'missing') return !+t.diesel_po_docs;
+        return true;
+      }).filter(t => !q.search || (t.trip_ref + ' ' + (t.plate_number || '') + ' ' + (t.truck_type || '')).toLowerCase().includes(q.search.toLowerCase()));
+
+      const attachedCount = fuelTrips.filter(t => +t.diesel_po_docs > 0).length;
+      const missingCount = fuelTrips.filter(t => !+t.diesel_po_docs).length;
+
+      ctx.el.innerHTML = `${typeSwitcher}
+        ${UI.statusTabs('purchase_orders', q, 'doc_filter', [
+          ['all', 'All Fuel Trips', fuelTrips.length],
+          ['attached', 'Document Attached', attachedCount],
+          ['missing', 'Pending / No Document', missingCount]
+        ], filter)}
+        ${UI.generalFilters(ctx, [{ name: 'search', label: 'Search', type: 'text', placeholder: 'Search trip or plate…' }])}`;
+
+      const box = document.createElement('div'); ctx.el.append(box);
+      const target = PurRef.recordBox(box, 'Fuel & Diesel Purchase Orders', 'Trip diesel documents and authorization records', rows.length);
+      target.innerHTML = UI.table([
+        ['Trip', 'trip_ref', (v, t) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(t.truck_type || '—')}</div>`],
+        ['Truck', 'plate_number', (v) => v ? `<b>${UI.esc(v)}</b>` : '<span class="text-muted">Unassigned</span>'],
+        ['Trip Status', 'status', (v) => UI.badge(v)],
+        ['Diesel PO Document', 'diesel_po_docs', (v) => +v > 0
+          ? `<span class="badge-s green"><i class="bi bi-file-earmark-check me-1"></i>Attached (${v})</span>`
+          : '<span class="badge-s gray"><i class="bi bi-file-earmark-x me-1"></i>No document</span>']
+      ], rows, {
+        title: 'Fuel PO Records (' + rows.length + ')',
+        showAllColumns: true,
+        directActions: true,
+        actions: () => UI.btn('details', 'View Documents', 'primary', 'bi-eye'),
+        onAction: (a, t) => App.pages.purchase_orders.openDiesel(t, d),
+        rowClick: (t) => App.pages.purchase_orders.openDiesel(t, d),
+        empty: 'No fuel trips match the selected criteria.'
+      });
+      PurRef.inlineFilters(box, ctx.el);
+      return;
+    }
+
     const TABS = { approval: ['Awaiting approval', o => o.status === 'Pending Approval'], ready: ['Ready to order', o => o.status === 'Approved' && o.order_confirmation_required && !o.ordered_at], receive: ['To receive', o => ['Approved', 'Partially Received'].includes(o.status) && (!o.order_confirmation_required || !!o.ordered_at)],
       done: ['Completed', o => ['Received', 'Closed'].includes(o.status)],
       rejected: ['Rejected', o => /^Rejected/.test(o.status)], all: ['All', () => true] };
@@ -873,7 +945,8 @@ App.page('purchase_orders', {
     const suppliers = [...new Set(all.map(o => o.supplier).filter(Boolean))].sort();
     const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) );
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['ready','Ready to order',cnt('ready')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
+    ctx.el.innerHTML = `${typeSwitcher}
+      ${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['ready','Ready to order',cnt('ready')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
         ['all','All',cnt('all')]], tab)}
       ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }])}`;

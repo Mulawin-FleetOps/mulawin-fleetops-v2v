@@ -475,6 +475,9 @@ const App = {
           title:'Other Tools', icon:'bi-grid-3x3-gap',
           items:remaining.map(wsLink).join('')
         });
+      } else if (u.role === 'finance') {
+        const items = App.me.nav || [];
+        nav = items.map(wsLink).join('');
       } else if (u.role === 'billing') {
         // BILLING_WIREFRAME_NAV_V2 — curated visible menu matching the
         // Billing interactive wireframe; authorization and deep links stay

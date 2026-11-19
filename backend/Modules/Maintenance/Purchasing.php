@@ -89,6 +89,15 @@ final class Purchasing {
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
                 'budget' => $budget,
+                'fuelTrips' => fn() => hasRole($u, 'finance', 'admin', 'audit') ? many($p, "SELECT t.id, t.trip_ref, t.truck_type, t.status, t.dispatcher_role, v.plate_number,
+                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Diesel PO') AS diesel_po_docs
+                    FROM trips t LEFT JOIN vehicles v ON v.id=t.vehicle_id
+                    WHERE (t.status NOT IN ('Pending Review','Rejected','Cancelled')
+                        OR EXISTS (SELECT 1 FROM documents pd WHERE pd.entity_type='trip' AND pd.entity_id=t.id AND pd.category='Diesel PO'))
+                    ORDER BY t.id DESC LIMIT 500") : [],
+                'dieselDocuments' => fn() => hasRole($u, 'finance', 'admin', 'audit') ? many($p, "SELECT d.id,d.category,d.original_filename,d.mime_type,d.created_at,us.full_name AS uploader,t.id AS trip_id,t.trip_ref
+                    FROM documents d JOIN trips t ON d.entity_type='trip' AND d.entity_id=t.id JOIN users us ON us.id=d.uploaded_by
+                    WHERE d.category='Diesel PO' ORDER BY d.id DESC LIMIT 1000") : [],
             ]),
             'inventory' => readSections(['parts' => $partsFull,
                 // STOCK_COUNT_RECONCILIATION_V1: counts waiting for review first, then the latest reviewed ones.

@@ -190,6 +190,22 @@ final class Access {
     /** Pages the user can open, for the menu. */
     public static function navFor(array $u): array {
         $out = [];
+        if (($u['role'] ?? null) === 'finance') {
+            $structure = [
+                'finance_overview' => ['Dashboard', null],
+                'purchase_orders'  => ['Purchase Orders', null],
+                'funds'            => ['Trip Fund Releases', null],
+                'finance'          => ['Payable and Payments', null],
+                'finance_budgets'  => ['Budgets and Expenses', null],
+            ];
+            $pages = self::pages();
+            foreach ($structure as $id => [$label, $section]) {
+                [$oldLabel, $icon, $oldSection, $module, $js, $roles] = $pages[$id];
+                if (in_array('finance', $roles, true))
+                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$icon,'section'=>$section,'js'=>$js];
+            }
+            return $out;
+        }
         if (($u['role'] ?? null) === 'admin') {
             // Head Management uses a purpose-built executive navigation. Original
             // page URLs/permissions remain available for existing cross-page links.
