@@ -288,7 +288,7 @@ const MaintUI = {
   async openRequest(rq) {
     let r; try { r = await App.api('Purchasing.request_details', { request_id: rq.id }); } catch (e) { return UI.toast(e.message, 'error'); }
     UI.modal('Parts request ' + UI.esc(r.request.request_ref), `<p class="small text-muted">Truck ${UI.esc(r.request.plate_number)}${r.request.job_ref ? ' · repair ' + UI.esc(r.request.job_ref) : ''} · ${UI.esc(r.request.purpose)}<br>Status: ${UI.badge(r.request.status)}${r.request.notes ? ' · ' + UI.esc(r.request.notes) : ''}</p>
-      ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
+      ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Reserved', 'reserved_qty', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
   },
   /** Opens the repair record; autoAct = key of a drawer action to start at once (row shortcut, same form and checks). */
   async open(id, autoAct) {
