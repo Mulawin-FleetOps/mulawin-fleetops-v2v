@@ -315,7 +315,7 @@ const App = {
     const roleShortNames = { motorpool: { maintenance: 'Repair management', trucks: 'Truck masterlist', mechanics: 'Mechanic masterlist' } };
     const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
-    const allowed = me.nav.filter(n => !['notifications','recent_activity'].includes(n.id)); // topbar icons own these pages
+    const allowed = me.nav.filter(n => !['notifications','activity_feed'].includes(n.id)); // topbar icons own these pages
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
@@ -866,7 +866,7 @@ const App = {
     const list = document.getElementById('activityList');
     if (!this.me || !list || document.hidden) return;
     try {
-      const data = await this.data('recent_activity');
+      const data = await this.data('activity_feed');
       if (!document.getElementById('activityList') || list !== document.getElementById('activityList')) return;
       const items = data.items || [];
       // Leave dropdown position/scroll intact when the feed has not changed.
