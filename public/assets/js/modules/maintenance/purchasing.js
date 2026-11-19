@@ -789,6 +789,18 @@ const PurRef = {
     const searchRow = document.createElement('div');
     searchRow.className = 'record-workspace-search';
     searchRow.append(search);
+    // Preserve the table's original Reset, live count and grouping controls.
+    const reset = toolbar.querySelector('.ref-reset, [data-treset]');
+    if (reset) searchRow.append(reset);
+    const groups = toolbar.querySelector('[data-group-controls]');
+    if (groups) searchRow.append(groups);
+    const liveCount = toolbar.querySelector('[data-tcount]');
+    const subtitle = heading?.querySelector('.record-workspace-count');
+    if (liveCount && subtitle) {
+      subtitle.textContent = '';
+      subtitle.append(liveCount);
+    } else if (liveCount) searchRow.append(liveCount);
+    [...toolbar.children].filter(el => el.matches('button')).forEach(button => searchRow.append(button));
     const filterWrap = document.createElement('div');
     filterWrap.className = 'purchasing-po-filter';
     filterWrap.innerHTML = UI.filterModal(ctx, filters, { hint: '' });
