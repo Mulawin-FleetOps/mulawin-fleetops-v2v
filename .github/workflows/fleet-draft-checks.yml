@@ -1,0 +1,31 @@
+name: Fleet Form Draft Checks
+on:
+  push:
+    branches: [luis]
+    paths:
+      - 'backend/Core/FleetDrafts.php'
+      - 'backend/Modules/Operations/Fleet.php'
+      - 'public/assets/js/modules/operations/fleet.js'
+      - 'public/assets/js/core.js'
+      - 'database/migrations/2026-11-19_25_fleet_form_drafts.sql'
+      - 'database/extension.sql'
+      - '.github/workflows/fleet-draft-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fleet-drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: PHP and JavaScript syntax
+        run: |
+          php -l backend/Core/FleetDrafts.php
+          php -l backend/Modules/Operations/Fleet.php
+          node --check public/assets/js/modules/operations/fleet.js
+          node --check public/assets/js/core.js
