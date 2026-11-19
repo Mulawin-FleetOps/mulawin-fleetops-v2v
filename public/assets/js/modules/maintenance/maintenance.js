@@ -481,11 +481,14 @@ const MaintUI = {
         const wrap = UI.formModal('Verify & return to service · ' + UI.esc(j.plate_number), [
           { name: 'result', label: 'Operational check result', type: 'select', required: true, col: 12, placeholder: false, options: [['Passed', 'Passed: the truck is safe and operational'], ['Failed', 'Failed: the problem is not fixed']] },
           { name: 'verification_notes', label: 'What was checked (road test, engine, brakes, lights…)', type: 'textarea', required: true, col: 12 },
-          { name: 'mechanic_id', label: 'Mechanic to continue the repair (if failed)', type: 'select', col: 12, options: MaintUI.mechanicOptions(j.mechanic_id), value: j.mechanic_id, placeholder: 'Same mechanic' }],
+          { name: 'mechanic_id', label: 'Mechanic to continue the repair (if failed)', type: 'select', col: 12, options: MaintUI.mechanicOptions(j.mechanic_id), value: j.mechanic_id, placeholder: 'Same mechanic' },
+          { name: 'reassignment_reason', label: 'Reason for replacing the finalized lead (if changed)', col: 12 }],
           'Maintenance.verify', { extra: { job_id: j.id }, size: '', submit: 'Save verification', after: reopen,
             intro: 'Passed returns the truck to service (Available, or Assigned if a trip is waiting). Failed sends the record back to Under Repair.' });
         const res = wrap.querySelector('[name=result]'), mc = wrap.querySelector('[name=mechanic_id]').closest('[class*=col-]');
-        const t = () => { mc.style.display = res.value === 'Failed' ? '' : 'none'; }; res.onchange = t; t();
+        const reason = wrap.querySelector('[name=reassignment_reason]').closest('[class*=col-]');
+        const t = () => { mc.style.display = res.value === 'Failed' ? '' : 'none'; reason.style.display = res.value === 'Failed' && +wrap.querySelector('[name=mechanic_id]').value !== +j.mechanic_id ? '' : 'none'; };
+        res.onchange = t; wrap.querySelector('[name=mechanic_id]').onchange = t; t();
       }
       if (a === 'parts') { UI.closeDrawer(); MaintUI.requestParts(j.vehicle_id, j.id); }
       if (a === 'printinc') TripUI.printIncident({ ...i }, { trip_ref: j.trip_ref, plate_number: j.plate_number });
