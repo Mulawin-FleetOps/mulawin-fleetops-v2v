@@ -219,12 +219,23 @@ const PurUI = {
       const can = Math.min(left, reserved + free);
       return `<tr><td>${UI.esc(l.part_number)}<div class="small text-muted">${PurUI.partLabel(l)}</div></td><td class="num">${l.quantity}</td><td class="num">${l.released_qty}</td><td class="num">${l.quantity_on_hand}</td>
         <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${can > 0 ? can : 0}" data-rel="${l.id}" ${left ? '' : 'disabled'}></td></tr>`; }).join('');
-    const wrap = UI.modal('Process ' + UI.esc(rq.request_ref), `<p class="small text-muted">Truck ${UI.esc(rq.plate_number)} · ${UI.esc(rq.purpose)}. Release what is in stock; the inventory is updated automatically.</p>
+    const missing = r.lines.some(l => (+l.quantity - +l.released_qty) > (+l.reserved_qty || 0) + Math.max(0, (+l.quantity_on_hand || 0) - ((PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.reserved_qty || 0)));
+    const wrap = UI.modal('Handle request · ' + UI.esc(rq.request_ref), `<p class="small text-muted">Truck ${UI.esc(rq.plate_number)} · ${UI.esc(rq.purpose)}. Available stock is prefilled for release. If stock is short, use the purchase order shortcut below.</p>
       <table class="data-table"><thead><tr><th>Part</th><th class="num">Requested</th><th class="num">Released</th><th class="num">On hand</th><th>Release now</th></tr></thead><tbody>${rows}</tbody></table>
       ${UI.fields([{ name: 'notes', label: 'Notes', col: 12 }])}`,
       async (x, form) => { const release = [...form.querySelectorAll('[data-rel]')].map(i => ({ line_id: i.dataset.rel, qty: +i.value || 0 }));
         const res = await App.api('Purchasing.request_process', { request_id: rq.id, release, notes: x.notes }); UI.result(res); App.route(); },
-      { submit: 'Release parts', extraFooter: '<button type="button" class="btn btn-outline-danger btn-sm me-auto" data-na>Not available (no stock)</button>' });
+      { submit: 'Release available parts', extraFooter: (missing ? '<button type="button" class="btn btn-outline-primary btn-sm me-auto" data-shortage-po>Create PO for shortage</button>' : '') + '<button type="button" class="btn btn-outline-secondary btn-sm" data-na>None available</button>' });
+    wrap.querySelector('[data-shortage-po]')?.addEventListener('click', () => {
+      const pending = r.lines.filter(l => +l.quantity > +l.released_qty + (+l.reserved_qty || 0)).map(l => ({
+        part_id: l.part_id,
+        quantity: Math.max(0, (+l.quantity - +l.released_qty) - (+l.reserved_qty || 0)),
+        unit_price: (PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.unit_cost ?? 0
+      }));
+      if (!pending.length) return UI.toast('There is no unreserved shortage for this request.', 'warning');
+      bootstrap.Modal.getInstance(wrap)?.hide();
+      PurUI.newPO({ part_request_id: rq.id, purpose: 'Parts for ' + rq.plate_number + ' (' + rq.request_ref + ')', lines: pending });
+    });
     wrap.querySelector('[data-na]').onclick = async () => { if (!await UI.confirmProceed('Confirm no stock', 'Mark this parts request as not available because the required stock is unavailable?', 'Confirm not available')) return; try { const res = await App.api('Purchasing.request_process', { request_id: rq.id, not_available: 1 }); UI.result(res); bootstrap.Modal.getInstance(wrap).hide(); App.route(); } catch (e) { UI.toast(e.message, 'error'); } };
   },
   async printRequest(rq) {
@@ -353,10 +364,11 @@ PurUI.kit = (d, can) => {
     // STAGE_B_PURCHASING_UI: one action list per record, shown as icon buttons in table rows and as labelled buttons
     // in the details drawer (big = true). Only actions the role and the record's status allow are listed.
     const act = (big) => (key, label, icon, cls) => big ? UI.btn(key, label, cls, icon) : UI.ibtn(key, label, icon, cls);
+    // One primary action per request. Purchasing sees the shortage-to-PO shortcut
+    // inside the request handling form instead of competing table buttons.
     const reqActs = (r, big) => { const a = act(big);
-      return (can.stock && ['Requested', 'Partially Released', 'Not Available'].includes(r.status) ? a('process', 'Process request (check stock and release)', 'bi-box-arrow-up', 'primary') : '')
-      + (can.stock && ['Not Available', 'Partially Released'].includes(r.status) ? a('po', 'Create PO for the shortage', 'bi-cart-plus', 'outline-primary') : '')
-      + a('print', 'Print request form', 'bi-printer', 'outline-secondary'); };
+      return (can.stock && ['Requested', 'Partially Released', 'Not Available'].includes(r.status) ? a('process', 'Handle request', 'bi-box-arrow-up', 'primary') : '')
+      + (big ? a('print', 'Print request form', 'bi-printer', 'outline-secondary') : ''); };
     const reqAct = async (a, r) => {
       if (a === 'details') return PurUI.details(r.id, 'request');
       if (a === 'print') PurUI.printRequest(r);
@@ -367,9 +379,9 @@ PurUI.kit = (d, can) => {
     const poActs = (o, big) => {
       const a = act(big); let h = '';
       if (o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig))) h += a('approve', 'Approve PO', 'bi-check-lg', 'success') + a('reject', 'Reject PO', 'bi-x-lg', 'outline-danger');
-      if (can.stock && o.status === 'Approved' && d.orderTrackingReady && !o.ordered_at) h += a('order', 'Mark as Ordered', 'bi-cart-check', 'primary');
+      if (can.stock && o.status === 'Approved' && d.orderTrackingReady && !o.ordered_at) h += a('order', 'Confirm supplier order', 'bi-cart-check', 'primary');
       if (can.stock && ['Approved', 'Partially Received'].includes(o.status) && (!o.order_confirmation_required || o.ordered_at)) h += a('receive', 'Receive items', 'bi-box-arrow-in-down', 'primary') + (big ? a('close', 'Close balance (no further delivery)', 'bi-slash-circle', 'outline-secondary') : '');
-      return h + a('print', 'Print PO', 'bi-printer', 'outline-secondary');
+      return h + (big ? a('print', 'Print PO', 'bi-printer', 'outline-secondary') : '');
     };
     const poAct = (a, o) => {
       if (a === 'details') return PurUI.details(o.id);
