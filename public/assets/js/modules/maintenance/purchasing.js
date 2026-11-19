@@ -130,7 +130,10 @@ const PurUI = {
   },
   async processRequest(rq) {
     const r = await App.api('Purchasing.request_details', { request_id: rq.id });
-    const rows = r.lines.map(l => { const left = l.quantity - l.released_qty, can = Math.min(left, l.quantity_on_hand);
+    const rows = r.lines.map(l => { const left = l.quantity - l.released_qty;
+      const reserved = +l.reserved_qty || 0;
+      const free = Math.max(0, (+l.quantity_on_hand || 0) - ((PurUI.data.parts || []).find(p => +p.id === +l.part_id)?.reserved_qty || 0));
+      const can = Math.min(left, reserved + free);
       return `<tr><td>${UI.esc(l.part_number)}<div class="small text-muted">${UI.esc(l.description)}</div></td><td class="num">${l.quantity}</td><td class="num">${l.released_qty}</td><td class="num">${l.quantity_on_hand}</td>
         <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" value="${can > 0 ? can : 0}" data-rel="${l.id}" ${left ? '' : 'disabled'}></td></tr>`; }).join('');
     const wrap = UI.modal('Process ' + UI.esc(rq.request_ref), `<p class="small text-muted">Truck ${UI.esc(rq.plate_number)} · ${UI.esc(rq.purpose)}. Release what is in stock; the inventory is updated automatically.</p>
@@ -393,13 +396,12 @@ PurUI.waitingForMe = (d, can) => (d.orders || []).filter(o => o.status === 'Pend
 /* STAGE_B_PURCHASING_UI — who has the next step, derived only from the stored statuses and the approval routing
    (approver_role) of each record. No employee is named; the responsible role is the one the workflow rules assign. */
 PurUI.poNext = (o) => {
-  const due = Math.max(0, (+o.received_value || 0) - (+o.paid_amount || 0));
+  // Purchasing tracks physical parts, not Finance payment status.
   if (o.status === 'Pending Approval') return o.approver_role === 'finance' ? ['finance', 'Finance', 'Approve or reject'] : ['admin', 'Admin', 'Approve or reject'];
   if (o.status === 'Approved' && o.order_confirmation_required && !o.ordered_at) return ['purchasing', 'Purchasing', 'Place the approved order with the supplier'];
   if (['Approved', 'Partially Received'].includes(o.status)) return ['purchasing', 'Purchasing', 'Verify and record actual supplier delivery'];
-  if (['Pending Payment', 'Partially Paid'].includes(o.payment_status) && due > 0) return ['finance', 'Finance', 'Record payment of ' + UI.money(due)];
-  if (/^Rejected/.test(o.status)) return [null, 'No one', 'Rejected: create a new PO if still needed'];
-  return [null, 'Completed', o.payment_status === 'Paid' ? 'Received and paid' : 'Closed'];
+   if (/^Rejected/.test(o.status)) return [null, 'No one', 'Rejected: create a new PO if still needed'];
+  return [null, 'Completed', o.status === 'Received' ? 'All ordered parts physically received' : 'Closed'];
 };
 PurUI.reqNext = (r) => {
   const pos = r.linked_pos || '';
@@ -424,14 +426,14 @@ PurUI.openRequest = async (r, k) => {
   const lines = x.lines.map(l => ({ ...l, outstanding: Math.max(0, l.quantity - l.released_qty) }));
   const short = lines.filter(l => l.outstanding > 0 && l.outstanding > (+l.quantity_on_hand || 0)).length;
   const html = `${PurUI.nextBox(PurUI.reqNext({ ...r, status: q.status }))}
-    ${UI.kv([['Status', UI.badge(q.status)], ['Truck', UI.e(q.plate_number) + (q.truck_number ? ' · ' + UI.esc(q.truck_number) : '')], ['Repair', UI.e(q.job_ref)], ['Purpose', UI.e(q.purpose)],
+    ${UI.kv([['Status', UI.badge(q.status)], ['Reserved units', UI.num(lines.reduce((sum, line) => sum + (+line.reserved_qty || 0), 0))], ['Truck', UI.e(q.plate_number) + (q.truck_number ? ' · ' + UI.esc(q.truck_number) : '')], ['Repair', UI.e(q.job_ref)], ['Purpose', UI.e(q.purpose)],
       ['Requested', UI.esc(q.requested_by_name) + ' · ' + UI.datetime(q.created_at)], ['Processed', q.processed_at ? UI.esc(q.processed_by_name || '') + ' · ' + UI.datetime(q.processed_at) : 'Not processed yet'],
       q.notes ? ['Notes', UI.esc(q.notes)] : null])}
     ${UI.h('Parts', short ? `<span class="badge-s red">${short} line(s) short in stock</span>` : '')}
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th class="count-col">Requested</th><th class="count-col">Released</th><th class="count-col">Outstanding</th><th class="count-col">On hand</th></tr></thead>
     <tbody>${lines.map(l => `<tr><td><b>${UI.esc(l.part_number)}</b><div class="cell-sub">${UI.esc(l.description)}</div></td><td class="count-col">${UI.num(l.quantity)}</td><td class="count-col">${UI.num(l.released_qty)}</td>
       <td class="count-col">${l.outstanding ? `<b>${UI.num(l.outstanding)}</b>` : '0'}</td><td class="count-col">${UI.num(l.quantity_on_hand)} ${UI.esc(l.unit)}</td></tr>`).join('')}</tbody></table></div>
-    ${UI.h('Linked purchase orders')}${(x.orders || []).length ? `<ul class="ws-trucks">${x.orders.map(o => `<li class="${UI.canGo('purchase_orders') ? 'clickable' : ''}" data-po="${o.id}" tabindex="0"><span><b>${UI.esc(o.po_ref)}</b> · ${UI.esc(o.supplier || '')}<div class="cell-sub">${UI.date(o.created_at)} · ${UI.money(o.total_amount)}</div></span><span>${UI.badge(o.status)} ${o.payment_status ? UI.badge(o.payment_status) : ''}</span></li>`).join('')}</ul>` : '<div class="text-muted small">No purchase order is linked to this request.</div>'}
+    ${UI.h('Linked purchase orders')}${(x.orders || []).length ? `<ul class="ws-trucks">${x.orders.map(o => `<li class="${UI.canGo('purchase_orders') ? 'clickable' : ''}" data-po="${o.id}" tabindex="0"><span><b>${UI.esc(o.po_ref)}</b> · ${UI.esc(o.supplier || '')}<div class="cell-sub">${UI.date(o.created_at)} · ${UI.money(o.total_amount)}</div></span><span>${UI.badge(o.status === 'Approved' && o.ordered_at ? 'Ordered' : o.status)}</span></li>`).join('')}</ul>` : '<div class="text-muted small">No purchase order is linked to this request.</div>'}
     ${UI.h('Activity')}${PurUI.timeline(x.history)}
     <div class="d-flex flex-wrap gap-2 mt-3">${k.reqActs(r, true)}</div>`;
   const el = UI.drawer(UI.esc(q.request_ref), html, { subtitle: 'Parts request · ' + UI.esc(q.plate_number) });
@@ -515,7 +517,7 @@ PurUI.openPO = async (o, k) => {
 PurUI.openPart = async (pt, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.part_history', { part_id: pt.id }); const p = x.part;
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
-  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.reorder_level > 0 && +p.quantity_on_hand <= +p.reorder_level ? ' <span class="badge-s red">Low stock</span>' : '')],
+  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.low_stock ? ' <span class="badge-s red">Low stock</span>' : '')], ['Reserved', UI.num(p.reserved_qty || 0) + ' ' + UI.esc(p.unit)], ['Available', UI.num(p.available_qty ?? p.quantity_on_hand) + ' ' + UI.esc(p.unit)],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
 
       p.warranty_info ? ['Historical warranty note', UI.esc(p.warranty_info)] : null])}
@@ -793,6 +795,7 @@ App.page('inventory', {
             + (alert ? `<div class="cell-sub"><span class="badge-s ${expiry < date ? 'red' : 'amber'}" title="Earliest recorded warranty expiry: ${UI.esc(expiry)}">${alert}</span></div>` : '');
         }],
         ['On hand', 'quantity_on_hand', (v, p) => `<span class="cell-nowrap"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? ' <span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>`],
+        ['Reserved', 'reserved_qty', 'num'], ['Available', 'available_qty', 'num'],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
         { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
