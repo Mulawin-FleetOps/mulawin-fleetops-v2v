@@ -968,6 +968,7 @@ final class Maintenance {
             'job' => $j, 'pending_parts_units' => (int)(one($p, "SELECT COALESCE(SUM(l.quantity-l.released_qty),0) AS n
                 FROM part_requests r JOIN part_request_lines l ON l.part_request_id=r.id
                 WHERE r.maintenance_job_id=? AND r.status <> 'Cancelled'", [$id])['n'] ?? 0),
+            'incidentClarifications' => $inc && one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'") ? many($p,'SELECT c.id,c.details,c.created_at,u.full_name AS actor FROM incident_clarifications c JOIN users u ON u.id=c.actor_id WHERE c.incident_id=? ORDER BY c.id',[(int)$inc['id']]) : [],
             'incident' => $inc, 'arrival' => $arrival, 'preDispatch' => $preDispatch, 'preDispatchFindings' => $preDispatchFindings, 'documents' => $docs,
             'selectedComponents' => self::catalogReady($p) ? array_map('intval',array_column(many($p,'SELECT component_id FROM maintenance_job_components WHERE maintenance_job_id=?',[$id]),'component_id')) : [],
             'excludedComponents' => self::catalogReady($p) ? array_map('intval',array_column(many($p,'SELECT component_id FROM motorpool_vehicle_component_exclusions WHERE vehicle_id=?',[(int)$j['vehicle_id']]),'component_id')) : [],
