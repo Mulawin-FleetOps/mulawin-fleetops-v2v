@@ -394,7 +394,23 @@ final class Maintenance {
         $priority = 'Normal'; // Legacy DB field; users no longer choose priority (#41).
         $mechanicId = optId($d, 'mechanic_id');
         $remarks = optField($d, 'remarks', 500);
-        return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks) {
+        $rawAssist = $d['assistant_mechanic_ids'] ?? [];
+        must(is_array($rawAssist), 'Invalid assisting mechanics list.');
+        $assist = [];
+        foreach ($rawAssist as $rawId) {
+            $mid = filter_var($rawId, FILTER_VALIDATE_INT);
+            must($mid !== false && $mid > 0, 'Invalid assisting mechanic.');
+            must(!in_array($mid, $assist, true), 'Duplicate assisting mechanic.');
+            $assist[] = $mid;
+        }
+        must(count($assist) <= 10, 'At most 10 assisting mechanics.');
+        must(!$assist || $mechanicId !== null, 'Choose a lead mechanic before adding assisting mechanics.');
+        must(!$mechanicId || !in_array($mechanicId, $assist, true), 'Lead mechanic cannot also be an assistant.');
+        $rawParts = $d['parts_lines'] ?? [];
+        must(is_array($rawParts), 'Invalid parts request.');
+        must(count($rawParts) <= 30, 'At most 30 requested parts.');
+        $partsPurpose = $rawParts ? field($d, 'problem', 255) : null;
+        return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks, $assist, $rawParts, $partsPurpose) {
             $v = one($p, 'SELECT * FROM vehicles WHERE id=? FOR UPDATE', [$vid]);
             must($v && (int)$v['active'], 'Truck not found or inactive.', 404);
             must(in_array((string)$v['status'], ['Available', 'Assigned'], true), 'Only Available or Assigned trucks at the garage can be reported here. On-trip, returning, unavailable and under-maintenance trucks are excluded.', 409);
@@ -417,12 +433,32 @@ final class Maintenance {
                 run($p, "UPDATE maintenance_jobs SET status='Under Inspection', started_by=?, started_at=NOW() WHERE id=?", [$u['id'], $jid]);
                 self::event($p, $jid, 'Reported', 'Under Inspection', $u['id'], 'mechanic assigned', $mechanicId);
             }
+            if ($assist) {
+                must(self::helpersReady($p), 'Assisting mechanics require the existing mechanics migration.', 503);
+                sort($assist);
+                foreach ($assist as $mid) {
+                    $m = self::freeMechanic($p, $mid, $jid);
+                    run($p, 'INSERT INTO maintenance_job_helpers (maintenance_job_id, mechanic_id, assigned_at, assigned_by) VALUES (?,?,NOW(),?)',
+                        [$jid, $mid, $u['id']]);
+                    self::refreshMechanic($p, $mid);
+                    self::event($p, $jid, 'Under Inspection', 'Under Inspection', $u['id'], 'assisting mechanic added: ' . $m['full_name'], $mid);
+                }
+                auditWithChanges($p, $u['id'], 'Maintenance', 'job ' . $jid, 'assisting mechanics added during report',
+                    $ref, [], ['Assisting mechanic IDs' => implode(', ', $assist)]);
+            }
+            $request = null;
+            if ($rawParts) {
+                must($mechanicId !== null, 'Choose a lead mechanic before requesting parts for the new repair.');
+                Actions::load('Purchasing');
+                $request = Purchasing::createForRepair($p, $u, $vid, $jid, (string)$partsPurpose, $rawParts);
+            }
             $msg = "Problem reported ($ref). Truck " . $v['plate_number'] . ' is Under Maintenance and cannot be assigned to trips.';
             if ($trip) { Actions::load('Trips'); $msg .= ' ' . Trips::resourceLost($p, $u, (int)$trip['id'], 'Truck ' . $v['plate_number'] . ' has a reported problem'); }
             FleetState::reconcile($p, $vid, $u['id'], "Corrective maintenance $ref");
             audit($p, $u['id'], 'Maintenance', 'job ' . $jid, 'truck problem reported', "$ref {$v['plate_number']}: " . cut($problem, 200));
             Notify::roles($p, ['operations_head'], 'Truck under maintenance', $v['plate_number'] . " has a reported problem ($ref). It cannot be assigned until the repair is verified.", 'maintenance', 'job-open-' . $jid);
-            return ['job_id' => $jid, 'job_ref' => $ref, 'message' => $msg . ($mechanicId ? '' : ' Assign a mechanic to start the inspection.')];
+            return ['job_id' => $jid, 'job_ref' => $ref, 'parts_request_ref' => $request['request_ref'] ?? null,
+                'message' => $msg . ($request ? ' ' . $request['message'] : '') . ($mechanicId ? '' : ' Assign a mechanic to start the inspection.')];
         });
     }
 
