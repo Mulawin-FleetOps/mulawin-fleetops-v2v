@@ -3482,3 +3482,85 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .fleet-group-btn { padding: 6px 9px; }
   .ref-toolbar > .fleet-group-control { margin-left: 0; }
 }
+
+/* PURCHASING_PO_HEADER_TOOLBAR_V1 — Purchase Orders matches the Driver Records hierarchy.
+   Header + create action stay above; search/filter/sort and page tabs sit inside one records card. */
+.purchasing-table-purchase-orders .purchasing-po-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 15px;
+  min-width: 0;
+}
+.purchasing-table-purchase-orders .purchasing-po-toolbar > .table-search {
+  flex: 1 1 340px;
+  min-width: 180px;
+}
+.purchasing-table-purchase-orders .purchasing-po-filter {
+  flex: 0 0 auto;
+}
+.purchasing-table-purchase-orders .purchasing-po-filter .filter-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.purchasing-table-purchase-orders .purchasing-po-filter .filter-chip {
+  max-width: 190px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.purchasing-table-purchase-orders .purchasing-po-filter [data-fopen] {
+  white-space: nowrap;
+  min-height: 36px;
+}
+.purchasing-table-purchase-orders .purchasing-po-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  flex: 0 0 auto;
+  margin: 0;
+  color: #285c3e;
+  font-size: 12px;
+}
+.purchasing-table-purchase-orders .purchasing-po-sort .form-select {
+  width: 145px;
+  max-width: 145px;
+  min-height: 36px;
+  font-size: 12px;
+}
+.purchasing-table-purchase-orders .purchasing-po-toolbar > .table-count {
+  white-space: nowrap;
+}
+.purchasing-table-purchase-orders .purchasing-po-toolbar > .fleet-group-control {
+  margin-left: 0;
+}
+.purchasing-table-purchase-orders .purchasing-po-tabs-slot {
+  padding: 10px 15px 12px;
+  border-bottom: 1px solid #dce8df;
+  min-width: 0;
+}
+.purchasing-table-purchase-orders .purchasing-po-tabs-slot .line-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.purchasing-table-purchase-orders .purchasing-ref-records-body > .ref-list {
+  border-top: 0;
+}
+@media (max-width: 767.98px) {
+  .purchasing-table-purchase-orders .purchasing-po-toolbar { padding: 10px; gap: 7px; }
+  .purchasing-table-purchase-orders .purchasing-po-toolbar > .table-search { flex-basis: 100%; }
+  .purchasing-table-purchase-orders .purchasing-po-tabs-slot { padding: 9px 10px 12px; }
+  .purchasing-table-purchase-orders .purchasing-po-sort .form-select { width: 130px; }
+}
