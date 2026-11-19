@@ -1678,20 +1678,29 @@ UI.overviewDetails = (id, row) => {
 UI.table = (columns, rows, opts = {}) => {
   const id = opts.id || 'tbl' + Math.random().toString(36).slice(2, 8);
   const visibleColumns = UI.overviewColumns(columns, opts);
-  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(10, Math.max(1, Number(opts.limit) || 10)), page: 0, filter: '' };
+  const groupColumn = opts.groupBy || (!opts.plain && !opts.disableGrouping
+    ? (visibleColumns.find(([, key, fmt]) => fmt === 'badge' && /^(status|availability|movement_type|type)$/i.test(String(key))) || [])[1]
+    : null);
+  const groupLabel = opts.groupLabel || (groupColumn && (visibleColumns.find(([, key]) => key === groupColumn) || [])[0]) || 'Group';
+  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(10, Math.max(1, Number(opts.limit) || 10)), page: 0, filter: '', groupColumn: opts.plain ? null : groupColumn, groupLabel, grouped: false };
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   if (UI.refPage()) {   // REF_FIDELITY_V1: search + Reset toolbar, then the bordered table (reference list layout)
     return `<div class="ref-list"><div class="ref-toolbar no-print"><div class="table-search ref-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" type="search" placeholder="Search records..." aria-label="Search records" data-tsearch="${id}"></div>
-      <button type="button" class="btn ref-reset" data-treset="${id}" title="Clear the search, tab and filters">Reset</button><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}</div>
+      <button type="button" class="btn ref-reset" data-treset="${id}" title="Clear the search, tab and filters">Reset</button><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}${groupColumn ? UI.groupControl(id) : ''}</div>
       <div class="ref-tablebox"><div class="table-wrap" data-tbody="${id}"></div></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   }
   const head = `<div class="table-tools">
       <div class="table-search"><i class="bi bi-search"></i><input class="form-control" type="search" placeholder="Search this list" aria-label="Search this list" data-tsearch="${id}"></div>
-      <div class="table-tools-right"><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}</div></div>`;
+      <div class="table-tools-right"><span class="table-count" data-tcount="${id}"></span>${opts.tools || ''}${groupColumn ? UI.groupControl(id) : ''}</div></div>`;
   const html = `${head}<div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div>`;
   return opts.title ? UI.card(opts.title, html) : `<section class="panel"><div class="panel-body flush">${html}</div></section>`;
 };
 UI._tables = {};
+/** Grouping changes only the presentation order of already authorized table rows. */
+UI.groupControl = id => `<div class="fleet-group-control no-print" role="group" aria-label="Record grouping" data-group-controls="${UI.esc(id)}">
+  <button type="button" class="fleet-group-btn" data-group-mode="grouped" aria-pressed="false"><i class="bi bi-collection" aria-hidden="true"></i> Grouped</button>
+  <button type="button" class="fleet-group-btn is-active" data-group-mode="all" aria-pressed="true">All Records</button>
+</div>`;
 /** Presentation metadata only; callers keep their existing paging, filtering and permissions. */
 UI.recordPager = ({total,page=1,pages=1,pageSize=10,previous='data-prev',next='data-next',note=''}) => {
   const first=total?(page-1)*pageSize+1:0,last=total?Math.min(page*pageSize,total):0;
@@ -1752,7 +1761,14 @@ UI.formLabel = (field) => {
 };
 UI.drawTable = (id) => {
   const t = UI._tables[id]; const box = document.querySelector(`[data-tbody="${id}"]`); if (!t || !box) return;
-  const rows = UI.tableRows(id);
+  const filteredRows = UI.tableRows(id);
+  const groups = new Map();
+  if (t.grouped && t.groupColumn) filteredRows.forEach(row => {
+    const key = String(typeof t.opts.groupBy === 'function' ? t.opts.groupBy(row) : row[t.groupColumn] ?? '').trim() || 'Unspecified';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+  const rows = t.grouped && t.groupColumn ? [...groups.values()].flat() : filteredRows;
   const count = document.querySelector(`[data-tcount="${id}"]`);
   if (count) count.textContent = rows.length === t.rows.length ? `${rows.length} record${rows.length === 1 ? '' : 's'}` : `${rows.length} of ${t.rows.length}`;
   const pager = box.parentElement.querySelector(`[data-tpager="${id}"]`);
@@ -1777,7 +1793,29 @@ UI.drawTable = (id) => {
   // COMPACT_TABLES_V1: on reference pages, columns hug their content; only long-text columns (cell-clip / cell-clamp) take the spare width.
   const grow = UI.refPage() ? t.columns.map(([, k, f]) => typeof f === 'function' && shown.some(r => /cell-cl(?:ip|amp)/.test(String(f(r[k], r) || '')))) : [];
   box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}${!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : ''}"${tableStyle}><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
-    <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
+    <tbody>${shown.map((r, i) => {
+      const groupName = t.grouped && t.groupColumn ? (String(typeof t.opts.groupBy === 'function' ? t.opts.groupBy(r) : r[t.groupColumn] ?? '').trim() || 'Unspecified') : null;
+      const prior = i ? shown[i-1] : null;
+      const priorName = prior && t.grouped && t.groupColumn ? (String(typeof t.opts.groupBy === 'function' ? t.opts.groupBy(prior) : prior[t.groupColumn] ?? '').trim() || 'Unspecified') : null;
+      const heading = groupName !== null && groupName !== priorName
+        ? `<tr class="fleet-group-header"><td colspan="${t.columns.length + (t.hasActions ? 1 : 0)}"><button type="button" data-group-collapse aria-expanded="true"><i class="bi bi-chevron-down" aria-hidden="true"></i><strong>${UI.esc(groupName)}</strong><span class="fleet-group-count">${UI.num(groups.get(groupName)?.length || 0)} record(s)</span></button></td></tr>` : '';
+      return heading + `<tr data-ri="${t.rows.indexOf(r)}" data-record-group="${UI.esc(groupName ?? '')}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`;
+    }).join('')}</tbody></table>`;
+  box.querySelectorAll('[data-group-collapse]').forEach(button => button.addEventListener('click', () => {
+    const row = button.closest('tr');
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(open));
+    button.querySelector('.bi')?.classList.toggle('bi-chevron-down', open);
+    button.querySelector('.bi')?.classList.toggle('bi-chevron-right', !open);
+    for (let next = row.nextElementSibling; next && !next.classList.contains('fleet-group-header'); next = next.nextElementSibling) next.hidden = !open;
+  }));
+  document.querySelectorAll('[data-group-controls]').forEach(control => {
+    if (control.dataset.groupControls !== id) return;
+    control.querySelectorAll('[data-group-mode]').forEach(button => {
+      const on = (button.dataset.groupMode === 'grouped') === !!t.grouped;
+      button.classList.toggle('is-active', on); button.setAttribute('aria-pressed', String(on));
+    });
+  });
   // All client-side record tables share the same visible pagination, including page 1 of 1.
   // Server-paged tables retain their existing controls and must not double-paginate.
   if (pager && !t.opts.dsServerPaged) {
@@ -1924,6 +1962,18 @@ UI.unifyRecordToolbars = root => {
 UI.activate = (root) => {
   UI.unifyRecordToolbars(root);
   root.querySelectorAll('[data-tbody]').forEach(b => { if (!b.dataset.drawn) { b.dataset.drawn = '1'; UI.drawTable(b.dataset.tbody); } });
+  root.querySelectorAll('[data-group-controls]').forEach(control => {
+    if (control.dataset.bound) return;
+    control.dataset.bound = '1';
+    control.addEventListener('click', event => {
+      const button = event.target.closest('[data-group-mode]');
+      if (!button) return;
+      const id = control.dataset.groupControls, t = UI._tables[id];
+      if (!t || !t.groupColumn) return;
+      t.grouped = button.dataset.groupMode === 'grouped'; t.page = 0;
+      UI.drawTable(id);
+    });
+  });
   root.querySelectorAll('[data-tsearch]').forEach(inp => { if (inp.dataset.bound) return; inp.dataset.bound = '1';
     inp.addEventListener('input', () => { const t = UI._tables[inp.dataset.tsearch]; t.filter = inp.value.trim(); t.page = 0; UI.drawTable(inp.dataset.tsearch); }); });
   UI.bindGo(root);
