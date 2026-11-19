@@ -87,7 +87,8 @@ App.page('mechanics', {
     const statusSummary = `<div class="mp-action-stages mb-3">
       <button type="button" class="mp-action-stage" data-go="mechanics?availability=Available"><span class="mp-action-stage-icon"><i class="bi bi-person-check"></i></span><span class="mp-action-stage-content"><b>Available</b><small>Timed in, ready to assign</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Available').length}</strong></button>
       <button type="button" class="mp-action-stage" data-go="mechanics?availability=Assigned"><span class="mp-action-stage-icon"><i class="bi bi-wrench-adjustable"></i></span><span class="mp-action-stage-content"><b>Assigned</b><small>Working on a repair</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Assigned').length}</strong></button>
-      <button type="button" class="mp-action-stage" data-go="mechanics?availability=Unavailable"><span class="mp-action-stage-icon"><i class="bi bi-person-dash"></i></span><span class="mp-action-stage-content"><b>Not on duty</b><small>Must Time In before assignment</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Unavailable').length}</strong></button></div>`;
+      <button type="button" class="mp-action-stage" data-go="mechanics?availability=Unavailable"><span class="mp-action-stage-icon"><i class="bi bi-person-dash"></i></span><span class="mp-action-stage-content"><b>Not on duty</b><small>Must Time In before assignment</small></span><strong class="mp-action-stage-count">${active.filter(m => m.availability === 'Unavailable').length}</strong></button>
+      <button type="button" class="mp-action-stage" data-go="mechanics"><span class="mp-action-stage-icon"><i class="bi bi-people"></i></span><span class="mp-action-stage-content"><b>Active mechanics</b><small>Registered active mechanics</small></span><strong class="mp-action-stage-count">${active.length}</strong></button></div>`;
     ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + statusSummary + `<div class="line-tabs ws-status-tabs no-print" role="tablist">${tab('mechanics', 'All active', active.length, key === '')}
       ${AV.map(a => tab('mechanics?availability=' + a, a === 'Assigned' ? 'On a repair' : a, active.filter(m => m.availability === a).length, key === a)).join('')}
       ${tab('mechanics?inactive=1', 'Inactive', inactive.length, key === 'inactive')}</div>`;
@@ -138,7 +139,13 @@ App.page('mechanic_attendance', {
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
       </div></div>`;
     const tab = q.tab === 'sessions' ? 'sessions' : 'attendance';
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro
+    const attendanceKpis = `<div class="mp-action-stages mp-reference-stages mb-3">
+      <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Timed In</b><small>Currently on duty</small></span><strong class="mp-action-stage-count">${on.length}</strong></div>
+      <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Not Timed In</b><small>Not currently on duty</small></span><strong class="mp-action-stage-count">${board.length-on.length}</strong></div>
+      <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Total Mechanics</b><small>Active duty board</small></span><strong class="mp-action-stage-count">${board.length}</strong></div>
+      <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Attendance Sessions</b><small>Selected date range</small></span><strong class="mp-action-stage-count">${sessions.length}</strong></div>
+    </div>`;
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceKpis + attendanceIntro
       + UI.statusTabs('mechanic_attendance', q, 'tab', [
         ['attendance', 'Attendance', board.length],
         ['sessions', 'Sessions', sessions.length],
