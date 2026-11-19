@@ -955,8 +955,11 @@ const App = {
     const header = el.querySelector('.page-head');
     const actions = header?.querySelector('#pageTools');
     if (header && actions) {
-      const accessGroup = document.createElement('div');
-      accessGroup.className = 'page-access-actions no-print';
+      const isReport = ['reports','operations_reports','financial_reports','billing_reports',
+        'maintenance_reports','purchasing_reports','audit_reports','admin_reports','admin_analytics',
+        'admin_descriptive_analytics','admin_diagnostic_analytics'].includes(page);
+      const accessGroup = isReport ? document.createElement('div') : null;
+      if (accessGroup) accessGroup.className = 'page-access-actions no-print';
       const access = document.createElement('span');
       access.className = 'page-access-tag';
       const badgeIcon = document.createElement('i');
@@ -967,11 +970,8 @@ const App = {
       label.textContent = currentUser.role === 'admin' ? 'Management access'
         : (currentUser.role_label || currentUser.role.replace(/_/g, ' ')) + ' access';
       access.append(badgeIcon, label);
-      accessGroup.append(access);
-      if (currentUser.role === 'admin' &&
-          ['reports','operations_reports','financial_reports','billing_reports','maintenance_reports',
-            'purchasing_reports','audit_reports','admin_reports','admin_analytics',
-            'admin_descriptive_analytics','admin_diagnostic_analytics'].includes(page)) {
+      if (accessGroup) accessGroup.append(access);
+      if (accessGroup && currentUser.role === 'admin') {
         const back = document.createElement('button');
         back.type = 'button';
         back.className = 'btn btn-sm btn-outline-secondary report-back-btn';
@@ -979,7 +979,7 @@ const App = {
         back.addEventListener('click', () => App.go('reports_center'));
         accessGroup.append(back);
       }
-      header.insertBefore(accessGroup, actions);
+      header.insertBefore(accessGroup || access, actions);
     }
     // A drawer or dialog belongs to the list it was opened from: close it when the user moves to another page, or
     // (workspace pages) to another tab / filter of the same page. A plain reload of the same view keeps it.
