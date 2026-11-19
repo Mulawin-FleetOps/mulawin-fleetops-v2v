@@ -391,7 +391,6 @@ PurUI.kit = (d, can) => {
       { name: 'part_type', label: 'Part Type', required: !p.id || !!p.part_type, col: 4, value: p.part_type, placeholder: 'e.g. Tire', attrs: 'maxlength="100"', help: p.id && !p.part_type ? 'Legacy item: classify when its actual type is verified.' : 'General part type; may be shared by different variants.' },
       { name: 'description', label: 'Part Name / Specification', required: true, col: 4, value: p.description, placeholder: 'Specific item or size', attrs: 'maxlength="200"', help: 'Use the exact recorded specification; do not guess for legacy stock.' },
       { name: 'brand', label: 'Brand (optional)', col: 6, value: p.brand, attrs: 'maxlength="100"' },
-      { name: 'category', label: 'Category (optional)', col: 6, value: p.category, placeholder: 'Inventory grouping', attrs: 'maxlength="80"' },
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
       { name: 'unit_cost', label: 'Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Cost per unit, not total stock value.' },
       { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
@@ -698,7 +697,7 @@ PurUI.openPO = async (o, k) => {
 PurUI.openPart = async (pt, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.part_history', { part_id: pt.id }); const p = x.part;
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
-  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Type', UI.e(p.part_type) || 'Not classified'], ['Part Name / Specification', UI.esc(p.description)], ['Brand', UI.e(p.brand)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.low_stock ? ' <span class="badge-s red">Low stock</span>' : '')], ['Reserved', UI.num(p.reserved_qty || 0) + ' ' + UI.esc(p.unit)], ['Available', UI.num(p.available_qty ?? p.quantity_on_hand) + ' ' + UI.esc(p.unit)],
+  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Type', UI.e(p.part_type) || 'Not classified'], ['Part Name / Specification', UI.esc(p.description)], ['Brand', UI.e(p.brand)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.low_stock ? ' <span class="badge-s red">Low stock</span>' : '')], ['Reserved', UI.num(p.reserved_qty || 0) + ' ' + UI.esc(p.unit)], ['Available', UI.num(p.available_qty ?? p.quantity_on_hand) + ' ' + UI.esc(p.unit)],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
 
       p.warranty_info ? ['Historical warranty note', UI.esc(p.warranty_info)] : null])}
@@ -927,7 +926,7 @@ App.page('inventory', {
       {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On-hand stock × recorded unit cost',icon:'bi-cash-coin'}
     ]);
     const view = q.view === 'counts' ? 'counts' : 'parts';
-    const cats = [...new Set(parts.map(p => p.category).filter(Boolean))].sort();
+    const types = [...new Set(parts.map(p => p.part_type).filter(Boolean))].sort();
     const link = (extra) => 'inventory?' + new URLSearchParams(Object.fromEntries(Object.entries({ ...q, ...extra }).filter(([, v]) => v)));
     // UI_REFERENCE_V1: stock tabs (?stock=) and the Stock counts tab (?view=counts) instead of a KPI row.
     const stockKey = view === 'counts' ? '' : (['low', 'out', 'inactive', 'all'].includes(q.stock) ? q.stock : 'active');
@@ -935,7 +934,7 @@ App.page('inventory', {
     ctx.el.innerHTML = inventoryCards + identityNotice + `<div class="line-tabs ws-status-tabs no-print" role="tablist">
         ${tabBtn(link({ view: '', stock: '' }), 'Active parts', active.length, stockKey === 'active')}${tabBtn(link({ view: '', stock: 'low' }), 'Low stock', low.length, stockKey === 'low')}
         ${tabBtn(link({ view: '', stock: 'out' }), 'Out of stock', out.length, stockKey === 'out')}${tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, stockKey === 'inactive')}
-        ${d.countsReady ? tabBtn(link({ view: 'counts', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div>
+        ${d.countsReady ? tabBtn(link({ view: 'counts', part_type: '', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div>
       <div class="small text-muted mb-2">Inventory value of active parts: <b>${UI.money(active.reduce((a, p) => a + +p.stock_value, 0))}</b> (on hand × recorded unit cost).
         ${d.countsReady && pending.length ? `${UI.num(pending.length)} stock count(s) wait for the Admin.` : ''}</div>
       ${d.countsReady ? '' : `<div class="alert alert-secondary small py-2"><i class="bi bi-lock me-1"></i> Direct stock adjustments are disabled. Stock changes only when a purchase order is received or parts are released.
@@ -966,10 +965,11 @@ App.page('inventory', {
     }
     // Keep Inventory table widths independent from the Stock Counts table.
     ctx.el.classList.add('purchasing-inventory-parts-view');
-    const rows = parts.filter(p => (!q.category || p.category === q.category)
+    const selectedType = q.part_type || '';
+    const rows = parts.filter(p => (!selectedType || p.part_type === selectedType)
       && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +(p.available_qty ?? p.quantity_on_hand) <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)));
     const openCount = new Set(pending.map(c => +c.part_id));
-    body.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
+    body.innerHTML = UI.generalFilters(ctx, [{ name: 'part_type', label: 'Part Types', options: types }])
       + UI.table([
         ['Part ID', 'part_number', (v, p) => `<span class="cell-nowrap">${UI.esc(v)}</span>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
         ['Part Type', 'part_type', (v) => v ? UI.esc(v) : '<span class="text-muted">Not classified</span>'],
