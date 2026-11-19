@@ -775,16 +775,22 @@ final class Maintenance {
         $result = choiceField($d, 'result', ['Passed', 'Failed']);
         $notes = field($d, 'verification_notes', 500);
         $mechanicId = optId($d, 'mechanic_id');
-        return transaction(function (PDO $p) use ($u, $id, $result, $notes, $mechanicId) {
+        $replacementReason = optField($d, 'reassignment_reason', 255);
+        return transaction(function (PDO $p) use ($u, $id, $result, $notes, $mechanicId, $replacementReason) {
             $j = self::lockJob($p, $id);
             must($j['status'] === 'Completed' && !$j['verified_at'], 'Only completed repairs waiting for verification can be verified.', 409);
             $v = one($p, 'SELECT plate_number FROM vehicles WHERE id=?', [$j['vehicle_id']]);
             if ($result === 'Failed') {
                 $mid = $mechanicId ?: (int)$j['mechanic_id'];
                 must($mid > 0, 'Choose the mechanic who will continue the repair.');
+                if (self::catalogReady($p) && $j['assignment_finalized_at'] && $mid !== (int)$j['mechanic_id']) must($replacementReason !== null, 'Give a reason for replacing a finalized mechanic after failed verification.', 422);
                 self::freeMechanic($p, $mid, (int)$j['id']);
                 run($p, "UPDATE maintenance_jobs SET status='Under Repair', completed_on=NULL, completed_by=NULL, completed_at=NULL WHERE id=?", [$id]);
                 self::setMechanic($p, self::lockJob($p, $id), $mid);
+                if (self::catalogReady($p) && $j['assignment_finalized_at'] && $mid !== (int)$j['mechanic_id']) {
+                    self::event($p, $id, 'Under Repair', 'Under Repair', $u['id'], 'authorized replacement after failed verification: ' . $replacementReason, $mid);
+                    audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'finalized mechanic replaced after failed verification', $j['job_ref'] . ': ' . $replacementReason);
+                }
                 self::event($p, $id, 'Completed', 'Under Repair', $u['id'], 'verification failed: ' . $notes, $mid);
                 audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'verification failed', $j['job_ref'] . ': ' . cut($notes, 200));
                 return ['message' => 'Verification failed. ' . $j['job_ref'] . ' is back Under Repair; truck ' . $v['plate_number'] . ' stays out of service.'];
