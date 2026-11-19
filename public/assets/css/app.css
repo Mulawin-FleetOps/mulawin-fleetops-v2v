@@ -3005,18 +3005,20 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 }
 
 
-/* BALANCED_SHARED_TABLE_SPACING_V1
-   Shared UI.table record lists: keep labels/values near each other instead
-   of distributing short columns across large desktop monitors.
-   Standalone report grids, print tables and plain/detail tables are untouched.
-   Modules with purpose-built widths can opt out via preserveTableWidth. */
+/* FLEET_SHARED_TABLE_LAYOUT_V2 — one predictable layout for standard record lists.
+   Column count determines the minimum table width; narrow screens scroll instead
+   of compressing statuses, actions, and identifiers into overlapping cells.
+   Plain tables and bespoke tables with preserveTableWidth are left untouched. */
 .table-wrap:has(> .fleet-balanced-table) {
-  overflow-x: auto;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .table-wrap > .data-table.fleet-balanced-table {
-  width: max-content;
-  min-width: min(100%, 760px);
+  width: 100%;
+  min-width: var(--fleet-table-min, 720px);
   max-width: none;
   table-layout: auto;
   border-collapse: separate;
@@ -3025,35 +3027,50 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .table-wrap > .data-table.fleet-balanced-table th,
 .table-wrap > .data-table.fleet-balanced-table td {
   box-sizing: border-box;
-  padding-left: 15px;
-  padding-right: 15px;
+  padding: 10px 12px;
+  min-width: 0;
   vertical-align: middle;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
-.table-wrap > .data-table.fleet-balanced-table th:not(.actions-col),
-.table-wrap > .data-table.fleet-balanced-table td:not(.actions-col) {
-  min-width: 78px;
+.table-wrap > .data-table.fleet-balanced-table th {
+  white-space: normal;
+  vertical-align: middle;
 }
 .table-wrap > .data-table.fleet-balanced-table th:first-child:not(.actions-col),
 .table-wrap > .data-table.fleet-balanced-table td:first-child:not(.actions-col) {
-  min-width: 170px;
+  min-width: 115px;
 }
+.table-wrap > .data-table.fleet-balanced-table th.count-col,
+.table-wrap > .data-table.fleet-balanced-table td.count-col,
+.table-wrap > .data-table.fleet-balanced-table th.status-col,
+.table-wrap > .data-table.fleet-balanced-table td.status-col {
+  text-align: center;
+}
+.table-wrap > .data-table.fleet-balanced-table th.money-col,
+.table-wrap > .data-table.fleet-balanced-table td.money-col { text-align: right; }
 .table-wrap > .data-table.fleet-balanced-table th.actions-col,
 .table-wrap > .data-table.fleet-balanced-table td.actions-col {
-  min-width: 98px;
   width: 1%;
+  min-width: 104px;
+  max-width: none;
   white-space: nowrap;
+  text-align: center;
 }
-@media (max-width: 767px) {
-  .table-wrap > .data-table.fleet-balanced-table {
-    min-width: min(100%, 600px);
-  }
+.table-wrap > .data-table.fleet-balanced-table .row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  max-width: none;
+}
+.table-wrap > .data-table.fleet-balanced-table .row-actions .btn { flex: 0 0 auto; }
+@media (max-width: 767.98px) {
   .table-wrap > .data-table.fleet-balanced-table th,
-  .table-wrap > .data-table.fleet-balanced-table td {
-    padding-left: 11px;
-    padding-right: 11px;
-  }
+  .table-wrap > .data-table.fleet-balanced-table td { padding: 9px 10px; }
 }
-
 
 /* PURCHASING_WORKFLOW_PROGRESS_V1 — Purchasing-only table and progress action.
    Keep Linked PO beside Waiting for and the final Actions column; other roles unchanged. */
