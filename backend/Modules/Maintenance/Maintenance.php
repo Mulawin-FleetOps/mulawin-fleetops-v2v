@@ -548,7 +548,7 @@ final class Maintenance {
     private static function assess(array $u, array $d): array {
         requireRole($u, ...self::ACT);
         $id = idField($d, 'job_id');
-        $sev = choiceField($d, 'severity', ['Minor', 'Major']);
+        $sev = choiceField($d, 'severity', ['Minor', 'Major', 'Needs More Information']);
         $rec = field($d, 'recommendation', 500);
         return transaction(function (PDO $p) use ($u, $id, $sev, $rec) {
             $j = self::lockJob($p, $id);
@@ -556,6 +556,15 @@ final class Maintenance {
             $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
             $t = one($p, 'SELECT * FROM trips WHERE id=? FOR UPDATE', [$j['trip_id']]);
             must($inc && $t && $t['status'] === 'On Hold - Incident Reported', 'The trip is not On Hold.', 409);
+            if ($sev === 'Needs More Information') {
+                // Do not write an unsupported severity to incidents or change the trip's safety hold.
+                // Every request remains in the repair activity/audit history.
+                self::event($p, $id, 'Reported', 'Reported', $u['id'], 'more information requested: ' . $rec);
+                audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'incident information requested', $inc['incident_ref'] . ': ' . cut($rec, 200));
+                Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'More incident information needed',
+                    $t['trip_ref'] . ' / ' . $inc['incident_ref'] . ': Motorpool requests additional information: ' . $rec, 'trips');
+                return ['message' => 'More information requested from Dispatcher. Incident remains unassessed and trip stays On Hold.'];
+            }
             // Assessment does not reserve a mechanic or claim that the incident truck was inspected.
             // Once the truck is accessible, assign an available mechanic separately in Repair Management.
             run($p, "UPDATE maintenance_jobs SET status='Under Inspection', severity=?, started_by=?, started_at=NOW(), remarks=? WHERE id=?",
