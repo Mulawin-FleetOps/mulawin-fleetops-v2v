@@ -410,7 +410,7 @@ const RecordComponents = Object.freeze({
  * filters, paginator, data source, role permissions, and page-specific columns.
  * The shared UI.drawTable renderer also applies to newly paginated tables.
  */
-RecordComponents.standardizeTables = function(root) {
+const standardizeRecordTables = function(root) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('.table-wrap[data-tbody]').forEach(wrap => {
     if (wrap.closest('.plain-table, .modal, .app-drawer, .offcanvas, .print-area')) return;
@@ -430,13 +430,13 @@ RecordComponents.standardizeTables = function(root) {
   UI.drawTable = function(id) {
     const result = draw.apply(this, arguments);
     const wrap = [...document.querySelectorAll('[data-tbody]')].find(node => node.dataset.tbody === String(id));
-    if (wrap) RecordComponents.standardizeTables(wrap.parentElement || wrap);
+    if (wrap) standardizeRecordTables(wrap.parentElement || wrap);
     return result;
   };
   const activate = UI.activate;
   UI.activate = function(root) {
     const result = activate.apply(this, arguments);
-    RecordComponents.standardizeTables(root);
+    standardizeRecordTables(root);
     return result;
   };
 }
