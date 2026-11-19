@@ -2047,3 +2047,20 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   #pageContent.report-layout-scope .hm-perf > li {grid-template-columns:minmax(0,1fr);}
   #pageContent.report-layout-scope .hm-perf .hm-perf-f {grid-column:1;}
 }
+
+
+/* Admin Reports: keep return action directly below Management access.
+   Never affect the non-admin delegated report toolbar. */
+#pageContent .page-access-actions {
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-start;
+  gap:7px;flex:0 0 auto;margin-left:auto;
+}
+#pageContent .page-access-actions .page-access-tag {margin:0;}
+#pageContent .page-access-actions .report-back-btn {
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:12px;line-height:1.25;padding:7px 10px;white-space:nowrap;
+}
+#pageContent .page-access-actions + .page-actions:empty {display:none;}
+@media(max-width:620px) {
+  #pageContent .page-access-actions {align-items:flex-start;margin-left:0;}
+}
