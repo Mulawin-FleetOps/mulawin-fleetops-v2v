@@ -3397,3 +3397,88 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   padding-inline: 11px;
   white-space: nowrap;
 }
+
+/* FLEET_GROUPED_TABLES_V1 — screenshot-aligned grouped/all-record switch.
+   Constrained to opt-in or meaningful-status shared record tables. */
+.fleet-group-control {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 3px;
+  padding: 3px;
+  flex: 0 0 auto;
+  border: 1px solid #d6e5dc;
+  border-radius: 10px;
+  background: #f4f8f5;
+  margin-left: auto;
+}
+.fleet-group-btn {
+  border: 0;
+  background: transparent;
+  color: #275b3c;
+  border-radius: 7px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fleet-group-btn.is-active {
+  background: #1b7846;
+  color: #fff;
+}
+.fleet-group-btn:focus-visible {
+  outline: 2px solid #1b7846;
+  outline-offset: 2px;
+}
+.ref-toolbar:has(.fleet-group-control),
+.table-tools:has(.fleet-group-control) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.ref-toolbar > .fleet-group-control { margin-left: auto; }
+.data-table .fleet-group-header td,
+.table-wrap > .data-table.fleet-balanced-table .fleet-group-header td {
+  padding: 0;
+  background: #eef6f0;
+  border-top: 1px solid #d4e6d9;
+  border-bottom: 1px solid #d4e6d9;
+}
+.data-table .fleet-group-header button {
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  background: transparent;
+  color: #175636;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.data-table .fleet-group-header button strong { font-weight: 700; }
+.fleet-group-count {
+  margin-left: auto;
+  font-size: 12px;
+  border: 1px solid #d6e6db;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #3f6a4d;
+  background: #fff;
+}
+.data-table tr[data-record-group][hidden] { display: none !important; }
+@media (max-width: 767.98px) {
+  .fleet-group-control { margin-left: 0; }
+  .fleet-group-btn { padding: 6px 9px; }
+  .ref-toolbar > .fleet-group-control { margin-left: 0; }
+}
