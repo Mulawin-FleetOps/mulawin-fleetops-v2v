@@ -755,6 +755,8 @@ final class Maintenance {
             must($inc['clearance'] !== 'Fit to Continue', 'Fit to Continue is already recorded for ' . $inc['incident_ref'] . '.', 409);
             must($inc['clearance'] !== $decision, $decision . ' is already recorded for ' . $inc['incident_ref'] . '.', 409);
             if ($inspectionOnly) {
+                // Inspection-only clearance is after a real inspection, not an assumption from the dispatcher's report.
+                must((bool)$j['mechanic_id'], 'Assign a mechanic and inspect the truck before recording inspection-only clearance.', 409);
                 // No repair was needed: the inspection itself is recorded; nothing is invented (no repair text, parts, costs or labor).
                 must(in_array($j['status'], ['Under Inspection', 'Under Repair'], true), 'Inspection-only clearance is for an open, inspected record (now: ' . $j['status'] . ').', 409);
                 must(!one($p, 'SELECT 1 AS x FROM maintenance_costs WHERE maintenance_job_id=?', [$id]), 'Costs were recorded, so a repair took place: complete and verify the repair instead.', 409);
