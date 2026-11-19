@@ -50,7 +50,8 @@ final class Maintenance {
                     v.plate_number, v.truck_number, v.truck_type, v.status AS truck_status,
                     i.incident_ref, i.status AS incident_status, t.trip_ref, t.status AS trip_status,
                     (SELECT COALESCE(SUM(c.amount),0) FROM maintenance_costs c WHERE c.maintenance_job_id=m.id) AS other_cost,
-                    (SELECT COALESCE(SUM(l.released_qty*l.unit_cost),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id) AS parts_cost
+                    (SELECT COALESCE(SUM(l.released_qty*l.unit_cost),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id) AS parts_cost,
+                    (SELECT COALESCE(SUM(l.quantity-l.released_qty),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id AND r.status <> 'Cancelled') AS pending_parts_units
                 FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id
                 LEFT JOIN incidents i ON i.id=m.incident_id LEFT JOIN trips t ON t.id=m.trip_id
                 ORDER BY FIELD(m.status,'Reported','Under Inspection','Under Repair','Completed','Cancelled'), m.id DESC LIMIT 1000"),
@@ -632,6 +633,16 @@ final class Maintenance {
             $j = self::lockJob($p, $id);
             must($j['status'] === 'Under Repair', $j['status'] === 'Under Inspection' ? 'Record the inspection findings and diagnosis first.' : 'Only records Under Repair can be completed (now: ' . $j['status'] . ').', 409);
             must($done >= (string)$j['reported_on'], 'Completion date is before the date reported.');
+            // A parts request is fulfilled only after Purchasing releases the
+            // requested quantity to this repair. PO receipt into inventory alone
+            // does not satisfy the mechanic's request.
+            $pendingParts = one($p, "SELECT COALESCE(SUM(l.quantity-l.released_qty),0) AS units,
+                    COUNT(DISTINCT r.id) AS requests
+                FROM part_requests r JOIN part_request_lines l ON l.part_request_id=r.id
+                WHERE r.maintenance_job_id=? AND r.status <> 'Cancelled'
+                  AND l.quantity>l.released_qty", [$id]);
+            must((int)($pendingParts['units'] ?? 0) === 0,
+                'Cannot complete repair: ' . (int)$pendingParts['units'] . ' requested part unit(s) are still waiting for Purchasing release. Check Parts Requests and complete the release first.', 409);
             Files::store($p, $u, 'evidence', 'maintenance', $id, 'Repair Evidence');
             must(Files::count($p, 'maintenance', $id, 'Repair Evidence') > 0, 'Attach at least one photo or document as evidence of the repair.', 422);
             run($p, "UPDATE maintenance_jobs SET status='Completed', repair_performed=?, completed_on=?, remarks=COALESCE(?, remarks), completed_by=?, completed_at=NOW() WHERE id=?",
@@ -837,7 +848,10 @@ final class Maintenance {
         }
         if ($arrival) foreach (Files::of($p, 'trip', (int)$arrival['trip_id']) as $doc) if ($doc['category'] === 'Arrival Inspection Photo') $docs[] = $doc;
         return [
-            'job' => $j, 'incident' => $inc, 'arrival' => $arrival, 'preDispatch' => $preDispatch, 'preDispatchFindings' => $preDispatchFindings, 'documents' => $docs,
+            'job' => $j, 'pending_parts_units' => (int)(one($p, "SELECT COALESCE(SUM(l.quantity-l.released_qty),0) AS n
+                FROM part_requests r JOIN part_request_lines l ON l.part_request_id=r.id
+                WHERE r.maintenance_job_id=? AND r.status <> 'Cancelled'", [$id])['n'] ?? 0),
+            'incident' => $inc, 'arrival' => $arrival, 'preDispatch' => $preDispatch, 'preDispatchFindings' => $preDispatchFindings, 'documents' => $docs,
             // JOB_HELPER_MECHANICS_V1: assisting mechanics, active and past (who assigned / released them and why).
             'helpers' => self::helpersReady($p) ? many($p, 'SELECT h.mechanic_id, h.assigned_at, h.released_at, h.release_reason, mc.full_name, mc.mechanic_code, au.full_name AS assigned_by_name, ru.full_name AS released_by_name
                 FROM maintenance_job_helpers h JOIN mechanics mc ON mc.id=h.mechanic_id JOIN users au ON au.id=h.assigned_by LEFT JOIN users ru ON ru.id=h.released_by
