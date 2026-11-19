@@ -891,12 +891,37 @@ const App = {
       if (this._activitySignature === signature) return;
       this._activitySignature = signature;
       const top = list.scrollTop;
+      // Keep the dropdown human-readable; technical audit references and
+      // field changes remain available in the existing Activity Log page.
+      const activitySummary = action => {
+        const a = String(action || '').trim();
+        const normalized = a.toLowerCase();
+        if (normalized === 'regular helper assigned') return 'assigned a helper to a truck.';
+        if (normalized === 'fixed truck reassigned') return "reassigned a driver's truck.";
+        if (normalized === 'truck added') return 'added a new truck.';
+        if (normalized === 'signed in') return 'signed in.';
+        if (normalized === 'signed out') return 'signed out.';
+        if (normalized === 'driver/helper added') return 'added a driver or helper.';
+        if (normalized === 'driver/helper updated') return 'updated a driver or helper record.';
+        if (normalized === 'truck and crew assigned manually') return 'assigned a truck and crew to a trip.';
+        // For less common audit actions, preserve the logged meaning rather
+        // than guessing a person, vehicle, or outcome from numeric IDs.
+        if (!a) return 'performed a recorded system action.';
+        return 'performed an action: ' + a.charAt(0).toLowerCase() + a.slice(1).replace(/[.]+$/, '') + '.';
+      };
+      const today = UI.nowManila().slice(0,10);
+      const timestamp = value => {
+        const raw = String(value || '');
+        const formatted = UI.datetime(value);
+        return raw.slice(0,10) === today
+          ? 'Today · ' + String(formatted).split(', ').slice(-1)[0]
+          : formatted;
+      };
       list.innerHTML = items.length
         ? items.slice(0,5).map(item => '<div class="bell-item"><div class="bell-item-main">'
-            + '<div class="bell-cat">'+UI.esc(item.area || 'System')+'</div>'
-            + '<div class="bell-msg">'+UI.esc(item.action || 'Activity recorded')+'</div>'
-            + '<div class="small text-muted">'+UI.esc(item.record_ref || '')+'</div>'
-            + '<div class="bell-time">'+UI.esc(item.actor || 'System')+' · '+UI.datetime(item.created_at)+'</div>'
+            + '<div class="bell-msg"><strong>'+UI.esc(item.actor || 'System')+'</strong> '
+            + UI.esc(activitySummary(item.action))+'</div>'
+            + '<div class="bell-time">'+UI.esc(timestamp(item.created_at))+'</div>'
             + '</div></div>').join('')
         : '<div class="bell-empty"><i class="bi bi-clock-history"></i><span>No recorded activity yet.</span></div>';
       list.scrollTop = top;
