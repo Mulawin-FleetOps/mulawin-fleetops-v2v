@@ -79,7 +79,7 @@ $job = fn(int $id) => one($p, 'SELECT * FROM maintenance_jobs WHERE id=?', [$id]
 $attFor = fn(array $o, string $ref) => array_values(array_filter($o['attention'], fn($r) => $r['job_ref'] === $ref || $r['request_ref'] === $ref));
 $report = function (int $vid, ?int $mech = null, string $problem = 'Engine overheating') use ($mp, $png) {
     $_FILES = ['photos' => $png('damage.png')];
-    $r = Maintenance::action($mp, 'report', ['vehicle_id' => $vid, 'problem' => $problem, 'reported_on' => date('Y-m-d')] + ($mech ? ['mechanic_id' => $mech] : []));
+    $r = Maintenance::action($mp, 'report', ['vehicle_id' => $vid, 'problem' => $problem] + ($mech ? ['mechanic_id' => $mech] : []));
     $_FILES = [];
     return $r;
 };
@@ -128,6 +128,7 @@ $_FILES = [];
 fails(fn() => Maintenance::action($mp, 'report', ['vehicle_id' => $V[1], 'problem' => 'No photo', 'reported_on' => date('Y-m-d')]), 'report without a photo is still refused', 400, 'Please attach');
 $r1 = $report($V[1]);
 $j1 = (int)$r1['job_id'];
+ok($job($j1)['reported_on'] === date('Y-m-d'), 'report without date field uses server date');
 ok($job($j1)['status'] === 'Reported' && one($p, 'SELECT status FROM vehicles WHERE id=?', [$V[1]])['status'] === 'Under Maintenance', 'report: record Reported, truck Under Maintenance (unchanged rule)');
 ok((int)one($p, "SELECT COUNT(*) AS n FROM documents WHERE entity_type='maintenance' AND entity_id=?", [$j1])['n'] === 1, 'issue photo stored');
 $s = $sum();
@@ -136,7 +137,13 @@ $a = $attFor($ov($mp), $r1['job_ref']);
 ok(count($a) === 1 && $a[0]['next_action'] === 'assign' && $a[0]['plate_number'] === 'MNT-1' && $a[0]['truck_number'] === '101' && $a[0]['issue'] === 'Engine overheating', 'needs attention: assign a mechanic, with plate, truck no. and issue', json_encode($a));
 fails(fn() => $report($V[1]), 'second report on the same truck refused (one open record per truck)', 409);
 
-$r2 = $report($V[2], $M[1], 'Brake noise');
+// Legacy or manipulated client date must not override the automatic server date.
+$_FILES = ['photos' => $png('override.png')];
+$rOverride = Maintenance::action($mp, 'report', ['vehicle_id'=>$V[2], 'problem'=>'Brake noise',
+    'mechanic_id'=>$M[1], 'reported_on'=>'2039-01-01']);
+$_FILES = [];
+ok($job((int)$rOverride['job_id'])['reported_on'] === date('Y-m-d'), 'client-supplied future date is ignored, server date recorded');
+$r2 = $rOverride;
 $j2 = (int)$r2['job_id'];
 $s = $sum();
 ok($s['new_reports'] === 1 && $s['under_inspection'] === 1, 'report with a mechanic goes straight to Under Inspection (not a new report)');
