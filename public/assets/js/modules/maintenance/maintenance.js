@@ -194,7 +194,7 @@ const MaintUI = {
     const choices = (d.mechanics || []).filter(m => m.availability === 'Available' || +m.id === +j.mechanic_id);
     const active = (r.helpers || []).filter(h => !h.released_at).map(h => +h.mechanic_id);
     const assigned = [...new Set([...(j.mechanic_id ? [+j.mechanic_id] : []), ...active])];
-    const comps = d.components || [];
+    const comps = (d.components || []).filter(c => !(r.excludedComponents || []).includes(+c.id));
     let catalog = [];
     try { catalog = (await App.api('Purchasing.request_catalog')).parts || []; } catch (_) {}
     const choose = arr => arr.map(x => `<option value="${+x.id}">${UI.esc(x.full_name)} · ${UI.esc(x.specialization || 'No verified skills')}</option>`).join('');
@@ -206,14 +206,14 @@ const MaintUI = {
       <div class="purchasing-receive-section">Truck and reported problem</div>
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
       <div class="purchasing-receive-section">Affected components (Tractor Head / Trailer)</div>
-      <div class="row g-2 mb-2">${comps.map(c=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2 h-100"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}"><span><b>${UI.esc(c.label)}</b><small class="d-block text-muted">${c.section_key==='trailer'?'Trailer':'Tractor Head'}</small></span></label></div>`).join('')}</div>
+      <div class="row g-2 mb-2">${comps.map(c=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2 h-100"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}" ${(r.selectedComponents || []).includes(+c.id)?'checked':''}><span><b>${UI.esc(c.label)}</b><small class="d-block text-muted">${c.section_key==='trailer'?'Trailer':'Tractor Head'}</small></span></label></div>`).join('')}</div>
       <div class="small mb-3" data-specialization-suggest>Choose components to see suggested specializations.</div>
       <div class="purchasing-receive-section">Lead and assisting mechanics</div>
       <label class="form-label mt-2">Lead mechanic *</label><select class="form-select mb-2" data-final-lead>${mechanicOptions}</select>
       <label class="form-label">Assisting mechanics (optional)</label><div class="row g-2 mb-2">${allMechs.map(m=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span>${UI.esc(m.full_name)}<small class="d-block text-muted">${UI.esc(m.specialization || '')}</small></span></label></div>`).join('')}</div>
       <div class="small mb-3" data-team-preview></div>
       <div class="purchasing-receive-section">Parts requirement</div>
-      <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="To Be Determined">To Be Determined</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
+      <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
       <div data-parts-input hidden><div data-final-lines></div><button type="button" class="btn btn-outline-primary btn-sm" data-final-add-part>Add part</button></div>`;
     const dialog = UI.modal('Finalize Repair Assignment · ' + UI.esc(j.job_ref),html,async (_values,form)=>{
@@ -224,6 +224,7 @@ const MaintUI = {
       const parts_lines = [...form.querySelectorAll('[data-final-part-row]')].map(el=>({part_id:+el.querySelector('[data-part-id]').value,quantity:+el.querySelector('[data-part-qty]').value}));
       if (!lead) throw new Error('Choose a lead mechanic.');
       if (helpers.includes(lead)) throw new Error('Lead mechanic cannot also be an assistant.');
+      if (!['No Parts Needed','Parts Required'].includes(parts_requirement)) throw new Error('Confirm whether replacement parts are required.');
       if (parts_lines.some(x=>!x.part_id||!Number.isInteger(x.quantity)||x.quantity<1)) throw new Error('Choose a part and valid quantity.');
       if (new Set(parts_lines.map(x=>x.part_id)).size!==parts_lines.length) throw new Error('Combine duplicate parts into one request.');
       if (parts_requirement !== 'Parts Required' && parts_lines.length) throw new Error('Select Parts Required before adding parts.');
@@ -376,11 +377,11 @@ const MaintUI = {
       if (i && i.severity === 'Minor' && !['Repaired - Cleared to Continue', 'Resolved'].includes(i.status)) acts.push(['clearance', 'Vehicle clearance', j.verified_at ? 'primary' : 'outline-primary', 'bi-sign-stop']);
       // JOB_HELPER_MECHANICS_V1: assisting mechanics once a lead is assigned. Shown (disabled, with the reason) instead of
       // hidden when the database update is missing, so the custodian can see why it cannot be used.
-      if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status)) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
+      if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status) && !d.motorpoolCatalogReady) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
         : ['helpers-off', 'Add mechanics (needs database update 12)', 'outline-secondary disabled', 'bi-people']);
       if (['Under Inspection', 'Under Repair'].includes(j.status)) {
-        if (j.mechanic_id) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right']);
-        acts.push(['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
+        if (j.mechanic_id && !d.motorpoolCatalogReady) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right']);
+        if (!d.motorpoolCatalogReady || j.assignment_finalized_at) acts.push(['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
       }
     }
     const partsCost = r.parts.reduce((a, p) => a + (+p.released_qty) * (+p.unit_cost || 0), 0), other = r.costs.reduce((a, c) => a + +c.amount, 0);
@@ -496,7 +497,7 @@ const MaintUI = {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
-    if (j.status === 'Under Repair') return +j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle'];
+    if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize Repair Assignment', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
     if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
     return null;
   },
