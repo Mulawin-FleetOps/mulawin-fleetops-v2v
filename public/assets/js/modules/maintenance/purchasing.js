@@ -366,12 +366,12 @@ const PurUI = {
 PurUI.kit = (d, can) => {
     // Purchasing actions must say what they do. Preserve the same data-act and permission checks.
     // Use compact text buttons rather than icon-only controls, including in record tables.
-    const act = (big) => (key, label, icon, cls) => UI.btn(key, label, cls, icon);
+    const act = (big) => (key, label, icon, cls) => UI.btn(key, label, cls);
     // One primary action per request. Purchasing sees the shortage-to-PO shortcut
     // inside the request handling form instead of competing table buttons.
     const reqActs = (r, big) => { const a = act(big);
-      return (can.stock && ['Requested', 'Partially Released', 'Not Available'].includes(r.status) ? a('process', 'Check & Release Parts', 'bi-box-arrow-up', 'primary') : '')
-      + (big ? a('print', 'Print request form', 'bi-printer', 'outline-secondary') : ''); };
+      return (can.stock && ['Requested', 'Partially Released', 'Not Available'].includes(r.status) ? a('process', 'Release Parts', 'bi-box-arrow-up', 'primary') : '')
+      + (big ? a('print', 'Print Request', 'bi-printer', 'outline-secondary') : ''); };
     const reqAct = async (a, r) => {
       if (a === 'details') return PurUI.details(r.id, 'request');
       if (a === 'print') PurUI.printRequest(r);
@@ -381,8 +381,8 @@ PurUI.kit = (d, can) => {
     const poActs = (o, big) => {
       const a = act(big); let h = '';
       if (o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig))) h += a('approve', 'Approve PO', 'bi-check-lg', 'success') + (big ? a('reject', 'Reject PO', 'bi-x-lg', 'outline-danger') : '');
-      if (can.stock && o.status === 'Approved' && d.orderTrackingReady && !o.ordered_at) h += a('order', 'Confirm supplier order', 'bi-cart-check', 'primary');
-      if (can.stock && ['Approved', 'Partially Received'].includes(o.status) && (!o.order_confirmation_required || o.ordered_at)) h += a('receive', 'Record Delivery', 'bi-box-arrow-in-down', 'primary') + (big ? a('close', 'Close Undelivered Balance', 'bi-slash-circle', 'outline-secondary') : '');
+      if (can.stock && o.status === 'Approved' && d.orderTrackingReady && !o.ordered_at) h += a('order', 'Confirm Order Placed', 'bi-cart-check', 'primary');
+      if (can.stock && ['Approved', 'Partially Received'].includes(o.status) && (!o.order_confirmation_required || o.ordered_at)) h += a('receive', 'Receive Parts', 'bi-box-arrow-in-down', 'primary') + (big ? a('close', 'Close Remaining Order', 'bi-slash-circle', 'outline-secondary') : '');
       return h + (big ? a('print', 'Print PO', 'bi-printer', 'outline-secondary') : '');
     };
     const poAct = (a, o) => {
@@ -397,7 +397,7 @@ PurUI.kit = (d, can) => {
     };
     // STOCK_COUNT_RECONCILIATION_V1: no direct +/- adjustment. A discrepancy is recorded as a stock count for the Admin to post.
     const partActs = (p, big) => { const a = act(big);
-      return (can.count && d.countsReady && +p.active ? a('count', 'Record stock count', 'bi-clipboard-check', 'outline-primary') : '') + (can.stock ? a('edit', 'Edit part', 'bi-pencil', 'outline-secondary') : ''); };
+      return (can.count && d.countsReady && +p.active ? a('count', 'Count Stock', 'bi-clipboard-check', 'outline-primary') : '') + (can.stock ? a('edit', 'Edit Part', 'bi-pencil', 'outline-secondary') : ''); };
     const partForm = (p = {}) => {
       if (!d.partIdentityReady) return UI.toast('Part Type / Brand database migration is required before adding or editing parts. Existing stock and records remain readable.', 'warning');
       return UI.formModal(p.id ? 'Edit part' : 'Add part', [
@@ -490,7 +490,7 @@ PurUI.openCount = async (c, can) => {
 };
 
 /** Page toolbar button. */
-PurUI.tool = (ctx, label, icon, fn, cls = 'btn-primary') => { const b = document.createElement('button'); b.className = 'btn btn-sm ' + cls; b.innerHTML = `<i class="bi ${icon}"></i> ${label}`; b.onclick = fn; ctx.tools.append(b); };
+PurUI.tool = (ctx, label, icon, fn, cls = 'btn-primary') => { const b = document.createElement('button'); b.className = 'btn btn-sm ' + cls; b.textContent = label; b.onclick = fn; ctx.tools.append(b); };
 PurUI.prep = (ctx) => { PurUI.data = ctx.data; return { d: ctx.data, can: ctx.data.can, k: PurUI.kit(ctx.data, ctx.data.can) }; };
 PurUI.waitingForMe = (d, can) => (d.orders || []).filter(o => o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig)));
 
@@ -498,22 +498,22 @@ PurUI.waitingForMe = (d, can) => (d.orders || []).filter(o => o.status === 'Pend
    (approver_role) of each record. No employee is named; the responsible role is the one the workflow rules assign. */
 PurUI.poNext = (o) => {
   // Purchasing tracks physical parts, not Finance payment status.
-  if (o.status === 'Pending Approval') return o.approver_role === 'finance' ? ['finance', 'Finance', 'Approve or reject'] : ['admin', 'Admin', 'Approve or reject'];
-  if (o.status === 'Approved' && o.order_confirmation_required && !o.ordered_at) return ['purchasing', 'Purchasing', 'Place the approved order with the supplier'];
-  if (['Approved', 'Partially Received'].includes(o.status)) return ['purchasing', 'Purchasing', 'Verify and record actual supplier delivery'];
+  if (o.status === 'Pending Approval') return o.approver_role === 'finance' ? ['finance', 'Finance', 'Review Purchase Order'] : ['admin', 'Admin', 'Review Purchase Order'];
+  if (o.status === 'Approved' && o.order_confirmation_required && !o.ordered_at) return ['purchasing', 'Purchasing', 'Confirm the supplier order was placed'];
+  if (['Approved', 'Partially Received'].includes(o.status)) return ['purchasing', 'Purchasing', 'Receive the delivered parts'];
    if (/^Rejected/.test(o.status)) return [null, 'No one', 'Rejected: create a new PO if still needed'];
   return [null, 'Completed', o.status === 'Received' ? 'All ordered parts physically received' : 'Closed'];
 };
 PurUI.reqNext = (r) => {
   const pos = r.linked_pos || '';
   const openPo = /\((Pending Approval|Approved|Partially Received)\)/.test(pos);
-  if (r.status === 'Requested') return ['purchasing', 'Purchasing', 'Check stock and release'];
-  if (['Partially Released', 'Not Available'].includes(r.status)) return openPo ? ['purchasing', 'Purchasing', 'Waiting for the linked PO delivery, then release'] : ['purchasing', 'Purchasing', 'Release from stock or create a PO for the shortage'];
+  if (r.status === 'Requested') return ['purchasing', 'Purchasing', 'Release available parts'];
+  if (['Partially Released', 'Not Available'].includes(r.status)) return openPo ? ['purchasing', 'Purchasing', 'Await delivery, then release parts'] : ['purchasing', 'Purchasing', 'Release parts or buy missing parts'];
   return [null, 'Completed', r.status === 'Released' ? 'All parts released' : 'Cancelled'];
 };
 PurUI.chip = ([role, who]) => {
   const me = role && UI.role(role);
-  return `<span class="wait-chip ${role ? (me ? 'is-you' : '') : 'is-done'}"><i class="bi ${role ? 'bi-person-workspace' : 'bi-check2'}" aria-hidden="true"></i>${UI.esc(me ? 'You (' + who + ')' : who)}</span>`;
+  return `<span class="wait-chip ${role ? (me ? 'is-you' : '') : 'is-done'}">${UI.esc(me ? 'Your turn — ' + who : who)}</span>`;
 };
 PurUI.nextBox = (n) => `<div class="ws-next ${n[0] ? '' : 'is-done'}"><i class="bi ${n[0] ? 'bi-arrow-right-circle' : 'bi-check-circle'}" aria-hidden="true"></i><div><b>${n[0] ? 'Waiting for ' + UI.esc(n[1]) : UI.esc(n[1])}</b><div>${UI.esc(n[2])}</div></div></div>`;
 PurUI.timeline = (rows) => (rows || []).length ? `<ul class="ws-timeline">${rows.map(h => `<li><b>${UI.esc(h.action.charAt(0).toUpperCase() + h.action.slice(1))}</b> · ${UI.esc(h.actor)}<div class="tl-when">${UI.datetime(h.created_at)}</div>${h.details ? `<div class="cell-sub">${UI.esc(h.details)}</div>` : ''}</li>`).join('')}</ul>` : '<div class="text-muted small">No activity recorded.</div>';
@@ -524,7 +524,7 @@ PurUI.bindDrawerActions = (root, row, onAct) => root.querySelectorAll('[data-act
    request/PO records. No invented delivery, approval dates or sample records. */
 PurUI.waitingControl = (next, kind, id) =>
   `<button type="button" class="purchasing-waiting-link" data-purchasing-workflow="${UI.esc(kind)}" data-workflow-id="${UI.esc(id)}" aria-label="View full workflow progress">
-    ${PurUI.chip(next)}<span class="cell-sub">${UI.esc(next[2])}</span><span class="purchasing-workflow-hint"><i class="bi bi-diagram-3" aria-hidden="true"></i> View progress</span>
+    ${PurUI.chip(next)}<span class="cell-sub">${UI.esc(next[2])}</span><span class="purchasing-workflow-hint">View Steps</span>
   </button>`;
 
 PurUI.progressStage = (label, state, at, note) => ({
@@ -971,7 +971,7 @@ App.page('inventory', {
           ['Status', 'status', 'badge'],
           ['Waiting for', 'status', (v) => PurUI.chip(v === 'Submitted' ? ['admin', 'Admin'] : [null, 'Completed'])],
           ['Counted by', 'counted_by_name']], rows,
-          { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary', 'bi-eye'),
+          { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary'),
             onAction: (a, c) => a === 'view' ? PurUI.openCount(c, can) : PurUI.countReview(c, a), rowClick: (c) => PurUI.openCount(c, can),
             empty: 'No stock count recorded yet.' });
       PurRef.inlineFilters(box, body);
@@ -1001,7 +1001,7 @@ App.page('inventory', {
         ['On hand', 'quantity_on_hand', (v, p) => `<div class="purchasing-stock-cell"><span class="purchasing-stock-amount"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}</span>${+p.low_stock || openCount.has(+p.id) ? `<span class="purchasing-stock-badges">${+p.low_stock ? '<span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? '<span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>` : ''}</div>`],
         ['Reserved', 'reserved_qty', 'num'], ['Available', 'available_qty', 'num'],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
-        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary', 'bi-eye'),
+        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
     PurRef.inlineFilters(box, body);
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
@@ -1033,14 +1033,14 @@ App.page('stock_movements', {
     const target = PurRef.recordBox(box,'Stock Movement Records','Stock in, stock out and adjustments',rows.length);
     const ref = (m) => m.reference_type === 'purchase_order' ? 'purchase_orders?open=' + m.reference_id : m.reference_type === 'part_request' ? 'parts_requests?open=' + m.reference_id
       : m.reference_type === 'stock_count' ? 'inventory?view=counts&open=' + m.reference_id : '';
-    const refLabel = { purchase_order: ['View Purchase Order', 'bi-cart-check'], part_request: ['View Parts Request', 'bi-box-arrow-up'], stock_count: ['View Stock Count', 'bi-clipboard-check'] };
+    const refLabel = { purchase_order: ['View Purchase Order', ''], part_request: ['View Parts Request', ''], stock_count: ['View Stock Count', ''] };
     target.innerHTML = UI.table([
       ['Date and time', 'created_at', 'datetime'],
       ['Part', 'part_number', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(m.description)}</div>`],
       ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => `<span class="cell-nowrap">${v > 0 ? '+' : ''}${UI.num(v)}</span>`],
       ['Reason', 'reason', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`], ['Truck', 'plate_number'], ['By', 'actor']], rows,
       { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true,
-        actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary', refLabel[m.reference_type][1]) : '',
+        actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary') : '',
         onAction: (a, m) => UI.goTo(ref(m)), empty: 'No stock movement matches.' });
     PurRef.inlineFilters(box, ctx.el);
   },
