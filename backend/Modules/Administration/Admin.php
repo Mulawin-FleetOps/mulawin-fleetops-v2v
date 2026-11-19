@@ -24,7 +24,7 @@ final class Admin {
         $p = db();
         if ($page === 'fuel-adjustment') return Settings::pricingRead($u);
         if ($page === 'notifications') return self::notificationsPage($u, $q);
-        if ($page === 'recent_activity') return self::recentActivityPage($u, $q);
+        if ($page === 'activity_feed') return self::recentActivityPage($u, $q);
         if ($page !== 'audit_reports') requireRole($u, 'admin', 'audit');
         if (str_starts_with($page, 'audit_')) return self::auditPage($u, $p, $page, $q);
         $from = self::d((string)($q['from'] ?? '')) ?? date('Y-m-d', strtotime('-30 days'));
