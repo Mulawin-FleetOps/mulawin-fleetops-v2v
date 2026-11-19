@@ -74,16 +74,17 @@
     try {
       return await originalRoute.apply(this, args);
     } finally {
-      if (mine !== token) return;
-      clearTimeout(showTimer);
-      if (!entered) return;
-      if (!root) return;
-      root.classList.add('is-arrived');
-      const note = root.querySelector('.fleet-truck-note');
-      if (note) note.textContent = 'Destination reached';
-      closeTimer = setTimeout(() => {
-        if (mine === token) hide();
-      }, 500);
+      if (mine === token) {
+        clearTimeout(showTimer);
+        if (entered && root) {
+          root.classList.add('is-arrived');
+          const note = root.querySelector('.fleet-truck-note');
+          if (note) note.textContent = 'Destination reached';
+          closeTimer = setTimeout(() => {
+            if (mine === token) hide();
+          }, 500);
+        }
+      }
     }
   };
   window.addEventListener('pagehide', () => { ++token; pause(); hide(); });
