@@ -574,7 +574,7 @@ const App = {
               <div class="dropdown-menu dropdown-menu-end bell-menu">
                 <div class="bell-head"><span>Recent System Activity</span></div>
                 <div id="activityList" class="bell-list"><div class="bell-empty">Loading recorded activity…</div></div>
-                <a href="#recent_activity?view=all" class="bell-foot" id="activityAll">View all activity</a>
+                <a href="#audit_logs" class="bell-foot" id="activityAll">View Activity Log</a>
               </div>
             </div>
             <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
@@ -775,7 +775,14 @@ const App = {
     document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
-    document.getElementById('activityAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('activityBtn'))?.hide();
+    // Use the EXISTING audited Activity Log as the full-history destination.
+    // Other roles retain their own-action dropdown only; never expose Audit Log.
+    const activityAll = document.getElementById('activityAll');
+    activityAll.hidden = !UI.canGo('audit_logs');
+    activityAll.onclick = e => {
+      if (!UI.canGo('audit_logs')) { e.preventDefault(); return; }
+      bootstrap.Dropdown.getInstance(document.getElementById('activityBtn'))?.hide();
+    };
     document.getElementById('activityBtn').addEventListener('show.bs.dropdown', () => this.refreshActivity());
     this.renderBell();
     this.refreshActivity();
