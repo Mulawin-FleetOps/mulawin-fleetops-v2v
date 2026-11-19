@@ -1360,7 +1360,7 @@ UI.result = (r) => {
 };
 
 /** Company logo (redrawn from the reference forms). */
-UI.logoTag = (cls = '') => `<img src="assets/img/logo.svg" alt="RPM" class="${cls}">`;
+UI.logoTag = (cls = '') => `<img src="assets/img/logo.png?v=20261119" alt="RPM" class="${cls}">`;
 
 /** A button in the page header (top right). */
 UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
