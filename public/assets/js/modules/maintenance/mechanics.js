@@ -100,7 +100,7 @@ App.page('mechanics', {
       ['Availability', 'availability', (v, m) => UI.badge(+m.active ? v : 'Inactive')],
       ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
       ['Completed repairs', 'completed_jobs', 'num']], rows,
-      { showAllColumns: true, directActions: true, limit: 50,
+      { showAllColumns: true, directActions: true, limit: 10,
         actions: () => UI.ibtn('view', 'Open mechanic', 'bi-eye'),
         onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: d.mechanics.length ? 'No mechanic in this list.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
@@ -142,15 +142,15 @@ App.page('mechanic_attendance', {
         ['attendance', 'Attendance', board.length],
         ['sessions', 'Sessions', sessions.length],
       ], tab);
-    const duty = ['in', 'out', 'never'].includes(q.duty) ? q.duty : '';
-    const rows = board.filter(m => duty === 'in' ? !!m.open_time_in : duty === 'out' ? (!m.open_time_in && !!m.last_time_out) : duty === 'never' ? (!m.open_time_in && !m.last_time_out) : true)
+    // Two actionable duty filters: everyone with an open Time In, or everyone without one.
+    // A previous Time Out still counts as Not Timed In (not a separate tab).
+    const duty = q.duty === 'out' || q.duty === 'never' ? 'out' : 'in';
+    const rows = board.filter(m => duty === 'in' ? !!m.open_time_in : !m.open_time_in)
       .map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
     if (tab === 'attendance') {
     const dutyTabs = [
-      ['', 'All', board.length],
       ['in', 'Timed In', on.length],
-      ['out', 'Timed Out', board.filter(m => !m.open_time_in && !!m.last_time_out).length],
-      ['never', 'Not Timed In', board.filter(m => !m.open_time_in && !m.last_time_out).length],
+      ['out', 'Not Timed In', board.length - on.length],
     ];
     ctx.el.insertAdjacentHTML('beforeend', UI.statusTabs('mechanic_attendance', q, 'duty', dutyTabs, duty));
     const box = document.createElement('section'); ctx.el.append(box);
@@ -163,7 +163,7 @@ App.page('mechanic_attendance', {
       ['Availability', 'availability', 'badge'],
       ['Current repair', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck || '')} · ${UI.esc(m.job_status || '')}</div>` : '<span class="text-muted">—</span>'],
       ...(isAdmin ? [['Daily mark', 'daily_mark', (v) => v ? UI.badge(v) : '<span class="text-muted">Not marked</span>']] : [])], rows,
-      { showAllColumns: true, directActions: true, limit: 50,
+      { showAllColumns: true, directActions: true, limit: 10,
         actions: (m) => (can.edit ? `<button type="button" class="btn btn-sm ${m.open_time_in ? 'ds-attendance-action-out' : 'ds-attendance-action-in'}" data-act="toggle" aria-label="${m.open_time_in ? 'Time Out' : 'Time In'} ${UI.esc(m.full_name)}">${m.open_time_in ? 'Time Out' : 'Time In'}</button>` : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
         onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id),
         rowClick: (m) => MechUI.open(m.id),
@@ -181,7 +181,7 @@ App.page('mechanic_attendance', {
         ['Duration', 'minutes', (v) => MechAtt.duration(v)],
         ['Timed in by', 'time_in_by'],
         ['Timed out by', 'time_out_by'],
-      ], sessions, { showAllColumns: true, limit: 50, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
+      ], sessions, { showAllColumns: true, limit: 10, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
     }
   },
 });
