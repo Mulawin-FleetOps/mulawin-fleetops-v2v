@@ -425,7 +425,9 @@ final class Fleet {
             must($helperId===$current,'Regular helper is locked. Contact an administrator for reassignment.',409);
             return;
         }
-        if($helperId===null)return; // A driver can be saved before an unassigned helper becomes available.
+        // Every newly saved fixed Truck crew must have a Helper, regardless of truck type.
+        // Existing historical trip crew records are not rewritten.
+        must($helperId!==null,'Select an available Regular Helper for this Truck.',409);
         $helper=one($p,"SELECT id FROM personnel WHERE id=? AND person_type='Helper' AND active=1 FOR UPDATE",[$helperId]);
         must((bool)$helper,'Selected helper is unavailable. Refresh the form.',409);
         $claimed=one($p,'SELECT id FROM vehicles WHERE active=1 AND assigned_helper_id=? AND id<>? LIMIT 1',
