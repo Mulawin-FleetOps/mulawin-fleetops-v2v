@@ -1761,8 +1761,9 @@ UI.drawTable = (id) => {
     if((!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
       const message=t.filter?'No records match the current search or filters.':t.opts.empty||'No records found.';
       box.innerHTML='<table class="data-table'+(!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : '')+'"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
-      if(pager&&!t.opts.dsServerPaged)pager.innerHTML=UI.recordPager({total:0});
+
     } else { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; }
+    if (pager && !t.opts.dsServerPaged) pager.innerHTML = UI.recordPager({total:0});
     return;
   }
   const pages = Math.ceil(rows.length / t.limit);
@@ -2823,7 +2824,7 @@ UI.signatureModal = () => {
         <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">List</span></button>
         <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">${UI.role('operations_head')||UI.isDispatcher()?'Grid':'Cards'}</span></button>
       </div>
-      <label class="rpm-record-size-label">Per page <select class="form-select form-select-sm" data-rpm-size aria-label="Records per page"><option value="10">10</option></select></label>
+      <span class="rpm-record-size-label" aria-label="Ten records per page">10 per page</span>
     </div>`;
     const originalTools = opts.tools || '';
     const result = oldTable(columns, rows, { ...opts, tools: originalTools + actions });
