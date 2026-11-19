@@ -27,8 +27,8 @@ const MaintUI = {
     if (j.verified_at) return j.source === 'Incident' && j.severity === 'Minor' && j.incident_status !== 'Resolved' && j.incident_status !== 'Repaired - Cleared to Continue'
       ? 'Repair verified. The trip stays On Hold until Motorpool records the vehicle clearance.'
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
-    if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident (Minor or Major) and choose the mechanic.' : 'Assign an available mechanic to start the inspection.';
-    if (j.status === 'Under Inspection') return 'Record the inspection findings and the diagnosis.';
+    if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident (Minor or Major) based on the dispatcher report; mechanic assignment comes later.' : 'Assign an available mechanic to start the inspection.';
+    if (j.status === 'Under Inspection') return j.mechanic_id ? 'Record the inspection findings and the diagnosis.' : 'Incident assessed. Assign a mechanic when inspection or repair can begin; for Minor incidents with no repair needed, use inspection-only clearance.';
     if (j.status === 'Under Repair') return 'Record the corrective action, the completion date and the evidence.';
     return 'Check the truck, then verify it to return it to service.';
   },
@@ -301,9 +301,9 @@ const MaintUI = {
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
     if (act) {
-      if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Select repair plan', 'primary', 'bi-clipboard-pulse']);
+      if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Assess incident', 'primary', 'bi-clipboard-pulse']);
       if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
-      if (j.status === 'Under Inspection') acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
+      if (j.status === 'Under Inspection') acts.push(j.mechanic_id ? ['inspect', 'Record findings', 'primary', 'bi-search'] : ['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
       if (j.status === 'Under Repair') acts.push(+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']);
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
       // INCIDENT_CLEARANCE_V1: Motorpool's Fit / Not Fit to Continue decision for a Minor trip incident.
@@ -312,8 +312,10 @@ const MaintUI = {
       // hidden when the database update is missing, so the custodian can see why it cannot be used.
       if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status)) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
         : ['helpers-off', 'Add mechanics (needs database update 12)', 'outline-secondary disabled', 'bi-people']);
-      if (['Under Inspection', 'Under Repair'].includes(j.status)) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right'],
-        ['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
+      if (['Under Inspection', 'Under Repair'].includes(j.status)) {
+        if (j.mechanic_id) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right']);
+        acts.push(['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
+      }
     }
     const partsCost = r.parts.reduce((a, p) => a + (+p.released_qty) * (+p.unit_cost || 0), 0), other = r.costs.reduce((a, c) => a + +c.amount, 0);
     const truckLine = `<b>${UI.esc(j.plate_number)}</b>${j.truck_number ? ' · #' + UI.esc(j.truck_number) : ''} · ${UI.esc(j.truck_type)} · ${UI.badge(j.truck_status)}`;
@@ -331,7 +333,7 @@ const MaintUI = {
     // Separate the single recommended workflow action from optional supporting tasks.
     // Vehicle clearance stays available for eligible Minor incidents but does not
     // compete visually with inspection, completion, or verification.
-    const mainAction = acts.find(([a]) => ['assess', 'mech', 'inspect', 'complete', 'verify'].includes(a) && (a !== 'mech' || j.status === 'Reported'))
+    const mainAction = acts.find(([a]) => ['assess', 'mech', 'inspect', 'complete', 'verify'].includes(a) && (a !== 'mech' || !j.mechanic_id))
       || acts.find(([a]) => a === 'clearance');
     const supportActions = acts.filter(a => a !== mainAction);
     const actionButton = ([a, l, c, ic]) => `<button type="button" class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}" aria-hidden="true"></i> ` : ''}${UI.esc(l)}</button>`;
@@ -381,11 +383,10 @@ const MaintUI = {
       const a = b.dataset.a;
       if (a === 'helpers') return MaintUI.addHelpers(j, r.helpers, reopen);
       const mech = MaintUI.mechanicOptions(j.mechanic_id);
-      if (a === 'assess') UI.formModal('Repair plan for ' + UI.esc(i.incident_ref), [
-          { name: 'severity', label: 'Repair plan', type: 'select', required: true, col: 12, options: [['Minor', 'Repair at the incident location; continue the trip after clearance'], ['Major', 'Return the truck for repair; reschedule the trip']] },
-          { name: 'mechanic_id', label: 'Mechanic sent / assigned', type: 'select', required: true, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
-          { name: 'recommendation', label: 'Repair recommendation', type: 'textarea', required: true, col: 12 }],
-        'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>${UI.esc(i.problem)}</b> at ${UI.esc(i.location)}.<br>Select the actual repair approach: repair at the incident location and continue after clearance, or return the truck for repair and reschedule the trip.`, after: reopen });
+      if (a === 'assess') UI.formModal('Incident assessment · ' + UI.esc(i.incident_ref), [
+          { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12, options: [['Minor', 'Potential on-site resolution; trip stays On Hold pending clearance'], ['Major', 'Not Fit to Continue; reschedule the trip']] },
+          { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12 }],
+        'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>Dispatcher incident report (read-only)</b><div class="mt-2"><b>Problem:</b> ${UI.esc(i.problem)}<br><b>Location:</b> ${UI.esc(i.location)}<br><b>Reported:</b> ${UI.datetime(i.incident_at)}<br><b>Details:</b> ${UI.e(i.details)}</div><div class="mt-2 small text-muted">Assess based on available reports; no mechanic or physical inspection is required now. The trip remains On Hold unless classified Major (For Reschedule). Assign a mechanic later when inspection or repair can begin.</div>`, after: reopen });
       if (a === 'mech') UI.formModal((j.mechanic_id ? 'Change mechanic for ' : 'Assign mechanic to ') + UI.esc(j.job_ref), [
           { name: 'mechanic_id', label: 'Mechanic', type: 'select', required: true, col: 12, options: mech.filter(o => +o[0] !== +j.mechanic_id), placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
           ...(j.mechanic_id ? [{ name: 'reason', label: 'Reason for the change', required: true, col: 12 }] : [])],
@@ -426,8 +427,8 @@ const MaintUI = {
   /** WS_DESIGN_V1: the one next workflow step offered directly on a Repair Management row (Motorpool only). */
   rowStep(j) {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
-    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Select repair plan', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
-    if (j.status === 'Under Inspection') return ['inspect', 'Record findings', 'bi-search'];
+    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Repair') return +j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle'];
     if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
     return null;
