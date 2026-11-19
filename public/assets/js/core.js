@@ -1771,7 +1771,11 @@ UI.drawTable = (id) => {
   const rows = t.grouped && t.groupColumn ? [...groups.values()].flat() : filteredRows;
   const count = document.querySelector(`[data-tcount="${id}"]`);
   if (count) count.textContent = rows.length === t.rows.length ? `${rows.length} record${rows.length === 1 ? '' : 's'}` : `${rows.length} of ${t.rows.length}`;
-  const pager = box.parentElement.querySelector(`[data-tpager="${id}"]`);
+  // Reference tables wrap the table in .ref-tablebox but place their pager
+  // immediately after it. Resolve the matching ID within this table's own
+  // wrapper so page 1 / 1 remains visible even for fewer than 10 records.
+  const pager = box.parentElement.querySelector(`[data-tpager="${id}"]`)
+    || box.closest('.ref-list, .plain-table')?.querySelector(`[data-tpager="${id}"]`);
   if (pager) pager.innerHTML = '';
   if (!rows.length) {
     if((!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
