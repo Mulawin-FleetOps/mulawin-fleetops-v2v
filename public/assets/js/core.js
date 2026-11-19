@@ -2073,7 +2073,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
    let discardPending = false;
    wrap.addEventListener('hide.bs.modal', (event) => {
      if (confirmPending || discardPending) { event.preventDefault(); return; }
-     if (allowDiscard || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
+     if (allowDiscard || wrap.dataset.draftSaved === '1' || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
      if (UI.modalEditSnapshot(form) === initialValues) return;
      event.preventDefault();
      discardPending = true;
