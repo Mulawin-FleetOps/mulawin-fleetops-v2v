@@ -180,8 +180,6 @@ const FleetUI = {
     const truckCategories=['All',...groups];
     const regularTruck=allTrucks.find(truck=>already.includes(+truck.id));
     const existingHelperId=already.length===1?Number(regularTruck?.assigned_helper_id||0):0;
-    const availableHelpers=(d.assignmentHelpers||[]).filter(helper=>
-      !helper.assigned_vehicle_id||Number(helper.id)===existingHelperId);
 
     const authorizedBoxes=driver?'<div class="driver-auth-selector" data-driver-truck-selector>'
       +'<label class="driver-auth-search-label" for="driver-truck-search">Find a truck</label>'
@@ -384,15 +382,15 @@ const FleetUI = {
           const truckId=selected?Number(selected.name.slice('auth_truck_'.length)):0;
           const truck=allTrucks.find(v=>Number(v.id)===truckId);
           const fixedHelper=Number(truck?.assigned_helper_id||0);
-          // A Car Carrier has no regular Helper in the current backend model.
-          const isCarrier=truck?.truck_type==='Car Carrier';
+          // Regular helper pairing is supported for any authorized truck type.
+          // A truck must be selected; server checks helper/truck availability.
           helperInputs.forEach(input=>{
             const helperId=Number(input.name.slice('regular_helper_choice_'.length));
             const helper=(d.assignmentHelpers||[]).find(h=>Number(h.id)===helperId);
             const otherTruck=!!helper?.assigned_vehicle_id&&Number(helper.assigned_vehicle_id)!==truckId;
-            const selectedFixed=!isCarrier&&fixedHelper>0&&helperId===fixedHelper;
+            const selectedFixed=fixedHelper>0&&helperId===fixedHelper;
             input.checked=selectedFixed;
-            input.disabled=isCarrier||otherTruck||fixedHelper>0;
+            input.disabled=!truck||otherTruck||fixedHelper>0;
             const option=input.closest('.driver-auth-option');
             option?.classList.toggle('is-locked',input.disabled);
             const status=option?.querySelector('.driver-auth-option-status');
@@ -401,7 +399,7 @@ const FleetUI = {
               status.textContent=selectedFixed?'Regular Helper · Locked':input.disabled?'Assigned / Unavailable':'Available';
             }
           });
-          helperCount.textContent=isCarrier?'No regular Helper for Car Carrier'
+          helperCount.textContent=!truck?'Select an authorized Truck first'
             :fixedHelper?'Regular Helper of selected Truck'
             :'Select an available Helper if needed';
         };
