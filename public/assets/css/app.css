@@ -3053,3 +3053,88 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
     padding-right: 11px;
   }
 }
+
+
+/* PURCHASING_WORKFLOW_PROGRESS_V1 — Purchasing-only table and progress action.
+   Keep Linked PO beside Waiting for and the final Actions column; other roles unchanged. */
+.purchasing-table-parts-requests .data-table th,
+.purchasing-table-parts-requests .data-table td,
+.purchasing-table-purchase-orders .data-table th,
+.purchasing-table-purchase-orders .data-table td {
+  padding-left: 11px;
+  padding-right: 11px;
+  vertical-align: middle;
+}
+.purchasing-table-parts-requests .data-table th:nth-last-child(3),
+.purchasing-table-parts-requests .data-table td:nth-last-child(3) {
+  min-width: 136px;
+  max-width: 195px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.purchasing-table-parts-requests .data-table th:nth-last-child(2),
+.purchasing-table-parts-requests .data-table td:nth-last-child(2),
+.purchasing-table-purchase-orders .data-table th:nth-last-child(2),
+.purchasing-table-purchase-orders .data-table td:nth-last-child(2) {
+  min-width: 175px;
+  width: 195px;
+  max-width: 235px;
+  white-space: normal;
+}
+.purchasing-table-parts-requests .data-table td:last-child,
+.purchasing-table-purchase-orders .data-table td:last-child {
+  width: 1%;
+  min-width: 100px;
+  white-space: nowrap;
+}
+.purchasing-waiting-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.purchasing-waiting-link .wait-chip {
+  white-space: normal;
+}
+.purchasing-waiting-link .cell-sub {
+  line-height: 1.4;
+  white-space: normal;
+}
+.purchasing-workflow-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #216d49;
+}
+.purchasing-waiting-link:hover,
+.purchasing-waiting-link:focus-visible {
+  background: #eef7f1;
+  outline: 1px solid #b1d8bc;
+  outline-offset: 1px;
+}
+.purchasing-workflow-links {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.purchasing-workflow-po {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px solid #e0e9e3;
+  border-radius: 9px;
+  padding: 9px 12px;
+}
+.purchasing-workflow-po small { color: var(--text-3); }
