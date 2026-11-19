@@ -76,11 +76,11 @@ final class Purchasing {
                 'budget' => $budget,
             ]),
             'purchase_orders' => readSections([
-                'orders' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
+                'orders' => fn() => array_map(fn($o) => self::poPublicRow($o, $stock), many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
                         (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value,
                         (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' ', l.received_qty, '/', l.quantity) SEPARATOR '; ') FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=o.id) AS items
                     FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
-                    ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500"),
+                    ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500")),
                 // PO form inputs (Purchasing Officer only): parts to order, requests that can be linked, supplier suggestions.
                 'parts' => fn() => $stock ? $partsFull() : [],
                 'linkableRequests' => fn() => $stock ? many($p, "SELECT r.id, r.request_ref, r.status, v.plate_number FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id
@@ -108,6 +108,12 @@ final class Purchasing {
         $data['orderTrackingReady'] = self::orderTrackingReady($p);
         $data['reservationsReady'] = self::reservationsReady($p);
         return $data;
+    }
+
+    /** Keep Finance payment data out of the Purchasing role's PO API payload, not only hidden in the UI. */
+    private static function poPublicRow(array $row, bool $purchasing): array {
+        if ($purchasing) unset($row['payment_status'], $row['paid_amount']);
+        return $row;
     }
 
     /** Parts requests as Purchasing needs them to fulfil: no incident notes, driver or employee data. */
@@ -856,6 +862,7 @@ final class Purchasing {
             LEFT JOIN part_requests r ON r.id=o.part_request_id WHERE o.id=?', [$id]);
         must((bool)$o, 'Purchase order not found.', 404);
         $warrantyReady = self::warrantyConfirmationReady($p);
+        $o = self::poPublicRow($o, hasRole($u, 'purchasing'));
         return ['po' => $o, 'warrantyReady' => $warrantyReady,
             'warrantyBatches' => $warrantyReady ? many($p, "SELECT wb.*, pt.part_number, pt.description FROM part_warranty_batches wb JOIN parts pt ON pt.id=wb.part_id JOIN purchase_order_lines l ON l.id=wb.po_line_id WHERE l.purchase_order_id=? ORDER BY wb.received_at DESC, wb.id DESC", [$id]) : [],
             'lines' => many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id', [$id]),
@@ -916,7 +923,7 @@ final class Purchasing {
         // STAGE_B_PURCHASING_UI: Purchasing / Admin / Audit also get the linked POs and the request's recorded activity.
         // Motorpool's response is unchanged (no PO, supplier or cost data).
         if (!$motorpool) {
-            $out['orders'] = many($p, "SELECT o.id, o.po_ref, o.status, o.payment_status, o.total_amount, o.created_at, COALESCE(o.supplier_name, s.name) AS supplier
+            $out['orders'] = many($p, "SELECT o.id, o.po_ref, o.status, o.total_amount, o.created_at, COALESCE(o.supplier_name, s.name) AS supplier
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id WHERE o.part_request_id=? ORDER BY o.id", [$id]);
             $out['history'] = self::activity($p, 'request ' . $id, ['Inventory']);
         }
