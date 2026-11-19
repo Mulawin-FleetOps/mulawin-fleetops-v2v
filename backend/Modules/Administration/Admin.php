@@ -473,9 +473,16 @@ final class Admin {
         }
         $n = one($p, 'SELECT id, state FROM notifications WHERE id=? AND user_id=?', [$id, $u['id']]);
         must((bool)$n, 'Notification not found.', 404);
-        if ($to === 'Read') run($p, "UPDATE notifications SET state='Read', read_at=COALESCE(read_at, NOW()) WHERE id=? AND state='Unread'", [$id]);
+        if ($to === 'Read') {
+            if ($n['state'] === 'Archived')
+                // Restore only the signed-in user's archived notification.
+                // It returns as already-read, never inflating the unread bell.
+                run($p, "UPDATE notifications SET state='Read', read_at=COALESCE(read_at, NOW()), resolved_at=NULL, resolved_by=NULL WHERE id=? AND user_id=? AND state='Archived'", [$id, $u['id']]);
+            else
+                run($p, "UPDATE notifications SET state='Read', read_at=COALESCE(read_at, NOW()) WHERE id=? AND user_id=? AND state='Unread'", [$id, $u['id']]);
+        }
         elseif ($to === 'Resolved') run($p, "UPDATE notifications SET state='Resolved', read_at=COALESCE(read_at, NOW()), resolved_at=NOW(), resolved_by=? WHERE id=? AND state IN ('Unread','Read')", [$u['id'], $id]);
         else run($p, "UPDATE notifications SET state='Archived', read_at=COALESCE(read_at, NOW()), resolved_at=COALESCE(resolved_at, NOW()), resolved_by=COALESCE(resolved_by, ?) WHERE id=?", [$u['id'], $id]);
-        return ['message' => $to === 'Read' ? 'Marked as read.' : ($to === 'Resolved' ? 'Notification resolved.' : 'Notification archived.')] + Notify::forUser($p, $u['id']);
+        return ['message' => $to === 'Read' ? ($n['state'] === 'Archived' ? 'Notification restored to Read.' : 'Marked as read.') : ($to === 'Resolved' ? 'Notification resolved.' : 'Notification archived.')] + Notify::forUser($p, $u['id']);
     }
 }
