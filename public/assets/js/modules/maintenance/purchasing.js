@@ -281,7 +281,8 @@ PurUI.kit = (d, can) => {
     const poActs = (o, big) => {
       const a = act(big); let h = '';
       if (o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig))) h += a('approve', 'Approve PO', 'bi-check-lg', 'success') + a('reject', 'Reject PO', 'bi-x-lg', 'outline-danger');
-      if (can.stock && ['Approved', 'Partially Received'].includes(o.status)) h += a('receive', 'Receive items', 'bi-box-arrow-in-down', 'primary') + (big ? a('close', 'Close balance (no further delivery)', 'bi-slash-circle', 'outline-secondary') : '');
+      if (can.stock && o.status === 'Approved' && d.orderTrackingReady && !o.ordered_at) h += a('order', 'Mark as Ordered', 'bi-cart-check', 'primary');
+      if (can.stock && ['Approved', 'Partially Received'].includes(o.status) && (!o.order_confirmation_required || o.ordered_at)) h += a('receive', 'Receive items', 'bi-box-arrow-in-down', 'primary') + (big ? a('close', 'Close balance (no further delivery)', 'bi-slash-circle', 'outline-secondary') : '');
       return h + a('print', 'Print PO', 'bi-printer', 'outline-secondary');
     };
     const poAct = (a, o) => {
@@ -290,6 +291,7 @@ PurUI.kit = (d, can) => {
       if (a === 'approve') UI.confirmAction('Approve ' + UI.esc(o.po_ref), `Approve ${UI.money(o.total_amount)} to ${UI.esc(o.supplier)}? The system checks the purchasing budget and reserves the amount; if the budget is not enough the PO is rejected automatically.`
         + (App.me.user.has_signature ? '' : '<div class="small text-warning mt-2">You have no e-signature yet (name menu > My e-signature). Your name is printed instead.</div>'), 'Purchasing.po_decide', { po_id: o.id, decision: 'approve' }, { submit: 'Approve' });
       if (a === 'reject') UI.confirmAction('Reject ' + UI.esc(o.po_ref), 'The Purchasing Officer will be notified.', 'Purchasing.po_decide', { po_id: o.id, decision: 'reject' }, { danger: true, fields: [{ name: 'notes', label: 'Reason', required: true, col: 12 }] });
+      if (a === 'order') UI.confirmAction('Confirm supplier order', 'Only confirm after you actually placed this PO with the supplier. Approval or payment alone does not mean ordered or delivered.', 'Purchasing.po_order', { po_id: o.id }, { submit: 'Mark as Ordered' });
       if (a === 'receive') PurUI.receive(o);
       if (a === 'close') UI.confirmAction('Close ' + UI.esc(o.po_ref), 'Use this when the rest of the order will not be delivered. The reserved budget of the undelivered items is released.', 'Purchasing.po_close', { po_id: o.id }, { fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }] });
     };
@@ -393,7 +395,8 @@ PurUI.waitingForMe = (d, can) => (d.orders || []).filter(o => o.status === 'Pend
 PurUI.poNext = (o) => {
   const due = Math.max(0, (+o.received_value || 0) - (+o.paid_amount || 0));
   if (o.status === 'Pending Approval') return o.approver_role === 'finance' ? ['finance', 'Finance', 'Approve or reject'] : ['admin', 'Admin', 'Approve or reject'];
-  if (['Approved', 'Partially Received'].includes(o.status)) return ['purchasing', 'Purchasing', due > 0 ? 'Receive the rest (Finance can pay ' + UI.money(due) + ' received)' : 'Receive delivered items'];
+  if (o.status === 'Approved' && o.order_confirmation_required && !o.ordered_at) return ['purchasing', 'Purchasing', 'Place the approved order with the supplier'];
+  if (['Approved', 'Partially Received'].includes(o.status)) return ['purchasing', 'Purchasing', 'Verify and record actual supplier delivery'];
   if (['Pending Payment', 'Partially Paid'].includes(o.payment_status) && due > 0) return ['finance', 'Finance', 'Record payment of ' + UI.money(due)];
   if (/^Rejected/.test(o.status)) return [null, 'No one', 'Rejected: create a new PO if still needed'];
   return [null, 'Completed', o.payment_status === 'Paid' ? 'Received and paid' : 'Closed'];
@@ -482,7 +485,7 @@ PurUI.openPO = async (o, k) => {
   const received = x.lines.reduce((a, l) => a + l.received_qty * l.unit_price, 0);
   const row = { ...o, ...p, received_value: received };
   const html = `${PurUI.nextBox(PurUI.poNext(row))}
-    ${UI.kv([['Status', UI.badge(p.status) + (p.payment_status ? ' ' + UI.badge(p.payment_status) : '')], ['Supplier', `<b>${UI.esc(p.supplier)}</b>` + [p.supplier_contact, p.supplier_phone, p.supplier_email].filter(Boolean).map(v => `<div class="cell-sub">${UI.esc(v)}</div>`).join('') + (p.supplier_address ? `<div class="cell-sub">${UI.esc(p.supplier_address)}</div>` : '')],
+    ${UI.kv([['Parts Status', UI.badge(p.status === 'Approved' && p.ordered_at ? 'Ordered' : p.status)], ['Supplier', `<b>${UI.esc(p.supplier)}</b>` + [p.supplier_contact, p.supplier_phone, p.supplier_email].filter(Boolean).map(v => `<div class="cell-sub">${UI.esc(v)}</div>`).join('') + (p.supplier_address ? `<div class="cell-sub">${UI.esc(p.supplier_address)}</div>` : '')],
       ['Purpose', UI.e(p.purpose)], ['Parts request', p.request_ref ? UI.esc(p.request_ref) : 'Not linked'],
       ['Requested', UI.esc(p.requested_by_name) + ' · ' + UI.datetime(p.created_at)],
       ['Approval', (p.approver_role === 'finance' ? 'Finance' : 'Admin') + (p.decided_at ? ' · ' + UI.esc(p.decided_by_name || 'System') + ' · ' + UI.datetime(p.decided_at) : ' · not decided yet') + (p.decision_notes ? `<div class="cell-sub">${UI.esc(p.decision_notes)}</div>` : '')],
@@ -684,17 +687,17 @@ App.page('purchase_orders', {
     ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-purchase-orders');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query, all = d.orders || [];
     if (can.stock) PurUI.tool(ctx, 'New purchase order', 'bi-cart-plus', () => PurUI.newPO());
-    const TABS = { approval: ['Awaiting approval', o => o.status === 'Pending Approval'], receive: ['To receive', o => ['Approved', 'Partially Received'].includes(o.status)],
+    const TABS = { approval: ['Awaiting approval', o => o.status === 'Pending Approval'], ready: ['Ready to order', o => o.status === 'Approved' && o.order_confirmation_required && !o.ordered_at], receive: ['To receive', o => ['Approved', 'Partially Received'].includes(o.status) && (!o.order_confirmation_required || !!o.ordered_at)],
       done: ['Completed', o => ['Received', 'Closed'].includes(o.status)],
       rejected: ['Rejected', o => /^Rejected/.test(o.status)], all: ['All', () => true] };
     const mine = PurUI.waitingForMe(d, can);
     const cnt = (t) => all.filter(TABS[t][1]).length;
     // Default tab: what waits for this user; an empty 'To receive' list falls back to All.
-    const tab = TABS[q.tab] ? q.tab : (mine.length ? 'approval' : (can.stock && cnt('receive') ? 'receive' : 'all'));
+    const tab = TABS[q.tab] ? q.tab : (mine.length ? 'approval' : (can.stock && cnt('ready') ? 'ready' : (can.stock && cnt('receive') ? 'receive' : 'all')));
     const suppliers = [...new Set(all.map(o => o.supplier).filter(Boolean))].sort();
     const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) );
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
+    ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['ready','Ready to order',cnt('ready')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
         ['all','All',cnt('all')]], tab)}
       ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }])}`;
@@ -705,7 +708,7 @@ App.page('purchase_orders', {
       ['PO', 'po_ref', (v, o) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.date(o.created_at)}</div>`],
       ['Supplier', 'supplier', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
       ['Total', 'total_amount', 'money'],
-      ['Parts Status', 'status', 'badge'],
+      ['Parts Status', 'status', (v, o) => UI.badge(v === 'Approved' && o.ordered_at ? 'Ordered' : v)],
       ['Waiting for', 'status', (v, o) => { const n = PurUI.poNext(o); return PurUI.chip(n) + `<div class="cell-sub">${UI.esc(n[2])}</div>`; }]], rows,
       { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
         empty: 'No purchase order in this list.' });
