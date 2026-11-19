@@ -122,6 +122,9 @@ final class Purchasing {
 
     /** Parts requests as Purchasing needs them to fulfil: no incident notes, driver or employee data. */
     private static function requestRows(PDO $p): array {
+        $partLabel = self::partIdentityReady($p)
+            ? "CONCAT_WS(' — ', NULLIF(pt.part_type,''), pt.description, NULLIF(pt.brand,''))"
+            : 'pt.description';
         $reserveExpr = self::reservationsReady($p)
             ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
             : '0';
@@ -132,7 +135,7 @@ final class Purchasing {
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
                 $reserveExpr AS reserved_units,
                 (SELECT GROUP_CONCAT(CONCAT(o.po_ref, ' (', o.status, ')') ORDER BY o.id SEPARATOR '; ') FROM purchase_orders o WHERE o.part_request_id=r.id) AS linked_pos,
-                (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
+                (SELECT GROUP_CONCAT(CONCAT($partLabel, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
                    FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
             FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
             JOIN users ru ON ru.id=r.requested_by LEFT JOIN users pu ON pu.id=r.processed_by
@@ -1027,6 +1030,9 @@ final class Purchasing {
     }
 
     private static function myRequestRows(PDO $p): array {
+        $partLabel = self::partIdentityReady($p)
+            ? "CONCAT_WS(' — ', NULLIF(pt.part_type,''), pt.description, NULLIF(pt.brand,''))"
+            : 'pt.description';
         $reservedSql = self::reservationsReady($p)
             ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
             : '0';
@@ -1039,7 +1045,7 @@ final class Purchasing {
                 (SELECT MAX(sm.created_at) FROM stock_movements sm WHERE sm.reference_type='part_request' AND sm.reference_id=r.id AND sm.movement_type='Stock Out') AS last_released_at,
                 (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
-                (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
+                (SELECT GROUP_CONCAT(CONCAT($partLabel, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
                    FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
             FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users ru ON ru.id=r.requested_by
             WHERE ru.role='motorpool' ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available','Released','Cancelled'), r.id DESC LIMIT 300");
