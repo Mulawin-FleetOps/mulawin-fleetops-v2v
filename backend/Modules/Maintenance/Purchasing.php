@@ -216,7 +216,7 @@ final class Purchasing {
             LEFT JOIN suppliers s ON s.id=o.supplier_id
             WHERE o.status IN ('Approved','Partially Received','Received','Closed')
               AND COALESCE(NULLIF(TRIM(o.supplier_name),''), s.name) IS NOT NULL
-            ORDER BY o.id DESC, l.id DESC LIMIT 3000");
+            ORDER BY (l.received_qty>0) DESC, o.id DESC, l.id DESC LIMIT 3000");
     }
 
     /** Supplier details typed in the PO form (saved with the PO). */
