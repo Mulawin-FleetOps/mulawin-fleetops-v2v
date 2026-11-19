@@ -832,7 +832,7 @@ App.page('mp_parts_requests', {
     };
     const box = document.createElement('div');
     ctx.el.append(box);
-    box.classList.add('mp-reference-table', 'mp-ops-table');
+    box.classList.add('mp-reference-table', 'mp-ops-table', 'mp-parts-records-table');
     box.innerHTML = `<div class="mp-records-heading"><div><strong>Parts Request Records</strong><small>${UI.num(shown.length)} matching request${shown.length === 1 ? '' : 's'}</small></div><small>Requested items and release progress</small></div>` + UI.table(cols, shown, { ...opt, title: TABS.find(t => t[0] === key)[1] + ' (' + shown.length + ')',
       empty: rows.length ? 'No parts request in this list.' : 'No parts requests yet. Use Request parts on a repair record.' });
     const once = UI.takeQuery(ctx, 'open');
