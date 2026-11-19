@@ -3485,6 +3485,9 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 
 /* PURCHASING_PO_HEADER_TOOLBAR_V1 — Purchase Orders matches the Driver Records hierarchy.
    Header + create action stay above; search/filter/sort and page tabs sit inside one records card. */
+.purchasing-table-purchase-orders .purchasing-ref-records-head {
+  display: none; /* The page title and Create Purchase Order already share the header row. */
+}
 .purchasing-table-purchase-orders .purchasing-po-toolbar {
   display: flex;
   flex-wrap: wrap;
