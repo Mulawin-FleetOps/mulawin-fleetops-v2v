@@ -579,7 +579,7 @@ App.page('purchasing_overview', {
       { label:'New Parts Requests', value:n('requests_open'), note:'Awaiting stock check', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo', tone:'blue' },
       { label:'Requests for Follow-up', value:n('requests_followup'), note:'Partial release / unavailable', icon:'bi-clock-history', go:'parts_requests?tab=followup', tone:'amber' },
       { label:'POs Awaiting Approval', value:n('po_pending'), note:'Finance / Admin decision', icon:'bi-check2-square', go:'purchase_orders?tab=approval', tone:'purple' },
-      { label:'Orders to Receive', value:n('po_to_receive'), note:'Approved / partially received', icon:'bi-box-arrow-in-down', go:'purchase_orders?tab=receive', tone:'green' },
+      { label:'Ready to Order', value:n('po_to_order'), note:'Approved, supplier order not yet placed', icon:'bi-cart-check', go:'purchase_orders?tab=ready', tone:'green' },
     ];
     const reqs = d.requests || [];
     const attention = [
@@ -598,7 +598,7 @@ App.page('purchasing_overview', {
     const poRows = [
       UI.wsEntry('purchase_orders?tab=approval', '<b>Pending approval</b>', 'With Finance or the Admin', `<span class="badge-s ${+st.pending_approval ? 'blue' : 'gray'}">${UI.num(+st.pending_approval || 0)}</span>`),
       UI.wsEntry('purchase_orders?tab=receive', '<b>Awaiting delivery</b>', `Approved, not fully received${+st.partially_received ? ' · ' + UI.num(st.partially_received) + ' partially received' : ''}`, `<span class="badge-s ${+st.awaiting_delivery ? 'blue' : 'gray'}">${UI.num(+st.awaiting_delivery || 0)}</span>`),
-      UI.wsEntry('purchase_orders?tab=payment', '<b>Awaiting payment</b>', 'Finance records the payment', `<span class="badge-s ${+st.awaiting_payment ? 'amber' : 'gray'}">${UI.num(+st.awaiting_payment || 0)}</span>`),
+      UI.wsEntry('purchase_orders?tab=ready', '<b>Ready to order</b>', 'Approved, awaiting Purchasing order confirmation', `<span class="badge-s ${+st.ready_to_order ? 'amber' : 'gray'}">${UI.num(+st.ready_to_order || 0)}</span>`),
       budgetRej ? UI.wsEntry('purchase_orders?tab=rejected', '<b>Rejected for budget</b>', 'In the last 30 days', `<span class="badge-s red">${UI.num(budgetRej)}</span>`) : '',
     ].filter(Boolean);
     const budgetFoot = b.id ? `Purchasing budget: <b>${UI.money(b.available)}</b> available of ${UI.money(b.amount)} (${UI.date(b.period_start)} – ${UI.date(b.period_end)})`
