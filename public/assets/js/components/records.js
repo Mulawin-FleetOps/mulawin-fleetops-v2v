@@ -514,7 +514,8 @@ const RecordComponents = Object.freeze({
       }, {filter:filterId, sort:sortId});
     }
     if (!state) toolbar.replaceWith(row);
-    const tabs = options.tabs || root.querySelector('.line-tabs.ws-status-tabs, .record-workspace-tabs');
+    const tabCandidates = root.querySelectorAll('.line-tabs.ws-status-tabs, .record-workspace-tabs');
+    const tabs = options.tabs || tabCandidates[tabCandidates.length - 1];
     if (tabs && !box.contains(tabs)) {
       const category = document.createElement('div');
       category.className = 'record-workspace-category-row record-workspace-view-tabs';
