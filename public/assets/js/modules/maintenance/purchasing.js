@@ -904,12 +904,9 @@ App.page('parts_requests', {
     const tab = TABS[q.tab] ? q.tab : 'todo';
     const cnt = (t) => all.filter(TABS[t][1]).length;
     const trucks = [...new Set(all.map(r => r.plate_number))].sort();
-    const rows = all.filter(TABS[tab][1]).filter(r => (!q.truck || r.plate_number === q.truck) && (!q.po || (q.po === 'linked' ? !!r.linked_pos : !r.linked_pos)));
+    const rows = PurRef.sortRecords(all.filter(TABS[tab][1]).filter(r => (!q.truck || r.plate_number === q.truck) && (!q.po || (q.po === 'linked' ? !!r.linked_pos : !r.linked_pos))), q, 'created_at', 'request_ref');
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')],
-        ...(tab === 'cancelled' ? [['cancelled','Cancelled',cnt('cancelled')]] : []),
-        ['all','All',cnt('all')]], tab)}
-      ${UI.generalFilters(ctx, [{ name: 'truck', label: 'Trucks', options: trucks }, { name: 'po', label: 'PO link', all: 'With or without PO', options: [['linked', 'Has a linked PO'], ['none', 'No linked PO']] }])}`;
+    ctx.el.innerHTML = `<div class="purchasing-record-tabs-slot">${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')], ...(tab === 'cancelled' ? [['cancelled','Cancelled',cnt('cancelled')]] : []), ['all','All',cnt('all')]], tab)}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Parts Request Records','Motorpool requests and release progress',rows.length);
     const open = (r) => PurUI.openRequest(r, k);
@@ -924,7 +921,12 @@ App.page('parts_requests', {
       ['Waiting for', 'status', (v, r) => PurUI.waitingControl(PurUI.reqNext(r), 'request', r.id)]], rows,
       { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, groupBy: 'status', actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
         empty: 'No parts request in this list.' });
-    PurRef.inlineFilters(box, ctx.el);
+    PurRef.recordLayout(ctx, box, {
+      filters: [{ name: 'truck', label: 'Truck', type: 'select', col: 12, options: trucks.map(truck => [truck, truck]) },
+        { name: 'po', label: 'Linked PO', type: 'select', col: 12, options: [['linked', 'Has a linked PO'], ['none', 'No linked PO']] }],
+      sortOptions: [['newest', 'Newest first'], ['oldest', 'Oldest first'], ['reference', 'Request number']],
+      sort: ['oldest', 'reference'].includes(q.sort) ? q.sort : 'newest'
+    });
     PurUI.bindWorkflowLinks(box);
     PurUI.openFromQuery(ctx, all, open);
   },
