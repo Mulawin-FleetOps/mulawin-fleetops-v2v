@@ -874,6 +874,8 @@ App.page('inventory', {
       if (once.open) { const c = counts.find(x => String(x.id) === String(once.open)); if (c) PurUI.openCount(c, can); }
       return;
     }
+    // Keep Inventory table widths independent from the Stock Counts table.
+    ctx.el.classList.add('purchasing-inventory-parts-view');
     const rows = parts.filter(p => (!q.category || p.category === q.category)
       && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +(p.available_qty ?? p.quantity_on_hand) <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)));
     const openCount = new Set(pending.map(c => +c.part_id));
