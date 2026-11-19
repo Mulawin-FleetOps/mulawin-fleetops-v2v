@@ -29,7 +29,7 @@ const PurUI = {
     const parts = (PurUI.data.parts || []).filter(p => +p.active);
     const row = (l = {}) => `<div class="purchasing-line pl-row">
       <div class="purchasing-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part aria-label="Select part to purchase"><option value="">Choose part…</option>
-        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.description)}${withPrice ? "" : " · Available: " + UI.num(p.available_qty ?? p.quantity_on_hand) + " " + UI.esc(p.unit)}</option>`).join('')}</select></div>
+        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc([p.part_type, p.description, p.brand].filter(Boolean).join(' — '))}${!p.part_type ? ' (type not classified)' : ''}${withPrice ? "" : " · Available: " + UI.num(p.available_qty ?? p.quantity_on_hand) + " " + UI.esc(p.unit)}</option>`).join('')}</select></div>
         <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
         ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"></div>` : ''}</div>
       ${withPrice ? '<div class="purchasing-line-amount" data-lt></div>' : ''}
@@ -383,8 +383,10 @@ PurUI.kit = (d, can) => {
       return (can.count && d.countsReady && +p.active ? a('count', 'Record stock count', 'bi-clipboard-check', 'outline-primary') : '') + (can.stock ? a('edit', 'Edit part', 'bi-pencil', 'outline-secondary') : ''); };
     const partForm = (p = {}) => UI.formModal(p.id ? 'Edit part' : 'Add part', [
       { name: 'part_id_display', label: 'Part ID', col: 4, value: p.part_number || 'Assigned after saving', attrs: 'readonly aria-readonly="true" tabindex="-1"', help: p.id ? 'Permanent reference · cannot be edited.' : 'Automatically generated when you save.' },
-      { name: 'description', label: 'Part Name', required: true, col: 8, value: p.description, placeholder: 'e.g. Brake pad set', attrs: 'maxlength="200"' },
-      { name: 'category', label: 'Category', col: 6, value: p.category, placeholder: 'e.g. Brake system', attrs: 'maxlength="80"' },
+      { name: 'part_type', label: 'Part Type', required: !p.id || !!p.part_type, col: 4, value: p.part_type, placeholder: 'e.g. Tire', attrs: 'maxlength="100"', help: p.id && !p.part_type ? 'Legacy item: classify when its actual type is verified.' : 'General part type; may be shared by different variants.' },
+      { name: 'description', label: 'Part Name / Specification', required: true, col: 4, value: p.description, placeholder: 'Specific item or size', attrs: 'maxlength="200"', help: 'Use the exact recorded specification; do not guess for legacy stock.' },
+      { name: 'brand', label: 'Brand (optional)', col: 6, value: p.brand, attrs: 'maxlength="100"' },
+      { name: 'category', label: 'Category (optional)', col: 6, value: p.category, placeholder: 'Inventory grouping', attrs: 'maxlength="80"' },
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
       { name: 'unit_cost', label: 'Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Cost per unit, not total stock value.' },
       { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
@@ -690,7 +692,7 @@ PurUI.openPO = async (o, k) => {
 PurUI.openPart = async (pt, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.part_history', { part_id: pt.id }); const p = x.part;
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
-  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Name', UI.esc(p.description)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.low_stock ? ' <span class="badge-s red">Low stock</span>' : '')], ['Reserved', UI.num(p.reserved_qty || 0) + ' ' + UI.esc(p.unit)], ['Available', UI.num(p.available_qty ?? p.quantity_on_hand) + ' ' + UI.esc(p.unit)],
+  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Type', UI.e(p.part_type) || 'Not classified'], ['Part Name / Specification', UI.esc(p.description)], ['Brand', UI.e(p.brand)], ['Category', UI.e(p.category)], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.low_stock ? ' <span class="badge-s red">Low stock</span>' : '')], ['Reserved', UI.num(p.reserved_qty || 0) + ' ' + UI.esc(p.unit)], ['Available', UI.num(p.available_qty ?? p.quantity_on_hand) + ' ' + UI.esc(p.unit)],
       ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
 
       p.warranty_info ? ['Historical warranty note', UI.esc(p.warranty_info)] : null])}
@@ -962,13 +964,14 @@ App.page('inventory', {
     body.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
       + UI.table([
         ['Part ID', 'part_number', (v, p) => `<span class="cell-nowrap">${UI.esc(v)}</span>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
+        ['Part Type', 'part_type', (v) => v ? UI.esc(v) : '<span class="text-muted">Not classified</span>'],
         ['Part Name', 'description', (v, p) => {
           const expiry = p.earliest_warranty_expiry;
           const today = new Date(), date = [today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
           const near = new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
           const limit = [near.getFullYear(),String(near.getMonth()+1).padStart(2,'0'),String(near.getDate()).padStart(2,'0')].join('-');
           const alert = expiry ? (expiry < date ? 'Expired warranty batch' : expiry <= limit ? 'Warranty expiring soon' : '') : '';
-          return `<b class="cell-clamp">${UI.esc(v)}</b>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`
+          return `<b class="cell-clamp">${UI.esc(v)}</b>${p.brand ? `<div class="cell-sub">${UI.esc(p.brand)}</div>` : ''}`
             + (alert ? `<div class="cell-sub"><span class="badge-s ${expiry < date ? 'red' : 'amber'}" title="Earliest recorded warranty expiry: ${UI.esc(expiry)}">${alert}</span></div>` : '');
         }],
         ['On hand', 'quantity_on_hand', (v, p) => `<div class="purchasing-stock-cell"><span class="purchasing-stock-amount"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}</span>${+p.low_stock || openCount.has(+p.id) ? `<span class="purchasing-stock-badges">${+p.low_stock ? '<span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? '<span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>` : ''}</div>`],
