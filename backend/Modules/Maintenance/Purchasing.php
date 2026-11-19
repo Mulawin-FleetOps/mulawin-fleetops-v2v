@@ -101,6 +101,7 @@ final class Purchasing {
         $data['countsReady'] = self::countsReady($p);
         $data['warrantyReady'] = self::warrantyConfirmationReady($p);
         $data['orderTrackingReady'] = self::orderTrackingReady($p);
+        $data['reservationsReady'] = self::reservationsReady($p);
         return $data;
     }
 
@@ -474,6 +475,7 @@ final class Purchasing {
         $ref = refNumber('RF', $rid);
         run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
         foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
+        self::reserveNewRequest($p, $rid, $lines);
         auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
             [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
         Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'parts_requests', 'parts-req-' . $rid);
@@ -498,11 +500,55 @@ final class Purchasing {
             $ref = refNumber('RF', $rid);
             run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
             foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
+            self::reserveNewRequest($p, $rid, $lines);
             auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
                 [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
             Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'parts_requests', 'parts-req-' . $rid);
             return ['message' => "Request $ref sent to the Purchasing Officer."];
         });
+    }
+
+    /** Never reserve inventory that is not physically on hand. All writers lock parts first. */
+    private static function reservationsReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 AS ok FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='part_request_lines' AND column_name='reserved_qty'");
+    }
+
+    /** Allocate available inventory to this new Motorpool request; no stock-out and no PO. */
+    private static function reserveNewRequest(PDO $p, int $requestId, array $lines): void {
+        if (!self::reservationsReady($p)) return; // Pre-migration compatibility.
+        usort($lines, static fn($a, $b) => (int)$a['part_id'] <=> (int)$b['part_id']);
+        foreach ($lines as $line) {
+            $pid = (int)$line['part_id'];
+            $part = one($p, 'SELECT id, quantity_on_hand FROM parts WHERE id=? FOR UPDATE', [$pid]);
+            must((bool)$part, 'Part is no longer available.', 409);
+            $already = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$pid])['qty'];
+            $available = max(0, (int)$part['quantity_on_hand'] - $already);
+            $reserve = min((int)$line['quantity'], $available);
+            if ($reserve > 0) run($p, 'UPDATE part_request_lines SET reserved_qty=? WHERE part_request_id=? AND part_id=?', [$reserve, $requestId, $pid]);
+        }
+    }
+
+    /** When a supplier delivery arrives, allocate genuinely free units to oldest open requests.
+     * Called inside the same receiving transaction, after the stock-in movement is recorded.
+     */
+    private static function allocateArrivedStock(PDO $p, int $partId): void {
+        if (!self::reservationsReady($p)) return;
+        $part = one($p, 'SELECT quantity_on_hand FROM parts WHERE id=? FOR UPDATE', [$partId]);
+        $reserved = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$partId])['qty'];
+        $free = max(0, (int)$part['quantity_on_hand'] - $reserved);
+        if (!$free) return;
+        $waiting = many($p, "SELECT l.id, l.quantity, l.released_qty, l.reserved_qty FROM part_request_lines l
+            JOIN part_requests r ON r.id=l.part_request_id
+            WHERE l.part_id=? AND r.status IN ('Requested','Partially Released','Not Available')
+              AND l.quantity>l.released_qty+l.reserved_qty
+            ORDER BY r.created_at, r.id, l.id FOR UPDATE", [$partId]);
+        foreach ($waiting as $line) {
+            if (!$free) break;
+            $alloc = min($free, (int)$line['quantity'] - (int)$line['released_qty'] - (int)$line['reserved_qty']);
+            if ($alloc <= 0) continue;
+            run($p, 'UPDATE part_request_lines SET reserved_qty=reserved_qty+? WHERE id=?', [$alloc, $line['id']]);
+            $free -= $alloc;
+        }
     }
 
     /** Purchasing checks the stock and releases what is available (stock-out). */
@@ -524,8 +570,17 @@ final class Purchasing {
                     $q = $want[(int)$l['id']] ?? 0;
                     if ($q <= 0) continue;
                     must($q <= (int)$l['quantity'] - (int)$l['released_qty'], 'Cannot release more than requested for ' . $l['part_number'] . '.');
+                    if (self::reservationsReady($p)) {
+                        $stock = one($p, 'SELECT quantity_on_hand FROM parts WHERE id=? FOR UPDATE', [$l['part_id']]);
+                        $totalReserved = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$l['part_id']])['qty'];
+                        $free = max(0, (int)$stock['quantity_on_hand'] - $totalReserved);
+                        must($q <= (int)$l['reserved_qty'] + $free, 'Not enough unreserved stock to release ' . $l['part_number'] . '.', 409);
+                    }
                     self::move($p, $u, (int)$l['part_id'], 'Stock Out', -$q, (float)$l['cost'], 'Released for ' . $r['request_ref'], 'part_request', $id, (int)$r['vehicle_id'], $r['maintenance_job_id'] ? (int)$r['maintenance_job_id'] : null);
-                    run($p, 'UPDATE part_request_lines SET released_qty=released_qty+?, unit_cost=? WHERE id=?', [$q, $l['cost'], $l['id']]);
+                    if (self::reservationsReady($p))
+                        run($p, 'UPDATE part_request_lines SET released_qty=released_qty+?, reserved_qty=GREATEST(reserved_qty-?,0), unit_cost=? WHERE id=?', [$q, $q, $l['cost'], $l['id']]);
+                    else
+                        run($p, 'UPDATE part_request_lines SET released_qty=released_qty+?, unit_cost=? WHERE id=?', [$q, $l['cost'], $l['id']]);
                     $released += $q;
                 }
                 must($released > 0, 'Enter the quantity to release, or mark the request as Not Available.');
@@ -548,6 +603,7 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $id) {
             $r = one($p, 'SELECT * FROM part_requests WHERE id=? FOR UPDATE', [$id]);
             must($r && $r['status'] === 'Requested', 'Only a request that is still Requested can be cancelled.', 409);
+            if (self::reservationsReady($p)) run($p, 'UPDATE part_request_lines SET reserved_qty=0 WHERE part_request_id=?', [$id]);
             run($p, "UPDATE part_requests SET status='Cancelled' WHERE id=?", [$id]);
             Notify::resolve($p, 'parts-req-' . $id);
             auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request cancelled', $r['request_ref'],
@@ -679,6 +735,7 @@ final class Purchasing {
                 if ($q <= 0) continue;
                 must($q <= (int)$l['quantity'] - (int)$l['received_qty'], 'Received quantity of ' . $l['part_number'] . ' is more than the remaining ordered quantity.');
                 self::move($p, $u, (int)$l['part_id'], 'Stock In', $q, (float)$l['unit_price'], 'Received from ' . $o['po_ref'], 'purchase_order', $id);
+                self::allocateArrivedStock($p, (int)$l['part_id']);
                 run($p, 'UPDATE parts SET unit_cost=? WHERE id=?', [$l['unit_price'], $l['part_id']]);
                 run($p, 'UPDATE purchase_order_lines SET received_qty=received_qty+? WHERE id=?', [$q, $l['id']]);
                 must(isset($warrantyInputs[(int)$l['id']]), 'Confirm warranty status for each received item.');
