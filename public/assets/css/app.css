@@ -3336,3 +3336,61 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .mp-parts-records-table .data-table th,
   .mp-parts-records-table .data-table td { padding: 10px 9px; }
 }
+
+
+/* SYSTEM_TABLE_WIDTH_ALIGNMENT_V1 (2026-11-19)
+   Keep shared lists full-width without replacing per-page column sizing. */
+:where(.ref-tablebox, .plain-table, .fleet-data-table, .table-wrap) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+.ref-tablebox,
+.ref-tablebox > .table-wrap,
+.plain-table > .table-wrap,
+.fleet-data-table > .table-wrap,
+.table-wrap[data-tbody] { width: 100%; }
+.table-wrap:has(> table.data-table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.table-wrap > table.data-table {
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none;
+  border-spacing: 0;
+}
+.table-wrap > table.data-table th,
+.table-wrap > table.data-table td {
+  box-sizing: border-box;
+  vertical-align: middle;
+  line-height: 1.42;
+}
+.table-wrap > table.data-table th.count-col,
+.table-wrap > table.data-table td.count-col,
+.table-wrap > table.data-table th.status-col,
+.table-wrap > table.data-table td.status-col { text-align: center; }
+.table-wrap > table.data-table th.money-col,
+.table-wrap > table.data-table td.money-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table-wrap > table.data-table th.actions-col,
+.table-wrap > table.data-table td.actions-col { text-align: right; }
+.table-wrap > table.data-table td.actions-col .row-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+.table-wrap > table.data-table td .cell-sub {
+  display: block;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+@media (max-width: 767.98px) {
+  .table-wrap > table.data-table th,
+  .table-wrap > table.data-table td { padding: 9px 10px; }
+}
