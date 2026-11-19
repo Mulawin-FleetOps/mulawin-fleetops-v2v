@@ -3174,8 +3174,6 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .mp-parts-records-table .data-table th:nth-child(7) { width: 10%; }
 .mp-parts-records-table .data-table th:nth-child(8) { width: 15%; }
 .mp-parts-records-table .data-table th:nth-child(9) { width: 7%; }
-.mp-parts-records-table .data-table th.col-grow,
-.mp-parts-records-table .data-table td.col-grow { width: auto; }
 .mp-parts-records-table .data-table td:nth-child(1) b,
 .mp-parts-records-table .data-table td:nth-child(2) { overflow-wrap: anywhere; }
 .mp-parts-records-table .data-table td:nth-child(3) .cell-clip {
