@@ -2243,3 +2243,38 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 @media(max-width:1050px){
   #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table:not(:has(th:nth-child(10))) {min-width:980px}
 }
+
+
+/* PURCHASING_PART_IDENTITY_TABLE_V12
+   Parts list now has 9 data columns plus Actions (10 total). */
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table {
+  width:100%;
+  min-width:1050px;
+  max-width:100%;
+  table-layout:fixed;
+  border-collapse:collapse;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td){
+  box-sizing:border-box;
+  min-width:0;
+  max-width:none;
+  vertical-align:middle;
+  overflow-wrap:normal;
+  padding:12px 8px;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1){width:10%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2){width:13%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3){width:16%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4){width:15%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5){width:7%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(6){width:8%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(7){width:10%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(8){width:9%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(9){width:7%}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(10){width:5%;min-width:105px}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):last-child{
+  white-space:nowrap;
+  text-align:center;
+  padding-inline:4px;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons{gap:3px;flex-wrap:nowrap}
