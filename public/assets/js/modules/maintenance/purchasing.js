@@ -28,14 +28,14 @@ const PurUI = {
   lineEditor(withPrice, lines = []) {
     const parts = (PurUI.data.parts || []).filter(p => +p.active);
     const row = (l = {}) => `<div class="purchasing-line pl-row">
-      <div class="purchasing-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part><option value="">Choose part…</option>
-        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.part_number)} · ${UI.esc(p.description)} (on hand ${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)})</option>`).join('')}</select></div>
+      <div class="purchasing-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part aria-label="Select part to purchase"><option value="">Choose part…</option>
+        ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc(p.description)} · ${UI.esc(p.part_number)}${withPrice ? "" : " · " + UI.num(p.available_qty ?? p.quantity_on_hand) + " " + UI.esc(p.unit) + " available"}</option>`).join('')}</select></div>
         <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
         ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"></div>` : ''}</div>
       ${withPrice ? '<div class="purchasing-line-amount" data-lt></div>' : ''}
       <button type="button" class="btn btn-outline-danger btn-sm purchasing-remove" data-remove-row title="Remove item" aria-label="Remove item"><i class="bi bi-trash"></i></button>
     </div>`;
-    return `<section class="purchasing-line-editor"><div class="purchasing-line-title"><div><strong>Items to purchase</strong><small>Choose a catalog part, quantity and unit price.</small></div>
+    return `<section class="purchasing-line-editor"><div class="purchasing-line-title"><div><strong>Items to purchase</strong><small>Choose the part to order, quantity and unit price. Items with zero on-hand stock can still be purchased; stock increases only after receiving.</small></div>
       <button type="button" class="btn btn-outline-primary btn-sm" data-addrow><i class="bi bi-plus-lg me-1"></i>Add item</button></div>
       ${parts.length ? '' : '<div class="alert alert-warning small">No parts in catalog. Add a part through Inventory before creating a PO.</div>'}
       <div data-lines>${(lines.length ? lines : [{}]).map(row).join('')}</div>
