@@ -431,6 +431,85 @@ App.page('admin_reports', {
   },
 });
 
+// Near-real-time analytics: one poller for the active Admin analytics route.
+// It does not call App.route(), change the URL, or refresh the browser.
+const AnalyticsAutoSync = {
+  active: null,
+  attach(ctx, renderPage) {
+    const route = App.current;
+    if (!route || route.page !== ctx.page || document.getElementById('pageBody') !== ctx.el) return;
+    const token = JSON.stringify({page:ctx.page,query:ctx.query});
+    let job = this.active;
+    if (!job || job.route !== route || job.token !== token) {
+      if (job?.timer) clearInterval(job.timer);
+      job = {route,token,ctx,renderPage,last:JSON.stringify(ctx.data),updated:new Date(),busy:false,error:false,timer:null};
+      this.active = job;
+      job.timer = setInterval(() => this.poll(job), 30000);
+    } else {
+      job.ctx = ctx;
+      job.renderPage = renderPage;
+      job.last = JSON.stringify(ctx.data);
+    }
+    this.status(job);
+  },
+  status(job) {
+    const el = job.ctx.el.querySelector('#ax-sync-status');
+    if (!el) return;
+    el.textContent = job.error ? 'Sync unavailable · showing last loaded data'
+      : 'Auto-sync every 30s · Last checked ' + job.updated.toLocaleTimeString();
+    el.setAttribute('role','status');
+  },
+  async poll(job) {
+    if (this.active !== job || App.current !== job.route ||
+        document.getElementById('pageBody') !== job.ctx.el) {
+      clearInterval(job.timer);
+      if (this.active === job) this.active = null;
+      return;
+    }
+    if (job.busy || document.hidden || document.querySelector('.modal.show') ||
+        (document.activeElement && job.ctx.el.contains(document.activeElement) &&
+         /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) return;
+    job.busy = true;
+    try {
+      const fresh = await App.data(job.ctx.page, job.ctx.query);
+      if (this.active !== job || App.current !== job.route) return;
+      const fingerprint = JSON.stringify(fresh);
+      if (fingerprint !== job.last) {
+        // Preserve the exact investigation, viewport and nested scroll positions.
+        const root = job.ctx.el;
+        const chosen = root.querySelector('#ax-evidence-details [data-incident-ref]')?.dataset.incidentRef;
+        const scrollY = window.scrollY;
+        const scrollers = [...root.querySelectorAll('*')].filter(n => n.scrollTop > 0)
+          .map(n => ({id:n.id,cls:n.className,top:n.scrollTop,left:n.scrollLeft}))
+          .filter(n => typeof n.cls === 'string' && (n.id || n.cls));
+        job.ctx.data = fresh;
+        await job.renderPage(job.ctx);
+        if (chosen) {
+          const rows = job.ctx._incidentEvidenceRows || [];
+          const i = rows.findIndex(r => String(r.incident_ref) === chosen);
+          const btn = i >= 0 ? job.ctx.el.querySelector('[data-ax-evidence="'+i+'"]') : null;
+          btn?.click();
+        }
+        scrollers.forEach(saved => {
+          const node = saved.id ? root.querySelector('#'+CSS.escape(saved.id))
+            : [...root.querySelectorAll('*')].find(n => n.className === saved.cls);
+          if(node){node.scrollTop=saved.top;node.scrollLeft=saved.left;}
+        });
+        window.scrollTo({top:scrollY,behavior:'instant'});
+        job.last = fingerprint;
+      }
+      job.updated = new Date();
+      job.error = false;
+    } catch (e) {
+      job.error = true;
+      console.warn('Analytics background sync failed:',e);
+    } finally {
+      job.busy = false;
+      if(this.active === job) this.status(job);
+    }
+  }
+};
+
 // ---------------------------------------------------------------- Head Admin analytics — Objective 5
 // Descriptive: recorded totals and trends. Diagnostic: ranked patterns for review.
 // The same server-validated reports feed the charts; no sample numbers or new actions.
@@ -699,7 +778,7 @@ App.page('admin_reports', {
     ctx.el.innerHTML = css + '<div class="ax-shell"><div class="ax-header"><div><span class="ax-objective">OBJECTIVE 5 · HEAD ADMIN ONLY</span>'
       + '<h2>'+(diagnostic?'Diagnostic':'Descriptive')+' Analytics · '+escape(kind==='management'?'Management Reports':kind==='audit'?'Audit Reports':selected[1])+'</h2>'
       + '<p>'+(diagnostic?'Investigate recurring issues, ranked contributors, receivables aging and part consumption.':'Recorded performance summaries, totals and trends by reporting period.')+'</p></div>'
-      + '<span class="ax-objective"><i class="bi bi-shield-lock"></i> Management access</span></div>'
+      + '<div><span class="ax-objective"><i class="bi bi-shield-lock"></i> Management access</span><div id="ax-sync-status" class="small text-muted mt-1" aria-live="polite"></div></div></div>'
       + modeNav
       + '<div class="ax-filters"><div><label for="ax-from">From</label><input type="date" class="form-control form-control-sm" id="ax-from" value="'+escape(per.from||'')+'"></div>'
       + '<div><label for="ax-to">To</label><input type="date" class="form-control form-control-sm" id="ax-to" value="'+escape(per.to||'')+'"></div>'
@@ -732,7 +811,7 @@ App.page('admin_reports', {
       const row=(ctx._incidentEvidenceRows||[])[Number(button.dataset.axEvidence)];
       const target=ctx.el.querySelector('#ax-evidence-details');
       if(!row||!target)return;
-      target.innerHTML='<section class="panel mt-3"><div class="panel-head"><h2 class="panel-title">Supporting record · '+escape(row.incident_ref)+'</h2></div><div class="panel-body">'
+      target.innerHTML='<section data-incident-ref="'+escape(row.incident_ref)+'" class="panel mt-3"><div class="panel-head"><h2 class="panel-title">Supporting record · '+escape(row.incident_ref)+'</h2></div><div class="panel-body">'
         +'<p class="small text-muted">Read-only snapshot of the recorded relationship. Review the source modules for full historical details.</p>'
         +'<dl class="row small"><dt class="col-sm-4">Incident type / status</dt><dd class="col-sm-8">'+escape(row.incident_type)+' · '+escape(row.incident_status)+'</dd>'
         +'<dt class="col-sm-4">Recorded problem</dt><dd class="col-sm-8">'+escape(row.problem)+'</dd>'
@@ -765,5 +844,6 @@ App.page('admin_reports', {
       if(canvas) { canvas.style.cursor='pointer'; canvas.setAttribute('aria-label','Incident types chart. Select a category using the filter buttons below the chart.'); }
     }
 
+    AnalyticsAutoSync.attach(ctx, App.pages[analyticsPage].render);
   },
 }));
