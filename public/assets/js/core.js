@@ -954,7 +954,9 @@ const App = {
     // variable page-action toolbar. Other roles never receive this button.
     const header = el.querySelector('.page-head');
     const actions = header?.querySelector('#pageTools');
-    if (header && actions) {
+    // Descriptive/Diagnostic render their heading and Admin controls together
+    // inside the analytics card; avoid a detached, empty shared header.
+    if (header && actions && !['admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
       const isReport = ['reports','operations_reports','financial_reports','billing_reports',
         'maintenance_reports','purchasing_reports','audit_reports','admin_reports','admin_analytics',
         'admin_descriptive_analytics','admin_diagnostic_analytics'].includes(page);
