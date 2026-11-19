@@ -38,6 +38,7 @@ const PurUI = {
     return `<section class="purchasing-line-editor"><div class="purchasing-line-title"><div><strong>Items to purchase</strong><small>Choose the part to order, quantity and unit price. Items with zero on-hand stock can still be purchased; stock increases only after receiving.</small></div>
       <button type="button" class="btn btn-outline-primary btn-sm" data-addrow><i class="bi bi-plus-lg me-1"></i>Add item</button></div>
       ${parts.length ? '' : '<div class="alert alert-warning small">No parts in catalog. Add a part through Inventory before creating a PO.</div>'}
+      ${withPrice ? '<p class="small text-muted mb-2" data-part-supplier-hint aria-live="polite">Choose a part to check previous supplier records.</p>' : ''}
       <div data-lines>${(lines.length ? lines : [{}]).map(row).join('')}</div>
       ${withPrice ? '<div class="purchasing-line-total" data-total></div><div class="small text-muted text-end" data-route></div>' : ''}</section>`;
   },
@@ -73,11 +74,13 @@ const PurUI = {
       last.querySelectorAll('input').forEach(i => i.value = '');
       last.querySelector('[data-part]').value = '';
       calc();
+      w._updatePartSupplier?.();
     };
     host.addEventListener('click', e => {
       const button = e.target.closest('[data-remove-row]');
       if (!button || host.querySelectorAll('.pl-row').length === 1) return;
       button.closest('.pl-row').remove(); calc();
+      w._updatePartSupplier?.();
     });
     host.addEventListener('input', calc);
     host.addEventListener('change', e => {
@@ -86,6 +89,7 @@ const PurUI = {
         if (!input.value) input.value = e.target.selectedOptions[0]?.dataset.cost || '';
       }
       calc();
+      if (e.target.matches('[data-part]')) w._updatePartSupplier?.();
     });
     calc();
   },
@@ -116,6 +120,81 @@ const PurUI = {
         .forEach(([field, key]) => { if (!f(field).value.trim() && hit[key]) f(field).value = hit[key]; });
     });
   },
+  /** Autofill only when actual past PO history clearly identifies one supplier.
+   *  Never replace supplier details manually entered by Purchasing. */
+  wirePartSuppliers(w) {
+    const history = PurUI.data.partSupplierHistory || [];
+    const byPart = new Map();
+    history.forEach(h => {
+      const key = String(h.part_id), name = String(h.name || '').trim();
+      if (!key || !name) return;
+      if (!byPart.has(key)) byPart.set(key, new Map());
+      const names = byPart.get(key);
+      const code = name.toUpperCase();
+      // SQL orders newest first: do not overwrite the latest supplier snapshot.
+      if (!names.has(code)) names.set(code, h);
+    });
+    const form = w.querySelector('form'), info = w.querySelector('[data-part-supplier-hint]');
+    const field = name => form.querySelector('[name="' + name + '"]');
+    const keys = [['supplier_address','address'], ['supplier_contact','contact_person'],
+      ['supplier_phone','contact_number'], ['supplier_email','email']];
+    let auto = null;
+    const isAuto = () => auto && field('supplier_name').value === auto.name
+      && keys.every(([key]) => field(key).value === auto[key]);
+    const clearAuto = () => {
+      if (isAuto()) {
+        field('supplier_name').value = '';
+        keys.forEach(([key]) => { field(key).value = ''; });
+      }
+      auto = null;
+    };
+    const note = message => { if (info) info.textContent = message; };
+    const update = () => {
+      const ids = [...w.querySelectorAll('[data-part]')].map(el => el.value).filter(Boolean);
+      if (!ids.length) {
+        clearAuto();
+        note('Choose a part to check previous supplier records.');
+        return;
+      }
+      const histories = ids.map(id => byPart.get(String(id)));
+      if (histories.some(h => !h || !h.size)) {
+        clearAuto();
+        note('No complete supplier history for the selected items. Enter or confirm the supplier manually.');
+        return;
+      }
+      const common = [...histories[0].keys()].filter(name => histories.every(h => h.has(name)));
+      if (common.length !== 1) {
+        clearAuto();
+        note(common.length ? 'More than one historical supplier matches these parts. Choose the supplier manually.'
+          : 'The selected parts have different past suppliers. Choose the supplier for this PO manually.');
+        return;
+      }
+      const source = histories[0].get(common[0]);
+      const supplier = field('supplier_name');
+      if (supplier.value.trim() && (!auto || supplier.value !== auto.name)) {
+        note('Previous supplier: ' + source.name + ' (' + source.po_ref + '). Your entered supplier is kept.');
+        return;
+      }
+      if (auto && !isAuto()) {
+        auto = null;
+        note('Supplier details were edited manually. Existing values were kept.');
+        return;
+      }
+      clearAuto();
+      supplier.value = source.name;
+      const snapshot = { name: supplier.value };
+      keys.forEach(([target, sourceKey]) => {
+        const input = field(target);
+        if (!input.value.trim() && source[sourceKey]) input.value = source[sourceKey];
+        snapshot[target] = input.value;
+      });
+      auto = snapshot;
+      note('Auto-filled from the recorded supplier on ' + source.po_ref + '. Review before submitting.');
+    };
+    // Keep manually entered data authoritative; the matcher runs only on part edits.
+    w._updatePartSupplier = update;
+    update();
+  },
   newPO(prefill = {}) {
     const d = PurUI.data;
     UI.modal('Purchase Order Request', UI.fields([
@@ -126,7 +205,7 @@ const PurUI = {
         : d.budget && d.budget.id ? `<div class="small text-danger mt-2">The purchasing budget period ended on ${UI.date(d.budget.period_end)}: approval will be rejected until Finance sets a new budget.</div>`
         : '<div class="small text-danger mt-2">No active purchasing budget: approval will be rejected until Finance sets one.</div>'),
       async (x, form, w) => { const r = await App.api('Purchasing.po_create', { ...x, lines: PurUI.readLines(w, true) }); UI.result(r); App.route(); },
-      { submit: 'Submit for approval', onShow: (w) => { w.classList.add('purchasing-po-modal'); PurUI.wireLines(w, true); PurUI.wireSupplier(w); } });
+      { submit: 'Submit for approval', onShow: (w) => { w.classList.add('purchasing-po-modal'); PurUI.wireLines(w, true); PurUI.wireSupplier(w); PurUI.wirePartSuppliers(w); } });
   },
   async processRequest(rq) {
     const r = await App.api('Purchasing.request_details', { request_id: rq.id });
