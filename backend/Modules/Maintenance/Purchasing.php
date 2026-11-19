@@ -127,12 +127,17 @@ final class Purchasing {
 
     /** Purchasing Overview: what needs action now. Counts and short lists only. */
     private static function overview(array $u, PDO $p, callable $budget): array {
+        $tracking = self::orderTrackingReady($p);
+        $toReceive = $tracking ? "status IN ('Approved','Partially Received') AND (order_confirmation_required=0 OR ordered_at IS NOT NULL)" : "status IN ('Approved','Partially Received')";
+        $toOrder = $tracking ? "status='Approved' AND order_confirmation_required=1 AND ordered_at IS NULL" : '0=1';
+        $toReceiveO = $tracking ? "o.status IN ('Approved','Partially Received') AND (o.order_confirmation_required=0 OR o.ordered_at IS NOT NULL)" : "o.status IN ('Approved','Partially Received')";
         return readSections([
             'counts' => fn() => [
                 'requests_open' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status='Requested'")['n'],
                 'requests_followup' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status IN ('Partially Released','Not Available')")['n'],
                 'po_pending' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval'")['n'],
-                'po_to_receive' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status IN ('Approved','Partially Received')")['n'],
+                'po_to_receive' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE $toReceive")['n'],
+                'po_to_order' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE $toOrder")['n'],
                 'inventory_value' => (float)one($p, 'SELECT COALESCE(SUM(quantity_on_hand*unit_cost),0) AS v FROM parts WHERE active=1')['v'],
                 'low_stock' => (int)one($p, 'SELECT COUNT(*) AS n FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level')['n'],
             ],
@@ -141,26 +146,21 @@ final class Purchasing {
                 FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
                 WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available'), r.id LIMIT 10"),
             'receiving' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.total_amount, o.created_at, COALESCE(o.supplier_name, s.name) AS supplier FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id
-                WHERE o.status IN ('Approved','Partially Received') ORDER BY o.id LIMIT 10"),
+                WHERE $toReceiveO ORDER BY o.id LIMIT 10"),
             // STAGE_B_PURCHASING_UI: POs waiting for Finance/Admin approval, and POs auto-rejected for budget in the last 30 days.
             'approvals' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.approver_role, o.total_amount, o.created_at, o.decided_at, COALESCE(o.supplier_name, s.name) AS supplier
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id
                 WHERE o.status='Pending Approval' OR (o.status='Rejected - Insufficient Budget' AND o.decided_at >= NOW() - INTERVAL 30 DAY)
                 ORDER BY FIELD(o.status,'Pending Approval','Rejected - Insufficient Budget'), o.id LIMIT 10"),
-            'payments' => fn() => array_map('floatval', one($p, "SELECT COUNT(*) AS n, COALESCE(SUM(GREATEST((SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id)-o.paid_amount,0)),0) AS due
-                FROM purchase_orders o WHERE o.payment_status IN ('Pending Payment','Partially Paid')
-                  AND (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) > o.paid_amount")),
             'lowStock' => fn() => many($p, "SELECT id, part_number, description, unit, quantity_on_hand, reorder_level FROM parts
                 WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY (quantity_on_hand-reorder_level), part_number LIMIT 10"),
             'budget' => $budget,
             // UI_REFERENCE_V1 (read-only): Purchase Order Status panel and Recent Purchasing Activity of the Overview.
             'poStatus' => fn() => one($p, "SELECT
                     COALESCE(SUM(status='Pending Approval'),0) AS pending_approval,
-                    COALESCE(SUM(status IN ('Approved','Partially Received')),0) AS awaiting_delivery,
-                    COALESCE(SUM(status='Partially Received'),0) AS partially_received,
-                    -- same rule as the Purchase Orders 'Awaiting payment' tab: received value not fully paid
-                    COALESCE(SUM(payment_status IN ('Pending Payment','Partially Paid')
-                        AND (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=purchase_orders.id) > paid_amount),0) AS awaiting_payment
+                    COALESCE(SUM($toReceive),0) AS awaiting_delivery,
+                    COALESCE(SUM($toOrder),0) AS ready_to_order,
+                    COALESCE(SUM(status='Partially Received'),0) AS partially_received
                 FROM purchase_orders"),
             'activity' => fn() => many($p, "SELECT sm.id, sm.movement_type, sm.quantity_delta, sm.reference_type, sm.reference_id, sm.reason, sm.created_at,
                     pt.part_number, pt.unit, u.full_name AS actor,
