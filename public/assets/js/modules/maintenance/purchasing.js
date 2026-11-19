@@ -919,7 +919,7 @@ App.page('parts_requests', {
       ['Status', 'status', 'badge'],
       ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>'],
       ['Waiting for', 'status', (v, r) => PurUI.waitingControl(PurUI.reqNext(r), 'request', r.id)]], rows,
-      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, groupBy: 'status', actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
+      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 12, groupBy: 'status', actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
         empty: 'No parts request in this list.' });
     PurRef.recordLayout(ctx, box, {
       filters: [{ name: 'truck', label: 'Truck', type: 'select', col: 12, options: trucks.map(truck => [truck, truck]) },
@@ -969,7 +969,7 @@ App.page('purchase_orders', {
       ['Total', 'total_amount', 'money'],
       ['Parts Status', 'status', (v, o) => UI.badge(v === 'Approved' && o.ordered_at ? 'Ordered' : v)],
       ['Waiting for', 'status', (v, o) => PurUI.waitingControl(PurUI.poNext(o), 'po', o.id)]], rows,
-      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, groupBy: 'status', actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
+      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 12, groupBy: 'status', actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
@@ -1036,7 +1036,7 @@ App.page('inventory', {
           ['Status', 'status', 'badge'],
           ['Waiting for', 'status', (v) => PurUI.chip(v === 'Submitted' ? ['admin', 'Admin'] : [null, 'Completed'])],
           ['Counted by', 'counted_by_name']], rows,
-          { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary'),
+          { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 12, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary'),
             onAction: (a, c) => a === 'view' ? PurUI.openCount(c, can) : PurUI.countReview(c, a), rowClick: (c) => PurUI.openCount(c, can),
             empty: 'No stock count recorded yet.' });
       PurRef.recordLayout(ctx, box, {
@@ -1075,7 +1075,7 @@ App.page('inventory', {
         ['On hand', 'quantity_on_hand', (v, p) => `<div class="purchasing-stock-cell"><span class="purchasing-stock-amount"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}</span>${+p.low_stock || openCount.has(+p.id) ? `<span class="purchasing-stock-badges">${+p.low_stock ? '<span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? '<span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>` : ''}</div>`],
         ['Reserved', 'reserved_qty', 'num'], ['Available', 'available_qty', 'num'],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
-        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, groupBy: 'part_type', groupLabel: 'Part type', actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
+        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 12, groupBy: 'part_type', groupLabel: 'Part type', actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
     PurRef.recordLayout(ctx, box, {
       filters: [{ name: 'part_type', label: 'Part Type', type: 'select', col: 12, options: types.map(type => [type, type]) }],
@@ -1116,7 +1116,7 @@ App.page('stock_movements', {
       ['Part', 'part_number', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(m.description)}</div>`],
       ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => `<span class="cell-nowrap">${v > 0 ? '+' : ''}${UI.num(v)}</span>`],
       ['Reason', 'reason', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`], ['Truck', 'plate_number'], ['By', 'actor']], rows,
-      { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true,
+      { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 12,
         actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary') : '',
         onAction: (a, m) => UI.goTo(ref(m)), empty: 'No stock movement matches.' });
     PurRef.recordLayout(ctx, box, {
