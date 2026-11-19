@@ -10,7 +10,12 @@ core('Access'); core('FleetState'); core('Settings');
 $db=envValue('DB_NAME'); test_guard([$db]); test_recreate($db);
 $p=db();
 test_import($p,test_sql('database/schema.sql'));
-test_import($p,test_sql('database/extension.sql'));
+// Current split schema already declares dispatcher truck-type fields.
+ // Strip only the duplicate extension ALTERs for this disposable fresh-schema test.
+$extension=test_sql('database/extension.sql');
+$extension=(string)preg_replace('/ALTER TABLE users\\s+ADD COLUMN dispatcher_truck_type VARCHAR\\(25\\)[\\s\\S]*?\\n  \\);\\s*/','',$extension);
+$extension=(string)preg_replace('/ALTER TABLE users ADD COLUMN dispatcher_truck_types JSON NULL AFTER dispatcher_truck_type;\\s*/','',$extension);
+test_import($p,$extension);
 test_import($p,test_sql('database/migrations/2026-11-19_03_motorpool_repair_catalogs.sql'));
 test_import($p,test_sql('database/migrations/2026-11-19_04_incident_clarifications.sql'));
 foreach (['Maintenance','Mechanics','Purchasing'] as $m) Actions::load($m);
