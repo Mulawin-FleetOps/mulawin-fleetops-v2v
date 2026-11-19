@@ -1876,3 +1876,213 @@
   #pageContent .purchasing-live-v1 .purchasing-operations-records .record-workspace-search .table-search {flex-basis:100%}
   #pageContent .purchasing-live-v1 .purchasing-operations-records .record-workspace-heading {flex-wrap:wrap}
 }
+
+
+/* MAINTENANCE_OPERATIONS_PREVIEW_V1
+   Match the approved preview's gold KPI cards, record hierarchy and compact
+   tables for both workspaces. Scope all rules to Maintenance/Purchasing only. */
+#pageContent .maintenance-operations-records,
+#pageContent .purchasing-operations-records {
+  background:#fff;
+  border:1px solid #dfe8e1;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 2px 8px rgba(27,74,38,.05);
+}
+#pageContent .maintenance-operations-records .record-workspace-heading,
+#pageContent .purchasing-operations-records .record-workspace-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  padding:16px 18px 10px;
+  gap:12px;
+  margin:0;
+  border-bottom:0;
+  background:#fff;
+}
+#pageContent .maintenance-operations-records .record-workspace-heading h2,
+#pageContent .purchasing-operations-records .record-workspace-heading h2 {
+  font-size:15px;
+  font-weight:700;
+  margin:0 0 4px;
+  color:#263b2d;
+}
+#pageContent .maintenance-operations-records .record-workspace-heading small,
+#pageContent .purchasing-operations-records .record-workspace-heading small {
+  color:#698073;
+  font-size:11.5px;
+  font-weight:400;
+}
+#pageContent .maintenance-operations-records .record-workspace-search,
+#pageContent .purchasing-operations-records .record-workspace-search {
+  position:relative;
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:9px;
+  padding:7px 18px 14px;
+  margin:0;
+  background:#fff;
+  border:0;
+}
+#pageContent .maintenance-operations-records .record-workspace-search .table-search,
+#pageContent .purchasing-operations-records .record-workspace-search .table-search {
+  flex:1 1 220px;
+  min-width:0;
+  max-width:none;
+}
+#pageContent .maintenance-operations-records .record-workspace-search .table-search input,
+#pageContent .purchasing-operations-records .record-workspace-search .table-search input {
+  min-height:37px;
+  border-radius:8px;
+  border-color:#dfe8e1;
+  font-size:12.5px;
+}
+#pageContent .maintenance-operations-records .record-workspace-search > .btn,
+#pageContent .purchasing-operations-records .record-workspace-search > .btn {
+  min-height:37px;
+  padding:7px 13px;
+  border-radius:8px;
+  font-weight:650;
+  white-space:nowrap;
+}
+#pageContent .maintenance-operations-records .record-workspace-category-row,
+#pageContent .purchasing-operations-records .record-workspace-category-row {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+  margin:0;
+  padding:0 18px 12px;
+  border:0;
+  background:#fff;
+}
+#pageContent .maintenance-operations-records .record-workspace-category-row .line-tabs,
+#pageContent .purchasing-operations-records .record-workspace-category-row .line-tabs {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:0;
+  padding:0;
+  border:0;
+}
+#pageContent .maintenance-operations-records .record-workspace-category-row .tab,
+#pageContent .purchasing-operations-records .record-workspace-category-row .tab {
+  padding:9px 10px;
+  border:0;
+  border-bottom:2px solid transparent;
+  border-radius:0;
+  background:transparent;
+  color:#677d6d;
+  font-size:12px;
+  font-weight:650;
+}
+#pageContent .maintenance-operations-records .record-workspace-category-row .tab.active,
+#pageContent .purchasing-operations-records .record-workspace-category-row .tab.active {
+  color:#176b3d;
+  background:transparent;
+  border-bottom-color:#176b3d;
+}
+#pageContent .maintenance-operations-records .ref-list,
+#pageContent .maintenance-operations-records .panel,
+#pageContent .purchasing-operations-records .ref-list,
+#pageContent .purchasing-operations-records .panel {
+  margin:0;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  background:#fff;
+}
+#pageContent .maintenance-operations-records .ref-tablebox,
+#pageContent .purchasing-operations-records .ref-tablebox {
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+}
+#pageContent .maintenance-operations-records .data-table,
+#pageContent .purchasing-operations-records .data-table {
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+}
+#pageContent .maintenance-operations-records .data-table th,
+#pageContent .purchasing-operations-records .data-table th {
+  background:#f3f8f4;
+  color:#345c42;
+  font-size:11.5px;
+  font-weight:700;
+  padding:13px 15px;
+  border-bottom:1px solid #dce9df;
+}
+#pageContent .maintenance-operations-records .data-table td,
+#pageContent .purchasing-operations-records .data-table td {
+  background:#fff;
+  color:#304c3b;
+  font-size:12.5px;
+  line-height:1.55;
+  padding:13px 15px;
+  border-bottom:1px solid #e8eee9;
+}
+#pageContent .maintenance-operations-records .data-table tbody tr:hover td,
+#pageContent .purchasing-operations-records .data-table tbody tr:hover td {
+  background:#f8fcf9;
+}
+#pageContent .maintenance-operations-records .table-pager,
+#pageContent .purchasing-operations-records .table-pager {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  min-height:48px;
+  padding:13px 18px;
+  gap:10px;
+  border-top:1px solid #e3ece6;
+  background:#fff;
+  color:#758579;
+}
+#pageContent .maintenance-operations-records .table-pager .pg,
+#pageContent .purchasing-operations-records .table-pager .pg {
+  border:1px solid #d8e5d9;
+  border-radius:7px;
+  padding:6px 10px;
+  background:#fff;
+}
+#pageContent .maintenance-operations-records .table-pager .pg:disabled,
+#pageContent .purchasing-operations-records .table-pager .pg:disabled {opacity:.4}
+#pageContent .maintenance-operations-records .row-actions :is(.btn,.row-btn),
+#pageContent .purchasing-operations-records .row-actions :is(.btn,.row-btn) {
+  font-size:11.5px;
+  font-weight:650;
+  border-radius:7px;
+  padding:6px 10px;
+}
+#pageContent .mp-action-stages .mp-action-stage,
+#pageContent .purchasing-page-kpis .ws-kpi,
+#pageContent .purchasing-dashboard-ref .ws-kpi {
+  border:1px solid #caa650;
+  border-radius:12px;
+  background:#fff;
+  box-shadow:none;
+}
+/* Preserve the actual Motorpool stage links, but present them as preview KPI cards. */
+#pageContent .mp-action-stages {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:19px;
+}
+#pageContent .mp-action-stages .mp-action-stage {min-width:0}
+#pageContent .maintenance-operations-records .table-pager:empty,
+#pageContent .purchasing-operations-records .table-pager:empty {display:none}
+@media(max-width:900px) {
+  #pageContent .mp-action-stages{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:580px) {
+  #pageContent .maintenance-operations-records .record-workspace-heading,
+  #pageContent .purchasing-operations-records .record-workspace-heading {align-items:stretch}
+  #pageContent .maintenance-operations-records .record-workspace-search .table-search,
+  #pageContent .purchasing-operations-records .record-workspace-search .table-search {flex-basis:100%}
+  #pageContent .mp-action-stages{gap:8px}
+}
