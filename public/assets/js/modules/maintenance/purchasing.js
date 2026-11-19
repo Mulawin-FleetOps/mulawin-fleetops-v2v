@@ -381,7 +381,9 @@ PurUI.kit = (d, can) => {
     // STOCK_COUNT_RECONCILIATION_V1: no direct +/- adjustment. A discrepancy is recorded as a stock count for the Admin to post.
     const partActs = (p, big) => { const a = act(big);
       return (can.count && d.countsReady && +p.active ? a('count', 'Record stock count', 'bi-clipboard-check', 'outline-primary') : '') + (can.stock ? a('edit', 'Edit part', 'bi-pencil', 'outline-secondary') : ''); };
-    const partForm = (p = {}) => UI.formModal(p.id ? 'Edit part' : 'Add part', [
+    const partForm = (p = {}) => {
+      if (!d.partIdentityReady) return UI.toast('Part Type / Brand database migration is required before adding or editing parts. Existing stock and records remain readable.', 'warning');
+      return UI.formModal(p.id ? 'Edit part' : 'Add part', [
       { name: 'part_id_display', label: 'Part ID', col: 4, value: p.part_number || 'Assigned after saving', attrs: 'readonly aria-readonly="true" tabindex="-1"', help: p.id ? 'Permanent reference · cannot be edited.' : 'Automatically generated when you save.' },
       { name: 'part_type', label: 'Part Type', required: !p.id || !!p.part_type, col: 4, value: p.part_type, placeholder: 'e.g. Tire', attrs: 'maxlength="100"', help: p.id && !p.part_type ? 'Legacy item: classify when its actual type is verified.' : 'General part type; may be shared by different variants.' },
       { name: 'description', label: 'Part Name / Specification', required: true, col: 4, value: p.description, placeholder: 'Specific item or size', attrs: 'maxlength="200"', help: 'Use the exact recorded specification; do not guess for legacy stock.' },
@@ -395,7 +397,8 @@ PurUI.kit = (d, can) => {
         attrs: 'maxlength="150"' },
       ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
         transform: ({ part_id_display, ...data }) => data,
-        intro: p.id ? 'Update part details. The Part ID and stock on hand will not change.' : 'Part ID is assigned automatically. New parts start with 0 on hand; stock is added through purchase-order receiving or an Admin-approved stock count.' });
+        intro: p.id ? 'Update the verified item identity. Part ID and on-hand quantity will not change.' : 'Part ID is assigned automatically. New parts begin with 0 on hand; use actual specifications and the correct Part Type.' });
+    };
     const partAct = (a, p) => a === 'edit' ? partForm(p) : a === 'count' ? PurUI.countForm(d, p) : null;
   return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
 };
@@ -913,6 +916,8 @@ App.page('inventory', {
     const counts = d.counts || [], pending = counts.filter(c => c.status === 'Submitted');
     // Keep inventory-health KPIs; avoid summing incompatible part units
     // (pieces, liters, sets, etc.) into a misleading single quantity.
+    const identityNotice = !d.partIdentityReady
+      ? '<div class="alert alert-warning small">Part Type / Brand migration has not been applied to this database. Existing parts remain visible, but Add/Edit Part will be unavailable until the migration is installed.</div>' : '';
     const inventoryCards = PurRef.cards([
       {label:'Low / Out of Stock',value:low.length,note:'Parts at or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
       {label:'Stock Counts Awaiting Review',value:d.countsReady?pending.length:'—',note:'Submitted physical counts for Admin review',icon:'bi-clipboard-check',go:d.countsReady?'inventory?view=counts':undefined},
@@ -924,7 +929,7 @@ App.page('inventory', {
     // UI_REFERENCE_V1: stock tabs (?stock=) and the Stock counts tab (?view=counts) instead of a KPI row.
     const stockKey = view === 'counts' ? '' : (['low', 'out', 'inactive', 'all'].includes(q.stock) ? q.stock : 'active');
     const tabBtn = (spec, label, n, on) => `<button type="button" role="tab" aria-selected="${on}" class="tab ${on ? 'active' : ''}" data-go="${UI.esc(spec)}">${UI.esc(label)} <span class="tab-count">${UI.num(n)}</span></button>`;
-    ctx.el.innerHTML = inventoryCards + `<div class="line-tabs ws-status-tabs no-print" role="tablist">
+    ctx.el.innerHTML = inventoryCards + identityNotice + `<div class="line-tabs ws-status-tabs no-print" role="tablist">
         ${tabBtn(link({ view: '', stock: '' }), 'Active parts', active.length, stockKey === 'active')}${tabBtn(link({ view: '', stock: 'low' }), 'Low stock', low.length, stockKey === 'low')}
         ${tabBtn(link({ view: '', stock: 'out' }), 'Out of stock', out.length, stockKey === 'out')}${tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, stockKey === 'inactive')}
         ${d.countsReady ? tabBtn(link({ view: 'counts', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div>
