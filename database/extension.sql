@@ -21,6 +21,18 @@ INSERT INTO schema_migrations (id) VALUES
   ('2026-11-07_07_trip_routing'), ('2026-11-08_08_attendance'),
   ('2026-11-09_09_billing_adjustments');
 
+-- Unfinished Add Driver/Helper/Truck forms; no operational records until final Save.
+CREATE TABLE fleet_form_drafts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  owner_id INT NOT NULL,
+  draft_type ENUM('driver','helper','truck') NOT NULL,
+  fields_json MEDIUMTEXT NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_fleet_form_draft_owner_type (owner_id,draft_type),
+  CONSTRAINT fk_fleet_form_draft_owner FOREIGN KEY (owner_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations(id) VALUES ('2026-11-19_25_fleet_form_drafts');
+
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
 -- =====================================================================
