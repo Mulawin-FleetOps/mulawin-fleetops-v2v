@@ -2243,3 +2243,46 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 @media(max-width:1050px){
   #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table:not(:has(th:nth-child(10))) {min-width:980px}
 }
+
+/* Finance records: wrap descriptions without pushing status/actions off the row. */
+.finance-tables #pageContent [data-tbody] { overflow-x:auto; max-width:100%; }
+.finance-tables #pageContent .data-table {
+  width:100% !important;
+  min-width:1050px;
+  table-layout:fixed !important;
+}
+.finance-tables #pageContent .data-table :is(th,td) {
+  white-space:normal !important;
+  overflow-wrap:anywhere;
+  vertical-align:top;
+  height:auto;
+}
+.finance-tables #pageContent .data-table .col-grow { width:auto !important; }
+.finance-tables #pageContent .data-table .actions-col {
+  width:120px !important;
+  min-width:120px;
+  text-align:center;
+}
+.finance-tables #pageContent .data-table th.actions-col .visually-hidden {
+  position:static !important;
+  width:auto !important;
+  height:auto !important;
+  clip:auto !important;
+  clip-path:none !important;
+  overflow:visible !important;
+}
+.finance-tables #pageContent .data-table :is(.row-actions,.row-icons) {
+  display:flex;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.finance-tables #pageContent .data-table .row-icons .btn {
+  white-space:normal;
+  max-width:100%;
+}
+.finance-tables #pageContent .data-table :is(.badge-s,.cell-clamp) {
+  white-space:normal;
+  max-width:100%;
+  overflow-wrap:anywhere;
+}

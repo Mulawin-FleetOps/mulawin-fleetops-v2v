@@ -654,7 +654,14 @@ const OpsHead = {
        ${d.can?.edit ? '<button type="button" class="btn btn-sm btn-primary record-workspace-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add ' + type + '</button>' : ''}`;
     const columns = [
       ['Name', 'full_name', (value, person) => '<b>' + UI.esc(value) + '</b>' + (!+person.active ? ' <span class="badge-s red">Inactive</span>' : '')],
-      [type === 'Driver' ? 'Authorized Trucks' : 'Regular Truck', 'regular_truck'],
+      [type === 'Driver' ? 'Authorized Trucks' : 'Regular Truck', 'regular_truck', value => {
+        if (!value) return UI.esc(type === 'Driver' ? 'No authorized truck' : 'No regular truck');
+        return String(value).split(',').map(plate => {
+          plate = plate.trim();
+          const truck = (d.assignmentTrucks || []).find(item => item.plate_number === plate);
+          return '<div>' + UI.esc(plate) + (truck?.truck_type ? ' <span class="cell-sub">' + UI.esc(truck.truck_type) + '</span>' : '') + '</div>';
+        }).join('');
+      }],
 
       ['Attendance Readiness', 'id', (value, person) => !Array.isArray(d.attendance)
         ? 'Unavailable' : OpsHead.badge(d.attendance.find(entry => +entry.personnel_id === +person.id)?.status || 'Not Timed In')],

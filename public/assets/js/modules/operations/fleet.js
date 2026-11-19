@@ -703,6 +703,7 @@ App.page('crew', {
       { name: 'license', label: 'License', type: 'select', options: [['expiring', 'Expiring / expired']], col: 6 },
       { name: 'inactive', label: 'Include inactive drivers and helpers', type: 'checkbox', col: 12 }], { hint: 'Showing all active drivers and helpers.' }) + `</div>` + UI.table([
       ['Name', 'full_name', (v, r) => `<b>${UI.esc(v)}</b>${+r.active ? '' : ' <span class="badge-s red">Inactive</span>'}<div class="cell-sub">${UI.esc(r.employee_no ? 'ID ' + r.employee_no : r.person_type)}</div>`], ['Type', 'person_type'],
+      ['Authorized / Regular Truck', 'regular_truck', (v, r) => UI.esc(v || (r.person_type === 'Driver' ? 'No authorized truck' : 'No regular truck'))],
       ['Availability', 'availability', (v, r) => UI.badge(v) + (r.unavailable_reason ? `<div class="small text-muted">${UI.esc(r.unavailable_reason)}</div>` : '')],
       ['Current trip', 'trip_ref', (v, r) => v ? `${UI.esc(v)} <span class="small text-muted">${UI.esc(r.trip_plate || '')} · ${UI.esc(r.trip_status)}</span>` : '—'],
       ['License expiry', 'license_expiry', (v, r) => FleetUI.docBadge(r.license_days, v)], ['Completed trips', 'completed_trips', 'num']], rows,

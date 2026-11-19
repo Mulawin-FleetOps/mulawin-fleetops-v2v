@@ -546,7 +546,7 @@ const App = {
     try { pinned = localStorage.getItem(pinKey) !== '1'; } catch { /* storage unavailable */ }
     const collapsed = !pinned;
     document.getElementById('app').innerHTML = `
-    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar sidebar-manual-toggle${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
+    <div class="app-shell${ws ? ' ws-app' : ''}${u.role === 'finance' ? ' finance-tables' : ''}${u.role === 'motorpool' ? ' motorpool-admin-sidebar' : u.role === 'purchasing' ? ' purchasing-admin-sidebar' : ''}${executiveSidebar ? ' executive-sidebar' : ''} hover-pin-sidebar sidebar-manual-toggle${ws && ws.exclusive ? ' ref-app' : ''}${pinned ? ' sb-pinned' : ' sb-collapsed'}" id="appShell">
       <aside class="sidebar" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-top"><a href="#${this.homePage()}" class="sidebar-brand">${UI.logoTag('sidebar-logo')}<span class="brand-text"><span class="brand-product">${ws ? 'MULAWIN' : 'Mulawin FleetOps'}</span><span class="brand-company">${ws ? (ws.exclusive ? 'FleetOps' : 'FleetOps · ' + UI.esc(ws.dept)) : 'R.P. Mulawin Trucking'}</span></span></a>
           ${ws || executiveSidebar ? (ws ? '<button type="button" class="sb-collapse sb-mobile" id="sbClose" aria-label="Close the menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>' : '') : ''}</div>
