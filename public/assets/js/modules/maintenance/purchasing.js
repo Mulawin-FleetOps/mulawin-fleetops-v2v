@@ -892,12 +892,18 @@ App.page('purchase_orders', {
     // Default tab: what waits for this user; an empty 'To receive' list falls back to All.
     const tab = TABS[q.tab] ? q.tab : (mine.length ? 'approval' : (can.stock && cnt('ready') ? 'ready' : (can.stock && cnt('receive') ? 'receive' : 'all')));
     const suppliers = [...new Set(all.map(o => o.supplier).filter(Boolean))].sort();
-    const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier) );
+    const sort = ['newest', 'oldest', 'po', 'amount_high', 'amount_low'].includes(q.sort) ? q.sort : 'newest';
+    const rows = all.filter(TABS[tab][1]).filter(o => (!q.supplier || o.supplier === q.supplier)).sort((a, b) => {
+      if (sort === 'po') return String(a.po_ref || '').localeCompare(String(b.po_ref || ''));
+      if (sort === 'amount_high') return (+b.total_amount || 0) - (+a.total_amount || 0);
+      if (sort === 'amount_low') return (+a.total_amount || 0) - (+b.total_amount || 0);
+      const date = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      return (sort === 'oldest' ? date : -date) || String(a.po_ref || '').localeCompare(String(b.po_ref || ''));
+    });
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
-    ctx.el.innerHTML = `${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['ready','Ready to order',cnt('ready')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
+    ctx.el.innerHTML = `<div class="purchasing-po-tabs-slot">${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['ready','Ready to order',cnt('ready')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
-        ['all','All',cnt('all')]], tab)}
-      ${UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: suppliers }])}`;
+        ['all','All',cnt('all')]], tab)}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Purchase Order Records','Approval and receiving status',rows.length);
     const open = (o) => PurUI.openPO(o, k);
@@ -911,7 +917,36 @@ App.page('purchase_orders', {
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
-    PurRef.inlineFilters(box, ctx.el);
+    // Match the Operations Head hierarchy: header/action, search + Filter + Sort, then quick tabs.
+    const toolbar = box.querySelector('.ref-toolbar, .table-tools');
+    const tabs = ctx.el.querySelector('.purchasing-po-tabs-slot');
+    const search = toolbar?.querySelector('.table-search');
+    if (toolbar && tabs && search) {
+      toolbar.classList.add('purchasing-po-toolbar');
+      const filterWrap = document.createElement('div');
+      filterWrap.className = 'purchasing-po-filter';
+      filterWrap.innerHTML = UI.filterModal(ctx, [{ name: 'supplier', label: 'Supplier', type: 'select', col: 12,
+        options: suppliers.map(name => [name, name]) }], { hint: '' });
+      filterWrap.querySelector('.ui-filter-toolbar > span:not(.filter-chip)')?.remove();
+      search.insertAdjacentElement('afterend', filterWrap);
+      const sortWrap = document.createElement('label');
+      sortWrap.className = 'purchasing-po-sort';
+      sortWrap.innerHTML = `<i class="bi bi-sort-down" aria-hidden="true"></i><span>Sort</span>
+        <select class="form-select form-select-sm" aria-label="Sort purchase orders">
+          <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+          <option value="po">PO number</option><option value="amount_high">Highest amount</option>
+          <option value="amount_low">Lowest amount</option>
+        </select>`;
+      const select = sortWrap.querySelector('select');
+      select.value = sort;
+      select.addEventListener('change', () => {
+        const next = { ...q, sort: select.value };
+        if (select.value === 'newest') delete next.sort;
+        App.go('purchase_orders', next);
+      });
+      filterWrap.insertAdjacentElement('afterend', sortWrap);
+      toolbar.insertAdjacentElement('afterend', tabs);
+    }
     PurUI.bindWorkflowLinks(box);
     PurUI.openFromQuery(ctx, all, open);
   },
