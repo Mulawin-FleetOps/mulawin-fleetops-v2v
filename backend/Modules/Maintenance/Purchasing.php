@@ -57,8 +57,13 @@ final class Purchasing {
         $warrantyExpirySql = $warrantyReady
             ? "(SELECT MIN(w.warranty_expires) FROM part_warranty_batches w WHERE w.part_id=pt.id AND w.warranty_expires IS NOT NULL)"
             : "NULL";
+        $reservationSql = self::reservationsReady($p)
+            ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_id=pt.id)'
+            : '0';
         $partsFull = fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
-                    (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock,
+                    $reservationSql AS reserved_qty,
+                    GREATEST(0,pt.quantity_on_hand-$reservationSql) AS available_qty,
+                    (pt.reorder_level>0 AND pt.quantity_on_hand<=$reservationSql+pt.reorder_level) AS low_stock,
                     $warrantyExpirySql AS earliest_warranty_expiry
                     FROM parts pt ORDER BY pt.active DESC, pt.part_number");
         $data = match ($page) {
@@ -419,6 +424,10 @@ final class Purchasing {
                 return ['message' => $c['count_ref'] . ' rejected. The stock did not change.'];
             }
             $before = (int)$pt['quantity_on_hand'];
+            if (self::reservationsReady($p)) {
+                $reserved = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$c['part_id']])['qty'];
+                must((int)$c['counted_qty'] >= $reserved, 'Physical stock count is below currently reserved units. Resolve the reservation discrepancy before posting.', 409);
+            }
             must($before === (int)$c['system_qty'], 'The stock of ' . $pt['part_number'] . ' changed after the count (system ' . $c['system_qty'] . ' then, ' . $before . ' now). Reject this count and count again.', 409);
             $delta = (int)$c['counted_qty'] - $before;
             self::move($p, $u, (int)$c['part_id'], 'Adjustment', $delta, (float)$pt['unit_cost'], 'Stock count ' . $c['count_ref'] . ': ' . $c['reason'], 'stock_count', $id);
@@ -893,8 +902,9 @@ final class Purchasing {
             FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users ru ON ru.id=r.requested_by
             LEFT JOIN users pu ON pu.id=r.processed_by WHERE r.id=?' . ($motorpool ? " AND ru.role='motorpool'" : ''), [$id]);
         must((bool)$r, 'Request not found.', 404);
+        $reservedColumn = self::reservationsReady($p) ? 'l.reserved_qty' : '0 AS reserved_qty';
         $cols = $motorpool ? self::availabilitySql('pt') . ' AS availability' : 'pt.quantity_on_hand';
-        $out = ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, pt.part_number, pt.description, pt.unit, $cols
+        $out = ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, $reservedColumn, pt.part_number, pt.description, pt.unit, $cols
             FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? ORDER BY l.id", [$id])];
         // STAGE_B_PURCHASING_UI: Purchasing / Admin / Audit also get the linked POs and the request's recorded activity.
         // Motorpool's response is unchanged (no PO, supplier or cost data).
@@ -948,7 +958,16 @@ final class Purchasing {
     }
 
     private static function myRequestRows(PDO $p): array {
+        $reservedSql = self::reservationsReady($p)
+            ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
+            : '0';
+        $orderedSql = self::orderTrackingReady($p)
+            ? "(SELECT COUNT(*) FROM purchase_orders o WHERE o.part_request_id=r.id AND o.ordered_at IS NOT NULL AND o.status IN ('Approved','Partially Received','Received'))"
+            : '0';
         return many($p, "SELECT r.id, r.request_ref, r.status, r.purpose, r.notes, r.created_at, r.processed_at, r.vehicle_id, v.plate_number, m.job_ref, ru.full_name AS requested_by_name,
+                $reservedSql AS reserved_units, $orderedSql AS on_order,
+                (SELECT MAX(sm.created_at) FROM stock_movements sm JOIN purchase_orders po ON po.id=sm.reference_id WHERE sm.reference_type='purchase_order' AND sm.movement_type='Stock In' AND po.part_request_id=r.id) AS last_received_at,
+                (SELECT MAX(sm.created_at) FROM stock_movements sm WHERE sm.reference_type='part_request' AND sm.reference_id=r.id AND sm.movement_type='Stock Out') AS last_released_at,
                 (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
                 (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
