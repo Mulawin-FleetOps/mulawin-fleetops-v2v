@@ -754,43 +754,68 @@ const PurRef = {
   /** Shared Purchasing records hierarchy: Search + Filter + Sort above quick status tabs.
    * Existing URL filters, tab click handlers, and row actions are preserved. */
   recordLayout(ctx, box, { filters = [], sortOptions = [], sort = 'newest' } = {}) {
+    // Operations record workspace: preserve existing table state, URL-backed filters,
+    // permission-checked actions, row clicks and existing search input listeners.
     const toolbar = box.querySelector('.ref-toolbar, .table-tools');
     const search = toolbar?.querySelector('.table-search');
     if (!toolbar || !search) return;
-    toolbar.classList.add('purchasing-po-toolbar');
+    const heading = box.querySelector('.purchasing-ref-records-head');
+    box.classList.add('record-workspace-panel', 'purchasing-operations-records');
+    if (heading) {
+      heading.classList.add('record-workspace-heading');
+      const title = heading.querySelector('strong');
+      const subtitle = heading.querySelector('small');
+      if (title) {
+        const h2 = document.createElement('h2');
+        h2.textContent = title.textContent;
+        title.replaceWith(h2);
+      }
+      if (subtitle) subtitle.classList.add('record-workspace-count');
+      // Original detail subtitle remains accessible, but is not a competing heading.
+      const note = heading.querySelector(':scope > span');
+      if (note) note.classList.add('record-workspace-description');
+      if (ctx.tools) {
+        const buttons = [...ctx.tools.querySelectorAll(':scope > button')];
+        if (buttons.length) {
+          const actions = document.createElement('div');
+          actions.className = 'purchasing-record-header-actions';
+          buttons.forEach(button => actions.append(button));
+          heading.append(actions);
+        }
+      }
+    }
     const oldFilters = ctx.el.querySelector('.ws-filters');
     if (oldFilters) oldFilters.remove();
+    const searchRow = document.createElement('div');
+    searchRow.className = 'record-workspace-search';
+    searchRow.append(search);
     const filterWrap = document.createElement('div');
     filterWrap.className = 'purchasing-po-filter';
     filterWrap.innerHTML = UI.filterModal(ctx, filters, { hint: '' });
     filterWrap.querySelector('.ui-filter-toolbar > span:not(.filter-chip)')?.remove();
-    search.insertAdjacentElement('afterend', filterWrap);
+    searchRow.append(filterWrap);
     const sortWrap = document.createElement('label');
     sortWrap.className = 'purchasing-po-sort';
     const values = sortOptions.length ? sortOptions : [['newest', 'Newest first'], ['oldest', 'Oldest first']];
     sortWrap.innerHTML = `<i class="bi bi-sort-down" aria-hidden="true"></i><span>Sort</span>
       <select class="form-select form-select-sm" aria-label="Sort ${UI.esc(ctx.page.replace(/_/g, ' '))}">${values.map(([v, label]) =>
         `<option value="${UI.esc(v)}">${UI.esc(label)}</option>`).join('')}</select>`;
-    sortWrap.querySelector('select').value = sort;
-    sortWrap.querySelector('select').addEventListener('change', event => {
+    const sortSelect = sortWrap.querySelector('select');
+    sortSelect.value = sort;
+    sortSelect.addEventListener('change', event => {
       const q = { ...ctx.query };
       if (event.target.value === values[0][0]) delete q.sort;
       else q.sort = event.target.value;
       App.go(ctx.page, q);
     });
-    filterWrap.insertAdjacentElement('afterend', sortWrap);
+    searchRow.append(sortWrap);
+    // Replace, rather than nest, the legacy table toolbar: Operations hides
+    // .table-tools inside record-workspace-panel by design.
+    toolbar.replaceWith(searchRow);
     const tabs = ctx.el.querySelector('.purchasing-record-tabs-slot, .purchasing-po-tabs-slot');
-    if (tabs) toolbar.insertAdjacentElement('afterend', tabs);
-    // Move original permission-checked buttons; retain their existing click handlers.
-    const header = box.querySelector('.purchasing-ref-records-head');
-    if (header && ctx.tools) {
-      const buttons = [...ctx.tools.querySelectorAll(':scope > button')];
-      if (buttons.length) {
-        const actions = document.createElement('div');
-        actions.className = 'purchasing-record-header-actions';
-        buttons.forEach(button => actions.appendChild(button));
-        header.appendChild(actions);
-      }
+    if (tabs) {
+      tabs.classList.add('record-workspace-category-row', 'record-workspace-view-tabs');
+      searchRow.insertAdjacentElement('afterend', tabs);
     }
   },
   sortRecords(rows, q, dateKey, referenceKey, amountKey) {
@@ -919,7 +944,7 @@ App.page('parts_requests', {
       ['Status', 'status', 'badge'],
       ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>'],
       ['Waiting for', 'status', (v, r) => PurUI.waitingControl(PurUI.reqNext(r), 'request', r.id)]], rows,
-      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 12, groupBy: 'status', actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
+      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 10, groupBy: 'status', actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
         empty: 'No parts request in this list.' });
     PurRef.recordLayout(ctx, box, {
       filters: [{ name: 'truck', label: 'Truck', type: 'select', col: 12, options: trucks.map(truck => [truck, truck]) },
@@ -969,7 +994,7 @@ App.page('purchase_orders', {
       ['Total', 'total_amount', 'money'],
       ['Parts Status', 'status', (v, o) => UI.badge(v === 'Approved' && o.ordered_at ? 'Ordered' : v)],
       ['Waiting for', 'status', (v, o) => PurUI.waitingControl(PurUI.poNext(o), 'po', o.id)]], rows,
-      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 12, groupBy: 'status', actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
+      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 10, groupBy: 'status', actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
@@ -1036,7 +1061,7 @@ App.page('inventory', {
           ['Status', 'status', 'badge'],
           ['Waiting for', 'status', (v) => PurUI.chip(v === 'Submitted' ? ['admin', 'Admin'] : [null, 'Completed'])],
           ['Counted by', 'counted_by_name']], rows,
-          { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 12, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary'),
+          { title: 'Stock counts (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 10, actions: (c) => PurUI.countActs(c, can) + UI.btn('view', 'View Count', 'outline-primary'),
             onAction: (a, c) => a === 'view' ? PurUI.openCount(c, can) : PurUI.countReview(c, a), rowClick: (c) => PurUI.openCount(c, can),
             empty: 'No stock count recorded yet.' });
       PurRef.recordLayout(ctx, box, {
@@ -1075,7 +1100,7 @@ App.page('inventory', {
         ['On hand', 'quantity_on_hand', (v, p) => `<div class="purchasing-stock-cell"><span class="purchasing-stock-amount"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}</span>${+p.low_stock || openCount.has(+p.id) ? `<span class="purchasing-stock-badges">${+p.low_stock ? '<span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? '<span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>` : ''}</div>`],
         ['Reserved', 'reserved_qty', 'num'], ['Available', 'available_qty', 'num'],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
-        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 12, groupBy: 'part_type', groupLabel: 'Part type', actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
+        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 10, groupBy: 'part_type', groupLabel: 'Part type', actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
     PurRef.recordLayout(ctx, box, {
       filters: [{ name: 'part_type', label: 'Part Type', type: 'select', col: 12, options: types.map(type => [type, type]) }],
@@ -1116,7 +1141,7 @@ App.page('stock_movements', {
       ['Part', 'part_number', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(m.description)}</div>`],
       ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => `<span class="cell-nowrap">${v > 0 ? '+' : ''}${UI.num(v)}</span>`],
       ['Reason', 'reason', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`], ['Truck', 'plate_number'], ['By', 'actor']], rows,
-      { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 12,
+      { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 10,
         actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary') : '',
         onAction: (a, m) => UI.goTo(ref(m)), empty: 'No stock movement matches.' });
     PurRef.recordLayout(ctx, box, {
