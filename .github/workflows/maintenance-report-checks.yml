@@ -1,0 +1,29 @@
+name: Maintenance Report Form Checks
+on:
+  push:
+    branches: [luis]
+    paths:
+      - 'backend/Modules/Maintenance/Maintenance.php'
+      - 'public/assets/js/modules/maintenance/maintenance.js'
+      - 'tests/maintenance_overview_tests.php'
+      - '.github/workflows/maintenance-report-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Validate backend and report regression test syntax
+        run: |
+          php -l backend/Modules/Maintenance/Maintenance.php
+          php -l tests/maintenance_overview_tests.php
+          node --check public/assets/js/modules/maintenance/maintenance.js
+      - name: Check automatic server reporting date contract
+        run: |
+          php -r '$s=file_get_contents("backend/Modules/Maintenance/Maintenance.php"); $start=strpos($s,"private static function report("); $end=strpos($s,"private static function ",$start+10); $section=substr($s,$start,$end-$start); if(!str_contains($section,"\$date = date(") || str_contains($section,"dateField(\$d, '\''reported_on'\'')")) exit(1);'
