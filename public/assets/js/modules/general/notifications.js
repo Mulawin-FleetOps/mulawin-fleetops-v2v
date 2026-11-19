@@ -18,10 +18,21 @@ App.page('notifications', {
         ['Date and time received', 'created_at', 'datetime'], ['Status', 'state', 'badge'],
         ['Resolved', 'resolved_at', (v, n) => v ? UI.datetime(v) + `<div class="cell-sub">${+n.auto_resolved ? 'task done' : 'by you'}</div>` : '—']], d.items,
         { empty: 'No notifications.',
-          actions: (n) => (n.page ? UI.btn('go', 'View details', 'outline-primary') : '') + (['Unread', 'Read'].includes(n.state) ? UI.btn('resolve', 'Resolve', 'outline-success') : '') + (n.state !== 'Archived' ? UI.btn('archive', 'Archive', 'outline-secondary') : ''),
+          directActions: true,
+          actions: (n) => (n.page && UI.canGo(n.page) ? UI.btn('go', 'View details', 'outline-primary') : '')
+            + (n.state === 'Archived'
+                ? UI.btn('restore', 'Unarchive', 'outline-success')
+                : (['Unread', 'Read'].includes(n.state) ? UI.btn('resolve', 'Resolve', 'outline-success') : '')
+                  + UI.btn('archive', 'Archive', 'outline-secondary')),
           onAction: async (a, n) => {
-            if (a === 'go') { await App.notificationState(n.id, 'Read'); return App.go(n.page); }
-            const r = await App.notificationState(n.id, a === 'resolve' ? 'Resolved' : 'Archived'); if (r) { UI.result(r); App.route(); }
+            if (a === 'go') {
+              if (n.state === 'Unread') await App.notificationState(n.id, 'Read');
+              return App.go(n.page);
+            }
+            if (a === 'restore' && !await UI.confirmProceed('Unarchive notification', 'Restore this notification to Read?', 'Unarchive')) return;
+            const to = a === 'restore' ? 'Read' : a === 'resolve' ? 'Resolved' : 'Archived';
+            const r = await App.notificationState(n.id, to);
+            if (r) { UI.result(r); App.route(); }
           } });
   },
 });
