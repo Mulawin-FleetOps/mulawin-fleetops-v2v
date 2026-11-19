@@ -297,3 +297,58 @@
     min-width: 1160px;
   }
 }
+
+
+/* MOTORPOOL_PARTS_REQUESTS_RECOVERY_V4 — targeted regression repair.
+   The nine-column request table must never shrink columns to single letters.
+   Restore readable fixed proportions and scroll only when the viewport is narrow. */
+#pageContent .mp-parts-records-table .ref-tablebox,
+#pageContent .mp-parts-records-table .ref-tablebox > .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+#pageContent .mp-parts-records-table .ref-tablebox > .table-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+#pageContent .mp-parts-records-table .ref-tablebox > .table-wrap > table.data-table {
+  width: 100% !important;
+  min-width: 1320px !important;
+  max-width: none !important;
+  table-layout: fixed !important;
+}
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: none;
+  padding: 11px 10px;
+  line-height: 1.45;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(1) { width: 12% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(2) { width: 12% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(3) { width: 15% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(4) { width: 10% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(5) { width: 7% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(6) { width: 10% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(7) { width: 8% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(8) { width: 18% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(9) { width: 8% !important; }
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(1),
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(2) {
+  overflow-wrap: break-word !important;
+}
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(3),
+#pageContent .mp-parts-records-table .ref-tablebox table.data-table :is(th,td):nth-child(8) {
+  overflow-wrap: break-word !important;
+}
+#pageContent .mp-parts-records-table .ref-tablebox .row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  justify-content: center;
+}
