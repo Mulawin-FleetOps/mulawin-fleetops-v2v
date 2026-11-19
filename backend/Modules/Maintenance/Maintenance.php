@@ -230,7 +230,7 @@ final class Maintenance {
         if (str_starts_with($det, 'assisting mechanic removed')) return 'Assisting mechanic removed';
         if (str_starts_with($det, 'mechanic changed')) return 'Mechanic changed';
         if (str_starts_with($det, 'mechanic assigned')) return 'Mechanic assigned';
-        if (str_starts_with($det, 'assessed ')) return 'Incident assessed, mechanic assigned';
+        if (str_starts_with($det, 'assessed ')) return 'Incident assessed';
         if (str_starts_with($det, 'Arrival checklist findings')) return 'Arrival checklist findings added';
         if ($from === 'Under Inspection' && $to === 'Under Repair') return 'Inspection findings recorded';
         if ($from === 'Under Repair' && $to === 'Completed') return 'Repair completed';
@@ -471,7 +471,7 @@ final class Maintenance {
         return transaction(function (PDO $p) use ($u, $id, $mechanicId, $reason) {
             $j = self::lockJob($p, $id);
             must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
-            must(!($j['source'] === 'Incident' && $j['status'] === 'Reported'), 'Assess the incident first (Minor or Major); the mechanic is chosen there.', 409);
+            must(!($j['source'] === 'Incident' && $j['status'] === 'Reported'), 'Assess the incident first (Minor or Major) before assigning a mechanic.', 409);
             if ((int)$j['mechanic_id'] === $mechanicId) return ['message' => 'This mechanic is already assigned.'];
             if ($j['mechanic_id']) must($reason !== null, 'Give the reason for changing the mechanic.');
             $oldMechanic = $j['mechanic_id'] ? one($p, 'SELECT full_name FROM mechanics WHERE id=?', [$j['mechanic_id']]) : null;
@@ -544,43 +544,41 @@ final class Maintenance {
         });
     }
 
-    /** Incident assessment: Minor (on-site repair) or Major (return, repair, redispatch). PDF #12 Scenario C step 3. */
+    /** Incident assessment is based on the dispatcher's report; no physical inspection or mechanic assignment is assumed. */
     private static function assess(array $u, array $d): array {
         requireRole($u, ...self::ACT);
         $id = idField($d, 'job_id');
         $sev = choiceField($d, 'severity', ['Minor', 'Major']);
         $rec = field($d, 'recommendation', 500);
-        $mechanicId = idField($d, 'mechanic_id');
-        $exp = null; // ETA no longer requested during assessment (#43).
-        if ($exp) must($exp >= date('Y-m-d'), 'Expected completion cannot be in the past.');
-        return transaction(function (PDO $p) use ($u, $id, $sev, $rec, $mechanicId, $exp) {
+        return transaction(function (PDO $p) use ($u, $id, $sev, $rec) {
             $j = self::lockJob($p, $id);
             must($j['source'] === 'Incident' && $j['status'] === 'Reported', 'Only a newly reported incident can be assessed.', 409);
             $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
             $t = one($p, 'SELECT * FROM trips WHERE id=? FOR UPDATE', [$j['trip_id']]);
-            must($t && $t['status'] === 'On Hold - Incident Reported', 'The trip is not On Hold.', 409);
-            $m = self::freeMechanic($p, $mechanicId);
-            self::setMechanic($p, $j, $mechanicId);
-            // UNSUPPORTED_CLASSIFICATION_CLEANUP: the recorded repair plan (Minor / Major) is kept; no Critical / High priority is
-            // derived from it any more (no company policy). The legacy priority column and existing values are left unchanged.
-            run($p, "UPDATE maintenance_jobs SET status='Under Inspection', severity=?, expected_completion=?, started_by=?, started_at=NOW(), remarks=? WHERE id=?",
-                [$sev, $exp, $u['id'], $rec, $id]);
-            run($p, "UPDATE incidents SET severity=?, recommendation=?, status='Under Repair', assessed_by=?, assessed_at=NOW() WHERE id=?", [$sev, $rec, $u['id'], $inc['id']]);
-            self::event($p, $id, 'Reported', 'Under Inspection', $u['id'], "assessed $sev: $rec", $mechanicId);
-            audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'incident assessed', $inc['incident_ref'] . ': ' . $sev . '; mechanic ' . $m['full_name']);
+            must($inc && $t && $t['status'] === 'On Hold - Incident Reported', 'The trip is not On Hold.', 409);
+            // Assessment does not reserve a mechanic or claim that the incident truck was inspected.
+            // Once the truck is accessible, assign an available mechanic separately in Repair Management.
+            run($p, "UPDATE maintenance_jobs SET status='Under Inspection', severity=?, started_by=?, started_at=NOW(), remarks=? WHERE id=?",
+                [$sev, $u['id'], $rec, $id]);
+            run($p, "UPDATE incidents SET severity=?, recommendation=?, status='Under Repair', assessed_by=?, assessed_at=NOW() WHERE id=?",
+                [$sev, $rec, $u['id'], $inc['id']]);
+            self::event($p, $id, 'Reported', 'Under Inspection', $u['id'], "assessed $sev: $rec");
+            audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'incident assessed', $inc['incident_ref'] . ': ' . $sev . '; mechanic not yet assigned');
             Notify::resolve($p, 'incident-assess-' . $inc['id']);
             Actions::load('Trips');
             if ($sev === 'Major') {
-                // INCIDENT_CLEARANCE_V1: Major damage is Motorpool's Not Fit to Continue decision, recorded with the assessment.
-                run($p, "UPDATE incidents SET clearance='Not Fit to Continue', clearance_findings=?, cleared_by=?, cleared_at=NOW() WHERE id=?", [$rec, $u['id'], $inc['id']]);
-                Trips::setStatus($p, $u['id'], $t, 'For Reschedule', 'major damage: truck returned for repair', $inc['incident_ref'] . ($exp ? '; expected back ' . $exp : ''));
+                run($p, "UPDATE incidents SET clearance='Not Fit to Continue', clearance_findings=?, cleared_by=?, cleared_at=NOW() WHERE id=?",
+                    [$rec, $u['id'], $inc['id']]);
+                Trips::setStatus($p, $u['id'], $t, 'For Reschedule', 'major damage: truck returned for repair', $inc['incident_ref']);
                 $now = FleetState::reconcile($p, (int)$j['vehicle_id'], $u['id'], 'Major damage ' . $inc['incident_ref']);
-                Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Major damage', $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . ($exp ? ' (expected back ' . $exp . ')' : '') . '.', 'trips');
-                return ['message' => 'Assessed as MAJOR. ' . $m['full_name'] . ' is assigned. Truck is ' . $now . ' and the trip is For Reschedule.'];
+                Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Major damage',
+                    $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . '.', 'trips');
+                return ['message' => 'Assessed as MAJOR. No mechanic assigned yet. Truck is ' . $now . ' and trip is For Reschedule. Assign a mechanic when physical inspection or repair can begin.'];
             }
-            Trips::event($p, $u['id'], (int)$t['id'], 'minor damage: mechanic sent to the location', $t['status'], $t['status'], $inc['incident_ref'] . '; ' . $m['full_name']);
-            Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Minor damage', $t['trip_ref'] . ': ' . $m['full_name'] . ' sent for on-site repair.', 'trips');
-            return ['message' => 'Assessed as MINOR. ' . $m['full_name'] . ' is sent to the location. Record the findings, the repair, then verify the truck.'];
+            Trips::event($p, $u['id'], (int)$t['id'], 'minor damage assessed; awaiting inspection or clearance', $t['status'], $t['status'], $inc['incident_ref']);
+            Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Minor damage',
+                $t['trip_ref'] . ': Motorpool assessed a minor incident. Trip stays On Hold pending fit-to-continue clearance.', 'trips');
+            return ['message' => 'Assessed as MINOR. Trip remains On Hold. Assign a mechanic if inspection/repair is needed, or record inspection-only clearance if no repair is required.'];
         });
     }
 
