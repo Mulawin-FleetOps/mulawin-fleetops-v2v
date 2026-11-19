@@ -944,6 +944,12 @@ App.page('parts_requests', {
     const rows = PurRef.sortRecords(all.filter(TABS[tab][1]).filter(r => (!q.truck || r.plate_number === q.truck) && (!q.po || (q.po === 'linked' ? !!r.linked_pos : !r.linked_pos))), q, 'created_at', 'request_ref');
     // UI_REFERENCE_V1: status tabs with counts, compact filters with Reset, then the list (no separate KPI row).
     ctx.el.innerHTML = `<div class="purchasing-record-tabs-slot">${UI.statusTabs('parts_requests', q, 'tab', [['todo','To process',cnt('todo')], ['followup','Follow up',cnt('followup')], ['released','Released',cnt('released')], ...(tab === 'cancelled' ? [['cancelled','Cancelled',cnt('cancelled')]] : []), ['all','All',cnt('all')]], tab)}</div>`;
+    ctx.el.insertAdjacentHTML('afterbegin', PurRef.cards([
+      {label:'Total Requests',value:all.length,icon:'bi-clipboard-data'},
+      {label:'To Process',value:cnt('todo'),icon:'bi-hourglass-split'},
+      {label:'Follow Up',value:cnt('followup'),icon:'bi-exclamation-circle'},
+      {label:'Released',value:cnt('released'),icon:'bi-check-circle'}
+    ]));
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Parts Request Records','Motorpool requests and release progress',rows.length);
     const open = (r) => PurUI.openRequest(r, k);
@@ -997,6 +1003,12 @@ App.page('purchase_orders', {
     ctx.el.innerHTML = `<div class="purchasing-po-tabs-slot">${UI.statusTabs('purchase_orders', q, 'tab', [['approval','Awaiting approval',cnt('approval')], ['ready','Ready to order',cnt('ready')], ['receive','To receive',cnt('receive')], ['done','Completed',cnt('done')],
         ...(tab === 'rejected' ? [['rejected','Rejected',cnt('rejected')]] : []),
         ['all','All',cnt('all')]], tab)}</div>`;
+    ctx.el.insertAdjacentHTML('afterbegin', PurRef.cards([
+      {label:'Total Purchase Orders',value:all.length,icon:'bi-cart'},
+      {label:'Awaiting Approval',value:cnt('approval'),icon:'bi-hourglass-split'},
+      {label:'Ready to Order',value:cnt('ready'),icon:'bi-cart-check'},
+      {label:'To Receive',value:cnt('receive'),icon:'bi-box-arrow-in-down'}
+    ]));
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Purchase Order Records','Approval and receiving status',rows.length);
     const open = (o) => PurUI.openPO(o, k);
@@ -1143,6 +1155,12 @@ App.page('stock_movements', {
         ...(q.type === 'Adjustment' ? [['Adjustment','Adjustment',base.filter(m => m.movement_type === 'Adjustment').length]] : [])], types.includes(q.type) ? q.type : '')}</div>
       <div class="small text-muted mb-2">Shown: stock in <b>${UI.num(sum('Stock In'))}</b> units (${UI.money(val('Stock In'))}) · stock out <b>${UI.num(sum('Stock Out'))}</b> units (${UI.money(val('Stock Out'))})
         · ${UI.num(rows.filter(m => m.movement_type === 'Adjustment').length)} adjustment(s). Values use the unit cost recorded on each movement.</div>`;
+    ctx.el.insertAdjacentHTML('afterbegin', PurRef.cards([
+      {label:'Total Movements',value:base.length,icon:'bi-arrow-left-right'},
+      {label:'Stock In',value:base.filter(m=>m.movement_type==='Stock In').length,icon:'bi-box-arrow-in-down'},
+      {label:'Stock Out',value:base.filter(m=>m.movement_type==='Stock Out').length,icon:'bi-box-arrow-up'},
+      {label:'Adjustments',value:base.filter(m=>m.movement_type==='Adjustment').length,icon:'bi-clipboard-check'}
+    ]));
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Stock Movement Records','Stock in, stock out and adjustments',rows.length);
     const ref = (m) => m.reference_type === 'purchase_order' ? 'purchase_orders?open=' + m.reference_id : m.reference_type === 'part_request' ? 'parts_requests?open=' + m.reference_id
