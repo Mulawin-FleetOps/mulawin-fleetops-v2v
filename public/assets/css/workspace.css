@@ -2306,3 +2306,69 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   #pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:1160px}
   #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1230px}
 }
+
+/* PURCHASING_ACTION_TEXT_FIX_V2 — restore intrinsic button dimensions after
+   the generic .ref-scope icon-grid rule, across all Purchasing records.
+   The 32px icon rule was squeezing full text outside the button (Stock Movements). */
+#pageContent .purchasing-live-v1 .ref-tablebox .row-icons > .btn:not(.icon-act),
+#pageContent .purchasing-live-v1 .ref-tablebox .row-actions .row-icons > .btn:not(.icon-act){
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  width:auto;
+  height:auto;
+  min-width:max-content;
+  min-height:34px;
+  padding:7px 11px;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.3;
+  white-space:nowrap;
+  text-align:center;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .row-icons > .btn:not(.icon-act) > .bi{
+  flex:none;
+}
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table td.actions-col,
+#pageContent .purchasing-live-v1 .ref-tablebox .data-table th.actions-col{
+  min-width:154px;
+  width:154px;
+  max-width:none;
+  text-align:center;
+  white-space:nowrap;
+}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .table-wrap{
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table{
+  width:100%;
+  min-width:1050px;
+  table-layout:fixed;
+}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td){
+  box-sizing:border-box;
+  padding:11px 10px;
+  vertical-align:middle;
+}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(1){width:14%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(2){width:14%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(3){width:9%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(4){width:6%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(5){width:25%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(6){width:8%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(7){width:10%}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table :is(th,td):nth-child(8){width:14%;min-width:154px}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table td:nth-child(5){
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+#pageContent .purchasing-table-stock-movements .ref-tablebox .data-table .row-icons{
+  display:flex;
+  flex-wrap:nowrap;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+}
