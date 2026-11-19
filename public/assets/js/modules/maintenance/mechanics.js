@@ -132,17 +132,17 @@ App.page('mechanic_attendance', {
     const range = d.range || {};
     const isAdmin = App.me.user.role === 'admin';
     if (isAdmin && typeof AttendanceUI !== 'undefined') UI.tool(ctx, 'Daily attendance (Present / Absent)', () => AttendanceUI.open('Mechanic'), 'bi-clipboard-check', 'outline-primary');
-    const tab = q.tab === 'sessions' ? 'sessions' : 'attendance';
     const on = board.filter(m => m.open_time_in);
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
       </div></div>`;
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro + UI.statusTabs('mechanic_attendance', q, 'tab', [['attendance', 'Attendance', board.length], ['sessions', 'Sessions', sessions.length]], tab);
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro;
     const rows = board.map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
-    if (tab === 'attendance') {
-    const box = document.createElement('div'); ctx.el.append(box);
-    // Buttons call the existing actions only (MechUI.toggle -> Mechanics.time_in / time_out, server-checked; MechUI.open -> Mechanics.details).
-    box.innerHTML = UI.table([
+
+    // Duty board and session history share one page; no Attendance / Sessions tabs.
+    const box = document.createElement('section'); ctx.el.append(box);
+    box.classList.add('mp-reference-table', 'mp-ops-table', 'mp-mechanic-attendance-table');
+    box.innerHTML = `<div class="mp-records-heading"><div><strong>Attendance</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Duty status and current assignments</small></div>` + UI.table([
       ['Mechanic', 'full_name', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(m.mechanic_code)}${m.specialization ? ' · ' + UI.esc(m.specialization) : ''}</div>`],
       ['Today', 'open_time_in', (v, m) => v ? `<span class="badge-s green">Timed in</span><div class="cell-sub">since ${UI.datetime(v)}</div>`
         : (m.last_time_out ? `<span class="badge-s amber">Timed out</span><div class="cell-sub">${UI.datetime(m.last_time_out)}</div>` : '<span class="badge-s gray">Not timed in</span>')],
@@ -151,18 +151,14 @@ App.page('mechanic_attendance', {
       ['Current repair', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck || '')} · ${UI.esc(m.job_status || '')}</div>` : '<span class="text-muted">—</span>'],
       ...(isAdmin ? [['Daily mark', 'daily_mark', (v) => v ? UI.badge(v) : '<span class="text-muted">Not marked</span>']] : [])], rows,
       { showAllColumns: true, directActions: true,
-        actions: (m) => (can.edit ? `<button type="button" class="btn btn-sm ${m.open_time_in ? 'btn-outline-secondary' : 'btn-outline-primary'}" data-act="toggle" aria-label="${m.open_time_in ? 'Time Out' : 'Time In'} ${UI.esc(m.full_name)}">${m.open_time_in ? 'Time Out' : 'Time In'}</button>` : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
-        onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
+        actions: (m) => (can.edit ? `<button type="button" class="btn btn-sm btn-outline-primary" data-act="time_in" ${m.open_time_in ? 'disabled title="Already timed in"' : ''} aria-label="Time In ${UI.esc(m.full_name)}">Time In</button> <button type="button" class="btn btn-sm btn-outline-secondary" data-act="time_out" ${!m.open_time_in ? 'disabled title="Not currently timed in"' : ''} aria-label="Time Out ${UI.esc(m.full_name)}">Time Out</button> ` : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
+        onAction: (a, m, b) => a === 'time_in' || a === 'time_out' ? MechUI.toggle(m, b) : MechUI.open(m.id),
+        rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
 
-    box.classList.add('mp-reference-table', 'mp-ops-table', 'mp-mechanic-attendance-table');
-    box.insertAdjacentHTML('afterbegin', `<div class="mp-records-heading"><div><strong>Attendance Records</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Duty status and current assignments</small></div>`);
-
-    } else {
-    // Session history for the chosen dates.
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
-    const hist = document.createElement('section'); hist.className = 'mp-session-section'; ctx.el.append(hist);
-    hist.innerHTML = `<h2 class="ref-h">Time In / Time Out sessions · ${UI.esc(label)}</h2>`
+    const hist = document.createElement('section'); hist.className = 'mp-session-section mt-3'; ctx.el.append(hist);
+    hist.innerHTML = `<h2 class="ref-h">Time In / Time Out Records · ${UI.esc(label)}</h2>`
       + UI.generalFilters(ctx, [{ name: 'from', label: 'Sessions from', type: 'date' }, { name: 'to', label: 'Sessions to', type: 'date' }])
       + UI.table([
         ['Mechanic', 'full_name', (v, s) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(s.mechanic_code)}</div>`],
@@ -172,6 +168,5 @@ App.page('mechanic_attendance', {
         ['Timed in by', 'time_in_by'],
         ['Timed out by', 'time_out_by'],
       ], sessions, { showAllColumns: true, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
-    }
   },
 });
