@@ -409,7 +409,7 @@ final class Maintenance {
         $rawParts = $d['parts_lines'] ?? [];
         must(is_array($rawParts), 'Invalid parts request.');
         must(count($rawParts) <= 30, 'At most 30 requested parts.');
-        $partsPurpose = $rawParts ? field($d, 'problem', 255) : null;
+        $partsPurpose = $rawParts ? cut($problem, 255) : null;
         return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks, $assist, $rawParts, $partsPurpose) {
             $v = one($p, 'SELECT * FROM vehicles WHERE id=? FOR UPDATE', [$vid]);
             must($v && (int)$v['active'], 'Truck not found or inactive.', 404);
