@@ -1682,7 +1682,7 @@ UI.table = (columns, rows, opts = {}) => {
     ? (visibleColumns.find(([, key, fmt]) => fmt === 'badge' && /^(status|availability|movement_type|type)$/i.test(String(key))) || [])[1]
     : null);
   const groupLabel = opts.groupLabel || (groupColumn && (visibleColumns.find(([, key]) => key === groupColumn) || [])[0]) || 'Group';
-  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(10, Math.max(1, Number(opts.limit) || 10)), page: 0, filter: '', groupColumn: opts.plain ? null : groupColumn, groupLabel, grouped: false };
+  UI._tables[id] = { columns: visibleColumns, allColumns: columns, hasActions: !!opts.actions || (!opts.plain && visibleColumns.length < columns.length), rows: rows || [], opts, limit: Math.min(12, Math.max(1, Number(opts.limit) || 10)), page: 0, filter: '', groupColumn: opts.plain ? null : groupColumn, groupLabel, grouped: false };
   if (opts.plain) return `<div class="plain-table"><div class="table-wrap" data-tbody="${id}"></div><div class="table-pager no-print" data-tpager="${id}"></div></div>`;
   if (UI.refPage()) {   // REF_FIDELITY_V1: search + Reset toolbar, then the bordered table (reference list layout)
     return `<div class="ref-list"><div class="ref-toolbar no-print"><div class="table-search ref-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" type="search" placeholder="Search records..." aria-label="Search records" data-tsearch="${id}"></div>
@@ -2847,148 +2847,8 @@ UI.signatureModal = () => {
 };
 
 /* RPM SHARED RECORD VIEW SWITCH V1 START */
-/* Adds Cards/List choice to normal UI.table lists without changing backend queries,
- * row actions, search, or the existing paginator. Plain detail tables excluded.
- */
-(() => {
-  const oldTable = UI.table;
-  const oldDraw = UI.drawTable;
-  const oldActivate = UI.activate;
-  const userKey = () => String(App.me?.user?.id ?? App.me?.user?.username ?? 'user');
-  const prefKey = () => 'rpm:record-view:v1:' + userKey() + ':' + String(App.current?.page || 'records');
-  const getPref = () => {
-    try { return localStorage.getItem(prefKey()) === 'cards' ? 'cards' : 'list'; }
-    catch (_) { return 'list'; }
-  };
-  const savePref = (value) => {
-    try { localStorage.setItem(prefKey(), value); } catch (_) { /* private browsing */ }
-  };
-  // WS_DESIGN_V1: Maintenance / Accounting workspace pages always show one table (no manual List/Card switch).
-  const eligible = (opts) => !opts.plain && opts.viewSwitch !== false && App.current?.page !== 'dashboard' && !UI.WS_PAGES.has(App.current?.page) && !UI.refPage();
+/* Table-only record lists: card/grid switch retired. Shared search, filtering, pagination and actions stay in UI.table. */
 
-  UI.table = (columns, rows, opts = {}) => {
-    if (!eligible(opts)) return oldTable(columns, rows, opts);
-    const marker = 'rpmview' + Math.random().toString(36).slice(2, 9);
-    const actions = `<div class="rpm-record-controls no-print" data-rpm-controls="${marker}" aria-label="Record view and page size">
-      <div class="rpm-record-toggle" role="group" aria-label="View records as">
-        <button type="button" data-rpm-view="list" aria-pressed="false"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">List</span></button>
-        <button type="button" data-rpm-view="cards" aria-pressed="false"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="visually-hidden">${UI.role('operations_head')||UI.isDispatcher()?'Grid':'Cards'}</span></button>
-      </div>
-      <span class="rpm-record-size-label" aria-label="Ten records per page">10 per page</span>
-    </div>`;
-    const originalTools = opts.tools || '';
-    const result = oldTable(columns, rows, { ...opts, tools: originalTools + actions });
-    const t = Object.values(UI._tables).find(table => table.opts && table.opts.tools && table.opts.tools.includes(marker));
-    if (t) {
-      t.rpmView = 'list';
-      t.rpmMarker = marker;
-      t.limit = 10;
-    }
-    return result;
-  };
-
-  UI.drawTable = (id) => {
-    oldDraw(id);
-    const t = UI._tables[id];
-    if (!t?.rpmMarker) return;
-    const container = document.querySelector(`[data-tbody="${id}"]`);
-    const control = document.querySelector(`[data-rpm-controls="${t.rpmMarker}"]`);
-    if (!container) return;
-    if (control) {
-      control.querySelectorAll('[data-rpm-view]').forEach(button => {
-        const active = button.dataset.rpmView === t.rpmView;
-        button.classList.toggle('active', active);
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
-      const size = control.querySelector('[data-rpm-size]');
-      if (size) size.value = String(t.limit);
-    }
-    if (t.rpmView !== 'cards' || !UI.tableRows(id).length) return;
-    const table = container.querySelector('table.data-table');
-    if (!table) return; // empty list is handled by existing table renderer
-    const grid = document.createElement('div');
-    grid.className = 'rpm-record-grid';
-    const columns = t.columns;
-    table.querySelectorAll('tbody tr[data-ri]').forEach(tr => {
-      const r = t.rows[Number(tr.dataset.ri)];
-      const cells = Array.from(tr.children);
-      const card = document.createElement('article');
-      card.className = 'rpm-record-card' + (t.opts.rowClick ? ' rpm-record-clickable' : '');
-      if (t.opts.rowClick) { card.tabIndex = 0; card.setAttribute('role', 'button'); }
-      const fields = document.createElement('div');
-      fields.className = 'rpm-record-fields';
-      columns.forEach(([label, , format], idx) => {
-        if (idx >= 4 && !(UI.role('operations_head')||UI.isDispatcher())) return; // RPM CARD COMPACT V2: hide secondary fields; full details through View action. // Keep cards concise; the View action opens full details.
-        const td = cells[idx];
-        if (!td) return;
-        const field = document.createElement('div');
-        field.className = 'rpm-record-field' + (idx === 0 ? ' rpm-record-primary' : '') + (idx >= 4 ? ' rpm-record-extra' : '');
-        const name = document.createElement('span');
-        name.className = 'rpm-record-name';
-        name.textContent = UI.columnLabel(label, format);
-        const value = document.createElement('div');
-        value.className = 'rpm-record-value';
-        while (td.firstChild) value.appendChild(td.firstChild); // move nodes: existing action/listeners preserved
-        field.append(name, value);
-        fields.appendChild(field);
-      });
-      card.appendChild(fields);
-      if (t.hasActions) {
-        const actions = cells[cells.length - 1]?.querySelector('.row-actions');
-        if (actions) {
-          const area = document.createElement('div');
-          area.className = 'rpm-record-actions';
-          area.appendChild(actions); // move original bound buttons, not re-create them
-          card.appendChild(area);
-        }
-      }
-      if (t.opts.rowClick) {
-        const open = () => t.opts.rowClick(r);
-        card.addEventListener('click', e => {
-          if (e.target.closest('a,button,input,select,textarea,label,summary,details')) return;
-          open();
-        });
-        card.addEventListener('keydown', e => {
-          if (e.target !== card) return;
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-        });
-      }
-      grid.appendChild(card);
-    });
-    table.replaceWith(grid);
-  };
-
-  UI.activate = (root) => {
-    oldActivate(root);
-    root.querySelectorAll('[data-rpm-controls]').forEach(ctrl => {
-      if (ctrl.dataset.rpmBound) return;
-      ctrl.dataset.rpmBound = '1';
-      const marker = ctrl.dataset.rpmControls;
-      const entry = () => Object.entries(UI._tables).find(([, t]) => t.rpmMarker === marker);
-      ctrl.querySelectorAll('[data-rpm-view]').forEach(b => b.addEventListener('click', () => {
-        const choice = b.dataset.rpmView;
-        // Only this table responds to its own view switch.
-        const result = entry();
-        if (!result) return;
-        const [id, t] = result;
-        t.rpmView = choice;
-        t.page = 0;
-        UI.drawTable(id);
-      }));
-      ctrl.querySelector('[data-rpm-size]')?.addEventListener('change', e => {
-        const result = entry();
-        if (!result) return;
-        const [id, t] = result;
-        const count = Number(e.target.value);
-        if (count !== 10) return;
-        t.limit = count;
-        t.page = 0;
-        UI.drawTable(id);
-      });
-    });
-  };
-})();
-/* RPM SHARED RECORD VIEW SWITCH V1 END */
 // Standard record presentation is opt-in by caller role, not an authorization decision.
 (() => {
   const draw=UI.drawTable,activate=UI.activate;
