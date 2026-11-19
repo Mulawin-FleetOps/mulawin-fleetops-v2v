@@ -3394,3 +3394,29 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .table-wrap > table.data-table th,
   .table-wrap > table.data-table td { padding: 9px 10px; }
 }
+
+
+/* MOTORPOOL_ATTENDANCE_ACTIONS_V2: match Driver / Helper's single duty action. */
+.mp-mechanic-attendance-table .data-table th.actions-col,
+.mp-mechanic-attendance-table .data-table td.actions-col {
+  min-width: 166px;
+  width: 166px;
+  text-align: right;
+}
+.mp-mechanic-attendance-table .data-table td.actions-col .row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.mp-mechanic-attendance-table .data-table td.actions-col .row-actions > .btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+}
+.mp-mechanic-attendance-table .data-table td.actions-col [data-act="toggle"] {
+  min-width: 86px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
