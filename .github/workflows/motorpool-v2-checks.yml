@@ -1,0 +1,57 @@
+name: Motorpool V2 Repair Workflow Checks
+on:
+  push:
+    branches: [luis]
+    paths:
+      - 'backend/Modules/Maintenance/Maintenance.php'
+      - 'backend/Modules/Maintenance/Mechanics.php'
+      - 'backend/Modules/Operations/Trips.php'
+      - 'public/assets/js/modules/maintenance/maintenance.js'
+      - 'public/assets/js/modules/maintenance/mechanics.js'
+      - 'public/assets/js/modules/operations/trips.js'
+      - 'database/migrations/2026-11-19_03_motorpool_repair_catalogs.sql'
+      - 'database/migrations/2026-11-19_04_incident_clarifications.sql'
+      - 'tests/motorpool_repair_v2_tests.php'
+      - 'tests/run_motorpool_repair_v2_tests.php'
+      - '.github/workflows/motorpool-v2-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  motorpool-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+      - name: Syntax lint
+        run: |
+          php -l backend/Modules/Maintenance/Maintenance.php
+          php -l backend/Modules/Maintenance/Mechanics.php
+          php -l backend/Modules/Operations/Trips.php
+          php -l tests/motorpool_repair_v2_tests.php
+          php -l tests/run_motorpool_repair_v2_tests.php
+          node --check public/assets/js/modules/maintenance/maintenance.js
+          node --check public/assets/js/modules/maintenance/mechanics.js
+          node --check public/assets/js/modules/operations/trips.js
+      - name: Isolated database regression
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: root
+          TEST_DB_PASS: ''
+        run: php tests/run_motorpool_repair_v2_tests.php
