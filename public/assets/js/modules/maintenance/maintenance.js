@@ -64,122 +64,46 @@ const MaintUI = {
     return (MaintUI.data.mechanics || []).filter(m => m.availability === 'Available' || +m.id === +currentId)
       .map(m => [m.id, `${m.full_name} · ${m.mechanic_code}${m.specialization ? ' · ' + m.specialization : ''}`]);
   },
-  /** One Motorpool intake: report, lead/assisting mechanics, optional parts request. */
-  async report(vehicleId) {
-    const d = MaintUI.data;
+  /** Garage intake only. Mechanic team, component diagnosis, and parts belong in the repair workflow. */
+  report(vehicleId) {
+    const d = MaintUI.data || {};
     const trucks = (d.trucks || []).filter(v => ['Available', 'Assigned'].includes(v.status) && !v.open_job && !v.on_road);
-    const mechanics = (d.mechanics || []).filter(m => m.availability === 'Available');
-    // The request catalog contains IDs/availability only, never stock value or supplier costs.
-    let parts = [];
-    try { parts = (await App.api('Purchasing.request_catalog')).parts || []; }
-    catch (e) { UI.toast('Parts catalog unavailable. You can report the problem and request parts later.', 'warning'); }
-    const partOptions = parts.map(p => `<option value="${+p.id}">${UI.esc([p.part_type, p.description, p.brand].filter(Boolean).join(" — "))}${p.part_type ? "" : " (type not classified)"} · ${UI.esc(p.availability)}</option>`).join('');
-    const item = () => `<div class="mp-parts-line" data-part-row>
-      <div class="mp-parts-line-fields">
-        <div><label class="form-label">Part</label><select class="form-select" data-part>
-          <option value="">Choose part…</option>${partOptions}</select></div>
-        <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" data-qty placeholder="Qty"></div>
-      </div>
-      <button type="button" class="btn btn-outline-danger btn-sm mp-parts-remove" data-remove-part aria-label="Remove part"><i class="bi bi-trash"></i></button>
-    </div>`;
     const fields = UI.fields([
       { type:'html', col:12, html:`<label class="form-label" for="motorpool-truck-search">Affected truck *</label>
         <input id="motorpool-truck-search" type="search" class="form-control" data-report-truck-search list="motorpool-truck-list" placeholder="Type plate or truck number, then choose a suggestion…" autocomplete="off" required>
         <input type="hidden" name="vehicle_id" value="">
         <datalist id="motorpool-truck-list">${trucks.map(v=>`<option value="${UI.esc(v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')')}"></option>`).join('')}</datalist>
-        <div class="form-help" data-truck-search-count aria-live="polite">Available trucks only. Select one exact suggestion.</div>` },
-      { name:'mechanic_id', label:'Lead mechanic', type:'select', required:false, col:6,
-        options:mechanics.map(m=>[m.id,m.full_name+' · '+m.mechanic_code+(m.specialization?' · '+m.specialization:'')]),
-        placeholder:mechanics.length?'Choose lead mechanic…':'No available mechanic',
-        help:'Only available, timed-in mechanics are listed.' },
+        <div class="form-help" data-truck-search-count aria-live="polite">Select one exact truck suggestion to continue.</div>` },
       { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
-        placeholder:'Describe the truck problem and location of the damage.' },
-      { name:'remarks', label:'Remarks', col:12 },
-      { name:'photos', label:'Photo evidence of the truck problem', type:'file', multiple:true, required:true, col:12,
-        attrs:'accept="image/png,image/jpeg"' }
+        placeholder:'Describe what is wrong and where the problem is located.' },
+      { name:'remarks', label:'Additional remarks (optional)', col:12 },
+      { name:'photos', label:'Photos of the reported problem', type:'file', multiple:true, required:true, col:12,
+        attrs:'accept="image/png,image/jpeg"', help:'Attach evidence of the truck condition. Photos are required.' }
     ]);
-    const assistants = mechanics.length
-      ? `<div class="mech-pick" data-assistant-list role="group" aria-label="Assisting mechanics">
-          ${mechanics.map(m=>`<label class="mech-pick-row">
-            <input type="checkbox" class="form-check-input" data-assistant-id="${+m.id}" value="${+m.id}">
-            <span><b>${UI.esc(m.full_name)}</b> · ${UI.esc(m.mechanic_code)}</span>
-          </label>`).join('')}</div>`
-      : '<p class="small text-muted mb-0">No assisting mechanics are available. Assign them later after Time In.</p>';
-    const body = `<p class="modal-intro">The report date is recorded automatically. The truck is taken out of service until the repair is completed and verified.</p>
-      <div class="purchasing-receive-section">Truck problem and lead mechanic</div>${fields}
-      <section class="mp-parts-items mt-3" data-assist-section>
-        <div class="mp-parts-items-head"><div><strong>Assisting mechanics (optional)</strong>
-          <div class="small text-muted">Choose any additional available mechanics. The lead cannot be selected twice.</div></div></div>
-        ${assistants}</section>
-      <section class="mp-parts-items mt-3" data-report-parts>
-        <div class="mp-parts-items-head"><div><strong>Parts needed (optional)</strong>
-          <div class="small text-muted">If known, request the parts now; Purchasing will process the request. Otherwise add them after inspection.</div></div>
-          <button type="button" class="btn btn-outline-primary btn-sm" data-add-part ${parts.length?'':'disabled'}>
-            <i class="bi bi-plus-lg me-1"></i>Add part</button></div>
-        ${parts.length ? '<div data-part-list></div>' :
-          '<p class="small text-muted mb-0">No available parts catalog. You can submit the truck problem without a parts request.</p>'}
-      </section>`;
+    const body = `<p class="modal-intro">Report the problem first. The date is recorded automatically and the truck is taken out of service. Assign mechanics, confirm affected components and request parts from the repair record after reporting.</p>
+      <div class="purchasing-receive-section">Truck problem report</div>${fields}`;
     const wrap = UI.modal('Report a truck problem', body, async (values, form) => {
-      const assistant_mechanic_ids = [...form.querySelectorAll('[data-assistant-id]:checked')].map(i=>+i.value);
-      const parts_lines = [...form.querySelectorAll('[data-part-row]')].map(row=>({
-        part_id:row.querySelector('[data-part]').value,
-        quantity:row.querySelector('[data-qty]').value
-      }));
-      if (parts_lines.some(line=>!line.part_id||!/^[1-9][0-9]*$/.test(String(line.quantity))||+line.quantity>100000))
-        throw new Error('Each parts request row must have a part and whole-number quantity (1 to 100000).');
-      if (new Set(parts_lines.map(line=>String(line.part_id))).size!==parts_lines.length)
-        throw new Error('The same part is listed twice. Combine the quantities.');
       if (!values.vehicle_id) throw new Error('Choose a valid affected truck from the suggestions.');
-      if (assistant_mechanic_ids.length && !values.mechanic_id)
-        throw new Error('Choose a lead mechanic before assigning assisting mechanics.');
-      if (parts_lines.length && !values.mechanic_id)
-        throw new Error('Choose a lead mechanic before requesting parts.');
-      const res = await App.apiForm('Maintenance.report', { ...values, assistant_mechanic_ids, parts_lines }, form);
-      UI.result(res); App.route();
-    }, { submit:'Report problem', size:'modal-lg', onShow:(dialog, form)=>{
-      dialog.classList.add('mp-parts-request-modal');
-      const list=dialog.querySelector('[data-part-list]');
-      const add=dialog.querySelector('[data-add-part]');
-      const sync=()=>{
-        if (!list) return;
-        const rows=[...list.querySelectorAll('[data-part-row]')];
-        rows.forEach(row=>row.querySelector('[data-remove-part]').disabled=false);
-        // Empty parts list is allowed until the Motorpool confirms actual parts.
-      };
-      add?.addEventListener('click',()=>{if(list&&list.children.length<30){list.insertAdjacentHTML('beforeend',item());sync();}});
-      list?.addEventListener('click',event=>{
-        const button=event.target.closest('[data-remove-part]');
-        if(!button)return;
-        button.closest('[data-part-row]').remove();sync();
-      });
+      const res = await App.apiForm('Maintenance.report', values, form);
+      UI.result(res);
+      // Show the newly created repair and its next action instead of returning to an unfiltered list.
+      if (res.job_id) App.go('maintenance', {open:res.job_id}); else App.route();
+    }, { submit:'Submit problem report', size:'modal-lg', onShow:(dialog,form)=>{
       const search=form.querySelector('[data-report-truck-search]');
       const select=form.querySelector('[name="vehicle_id"]');
       const count=form.querySelector('[data-truck-search-count]');
-      const truckOptions=trucks.map(v=>({
-        id:String(v.id),
-        label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')'
-      }));
+      const truckOptions=trucks.map(v=>({id:String(v.id),label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')'}));
       const syncTruck=()=>{
         const found=truckOptions.find(v=>v.label===search.value);
         select.value=found?found.id:'';
         count.textContent=found?'Selected: '+found.label:'Choose an exact truck suggestion to continue.';
       };
       const current=truckOptions.find(v=>v.id===String(vehicleId||''));
-      if (current) search.value=current.label;
-      search?.addEventListener('input',syncTruck);
-      search?.addEventListener('change',syncTruck);
+      if(current)search.value=current.label;
+      search.addEventListener('input',syncTruck);
+      search.addEventListener('change',syncTruck);
       syncTruck();
-      const lead=form.querySelector('[name="mechanic_id"]');
-      const updateLead=()=>{
-        dialog.querySelectorAll('[data-assistant-id]').forEach(box=>{
-          const isLead=box.value===lead.value;
-          if(isLead)box.checked=false;
-          box.disabled=isLead;
-          box.closest('label')?.classList.toggle('is-locked',isLead);
-        });
-      };
-      lead?.addEventListener('change',updateLead);updateLead();
-    } });
+    }});
     return wrap;
   },
   /** Motorpool Parts Request: existing Purchasing backend, clear line-item editing and safe truck/repair linking. */
@@ -730,9 +654,9 @@ App.page('maintenance', {
     const opt = { directActions: true, showAllColumns: true,
       actions: (j) => { const st = MaintUI.rowStep(j);
         return (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
-          + (d.can.act && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.ibtn('helpers', 'Add mechanics', 'bi-people') : '')
-          + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) ? UI.ibtn('parts', 'Request parts', 'bi-box-seam') : '')
-          + UI.ibtn('view', 'Open record', 'bi-eye'); },
+          + (d.can.act && !d.motorpoolCatalogReady && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.btn('helpers', 'Add mechanics', 'outline-secondary') : '')
+          + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) && (!d.motorpoolCatalogReady || j.assignment_finalized_at) ? UI.btn('parts', 'Request parts', 'outline-secondary') : '')
+          + UI.btn('view', 'Open record', 'outline-primary'); },
       onAction: (a, j) => a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id) : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
