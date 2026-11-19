@@ -6,6 +6,10 @@
     "2026-11-18_22_warranty_receipt_confirmation.sql": "3571f1f9ff5adb31c9d3a6e8eff1b106d68734e37465e05aba06a65ccfefd2c5",
     "2026-11-18_23_pending_installation_warranty.sql": "6e34a09c2430c232d909a4566169c3b72c37059a37a911c1bb57201ee7b34501",
     "2026-11-18_24_admin_report_access.sql": "0b6a3e9d75c916713b81b69d1ee0f1336fda1c41e1d06beeb036ac0de52e9f91",
+    "2026-11-19_01_purchasing_order_and_stock_reservations.sql": "49a751473019154f7c7ae736288fffce1706534c11046548cd7cfa06a2c680d6",
+    "2026-11-19_02_part_type_name_brand.sql": "5874547c12c242fbf9a4578a82140c22f883b2ebf0f458e7e7d937791527c216",
+    "2026-11-19_03_motorpool_repair_catalogs.sql": "a57d8315884ec043fcc6ff05608a314ab077d056d8e827251aa2de7000e5f38f",
+    "2026-11-19_04_incident_clarifications.sql": "ef8bb63da78d704dc6940e434cbd4cedb1304c60fea43e7135a306c79cf52503",
     "2026-11-19_24_personnel_attendance_group.sql": "a6eb04942d2437d398a0ba03515d7f8d7e121c1159a78c63260fc73b21228f60",
     "2026-11-19_25_fleet_form_drafts.sql": "8bddd1cb22f2e2e3f2108fb7496af21d817c3eab591b846598de30e4e20531df"
   }
