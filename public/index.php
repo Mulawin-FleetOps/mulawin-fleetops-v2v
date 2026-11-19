@@ -169,6 +169,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link rel="stylesheet" href="assets/css/system-typography.css?v=<?= $v('assets/css/system-typography.css') ?>">
   <link rel="stylesheet" href="assets/css/kpi-icons.css?v=<?= $v('assets/css/kpi-icons.css') ?>">
   <link rel="stylesheet" href="assets/css/reports-center.css?v=<?= $v('assets/css/reports-center.css') ?>">
+  <link rel="stylesheet" href="assets/css/pixel-truck-loading.css?v=<?= $v('assets/css/pixel-truck-loading.css') ?>">
 </head>
 <body>
   <div id="app"><div class="text-center p-5 text-muted">Loading Mulawin FleetOps…</div></div>
@@ -185,6 +186,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <script src="assets/js/modules/<?= $m ?>.js?v=<?= $v('assets/js/modules/' . $m . '.js') ?>"></script>
 <?php endforeach; ?>
   <script src="assets/js/kpi-palette.js?v=<?= $v('assets/js/kpi-palette.js') ?>"></script>
+  <script src="assets/js/pixel-truck-loading.js?v=<?= $v('assets/js/pixel-truck-loading.js') ?>"></script>
   <script>App.start();</script>
 </body>
 </html>
