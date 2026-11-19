@@ -121,3 +121,116 @@
 @media(max-width:575px) {
   #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 7px;}
 }
+
+
+/* MAINTENANCE_PREVIEW_BUTTONS_V1
+   Match Operations clickable-button treatment across Motorpool and Purchasing.
+   Presentation only: retain existing button nodes, labels, data-act and handlers. */
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) :is(.record-workspace-heading,.record-workspace-search,.record-workspace-popover-actions) .btn,
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table :is(.row-icons,.row-actions) .btn:not(.icon-act),
+#pageContent .purchasing-live-v1 .purchasing-record-header-actions .btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:35px;
+  width:auto;
+  max-width:100%;
+  padding:7px 12px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.3;
+  text-align:center;
+  vertical-align:middle;
+  transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table :is(.row-icons,.row-actions){
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:6px;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table .btn.btn-outline-primary:not(.icon-act),
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table .btn.btn-outline-secondary:not(.icon-act) {
+  color:#246a41;
+  border:1px solid #bfd8c7;
+  background:#fff;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table .btn.btn-outline-primary:not(.icon-act):hover,
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table .btn.btn-outline-secondary:not(.icon-act):hover {
+  color:#14552f;
+  background:#edf7f0;
+  border-color:#82b899;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .btn.btn-primary:not(:disabled),
+#pageContent .purchasing-live-v1 .purchasing-record-header-actions .btn.btn-primary:not(:disabled) {
+  background:#176d3f;
+  border-color:#176d3f;
+  color:#fff;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .btn.btn-primary:not(:disabled):hover,
+#pageContent .purchasing-live-v1 .purchasing-record-header-actions .btn.btn-primary:not(:disabled):hover {
+  background:#105630;
+  border-color:#105630;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .btn.btn-outline-danger:not(.icon-act) {
+  color:#a33b35;
+  background:#fff;
+  border-color:#e8c5c3;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .btn.btn-outline-danger:not(.icon-act):hover {
+  background:#fff2f1;
+  border-color:#d9a19d;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .btn:focus-visible,
+#pageContent .purchasing-live-v1 .purchasing-record-header-actions .btn:focus-visible {
+  outline:2px solid #237548;
+  outline-offset:2px;
+  box-shadow:0 0 0 3px rgba(35,117,72,.12);
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .btn:disabled,
+#pageContent .purchasing-live-v1 .purchasing-record-header-actions .btn:disabled {
+  cursor:not-allowed;
+  opacity:.5;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) :is(.record-workspace-filter-trigger,.record-workspace-sort-trigger) {
+  border:1px solid #d5e2d9;
+  background:#fff;
+  color:#37654a;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) :is(.record-workspace-filter-trigger,.record-workspace-sort-trigger):hover {
+  background:#f0f8f2;
+  border-color:#98c5a5;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .record-workspace-category-row .tab {
+  cursor:pointer;
+  transition:color .15s ease,border-color .15s ease,background-color .15s ease;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .record-workspace-category-row .tab:hover {
+  background:#f5faf6;
+  color:#145f34;
+}
+#pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .record-workspace-category-row .tab:focus-visible {
+  outline:2px solid #237548;
+  outline-offset:2px;
+}
+body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show .modal-footer .btn {
+  min-height:36px;
+  border-radius:8px;
+  font-size:12.5px;
+  font-weight:650;
+  padding:8px 15px;
+}
+body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show .modal-footer .btn:focus-visible {
+  outline:2px solid #237548;
+  outline-offset:2px;
+}
+@media(max-width:575px){
+  #pageContent :is(.maintenance-operations-records,.purchasing-operations-records) .data-table :is(.row-icons,.row-actions) .btn:not(.icon-act){
+    min-height:33px;
+    padding:6px 9px;
+    white-space:normal;
+  }
+}
