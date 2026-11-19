@@ -751,6 +751,49 @@ const PurRef = {
     if (search) search.insertAdjacentElement('afterend', filters);
     else toolbar.prepend(filters);
   },
+  /** Shared Purchasing records hierarchy: Search + Filter + Sort above quick status tabs.
+   * Existing URL filters, tab click handlers, and row actions are preserved. */
+  recordLayout(ctx, box, { filters = [], sortOptions = [], sort = 'newest' } = {}) {
+    const toolbar = box.querySelector('.ref-toolbar, .table-tools');
+    const search = toolbar?.querySelector('.table-search');
+    if (!toolbar || !search) return;
+    toolbar.classList.add('purchasing-po-toolbar');
+    const oldFilters = ctx.el.querySelector('.ws-filters');
+    if (oldFilters) oldFilters.remove();
+    const filterWrap = document.createElement('div');
+    filterWrap.className = 'purchasing-po-filter';
+    filterWrap.innerHTML = UI.filterModal(ctx, filters, { hint: '' });
+    filterWrap.querySelector('.ui-filter-toolbar > span:not(.filter-chip)')?.remove();
+    search.insertAdjacentElement('afterend', filterWrap);
+    const sortWrap = document.createElement('label');
+    sortWrap.className = 'purchasing-po-sort';
+    const values = sortOptions.length ? sortOptions : [['newest', 'Newest first'], ['oldest', 'Oldest first']];
+    sortWrap.innerHTML = `<i class="bi bi-sort-down" aria-hidden="true"></i><span>Sort</span>
+      <select class="form-select form-select-sm" aria-label="Sort ${UI.esc(ctx.page.replace(/_/g, ' '))}">${values.map(([v, label]) =>
+        `<option value="${UI.esc(v)}">${UI.esc(label)}</option>`).join('')}</select>`;
+    sortWrap.querySelector('select').value = sort;
+    sortWrap.querySelector('select').addEventListener('change', event => {
+      const q = { ...ctx.query };
+      if (event.target.value === values[0][0]) delete q.sort;
+      else q.sort = event.target.value;
+      App.go(ctx.page, q);
+    });
+    filterWrap.insertAdjacentElement('afterend', sortWrap);
+    const tabs = ctx.el.querySelector('.purchasing-record-tabs-slot, .purchasing-po-tabs-slot');
+    if (tabs) toolbar.insertAdjacentElement('afterend', tabs);
+  },
+  sortRecords(rows, q, dateKey, referenceKey, amountKey) {
+    const sort = ['newest', 'oldest', 'reference', 'amount_high', 'amount_low'].includes(q.sort) ? q.sort : 'newest';
+    return [...rows].sort((a,b) => {
+      if (sort === 'reference') return String(a[referenceKey] || '').localeCompare(String(b[referenceKey] || ''));
+      if (sort === 'amount_high' && amountKey) return (+b[amountKey] || 0) - (+a[amountKey] || 0);
+      if (sort === 'amount_low' && amountKey) return (+a[amountKey] || 0) - (+b[amountKey] || 0);
+      const first = new Date(a[dateKey] || 0).getTime() || 0;
+      const second = new Date(b[dateKey] || 0).getTime() || 0;
+      return (sort === 'oldest' ? first - second : second - first)
+        || String(a[referenceKey] || '').localeCompare(String(b[referenceKey] || ''));
+    });
+  },
   cards(items) { return UI.kpiTiles(items, 'ws-kpi4 purchasing-page-kpis'); },
   recordBox(box,title,subtitle,count) {
     box.classList.add('purchasing-records-card','purchasing-ref-records');
