@@ -20,9 +20,9 @@ const PurUI = {
       {label:rejected?record.status:'Approval decision',at:record.decided_at,state:rejected?'exception':record.decided_at?'complete':'pending'},
       {label:'Parts received',state:received>0&&received===requested?'complete':received>0?'current':'pending',note:received+' of '+requested+' units recorded; dated receiving history is not provided by this endpoint.'}
     ]:[{label:'Requested',at:record.created_at,state:record.created_at?'complete':'pending'},{label:'Parts released',state:received>0&&received===requested?'complete':rejected?'exception':received>0?'current':'pending',note:received+' of '+requested+' units recorded.'}];
-    const html=UI.workflow(milestones,{status:record.status})+UI.h('Overview')+UI.kv([['Reference',UI.e(reference)],['Status',UI.badge(record.status)],['Requested by',UI.e(record.requested_by_name)],['Created',UI.datetime(record.created_at)],['Maintenance record',UI.e(record.job_ref)],['Approval role',UI.e(record.approver_role)],['Purpose',UI.e(record.purpose)],['Supplier',UI.e(record.supplier)],['Truck',UI.e(record.plate_number)],['Payment status',UI.e(record.payment_status)],...(order?[['Order total',UI.money(record.total_amount)],['Paid amount',UI.money(record.paid_amount)],['Received value',UI.money(lines.reduce((sum,line)=>sum+Number(line.received_qty||0)*Number(line.unit_price||0),0))],['Supplier invoice',UI.e(record.supplier_invoice_no)]]:[])])+UI.h('Items and Quantities')+UI.table([['Part','part_number'],['Description','description'],['Requested / Ordered','quantity','num'],[order?'Received':'Released',order?'received_qty':'released_qty','num'],...(order?[['Unit price','unit_price','money']]:[])],lines,{plain:true})+UI.h('Processing Record')+UI.kv([['Decision by',UI.e(record.decided_by_name)],['Decision date',UI.datetime(record.decided_at)],['Decision notes',UI.e(record.decision_notes)],['Processed by',UI.e(record.processed_by_name)],['Notes',UI.e(record.notes)]])+UI.h('Payments')+UI.table([['Voucher','voucher_number'],['Amount','amount','money'],['Released','released_on','date'],['Recorded by','recorded_by_name']],r.payments||[],{plain:true,empty:'No payment details returned for this record and role.'})+UI.h('Documents')+UI.docs(r.documents||[]);
+    const html=UI.workflow(milestones,{status:record.status})+UI.h('Overview')+UI.kv([['Reference',UI.e(reference)],['Status',UI.badge(record.status)],['Requested by',UI.e(record.requested_by_name)],['Created',UI.datetime(record.created_at)],['Maintenance record',UI.e(record.job_ref)],['Approval role',UI.e(record.approver_role)],['Purpose',UI.e(record.purpose)],['Supplier',UI.e(record.supplier)],['Truck',UI.e(record.plate_number)],...(order?[['Order total',UI.money(record.total_amount)],['Received value',UI.money(lines.reduce((sum,line)=>sum+Number(line.received_qty||0)*Number(line.unit_price||0),0))],['Supplier invoice',UI.e(record.supplier_invoice_no)]]:[])])+UI.h('Items and Quantities')+UI.table([['Part','part_number'],['Description','description'],['Requested / Ordered','quantity','num'],[order?'Received':'Released',order?'received_qty':'released_qty','num'],...(order?[['Unit price','unit_price','money']]:[])],lines,{plain:true})+UI.h('Processing Record')+UI.kv([['Decision by',UI.e(record.decided_by_name)],['Decision date',UI.datetime(record.decided_at)],['Decision notes',UI.e(record.decision_notes)],['Processed by',UI.e(record.processed_by_name)],['Notes',UI.e(record.notes)]])+(App.me?.user?.role==='purchasing'?'':UI.h('Payments')+UI.table([['Voucher','voucher_number'],['Amount','amount','money'],['Released','released_on','date'],['Recorded by','recorded_by_name']],r.payments||[],{plain:true,empty:'No payment details returned for this record and role.'}))+UI.h('Documents')+UI.docs(r.documents||[]);
     const drawer=UI.drawer(UI.esc(reference),html,{subtitle:(order?'Purchase Order':'Parts Request')+' details'});
-    UI.drawerSections(drawer,[['summary','Overview',['Overview']],['items','Items & Quantities',['Items and Quantities']],['record','Processing Record',['Processing Record']],['payments','Payments',['Payments']],['docs','Documents',['Documents']]],{key:'purchasing-details'});
+    UI.drawerSections(drawer,[['summary','Overview',['Overview']],['items','Items & Quantities',['Items and Quantities']],['record','Processing Record',['Processing Record']],...(App.me?.user?.role==='purchasing'?[]:[['payments','Payments',['Payments']]]),['docs','Documents',['Documents']]],{key:'purchasing-details'});
   },
   /** Editable PO item list — Purchasing backend still validates all lines and prices. */
   lineEditor(withPrice, lines = []) {
@@ -492,7 +492,7 @@ PurUI.openPO = async (o, k) => {
       ['Requested', UI.esc(p.requested_by_name) + ' · ' + UI.datetime(p.created_at)],
       ['Approval', (p.approver_role === 'finance' ? 'Finance' : 'Admin') + (p.decided_at ? ' · ' + UI.esc(p.decided_by_name || 'System') + ' · ' + UI.datetime(p.decided_at) : ' · not decided yet') + (p.decision_notes ? `<div class="cell-sub">${UI.esc(p.decision_notes)}</div>` : '')],
       p.supplier_invoice_no ? ['Supplier invoice', UI.esc(p.supplier_invoice_no)] : null])}
-    ${UI.h('Amounts')}${UI.kv([['PO total', UI.money(p.total_amount)], ['Received value', UI.money(received)], ['Paid', UI.money(p.paid_amount)], ['Received, not yet paid', UI.money(Math.max(0, received - p.paid_amount))]])}
+    ${UI.h('Order details')}${UI.kv([['PO total', UI.money(p.total_amount)], ['Ordered with supplier', p.ordered_at ? UI.datetime(p.ordered_at) : (p.order_confirmation_required ? 'Not confirmed yet' : 'Legacy PO: no recorded order confirmation')], ['Received quantities', UI.num(x.lines.reduce((sum, line) => sum + (+line.received_qty || 0), 0)) + ' of ' + UI.num(x.lines.reduce((sum, line) => sum + (+line.quantity || 0), 0))]])}
     ${UI.h('Items')}<div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th>Received / ordered</th><th class="money-col">Unit price</th><th class="money-col">Amount</th></tr></thead>
     <tbody>${x.lines.map(l => `<tr><td><b>${UI.esc(l.part_number)}</b><div class="cell-sub">${UI.esc(l.description)}</div></td><td class="cell-nowrap">${PurUI.bar(+l.received_qty, +l.quantity)} ${UI.esc(l.unit)}</td><td class="money-col">${UI.money(l.unit_price)}</td><td class="money-col">${UI.money(l.line_total)}</td></tr>`).join('')}</tbody></table></div>
     ${(x.payments || []).length ? UI.h('Payments') + UI.table([['Voucher', 'voucher_number'], ['Released', 'released_on', 'date'], ['Method', 'payment_method'], ['Amount', 'amount', 'money']], x.payments, { plain: true }) : ''}
@@ -613,7 +613,7 @@ App.page('purchasing_overview', {
     ];
     const incoming = (d.receiving || []).map(o => UI.wsEntry('purchase_orders?open=' + o.id,
       `<b>${UI.esc(o.po_ref)}</b> <span class="mo-ref">${UI.esc(o.supplier || '')}</span>`,
-      'Ready to receive · ' + UI.money(o.total_amount), UI.badge(o.status)));
+      'Verify physical supplier delivery · ' + UI.money(o.total_amount), UI.badge(o.status)));
     const outstanding = reqs.filter(r => r.status !== 'Released' && r.status !== 'Cancelled');
     const requestsAction = outstanding.map(r => UI.wsEntry('parts_requests?open='+r.id,
       `<b>${UI.esc(r.request_ref)}</b> <span class="mo-ref">${UI.esc(r.plate_number)}</span>`,
@@ -622,8 +622,7 @@ App.page('purchasing_overview', {
       ...(d.approvals || []).filter(o=>o.status==='Pending Approval').map(o=>UI.wsEntry('purchase_orders?open='+o.id,
         `<b>${UI.esc(o.po_ref)}</b> <span class="mo-ref">${UI.esc(o.supplier || '')}</span>`,
         'Finance / Admin approval · ' + UI.money(o.total_amount), UI.badge(o.status))),
-      UI.wsEntry('purchase_orders?tab=payment','<b>Supplier payment processing</b>',
-        'Handled by Finance after approval and receiving','<span class="badge-s blue">Finance</span>')
+
     ];
     ctx.el.innerHTML = `<div class="maint-overview mp-ws purchasing-dashboard-ref">${UI.kpiTiles(tiles,'ws-kpi4')}
       ${UI.quickBar([can.stock ? { label:'Process requests', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo' } : null,
@@ -639,7 +638,7 @@ App.page('purchasing_overview', {
           ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',UI.wsList(incoming.slice(0,5),'No deliveries to receive.'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
           ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',UI.wsList(alerts.slice(0,5),'No low-stock items or outstanding shortages.'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
         </div>
-        ${UI.wsPanel('Approval & Payment Dependencies','bi-diagram-3',UI.wsList(poDependencies,'No external approvals pending.'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
+        ${UI.wsPanel('PO Approval Dependencies','bi-diagram-3',UI.wsList(poDependencies,'No external approvals pending.'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
       </div></div>`;
     ctx.el.querySelector('[data-qa="newpo"]')?.addEventListener('click', () => App.go('purchase_orders', { new: 1 }));
   },
