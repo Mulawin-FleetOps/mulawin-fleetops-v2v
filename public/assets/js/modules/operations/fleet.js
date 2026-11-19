@@ -162,10 +162,10 @@ const FleetUI = {
       'Fleet.crew_save', { extra: p.id ? { id: p.id } : {}, intro: 'Drivers need a license number and expiry. A driver with an expired license is not assigned automatically.' });
   },
   async opsCrewForm(p,d) {
-    if(!d.assignmentTrucks||!d.assignmentHelpers){
-      try { d=await App.data('crew'); }
-      catch(error){ return UI.toast(error.message,'error'); }
-    }
+    // Always request the latest crew and truck assignment data before opening
+    // the form. Cached page data can predate a newly created Helper.
+    try { d=await App.data('crew'); }
+    catch(error){ return UI.toast(error.message,'error'); }
     const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
     const allTrucks=d.assignmentTrucks||[];
     const already=String(p.authorized_truck_ids||'').split(',').map(Number).filter(id=>Number.isInteger(id)&&id>0);
@@ -397,7 +397,12 @@ const FleetUI = {
             const status=option?.querySelector('.driver-auth-option-status');
             if(status){
               status.className='driver-auth-option-status '+(selectedFixed?'is-selected':input.disabled?'is-unavailable':'is-available');
-              status.textContent=selectedFixed?'Regular Helper · Locked':input.disabled?'Assigned / Unavailable':'Available';
+              status.textContent=selectedFixed?'Regular Helper · Locked'
+                :!truck?'Select Truck first'
+                :isCarrier?'Not used for Car Carrier'
+                :otherTruck?'Assigned to another Truck'
+                :fixedHelper?'Truck has a fixed Helper'
+                :'Available';
             }
           });
           helperCount.textContent=!truck?'Select an authorized Truck first'
