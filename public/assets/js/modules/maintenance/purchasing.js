@@ -875,7 +875,7 @@ App.page('inventory', {
       return;
     }
     const rows = parts.filter(p => (!q.category || p.category === q.category)
-      && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +p.quantity_on_hand <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)));
+      && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +(p.available_qty ?? p.quantity_on_hand) <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)));
     const openCount = new Set(pending.map(c => +c.part_id));
     body.innerHTML = UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }])
       + UI.table([
@@ -889,10 +889,10 @@ App.page('inventory', {
           return `<b class="cell-clamp">${UI.esc(v)}</b>${p.category ? `<div class="cell-sub">${UI.esc(p.category)}</div>` : ''}`
             + (alert ? `<div class="cell-sub"><span class="badge-s ${expiry < date ? 'red' : 'amber'}" title="Earliest recorded warranty expiry: ${UI.esc(expiry)}">${alert}</span></div>` : '');
         }],
-        ['On hand', 'quantity_on_hand', (v, p) => `<span class="cell-nowrap"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}${+p.low_stock ? ' <span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? ' <span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>`],
+        ['On hand', 'quantity_on_hand', (v, p) => `<div class="purchasing-stock-cell"><span class="purchasing-stock-amount"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}</span>${+p.low_stock || openCount.has(+p.id) ? `<span class="purchasing-stock-badges">${+p.low_stock ? '<span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? '<span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>` : ''}</div>`],
         ['Reserved', 'reserved_qty', 'num'], ['Available', 'available_qty', 'num'],
         ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
-        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
+        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, actions: (p) => k.partActs(p) + UI.ibtn('view', 'Open part', 'bi-eye'),
           onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
     PurRef.inlineFilters(box, body);
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
