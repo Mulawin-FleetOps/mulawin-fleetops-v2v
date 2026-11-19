@@ -569,6 +569,14 @@ const App = {
                 <a href="#notifications" class="bell-foot" id="bellAll">View all notifications</a>
               </div>
             </div>
+            <div class="dropdown">
+              <button class="icon-btn bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Recent System Activity" title="Recent System Activity" id="activityBtn"><i class="bi bi-clock-history" aria-hidden="true"></i></button>
+              <div class="dropdown-menu dropdown-menu-end bell-menu">
+                <div class="bell-head"><span>Recent System Activity</span></div>
+                <div id="activityList" class="bell-list"><div class="bell-empty">Loading recorded activity…</div></div>
+                <a href="#recent_activity?view=all" class="bell-foot" id="activityAll">View all activity</a>
+              </div>
+            </div>
             <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
               <span class="avatar">${UI.esc(initials)}</span>
               <span class="profile-text"><span class="profile-name">${UI.esc(u.full_name || u.username)}</span><span class="profile-role">${UI.esc(u.role_label || u.role)}</span></span>
@@ -767,7 +775,10 @@ const App = {
     document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
+    document.getElementById('activityAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('activityBtn'))?.hide();
+    document.getElementById('activityBtn').addEventListener('show.bs.dropdown', () => this.refreshActivity());
     this.renderBell();
+    this.refreshActivity();
   },
 
   /** Show real account details for the authenticated user, not demo identities. */
@@ -814,7 +825,7 @@ const App = {
     const me = this.me; const badge = document.getElementById('bellBadge'); if (!badge) return;
     badge.textContent = me.unread > 99 ? '99+' : me.unread; badge.classList.toggle('d-none', !me.unread);
     const list = document.getElementById('bellList');
-    list.innerHTML = me.notifications.length ? me.notifications.map(n => `
+    list.innerHTML = me.notifications.length ? me.notifications.slice(0,5).map(n => `
       <div class="bell-item ${n.state === 'Unread' ? 'unread' : ''}" data-nid="${n.id}">
         <div class="bell-item-main" data-nopen="${n.id}" role="button" tabindex="0"><div class="bell-cat">${UI.esc(n.category)}</div><div class="bell-msg">${UI.esc(n.message)}</div>
           <div class="bell-time">${UI.datetime(n.created_at)}</div></div>
@@ -842,9 +853,39 @@ const App = {
     try { const r = await this.api('Admin.notifications_read', { id, state }); this.applyBell(r); return r; }
     catch (e) { UI.toast(e.message, 'error'); return null; }
   },
+  // Separate, read-only activity feed. Never expose global audit details to
+  // regular roles; the server scopes audit events to the current actor.
+  async refreshActivity() {
+    const list = document.getElementById('activityList');
+    if (!this.me || !list || document.hidden) return;
+    try {
+      const data = await this.data('recent_activity');
+      if (!document.getElementById('activityList') || list !== document.getElementById('activityList')) return;
+      const items = data.items || [];
+      // Leave dropdown position/scroll intact when the feed has not changed.
+      const signature = JSON.stringify(items);
+      if (this._activitySignature === signature) return;
+      this._activitySignature = signature;
+      const top = list.scrollTop;
+      list.innerHTML = items.length
+        ? items.slice(0,5).map(item => '<div class="bell-item"><div class="bell-item-main">'
+            + '<div class="bell-cat">'+UI.esc(item.area || 'System')+'</div>'
+            + '<div class="bell-msg">'+UI.esc(item.action || 'Activity recorded')+'</div>'
+            + '<div class="small text-muted">'+UI.esc(item.record_ref || '')+'</div>'
+            + '<div class="bell-time">'+UI.esc(item.actor || 'System')+' · '+UI.datetime(item.created_at)+'</div>'
+            + '</div></div>').join('')
+        : '<div class="bell-empty"><i class="bi bi-clock-history"></i><span>No recorded activity yet.</span></div>';
+      list.scrollTop = top;
+    } catch (err) {
+      if (list && !this._activitySignature)
+        list.innerHTML = '<div class="bell-empty">Activity is temporarily unavailable.</div>';
+      console.warn('Recent Activity refresh failed', err);
+    }
+  },
   async refreshBell() {
     if (!this.me) return;
     try { const me = await this.request('index.php?api=me'); this.me.notifications = me.notifications; this.me.unread = me.unread; this.renderBell(); } catch { }
+    await this.refreshActivity();
   },
 
   // ---------------------------------------------------------------- router (#page?x=y)
