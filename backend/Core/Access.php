@@ -164,6 +164,7 @@ final class Access {
             'billing_reports' => ['Billing Reports', 'bi-receipt', 'Records', 'Analytics', 'general/reports', ['admin']],
             'reports_center' => ['Reports', 'bi-bar-chart-line', 'Records', 'ReportAccess', 'general/reports-center', $all],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
+            'recent_activity' => ['Recent Activity', 'bi-clock-history', 'Records', 'Admin', 'general/notifications', $all],
             // AUDIT_WORKSPACE_V1: read-only audit pages (Admin module, audit_events). Audit uses them instead of its former
             // Activity Log view of User Management (same records, now with filters, record history and reports).
             'audit_overview' => ['Audit Overview', 'bi-speedometer2', 'Audit', 'Admin', 'administration/audit', ['audit']],
