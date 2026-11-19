@@ -121,3 +121,112 @@
 @media(max-width:575px) {
   #pageContent .purchasing-live-v1 .ref-tablebox .data-table :is(th,td){padding:9px 7px;}
 }
+
+
+/* SHARED_OPERATIONS_TABLE_SYSTEM_V2 — effective final-loaded record foundation.
+   Covers normal UI.table and bespoke data-table records throughout every role.
+   Preserve existing domain-specific column proportions and min-width rules. */
+#pageContent :is(.ref-list,.ref-tablebox,.table-wrap,.record-workspace-panel,.mp-reference-table,.mp-session-section,.purchasing-records-card,.purchasing-ref-records) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+#pageContent :is(.ref-tablebox,.table-wrap,.rpm-trip-table-wrap,.oh-dispatch-table-wrap) {
+  width: 100%;
+}
+#pageContent :is(.table-wrap,.rpm-trip-table-wrap,.oh-dispatch-table-wrap):has(> table) {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#pageContent :is(.table-wrap,.rpm-trip-table-wrap,.oh-dispatch-table-wrap) > :is(table.data-table,table.rpm-trip-table) {
+  width: 100%;
+  max-width: none;
+  border-spacing: 0;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) :is(th,td) {
+  box-sizing: border-box;
+  vertical-align: middle;
+  line-height: 1.45;
+  border-bottom: 1px solid #e5ede7;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) thead th {
+  padding: 11px 13px;
+  font-size: 12px;
+  font-weight: 650;
+  background: #f3f8f4;
+  color: #345c42;
+  border-bottom-color: #dce9df;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) tbody td {
+  padding: 11px 13px;
+  font-size: 12.5px;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) tbody tr:last-child > td {
+  border-bottom: 0;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) tbody tr:hover > td {
+  background: #f8fcf9;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) tbody tr:focus-within > td {
+  background: #f3faf5;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) .cell-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #718779;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) :is(th,td).money-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) :is(th,td).count-col,
+#pageContent :is(table.data-table,table.rpm-trip-table) :is(th,td).status-col {
+  text-align: center;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) :is(th,td).actions-col {
+  text-align: right;
+  white-space: nowrap;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) .row-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#pageContent :is(table.data-table,table.rpm-trip-table) .row-actions > :is(.btn,.icon-btn) {
+  flex: 0 0 auto;
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+#pageContent :is(.ref-toolbar,.table-tools,.record-workspace-search) {
+  column-gap: 10px;
+  row-gap: 8px;
+}
+#pageContent :is(.table-search,.ref-search) { min-width: 0; }
+#pageContent :is(.table-search,.ref-search) .form-control { min-width: 0; }
+@media (max-width: 767.98px) {
+  #pageContent :is(table.data-table,table.rpm-trip-table) :is(th,td) {
+    padding: 9px 10px;
+  }
+}
+/* Exceptions: established Purchasing action stacks and Motorpool centered actions
+   are intentional; retain their special spacing without changing behavior. */
+#pageContent .purchasing-live-v1 :is(table.data-table,table.rpm-trip-table) :is(th,td).actions-col {
+  white-space: normal;
+  text-align: center;
+}
+#pageContent .purchasing-live-v1 .data-table :is(.row-actions,.row-icons) {
+  justify-content: center;
+  gap: 6px;
+}
+#pageContent .mp-parts-records-table .data-table :is(th,td).actions-col,
+#pageContent .mp-parts-records-table .data-table .row-actions {
+  text-align: center;
+  justify-content: center;
+}
