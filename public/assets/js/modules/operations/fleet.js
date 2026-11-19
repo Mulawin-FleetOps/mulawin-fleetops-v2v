@@ -382,15 +382,16 @@ const FleetUI = {
           const truckId=selected?Number(selected.name.slice('auth_truck_'.length)):0;
           const truck=allTrucks.find(v=>Number(v.id)===truckId);
           const fixedHelper=Number(truck?.assigned_helper_id||0);
-          // Regular helper pairing is supported for any authorized truck type.
-          // A truck must be selected; server checks helper/truck availability.
+          // Keep the existing Car Carrier two-driver workflow (no regular Helper).
+          // Helpers are eligible for Container and Wing Van trucks only.
+          const isCarrier=truck?.truck_type==='Car Carrier';
           helperInputs.forEach(input=>{
             const helperId=Number(input.name.slice('regular_helper_choice_'.length));
             const helper=(d.assignmentHelpers||[]).find(h=>Number(h.id)===helperId);
             const otherTruck=!!helper?.assigned_vehicle_id&&Number(helper.assigned_vehicle_id)!==truckId;
-            const selectedFixed=fixedHelper>0&&helperId===fixedHelper;
+            const selectedFixed=!isCarrier&&fixedHelper>0&&helperId===fixedHelper;
             input.checked=selectedFixed;
-            input.disabled=!truck||otherTruck||fixedHelper>0;
+            input.disabled=!truck||isCarrier||otherTruck||fixedHelper>0;
             const option=input.closest('.driver-auth-option');
             option?.classList.toggle('is-locked',input.disabled);
             const status=option?.querySelector('.driver-auth-option-status');
@@ -400,6 +401,7 @@ const FleetUI = {
             }
           });
           helperCount.textContent=!truck?'Select an authorized Truck first'
+            :isCarrier?'Car Carrier uses two Drivers; no regular Helper'
             :fixedHelper?'Regular Helper of selected Truck'
             :'Select an available Helper if needed';
         };
