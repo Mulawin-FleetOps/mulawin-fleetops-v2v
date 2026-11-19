@@ -136,10 +136,22 @@ App.page('mechanic_attendance', {
     const attendanceIntro = `<div class="panel mb-3"><div class="panel-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
       </div></div>`;
-    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro;
-    const rows = board.map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
-
-    // Duty board and session history share one page; no Attendance / Sessions tabs.
+    const tab = q.tab === 'sessions' ? 'sessions' : 'attendance';
+    ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceIntro
+      + UI.statusTabs('mechanic_attendance', q, 'tab', [
+        ['attendance', 'Attendance', board.length],
+        ['sessions', 'Sessions', sessions.length],
+      ], tab);
+    const duty = q.duty === 'in' || q.duty === 'out' ? q.duty : '';
+    const rows = board.filter(m => duty === 'in' ? !!m.open_time_in : duty === 'out' ? !m.open_time_in : true)
+      .map(m => ({ ...m, timed_in: m.open_time_in ? 1 : 0 }));
+    if (tab === 'attendance') {
+    const dutyTabs = [
+      ['', 'All', board.length],
+      ['in', 'Timed In', on.length],
+      ['out', 'Timed Out / Not Timed In', board.length - on.length],
+    ];
+    ctx.el.insertAdjacentHTML('beforeend', UI.statusTabs('mechanic_attendance', q, 'duty', dutyTabs, duty));
     const box = document.createElement('section'); ctx.el.append(box);
     box.classList.add('mp-reference-table', 'mp-ops-table', 'mp-mechanic-attendance-table');
     box.innerHTML = `<div class="mp-records-heading"><div><strong>Attendance</strong><small>${UI.num(rows.length)} mechanic${rows.length === 1 ? '' : 's'}</small></div><small>Duty status and current assignments</small></div>` + UI.table([
@@ -156,8 +168,9 @@ App.page('mechanic_attendance', {
         rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
 
+    } else {
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
-    const hist = document.createElement('section'); hist.className = 'mp-session-section mt-3'; ctx.el.append(hist);
+    const hist = document.createElement('section'); hist.className = 'mp-session-section'; ctx.el.append(hist);
     hist.innerHTML = `<h2 class="ref-h">Time In / Time Out Records · ${UI.esc(label)}</h2>`
       + UI.generalFilters(ctx, [{ name: 'from', label: 'Sessions from', type: 'date' }, { name: 'to', label: 'Sessions to', type: 'date' }])
       + UI.table([
@@ -168,5 +181,6 @@ App.page('mechanic_attendance', {
         ['Timed in by', 'time_in_by'],
         ['Timed out by', 'time_out_by'],
       ], sessions, { showAllColumns: true, limit: 50, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
+    }
   },
 });
