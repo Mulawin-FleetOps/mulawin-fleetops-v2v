@@ -57,6 +57,7 @@ final class Purchasing {
         $warrantyExpirySql = $warrantyReady
             ? "(SELECT MIN(w.warranty_expires) FROM part_warranty_batches w WHERE w.part_id=pt.id AND w.warranty_expires IS NOT NULL)"
             : "NULL";
+        $identitySql = self::partIdentitySql($p);
         $reservationSql = self::reservationsReady($p)
             ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_id=pt.id)'
             : '0';
@@ -310,14 +311,31 @@ final class Purchasing {
     }
 
     // ---------------------------------------------------------------- parts and suppliers
+    /** The catalog migration is required before editing new part identity fields. */
+    private static function partIdentityReady(PDO $p): bool {
+        return (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='parts'
+              AND COLUMN_NAME IN ('part_type','brand')")['n'] ?? 0) === 2;
+    }
+
+    /** Legacy items with unknown exact specifications remain intact, never guessed. */
+    private static function partIdentitySql(PDO $p, string $alias = 'pt'): string {
+        return self::partIdentityReady($p)
+            ? "$alias.part_type, $alias.brand"
+            : "NULL AS part_type, NULL AS brand";
+    }
+
     private static function partSave(array $u, array $d): array {
         requireRole($u, 'purchasing');
         $id = optId($d, 'id');
         // Part ID is system-owned. "description" remains the existing database field for the Part Name.
         // Never accept a user-supplied part number on new records or change an existing identifier.
         $row = ['description' => field($d, 'description', 200), 'category' => optField($d, 'category', 80),
-                'unit' => field($d, 'unit', 20), 'unit_cost' => moneyField($d, 'unit_cost', true), 'reorder_level' => intField($d, 'reorder_level', 0),
-                ]; 
+                'unit' => field($d, 'unit', 20), 'unit_cost' => moneyField($d, 'unit_cost', true), 'reorder_level' => intField($d, 'reorder_level', 0)];
+        // These values distinguish variants sharing the same Part Type. Do not backfill legacy guesses.
+        $type = optField($d, 'part_type', 100);
+        $brand = optField($d, 'brand', 100);
+        must($id || $type !== null, 'Enter a Part Type for every new part.'); 
         // Do not blank historical free-text warranty notes when the new form edits duration only.
         if (array_key_exists('warranty_info', $d)) $row['warranty_info'] = optField($d, 'warranty_info', 150);
         // Warranty status and dates are verified per received PO batch, not at part creation.
@@ -326,7 +344,19 @@ final class Purchasing {
         must($id || (int)(intField($d, 'opening_qty', 0, false) ?? 0) === 0,
             'A new part starts with 0 on hand. Receive it on a purchase order, or record a stock count for the Admin to review.', 403);
         $opening = 0;
-        return transaction(function (PDO $p) use ($u, $id, $row, $opening) {
+        return transaction(function (PDO $p) use ($u, $id, $row, $opening, $type, $brand) {
+            must(self::partIdentityReady($p), 'Apply the Part Type and Brand database migration before saving catalog changes.', 503);
+            if ($type !== null) $row['part_type'] = $type;
+            $row['brand'] = $brand;
+            // Exclude incomplete historical records from duplicate checks until classified.
+            if ($type !== null) {
+                $duplicate = one($p, "SELECT id FROM parts WHERE id<>?
+                    AND UPPER(TRIM(COALESCE(part_type,'')))=UPPER(TRIM(?))
+                    AND UPPER(TRIM(description))=UPPER(TRIM(?))
+                    AND UPPER(TRIM(COALESCE(brand,'')))=UPPER(TRIM(COALESCE(?,'')))
+                    LIMIT 1 FOR UPDATE", [$id ?? 0, $type, $row['description'], $brand]);
+                must(!$duplicate, 'A part with this Type, specific Part Name and Brand already exists. Use its existing Part ID.', 409);
+            }
             if ($id) {
                 $old = one($p, 'SELECT * FROM parts WHERE id=? FOR UPDATE', [$id]);
                 must((bool)$old, 'Part not found.', 404);
@@ -350,7 +380,7 @@ final class Purchasing {
             must(!one($p, 'SELECT id FROM parts WHERE part_number=? AND id<>?', [$partNumber, $id]),
                 'Generated part ID already exists in the legacy catalog. Contact the administrator.', 409);
             run($p, 'UPDATE parts SET part_number=? WHERE id=?', [$partNumber, $id]);
-            $added = ['Part ID' => $partNumber, 'Part name' => $row['description'], 'Category' => $row['category'],
+            $added = ['Part ID' => $partNumber, 'Part type' => $row['part_type'], 'Part name' => $row['description'], 'Brand' => $row['brand'], 'Category' => $row['category'],
                 'Unit' => $row['unit'], 'Unit cost' => $row['unit_cost'], 'Reorder level' => $row['reorder_level']];
             auditWithChanges($p, $u['id'], 'Inventory', 'part ' . $id, 'part added', $partNumber, [], $added);
             return ['message' => 'Part ' . $partNumber . ' added.', 'id' => $id, 'part_number' => $partNumber];
@@ -961,7 +991,7 @@ final class Purchasing {
     /** Parts Motorpool may pick in the request form: identification and availability only. */
     private static function requestCatalog(array $u): array {
         requireRole($u, 'motorpool');
-        return ['parts' => many(db(), 'SELECT pt.id, pt.part_number, pt.description, pt.unit, ' . self::availabilitySql('pt') . ' AS availability
+        return ['parts' => many(db(), 'SELECT pt.id, pt.part_number, pt.description, pt.unit, ' . self::partIdentitySql(db()) . ', ' . self::availabilitySql('pt') . ' AS availability
             FROM parts pt WHERE pt.active=1 ORDER BY pt.part_number')];
     }
 
