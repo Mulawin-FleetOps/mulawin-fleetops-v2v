@@ -29,3 +29,21 @@ The read-only query is in `Oversight::analyticsWithReports()` and is available t
 7. Regression-test Descriptive Analytics and other Diagnostic topics, plus Trip Incident and Motorpool repair workflows.
 
 No live database migration or live-browser acceptance test has been executed by this change.
+
+## Automatic near-real-time refresh (Admin Analytics)
+- The Admin Descriptive and Diagnostic Analytics pages now poll their own authorized `App.data(page, query)` endpoint every 30 seconds while the page remains active.
+- Polling does **not** call `App.route()` or reload the browser. If the response is unchanged, the DOM and charts are left untouched.
+- If source data differs, the current analytics view is rendered again in-place, preserving its URL/query filters, selected incident evidence (by incident reference), window scroll and scrollable container positions. This redraws the analytics content, **not** a fine-grained per-chart patch; no claim is made that every individual DOM node is preserved.
+- A status line displays the most recent check or network error. The previous content remains visible after failures.
+- Background refresh pauses when the tab is hidden, a modal is open, or an input/select/textarea within the analytics panel is focused. It retries on the next interval.
+- Poller is scoped to the active page's `App.current` reference so navigating away automatically stops its future updates. Requests finishing after navigation are ignored.
+- This is **near-real-time polling**, not WebSocket / push-based instant synchronization. No new SQL migration is required.
+
+### Refresh QA
+1. Open a filtered Admin Diagnostic incident view, select an evidence record, scroll down; add a valid incident from another session and verify update after the next interval without browser reload or navigation.
+2. Confirm category, report kind, dates, selected incident, and scroll remain where expected.
+3. Repeat on Descriptive and Maintenance/Finance/Inventory topics. Check that existing chart datasets update when records change.
+4. Navigate away during a pending request; ensure no stale data is displayed on the new page.
+5. Hide browser tab, show an open modal, focus a date input; verify polling defers during these states and resumes.
+6. Simulate server/network errors; check the sync status and that the last loaded report remains visible.
+7. Benchmark actual server response times and concurrent Admin sessions before claiming a freshness SLA.
