@@ -779,6 +779,7 @@ const App = {
     // Other roles retain their own-action dropdown only; never expose Audit Log.
     const activityAll = document.getElementById('activityAll');
     activityAll.hidden = !UI.canGo('audit_logs');
+    activityAll.style.display = UI.canGo('audit_logs') ? '' : 'none';
     activityAll.onclick = e => {
       if (!UI.canGo('audit_logs')) { e.preventDefault(); return; }
       bootstrap.Dropdown.getInstance(document.getElementById('activityBtn'))?.hide();
