@@ -120,6 +120,10 @@ $T1 = $dispatchTrip(1); $t1 = $trip($T1);
 ok($trip($T1)['status'] === 'On Hold - Incident Reported' && (int)$J1['vehicle_id'] === (int)$t1['vehicle_id'], 'incident: trip On Hold, one repair record for the trip truck');
 fails(fn() => Trips::action($wvd, 'resume', ['trip_id' => $T1]), 'resume refused before any assessment', 409);
 fails(fn() => $clear($mp, (int)$J1['id'], 'Fit to Continue'), 'clearance refused before the Minor / Major assessment', 409);
+Maintenance::action($mp, 'assess', ['job_id' => $J1['id'], 'severity' => 'Needs More Information', 'recommendation' => 'Please send clearer damage photos']);
+ok($trip($T1)['status'] === 'On Hold - Incident Reported' && $inc($I1)['severity'] === null
+    && one($p, 'SELECT status FROM maintenance_jobs WHERE id=?', [$J1['id']])['status'] === 'Reported',
+    'Needs More Information keeps trip On Hold and incident unassessed');
 Maintenance::action($mp, 'assess', ['job_id' => $J1['id'], 'severity' => 'Minor', 'recommendation' => 'Repair on site']);
 Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J1['id'], 'mechanic_id' => $mech['A']]);
 ok($inc($I1)['severity'] === 'Minor' && $inc($I1)['clearance'] === null, 'Minor recorded as the damage classification; no clearance yet');
