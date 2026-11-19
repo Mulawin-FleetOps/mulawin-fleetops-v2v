@@ -246,6 +246,9 @@ section('H. Inspection-only Fit to Continue (no repair needed; nothing invented)
 $T6 = $dispatchTrip(6); $t6 = $trip($T6);
 [$I6, $J6] = $report($T6, 'Warning light on dashboard');
 Maintenance::action($mp, 'assess', ['job_id' => $J6['id'], 'severity' => 'Minor', 'recommendation' => 'Inspect sensor']);
+ok(one($p, 'SELECT mechanic_id FROM maintenance_jobs WHERE id=?', [$J6['id']])['mechanic_id'] === null, 'incident assessment does not assign an inspection mechanic');
+fails(fn() => Maintenance::action($mp, 'clearance', ['job_id' => $J6['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'Need physical inspection']), 'inspection-only clearance blocked until mechanic is assigned', 409);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J6['id'], 'mechanic_id' => $mech['F']]);
 fails(fn() => $clear($mp, (int)$J6['id'], 'Fit to Continue'), 'without the inspection-only flag Fit still needs a verified repair', 409);
 $_FILES = ['evidence' => $file('scan.png')];
 try { Maintenance::action($mp, 'clearance', ['job_id' => $J6['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'Loose sensor connector reseated by hand; scan shows no fault codes']); } finally { $_FILES = []; }
