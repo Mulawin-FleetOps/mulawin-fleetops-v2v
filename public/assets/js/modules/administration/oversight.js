@@ -750,6 +750,7 @@ const AnalyticsAutoSync = {
       + '.ax-shell{background:#f6f9f7;border:1px solid #e0e9e2;border-radius:16px;padding:20px;max-width:100%;}'
       + '.ax-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:15px;}'
       + '.ax-header h2{font-size:22px;font-weight:750;margin:4px 0 5px;letter-spacing:-.03em}.ax-header p{font-size:12px;color:#69786f;margin:0;max-width:750px;}'
+      + '.ax-sync-meta{display:flex;align-items:center;gap:5px;align-self:flex-start;margin-top:5px;color:#687c70;font-size:12px;white-space:normal;}'
       + '.ax-objective{display:inline-block;border-radius:20px;background:#e5f2e9;color:#207549;padding:5px 10px;font-size:11px;font-weight:650;}'
       + '.ax-mode-tabs{display:flex;gap:10px;border-bottom:1px solid #dfe7e2;margin:12px 0 18px;flex-wrap:wrap;}'
       + '.ax-mode-tabs a{padding:11px 13px;text-decoration:none;color:#63766a;font-size:13px;font-weight:650;border-bottom:3px solid transparent;}'
@@ -778,7 +779,7 @@ const AnalyticsAutoSync = {
     ctx.el.innerHTML = css + '<div class="ax-shell"><div class="ax-header"><div><span class="ax-objective">OBJECTIVE 5 · HEAD ADMIN ONLY</span>'
       + '<h2>'+(diagnostic?'Diagnostic':'Descriptive')+' Analytics · '+escape(kind==='management'?'Management Reports':kind==='audit'?'Audit Reports':selected[1])+'</h2>'
       + '<p>'+(diagnostic?'Investigate recurring issues, ranked contributors, receivables aging and part consumption.':'Recorded performance summaries, totals and trends by reporting period.')+'</p></div>'
-      + '<div><span class="ax-objective"><i class="bi bi-shield-lock"></i> Management access</span><div id="ax-sync-status" class="small text-muted mt-1" aria-live="polite"></div></div></div>'
+      + '<div class="ax-sync-meta"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span id="ax-sync-status" class="small text-muted" aria-live="polite"></span></div></div>'
       + modeNav
       + '<div class="ax-filters"><div><label for="ax-from">From</label><input type="date" class="form-control form-control-sm" id="ax-from" value="'+escape(per.from||'')+'"></div>'
       + '<div><label for="ax-to">To</label><input type="date" class="form-control form-control-sm" id="ax-to" value="'+escape(per.to||'')+'"></div>'
