@@ -2278,3 +2278,31 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   padding-inline:4px;
 }
 #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons{gap:3px;flex-wrap:nowrap}
+
+/* PURCHASING_WORD_ACTIONS_V1: labelled actions must not be cropped into icon-sized columns.
+   Keep scrollable tables and restrict changes to Purchasing screens. */
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table,
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:1160px}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(9){width:16%}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(3){width:10%}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table :is(th,td):nth-child(8){width:12%}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(6){width:17%}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(2){width:18%}
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table :is(th,td):nth-child(5){width:19%}
+#pageContent .purchasing-table-parts-requests .ref-tablebox .data-table .row-icons .btn,
+#pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table .row-icons .btn,
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons .btn{
+  white-space:normal;
+  text-align:center;
+  line-height:1.25;
+  font-size:12px;
+  font-weight:700;
+  padding:7px 9px;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1230px}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):last-child{width:15%}
+@media(max-width:1199px){
+  #pageContent .purchasing-table-parts-requests .ref-tablebox .data-table,
+  #pageContent .purchasing-table-purchase-orders .ref-tablebox .data-table{min-width:1160px}
+  #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table{min-width:1230px}
+}
