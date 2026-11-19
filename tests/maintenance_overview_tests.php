@@ -364,7 +364,7 @@ fails(fn() => Maintenance::action($mp, 'report', [
     'mechanic_id' => $M[2], 'parts_lines' => [
         ['part_id' => $hose, 'quantity' => 1], ['part_id' => $hose, 'quantity' => 2]
     ],
-]), 'duplicate requested parts roll back entire combined repair', 422);
+]), 'duplicate requested parts roll back entire combined repair', 400);
 $_FILES = [];
 ok(!one($p, 'SELECT id FROM maintenance_jobs WHERE vehicle_id=?', [$invalidTruck])
     && !one($p, 'SELECT id FROM part_requests WHERE vehicle_id=?', [$invalidTruck])
