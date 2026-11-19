@@ -32,7 +32,8 @@ final class DispatcherAttendance {
      * A multi-type dispatcher records attendance for the actual truck group,
      * not an arbitrary primary login role. */
     private static function personnelGroup(PDO $p, array $u, int $id): string {
-        $person=one($p,'SELECT person_type FROM personnel WHERE id=?',[$id]);
+        $hasGroup=DispatcherScope::attendanceGroupReady($p);
+        $person=one($p,'SELECT person_type'.($hasGroup?', attendance_group':'').' FROM personnel WHERE id=?',[$id]);
         must((bool)$person,'Personnel record was not found.',404);
         if($person['person_type']==='Driver'){
             $rows=many($p,'SELECT DISTINCT v.truck_type FROM driver_truck_authorizations da
@@ -44,17 +45,24 @@ final class DispatcherAttendance {
         }
         $groups=array_values(array_unique(array_map(fn($v)=>dispatcherRoleFor((string)$v['truck_type']),$rows)));
         $types=DispatcherScope::types($u);
-        must((bool)array_filter($rows,fn($v)=>in_array($v['truck_type'],$types,true)),
-            'Personnel is outside this Dispatcher account.',403);
         // A Driver may be authorized for both operational groups but may only
         // have one active Time In session. Use the currently scoped group.
         $requested=$u['role'];
         if(in_array($requested,$groups,true))return $requested;
+        if ($groups) {
+            must((bool)array_filter($rows,fn($v)=>in_array($v['truck_type'],$types,true)),
+                'Personnel is outside this Dispatcher account.',403);
+        }
+        if (!$groups && in_array($person['attendance_group'] ?? null, ['car_carrier_dispatcher', 'container_wingvan_dispatcher'], true)) {
+            must(in_array($person['attendance_group'], array_map('dispatcherRoleFor', $types), true),
+                'Personnel attendance group is outside this Dispatcher account.', 403);
+            return $person['attendance_group'];
+        }
         must(count($groups)===1,'Select an authorized operational group before recording attendance.',409);
         return $groups[0];
     }
     public static function blocker(PDO $p, array $u, int $id, ?int $tripId = null, bool $lock = false): ?string {
-        $pe=DispatcherScope::person($p,$u,$id,$lock);
+        $pe=DispatcherScope::attendancePerson($p,$u,$id,$lock);
         if(!(int)$pe['active'])return 'Personnel record is inactive.';
         if(!self::ready($p))return 'Dispatcher attendance migration has not been installed.';
         $session=self::current($p,$id,$lock);
@@ -65,8 +73,14 @@ final class DispatcherAttendance {
         return $reason&&str_contains($reason,' is already on ')?$pe['full_name'].' is held by another active trip.':$reason;
     }
     public static function read(array $u, array $q=[]): array {
-        DispatcherScope::types($u);$p=db();[$scope,$args]=DispatcherScope::personnelSql($u);$ready=self::ready($p);
-        $rows=many($p,"SELECT pe.id,pe.full_name,pe.person_type,pe.duty_shift,pe.availability,EXISTS(SELECT 1 FROM trip_assignments a WHERE a.resource_type='person' AND a.resource_id=pe.id) AS assigned FROM personnel pe WHERE pe.active=1 $scope ORDER BY pe.person_type,pe.full_name",$args);
+        DispatcherScope::types($u);$p=db();[$scope,$args]=DispatcherScope::attendancePersonnelSql($u, 'pe', $p);$ready=self::ready($p);
+        $rows=many($p,"SELECT pe.id,pe.full_name,pe.person_type,pe.duty_shift,pe.availability,
+            (CASE WHEN pe.person_type='Driver' THEN EXISTS(
+                SELECT 1 FROM driver_truck_authorizations da JOIN vehicles av ON av.id=da.vehicle_id
+                WHERE da.driver_id=pe.id AND av.active=1)
+              ELSE EXISTS(SELECT 1 FROM vehicles v WHERE v.active=1 AND v.assigned_helper_id=pe.id)
+            END) AS has_truck_link,
+            EXISTS(SELECT 1 FROM trip_assignments a WHERE a.resource_type='person' AND a.resource_id=pe.id) AS assigned FROM personnel pe WHERE pe.active=1 $scope ORDER BY pe.person_type,pe.full_name",$args);
         $shift=CrewAttendance::shiftFor();
         $attendanceDate=self::dutyDate();
         core('FleetState');
@@ -87,14 +101,14 @@ final class DispatcherAttendance {
             $r['action_reason']=$r['action']==='Completed'
                 ?'Time In and Time Out are already recorded for this attendance date.'
                 :($r['can_record']?'':($r['action']==='Time Out'?'Personnel are held by an active trip or returning vehicle.':'Admin attendance conflict must be corrected before Time In.'));
-            if($groupRole===null){$r['action_reason']='Personnel regular truck group needs verification before attendance can be recorded.';}
+            if($groupRole===null){$r['action_reason']='Assign an authorized attendance group in the Driver / Helper masterlist before recording Time In.';}
             if($foreignOpen){$r['can_record']=false;$r['attendance_status']='Attendance review required';$r['action_reason']='An open attendance session requires authorized coordination before recording attendance in this group.';}
         }unset($r);
         return ['rows'=>$rows,'shift'=>$shift,'attendance_date'=>$attendanceDate,
             'reset_time'=>'06:00','schema_ready'=>$ready];
     }
     public static function history(array $u,array $d): array {
-        DispatcherScope::types($u);$id=idField($d,'personnel_id');$p=db();$pe=DispatcherScope::person($p,$u,$id);
+        DispatcherScope::types($u);$id=idField($d,'personnel_id');$p=db();$pe=DispatcherScope::attendancePerson($p,$u,$id);
         must(self::ready($p),'Install the Dispatcher attendance migration first.',409);
         $groupRole=self::personnelGroup($p,$u,$id);
         return ['person'=>$pe,'sessions'=>many($p,'SELECT s.id,s.duty_date,s.duty_shift,s.time_in,s.time_out,iu.full_name AS timed_in_by_name,ou.full_name AS timed_out_by_name FROM dispatcher_attendance_sessions s JOIN users iu ON iu.id=s.timed_in_by LEFT JOIN users ou ON ou.id=s.timed_out_by WHERE s.personnel_id=? AND s.dispatcher_role=? ORDER BY s.id DESC LIMIT 500',[$id,$groupRole])];
@@ -141,7 +155,7 @@ final class DispatcherAttendance {
         $id=idField($d,'personnel_id');$key=strtolower(field($d,'request_key',36));
         must((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/',$key),'Invalid attendance request key.');
         return transaction(function(PDO $p)use($u,$action,$id,$key,$d){
-            $pe=DispatcherScope::person($p,$u,$id,true);must((int)$pe['active']===1,'Personnel record is inactive.',409);
+            $pe=DispatcherScope::attendancePerson($p,$u,$id,true);must((int)$pe['active']===1,'Personnel record is inactive.',409);
             $groupRole=self::personnelGroup($p,$u,$id);
             must(self::ready($p),'Install the Dispatcher attendance migration first.',409);
             $column=$action==='time_in'?'request_key':'time_out_key';$old=one($p,"SELECT id,personnel_id,dispatcher_role FROM dispatcher_attendance_sessions WHERE $column=?",[$key]);

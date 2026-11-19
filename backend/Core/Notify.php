@@ -74,6 +74,39 @@ final class Notify {
         ];
     }
 
+    /** Dated PO warranty alerts; safe for pre-migration databases and repeated logins. */
+    public static function warrantyReminders(PDO $p): void {
+        try {
+            $today = date('Y-m-d');
+            // A notification is sent once when a warranty enters each reminder window.
+            // No estimated dates are fabricated for historic receipts without a recorded batch.
+            $warrantyTable = (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='part_warranty_batches' AND COLUMN_NAME='warranty_status'")['n'] ?? 0);
+            if ($warrantyTable === 1) {
+                foreach (many($p, "SELECT w.id, w.received_qty, w.warranty_expires, pt.part_number, pt.description
+                    FROM part_warranty_batches w JOIN parts pt ON pt.id=w.part_id
+                    WHERE w.warranty_status='With Warranty' AND w.warranty_expires IS NOT NULL
+                      AND w.warranty_expires <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)") as $w) {
+                    $days = (int)floor((strtotime($w['warranty_expires']) - strtotime($today)) / 86400);
+                    $stage = $days < 0 ? 'expired' : ($days <= 7 ? '7-day' : '30-day');
+                    self::roles($p, ['purchasing', 'admin'], 'Part warranty',
+                        $w['part_number'] . ' ' . $w['description'] . ' (' . $w['received_qty'] . ' received): warranty ' .
+                        ($days < 0 ? 'expired on ' : 'expires on ') . $w['warranty_expires'],
+                        'inventory', 'warranty-' . $w['id'] . '-' . $stage);
+                }
+                foreach (many($p, "SELECT w.id, w.received_qty, pt.part_number, pt.description
+                    FROM part_warranty_batches w JOIN parts pt ON pt.id=w.part_id
+                    WHERE w.warranty_status='Not Yet Confirmed' ORDER BY w.id DESC LIMIT 300") as $w) {
+                    self::roles($p, ['purchasing'], 'Warranty needs confirmation',
+                        $w['part_number'] . ' ' . $w['description'] . ' (' . $w['received_qty'] .
+                        ' received): confirm supplier warranty details or mark No Warranty.',
+                        'inventory', 'warranty-pending-' . $w['id']);
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('warrantyReminders failed: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Daily reminders: expiring truck documents, driver licenses, uploaded documents and
      * low stock. Runs when a dashboard is opened; the key makes it once per item per day.

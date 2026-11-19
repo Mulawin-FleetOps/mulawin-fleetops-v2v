@@ -256,8 +256,8 @@ const HeadBillingPage = {
     ctx.el.innerHTML = adjBanner + (d.pendingRates ? `<div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center">${d.pendingRates} new client(s) are waiting for a billing rate.<a class="btn btn-sm btn-light" href="#clients?status=Pending%20Rate">Open clients</a></div>` : '') + UI.cards([
       ...(!head ? [{ label: 'Ongoing trips (drafts)', value: by(['Ongoing']).length, icon: 'bi-hourglass', color: 'gray' }] : []),
       { label: 'For billing', value: by(['For Billing']).length, icon: 'bi-receipt', color: 'amber' },
-      { label: 'Unpaid invoices', value: unpaid.length, icon: 'bi-file-earmark-text', color: 'blue' },
-      { label: 'Outstanding balance', value: unpaid.reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-hourglass-split', color: 'red' },
+      { label: 'Unpaid invoices', value: unpaid.length, icon: 'bi-file-earmark-text', color: 'amber' },
+      { label: 'Outstanding balance', value: unpaid.reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-hourglass-split', color: 'purple' },
       { label: 'Overdue', value: unpaid.filter(b => +b.days_overdue > 0).reduce((a, b) => a + +b.balance, 0), format: 'money', icon: 'bi-exclamation-octagon', color: 'red' },
     ]);
     const open = { actions: () => UI.btn('view', 'Open'), onAction: (a, b) => BillUI.open(b.id) };
@@ -306,18 +306,11 @@ App.page('billing', {
     };
     const count=k=>k==='approvals'?(d.adjustments||[]).length:all.filter(tabs[k][1]).length;
     const tab=tabs[q.tab]?q.tab:'for';
-    const tiles=[
-      {label:'Ongoing trips (drafts)',value:count('ongoing'),note:'View-only while in progress',icon:'bi-hourglass',tone:'gray'},
-      {label:'For billing',value:count('for'),note:'Completed trips awaiting review',icon:'bi-receipt',tone:'amber'},
-      {label:'Unpaid invoices',value:open.length,note:'Invoiced or partially paid',icon:'bi-file-earmark',tone:'blue'},
-      {label:'Outstanding balance',value:UI.money(open.reduce((s,x)=>s+(+x.balance||0),0)),note:'Total unpaid balance',icon:'bi-wallet2',tone:'purple'},
-      {label:'Overdue',value:UI.money(open.filter(x=>+x.days_overdue>0).reduce((s,x)=>s+(+x.balance||0),0)),note:'Past due invoice balances',icon:'bi-alarm',tone:'red'}
-    ];
     const tabMarkup='<div class="bil-v2-tabstrip" role="tablist">'+Object.entries(tabs).map(([id,[label]])=>
       '<button type="button" role="tab" aria-selected="'+(tab===id)+'" class="'+(tab===id?'active':'')+'" data-go="billing?tab='+id+'">'+label+' <small>'+count(id)+'</small></button>').join('')+'</div>';
     ctx.el.innerHTML=UI.crumb('billing_overview','Billing Overview')
       +(d._errors?.adjustments||d._errors?.billings?'<div class="alert alert-warning small">Some records require billing adjustment migration 09.</div>':'')
-      +'<div class="bil-v2-records">'+UI.kpiTiles(tiles)+
+      +'<div class="bil-v2-records">'+
       '<section class="bil-v2-record-panel">'+tabMarkup+'<div class="bil-v2-record-content"></div></section></div>';
     const root=ctx.el.querySelector('.bil-v2-record-content');
     const show=x=>BillUI.open(x.billing_id||x.id);
@@ -376,7 +369,6 @@ App.page('billing_collections', {
     const inMonth = all.filter(x => String(x.payment_date).slice(0, 7) === month);
     ctx.el.innerHTML = `${UI.crumb('billing_overview', 'Billing Overview')}${UI.kpiTiles([
       { label: 'Collected this month', value: UI.money(inMonth.reduce((a, x) => a + +x.amount, 0)), note: inMonth.length + ' payment(s)', icon: 'bi-cash-stack', tone: 'green' },
-      { label: 'Shown below', value: UI.money(rows.reduce((a, x) => a + +x.amount, 0)), note: rows.length + ' payment(s) matching the filters', icon: 'bi-funnel', tone: 'gray' },
       { label: 'Invoices to collect', value: open.length, note: UI.money(open.reduce((a, b) => a + +b.balance, 0)) + ' outstanding', icon: 'bi-file-earmark-text', tone: open.length ? 'blue' : 'gray', go: 'billing_receivables' }])}
       ${UI.generalFilters(ctx, [{ name: 'client', label: 'Clients', options: clients }, { name: 'method', label: 'Methods', options: methods }, { name: 'from', label: 'From date', type: 'date' }, { name: 'to', label: 'To date', type: 'date' }])}`;
     const box = document.createElement('div'); ctx.el.append(box);

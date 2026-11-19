@@ -53,8 +53,19 @@ final class Purchasing {
         $budget = fn() => hasRole($u, 'purchasing', 'finance', 'admin', 'audit')
             // ACCOUNTING_INTEGRITY_G7: in_period = the same date rule po_decide uses; an expired budget is shown as ended, not as available.
             ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? []) : [];
+        $warrantyReady = self::warrantyReady($p);
+        $warrantyExpirySql = $warrantyReady
+            ? "(SELECT MIN(w.warranty_expires) FROM part_warranty_batches w WHERE w.part_id=pt.id AND w.warranty_expires IS NOT NULL)"
+            : "NULL";
+        $reservationSql = self::reservationsReady($p)
+            ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_id=pt.id)'
+            : '0';
         $partsFull = fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
-                    (pt.reorder_level>0 AND pt.quantity_on_hand<=pt.reorder_level) AS low_stock FROM parts pt ORDER BY pt.active DESC, pt.part_number");
+                    $reservationSql AS reserved_qty,
+                    GREATEST(0,pt.quantity_on_hand-$reservationSql) AS available_qty,
+                    (pt.reorder_level>0 AND pt.quantity_on_hand<=$reservationSql+pt.reorder_level) AS low_stock,
+                    $warrantyExpirySql AS earliest_warranty_expiry
+                    FROM parts pt ORDER BY pt.active DESC, pt.part_number");
         $data = match ($page) {
             'purchasing_overview' => self::overview($u, $p, $budget),
             'parts_requests' => readSections([
@@ -62,19 +73,21 @@ final class Purchasing {
                 // The "Create PO" shortcut needs the part list and supplier suggestions: Purchasing Officer only.
                 'parts' => fn() => $stock ? $partsFull() : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
+                'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
                 'budget' => $budget,
             ]),
             'purchase_orders' => readSections([
-                'orders' => fn() => many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
+                'orders' => fn() => array_map(fn($o) => self::poPublicRow($o, $stock), many($p, "SELECT o.*, COALESCE(o.supplier_name, s.name) AS supplier, ru.full_name AS requested_by_name, du.full_name AS decided_by_name,
                         (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value,
                         (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' ', l.received_qty, '/', l.quantity) SEPARATOR '; ') FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=o.id) AS items
                     FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
-                    ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500"),
+                    ORDER BY FIELD(o.status,'Pending Approval','Approved','Partially Received','Received','Closed','Rejected','Rejected - Insufficient Budget'), o.id DESC LIMIT 500")),
                 // PO form inputs (Purchasing Officer only): parts to order, requests that can be linked, supplier suggestions.
                 'parts' => fn() => $stock ? $partsFull() : [],
                 'linkableRequests' => fn() => $stock ? many($p, "SELECT r.id, r.request_ref, r.status, v.plate_number FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id
                     WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY r.id DESC LIMIT 200") : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
+                'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
                 'budget' => $budget,
             ]),
             'inventory' => readSections(['parts' => $partsFull,
@@ -93,16 +106,29 @@ final class Purchasing {
             'count' => $stock, 'reviewCount' => hasRole($u, 'admin'),
         ];
         $data['countsReady'] = self::countsReady($p);
+        $data['warrantyReady'] = self::warrantyConfirmationReady($p);
+        $data['orderTrackingReady'] = self::orderTrackingReady($p);
+        $data['reservationsReady'] = self::reservationsReady($p);
         return $data;
+    }
+
+    /** Keep Finance payment data out of the Purchasing role's PO API payload, not only hidden in the UI. */
+    private static function poPublicRow(array $row, bool $purchasing): array {
+        if ($purchasing) unset($row['payment_status'], $row['paid_amount']);
+        return $row;
     }
 
     /** Parts requests as Purchasing needs them to fulfil: no incident notes, driver or employee data. */
     private static function requestRows(PDO $p): array {
+        $reserveExpr = self::reservationsReady($p)
+            ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
+            : '0';
         // STAGE_B_PURCHASING_UI: requested/released units and the linked purchase orders (ref + status) per request.
         return many($p, "SELECT r.id, r.request_ref, r.vehicle_id, r.status, r.purpose, r.notes, r.created_at, r.processed_at, v.plate_number, m.job_ref,
                 ru.full_name AS requested_by_name, pu.full_name AS processed_by_name,
                 (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
+                $reserveExpr AS reserved_units,
                 (SELECT GROUP_CONCAT(CONCAT(o.po_ref, ' (', o.status, ')') ORDER BY o.id SEPARATOR '; ') FROM purchase_orders o WHERE o.part_request_id=r.id) AS linked_pos,
                 (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')
                    FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=r.id) AS items
@@ -113,12 +139,17 @@ final class Purchasing {
 
     /** Purchasing Overview: what needs action now. Counts and short lists only. */
     private static function overview(array $u, PDO $p, callable $budget): array {
+        $tracking = self::orderTrackingReady($p);
+        $toReceive = $tracking ? "status IN ('Approved','Partially Received') AND (order_confirmation_required=0 OR ordered_at IS NOT NULL)" : "status IN ('Approved','Partially Received')";
+        $toOrder = $tracking ? "status='Approved' AND order_confirmation_required=1 AND ordered_at IS NULL" : '0=1';
+        $toReceiveO = $tracking ? "o.status IN ('Approved','Partially Received') AND (o.order_confirmation_required=0 OR o.ordered_at IS NOT NULL)" : "o.status IN ('Approved','Partially Received')";
         return readSections([
             'counts' => fn() => [
                 'requests_open' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status='Requested'")['n'],
                 'requests_followup' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status IN ('Partially Released','Not Available')")['n'],
                 'po_pending' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval'")['n'],
-                'po_to_receive' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status IN ('Approved','Partially Received')")['n'],
+                'po_to_receive' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE $toReceive")['n'],
+                'po_to_order' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE $toOrder")['n'],
                 'inventory_value' => (float)one($p, 'SELECT COALESCE(SUM(quantity_on_hand*unit_cost),0) AS v FROM parts WHERE active=1')['v'],
                 'low_stock' => (int)one($p, 'SELECT COUNT(*) AS n FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level')['n'],
             ],
@@ -127,26 +158,21 @@ final class Purchasing {
                 FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id
                 WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY FIELD(r.status,'Requested','Partially Released','Not Available'), r.id LIMIT 10"),
             'receiving' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.total_amount, o.created_at, COALESCE(o.supplier_name, s.name) AS supplier FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id
-                WHERE o.status IN ('Approved','Partially Received') ORDER BY o.id LIMIT 10"),
+                WHERE $toReceiveO ORDER BY o.id LIMIT 10"),
             // STAGE_B_PURCHASING_UI: POs waiting for Finance/Admin approval, and POs auto-rejected for budget in the last 30 days.
             'approvals' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.approver_role, o.total_amount, o.created_at, o.decided_at, COALESCE(o.supplier_name, s.name) AS supplier
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id
                 WHERE o.status='Pending Approval' OR (o.status='Rejected - Insufficient Budget' AND o.decided_at >= NOW() - INTERVAL 30 DAY)
                 ORDER BY FIELD(o.status,'Pending Approval','Rejected - Insufficient Budget'), o.id LIMIT 10"),
-            'payments' => fn() => array_map('floatval', one($p, "SELECT COUNT(*) AS n, COALESCE(SUM(GREATEST((SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id)-o.paid_amount,0)),0) AS due
-                FROM purchase_orders o WHERE o.payment_status IN ('Pending Payment','Partially Paid')
-                  AND (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) > o.paid_amount")),
             'lowStock' => fn() => many($p, "SELECT id, part_number, description, unit, quantity_on_hand, reorder_level FROM parts
                 WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY (quantity_on_hand-reorder_level), part_number LIMIT 10"),
             'budget' => $budget,
             // UI_REFERENCE_V1 (read-only): Purchase Order Status panel and Recent Purchasing Activity of the Overview.
             'poStatus' => fn() => one($p, "SELECT
                     COALESCE(SUM(status='Pending Approval'),0) AS pending_approval,
-                    COALESCE(SUM(status IN ('Approved','Partially Received')),0) AS awaiting_delivery,
-                    COALESCE(SUM(status='Partially Received'),0) AS partially_received,
-                    -- same rule as the Purchase Orders 'Awaiting payment' tab: received value not fully paid
-                    COALESCE(SUM(payment_status IN ('Pending Payment','Partially Paid')
-                        AND (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=purchase_orders.id) > paid_amount),0) AS awaiting_payment
+                    COALESCE(SUM($toReceive),0) AS awaiting_delivery,
+                    COALESCE(SUM($toOrder),0) AS ready_to_order,
+                    COALESCE(SUM(status='Partially Received'),0) AS partially_received
                 FROM purchase_orders"),
             'activity' => fn() => many($p, "SELECT sm.id, sm.movement_type, sm.quantity_delta, sm.reference_type, sm.reference_id, sm.reason, sm.created_at,
                     pt.part_number, pt.unit, u.full_name AS actor,
@@ -177,6 +203,22 @@ final class Purchasing {
         return array_values($out);
     }
 
+    /** Part-linked supplier history from real non-rejected purchase orders only. */
+    private static function partSupplierHistory(PDO $p): array {
+        return many($p, "SELECT l.part_id, o.id AS po_id, o.po_ref,
+                COALESCE(NULLIF(TRIM(o.supplier_name),''), s.name) AS name,
+                COALESCE(NULLIF(o.supplier_address,''), s.address) AS address,
+                COALESCE(NULLIF(o.supplier_contact,''), s.contact_person) AS contact_person,
+                COALESCE(NULLIF(o.supplier_phone,''), s.contact_number) AS contact_number,
+                COALESCE(NULLIF(o.supplier_email,''), s.email) AS email
+            FROM purchase_order_lines l
+            JOIN purchase_orders o ON o.id=l.purchase_order_id
+            LEFT JOIN suppliers s ON s.id=o.supplier_id
+            WHERE o.status IN ('Approved','Partially Received','Received','Closed')
+              AND COALESCE(NULLIF(TRIM(o.supplier_name),''), s.name) IS NOT NULL
+            ORDER BY (l.received_qty>0) DESC, o.id DESC, l.id DESC LIMIT 3000");
+    }
+
     /** Supplier details typed in the PO form (saved with the PO). */
     private static function supplierSnapshot(array $d): array {
         $name = strtoupper(preg_replace('/\s+/', ' ', field($d, 'supplier_name', 150)));
@@ -197,7 +239,9 @@ final class Purchasing {
             'request_cancel' => self::requestCancel($u, $d),
             'po_create' => self::poCreate($u, $d),
             'po_decide' => self::poDecide($u, $d),
+            'po_order' => self::poOrder($u, $d),
             'po_receive' => self::poReceive($u, $d),
+            'warranty_confirm' => self::warrantyConfirm($u, $d),
             'po_close' => self::poClose($u, $d),
             'po_details' => self::poDetails($u, $d),
             'request_details' => self::requestDetails($u, $d),
@@ -222,6 +266,49 @@ final class Purchasing {
             'reason' => cut($reason, 150), 'reference_type' => $refType, 'reference_id' => $refId, 'vehicle_id' => $vehicleId, 'maintenance_job_id' => $jobId, 'actor_id' => $u['id']]);
     }
 
+    /** Feature may be deployed before its reviewed operational migration. Existing workflows stay available. */
+    private static function warrantyReady(PDO $p): bool {
+        return (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='parts' AND COLUMN_NAME='warranty_months'")['n'] ?? 0) === 1
+            && (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='part_warranty_batches'")['n'] ?? 0) === 1;
+    }
+
+    private static function warrantyConfirmationReady(PDO $p): bool {
+        return self::warrantyReady($p) && (int)(one($p,
+            "SELECT COUNT(*) AS n FROM schema_migrations WHERE id='2026-11-18_23_pending_installation_warranty'")['n'] ?? 0) === 1;
+    }
+
+    private static function warrantyData(array $d): array {
+        $status = trim((string)($d['status'] ?? ''));
+        must(in_array($status, ['With Warranty', 'No Warranty', 'Not Yet Confirmed', 'Pending Installation'], true),
+            'Select a warranty status for this delivery.');
+        if ($status === 'No Warranty' || $status === 'Not Yet Confirmed') return [
+            'warranty_status' => $status, 'warranty_months' => null,
+            'warranty_start' => null, 'warranty_expires' => null, 'start_basis' => null,
+        ];
+        $months = filter_var($d['months'] ?? null, FILTER_VALIDATE_INT);
+        must($months !== false && $months >= 1 && $months <= 120, 'Enter warranty duration (1 to 120 months).');
+        if ($status === 'Pending Installation') {
+            return ['warranty_status' => $status, 'warranty_months' => $months,
+                'warranty_start' => null, 'warranty_expires' => null, 'start_basis' => 'Installation'];
+        }
+        $basis = trim((string)($d['start_basis'] ?? ''));
+        must(in_array($basis, ['Delivery', 'Purchase', 'Invoice', 'Installation', 'Other'], true),
+            'Select the warranty start-date basis.');
+        $start = trim((string)($d['start'] ?? ''));
+        return ['warranty_status' => $status, 'warranty_months' => $months,
+            'warranty_start' => $start, 'warranty_expires' => self::warrantyExpiry($start, $months),
+            'start_basis' => $basis];
+    }
+
+    /** Calendar-month addition, clamped to the last valid day of the target month. */
+    private static function warrantyExpiry(string $start, int $months): string {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $start);
+        must($date !== false && $date->format('Y-m-d') === $start, 'Enter a valid warranty start date.');
+        $first = $date->modify('first day of this month')->modify('+' . $months . ' months');
+        $day = min((int)$date->format('d'), (int)$first->format('t'));
+        return $first->setDate((int)$first->format('Y'), (int)$first->format('m'), $day)->format('Y-m-d');
+    }
+
     // ---------------------------------------------------------------- parts and suppliers
     private static function partSave(array $u, array $d): array {
         requireRole($u, 'purchasing');
@@ -230,7 +317,11 @@ final class Purchasing {
         // Never accept a user-supplied part number on new records or change an existing identifier.
         $row = ['description' => field($d, 'description', 200), 'category' => optField($d, 'category', 80),
                 'unit' => field($d, 'unit', 20), 'unit_cost' => moneyField($d, 'unit_cost', true), 'reorder_level' => intField($d, 'reorder_level', 0),
-                'warranty_info' => optField($d, 'warranty_info', 150)];
+                ]; 
+        // Do not blank historical free-text warranty notes when the new form edits duration only.
+        if (array_key_exists('warranty_info', $d)) $row['warranty_info'] = optField($d, 'warranty_info', 150);
+        // Warranty status and dates are verified per received PO batch, not at part creation.
+        must(!array_key_exists('warranty_months', $d), 'Warranty duration is confirmed when parts are received.', 409);
         // STOCK_COUNT_RECONCILIATION_V1: a new part starts at 0. Stock comes in only through PO receiving or a reviewed stock count.
         must($id || (int)(intField($d, 'opening_qty', 0, false) ?? 0) === 0,
             'A new part starts with 0 on hand. Receive it on a purchase order, or record a stock count for the Admin to review.', 403);
@@ -242,7 +333,7 @@ final class Purchasing {
                 $cols = implode(',', array_map(fn($c) => "$c=?", array_keys($row)));
                 run($p, "UPDATE parts SET $cols WHERE id=?", array_merge(array_values($row), [$id]));
                 $before = []; $after = [];
-                foreach (['description', 'category', 'unit', 'unit_cost', 'reorder_level', 'warranty_info'] as $key) {
+                foreach (array_keys($row) as $key) {
                     $label = $key === 'description' ? 'Part name' : ucwords(str_replace('_', ' ', $key));
                     $before[$label] = $old[$key]; $after[$label] = $row[$key];
                 }
@@ -361,6 +452,10 @@ final class Purchasing {
                 return ['message' => $c['count_ref'] . ' rejected. The stock did not change.'];
             }
             $before = (int)$pt['quantity_on_hand'];
+            if (self::reservationsReady($p)) {
+                $reserved = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$c['part_id']])['qty'];
+                must((int)$c['counted_qty'] >= $reserved, 'Physical stock count is below currently reserved units. Resolve the reservation discrepancy before posting.', 409);
+            }
             must($before === (int)$c['system_qty'], 'The stock of ' . $pt['part_number'] . ' changed after the count (system ' . $c['system_qty'] . ' then, ' . $before . ' now). Reject this count and count again.', 409);
             $delta = (int)$c['counted_qty'] - $before;
             self::move($p, $u, (int)$c['part_id'], 'Adjustment', $delta, (float)$pt['unit_cost'], 'Stock count ' . $c['count_ref'] . ': ' . $c['reason'], 'stock_count', $id);
@@ -402,26 +497,95 @@ final class Purchasing {
         return array_values($out);
     }
 
+    /** Shared request writer for same-transaction Motorpool repair intake.
+     * The Purchasing review/release workflow remains unchanged. */
+    public static function createForRepair(PDO $p, array $u, int $vid, int $jobId, string $purpose, array $rawLines): array {
+        requireRole($u, 'motorpool');
+        $lines = self::lines(['lines' => $rawLines]);
+        $v = one($p, 'SELECT plate_number FROM vehicles WHERE id=? AND active=1', [$vid]);
+        must((bool)$v, 'Choose an active truck.');
+        must((bool)one($p, "SELECT id FROM maintenance_jobs WHERE id=? AND vehicle_id=? AND status IN ('Under Inspection','Under Repair')", [$jobId, $vid]),
+            'The maintenance record does not belong to this truck or is already closed.');
+        foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
+        $rid = insert($p, 'part_requests', ['request_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'maintenance_job_id' => $jobId,
+            'purpose' => $purpose, 'status' => 'Requested', 'requested_by' => $u['id']]);
+        $ref = refNumber('RF', $rid);
+        run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
+        foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
+        self::reserveNewRequest($p, $rid, $lines);
+        auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
+            [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
+        Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'parts_requests', 'parts-req-' . $rid);
+        return ['request_id' => $rid, 'request_ref' => $ref, 'message' => "Request $ref sent to the Purchasing Officer."];
+    }
+
     private static function requestCreate(array $u, array $d): array {
         requireRole($u, 'motorpool');
         $vid = idField($d, 'vehicle_id'); $jobId = optId($d, 'maintenance_job_id');
         $purpose = field($d, 'purpose', 255);
+        if ($jobId) {
+            return transaction(static fn(PDO $p) => self::createForRepair($p, $u, $vid, $jobId, $purpose, (array)($d['lines'] ?? [])));
+        }
+        // Standalone requests may be made before a repair record exists.
         $lines = self::lines($d);
-        return transaction(function (PDO $p) use ($u, $vid, $jobId, $purpose, $lines) {
+        return transaction(function (PDO $p) use ($u, $vid, $purpose, $lines) {
             $v = one($p, 'SELECT plate_number FROM vehicles WHERE id=? AND active=1', [$vid]);
             must((bool)$v, 'Choose an active truck.');
-            if ($jobId) must((bool)one($p, "SELECT id FROM maintenance_jobs WHERE id=? AND vehicle_id=? AND status IN ('Under Inspection','Under Repair')", [$jobId, $vid]), 'The maintenance record does not belong to this truck or is already closed.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            $rid = insert($p, 'part_requests', ['request_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'maintenance_job_id' => $jobId,
+            $rid = insert($p, 'part_requests', ['request_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'maintenance_job_id' => null,
                 'purpose' => $purpose, 'status' => 'Requested', 'requested_by' => $u['id']]);
             $ref = refNumber('RF', $rid);
             run($p, 'UPDATE part_requests SET request_ref=? WHERE id=?', [$ref, $rid]);
             foreach ($lines as $l) insert($p, 'part_request_lines', ['part_request_id' => $rid, 'part_id' => $l['part_id'], 'quantity' => $l['quantity']]);
+            self::reserveNewRequest($p, $rid, $lines);
             auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $rid, 'parts request submitted', $ref . ' for ' . $v['plate_number'],
                 [], ['Request status' => 'Requested', 'Truck' => $v['plate_number'], 'Requested units' => array_sum(array_column($lines, 'quantity'))]);
             Notify::roles($p, ['purchasing'], 'Parts request', "$ref: parts requested for " . $v['plate_number'] . '. Check the stock and release.', 'parts_requests', 'parts-req-' . $rid);
             return ['message' => "Request $ref sent to the Purchasing Officer."];
         });
+    }
+
+    /** Never reserve inventory that is not physically on hand. All writers lock parts first. */
+    private static function reservationsReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 AS ok FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='part_request_lines' AND column_name='reserved_qty'");
+    }
+
+    /** Allocate available inventory to this new Motorpool request; no stock-out and no PO. */
+    private static function reserveNewRequest(PDO $p, int $requestId, array $lines): void {
+        if (!self::reservationsReady($p)) return; // Pre-migration compatibility.
+        usort($lines, static fn($a, $b) => (int)$a['part_id'] <=> (int)$b['part_id']);
+        foreach ($lines as $line) {
+            $pid = (int)$line['part_id'];
+            $part = one($p, 'SELECT id, quantity_on_hand FROM parts WHERE id=? FOR UPDATE', [$pid]);
+            must((bool)$part, 'Part is no longer available.', 409);
+            $already = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$pid])['qty'];
+            $available = max(0, (int)$part['quantity_on_hand'] - $already);
+            $reserve = min((int)$line['quantity'], $available);
+            if ($reserve > 0) run($p, 'UPDATE part_request_lines SET reserved_qty=? WHERE part_request_id=? AND part_id=?', [$reserve, $requestId, $pid]);
+        }
+    }
+
+    /** When a supplier delivery arrives, allocate genuinely free units to oldest open requests.
+     * Called inside the same receiving transaction, after the stock-in movement is recorded.
+     */
+    private static function allocateArrivedStock(PDO $p, int $partId): void {
+        if (!self::reservationsReady($p)) return;
+        $part = one($p, 'SELECT quantity_on_hand FROM parts WHERE id=? FOR UPDATE', [$partId]);
+        $reserved = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$partId])['qty'];
+        $free = max(0, (int)$part['quantity_on_hand'] - $reserved);
+        if (!$free) return;
+        $waiting = many($p, "SELECT l.id, l.quantity, l.released_qty, l.reserved_qty FROM part_request_lines l
+            JOIN part_requests r ON r.id=l.part_request_id
+            WHERE l.part_id=? AND r.status IN ('Requested','Partially Released','Not Available')
+              AND l.quantity>l.released_qty+l.reserved_qty
+            ORDER BY r.created_at, r.id, l.id FOR UPDATE", [$partId]);
+        foreach ($waiting as $line) {
+            if (!$free) break;
+            $alloc = min($free, (int)$line['quantity'] - (int)$line['released_qty'] - (int)$line['reserved_qty']);
+            if ($alloc <= 0) continue;
+            run($p, 'UPDATE part_request_lines SET reserved_qty=reserved_qty+? WHERE id=?', [$alloc, $line['id']]);
+            $free -= $alloc;
+        }
     }
 
     /** Purchasing checks the stock and releases what is available (stock-out). */
@@ -435,6 +599,9 @@ final class Purchasing {
             must((bool)$r, 'Request not found.', 404);
             must(in_array($r['status'], ['Requested', 'Partially Released', 'Not Available'], true), 'This request is ' . $r['status'] . '.', 409);
             $lines = many($p, 'SELECT l.*, pt.part_number, pt.unit_cost AS cost FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? FOR UPDATE', [$id]);
+            if ($notAvailable && self::reservationsReady($p)) {
+                foreach ($lines as $l) must((int)$l['reserved_qty'] === 0, 'Reserved parts are available: release them before marking the request Not Available.', 409);
+            }
             $released = 0;
             if (!$notAvailable) {
                 $want = [];
@@ -443,8 +610,17 @@ final class Purchasing {
                     $q = $want[(int)$l['id']] ?? 0;
                     if ($q <= 0) continue;
                     must($q <= (int)$l['quantity'] - (int)$l['released_qty'], 'Cannot release more than requested for ' . $l['part_number'] . '.');
+                    if (self::reservationsReady($p)) {
+                        $stock = one($p, 'SELECT quantity_on_hand FROM parts WHERE id=? FOR UPDATE', [$l['part_id']]);
+                        $totalReserved = (int)one($p, 'SELECT COALESCE(SUM(reserved_qty),0) AS qty FROM part_request_lines WHERE part_id=?', [$l['part_id']])['qty'];
+                        $free = max(0, (int)$stock['quantity_on_hand'] - $totalReserved);
+                        must($q <= (int)$l['reserved_qty'] + $free, 'Not enough unreserved stock to release ' . $l['part_number'] . '.', 409);
+                    }
                     self::move($p, $u, (int)$l['part_id'], 'Stock Out', -$q, (float)$l['cost'], 'Released for ' . $r['request_ref'], 'part_request', $id, (int)$r['vehicle_id'], $r['maintenance_job_id'] ? (int)$r['maintenance_job_id'] : null);
-                    run($p, 'UPDATE part_request_lines SET released_qty=released_qty+?, unit_cost=? WHERE id=?', [$q, $l['cost'], $l['id']]);
+                    if (self::reservationsReady($p))
+                        run($p, 'UPDATE part_request_lines SET released_qty=released_qty+?, reserved_qty=GREATEST(reserved_qty-?,0), unit_cost=? WHERE id=?', [$q, $q, $l['cost'], $l['id']]);
+                    else
+                        run($p, 'UPDATE part_request_lines SET released_qty=released_qty+?, unit_cost=? WHERE id=?', [$q, $l['cost'], $l['id']]);
                     $released += $q;
                 }
                 must($released > 0, 'Enter the quantity to release, or mark the request as Not Available.');
@@ -467,6 +643,7 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $id) {
             $r = one($p, 'SELECT * FROM part_requests WHERE id=? FOR UPDATE', [$id]);
             must($r && $r['status'] === 'Requested', 'Only a request that is still Requested can be cancelled.', 409);
+            if (self::reservationsReady($p)) run($p, 'UPDATE part_request_lines SET reserved_qty=0 WHERE part_request_id=?', [$id]);
             run($p, "UPDATE part_requests SET status='Cancelled' WHERE id=?", [$id]);
             Notify::resolve($p, 'parts-req-' . $id);
             auditWithChanges($p, $u['id'], 'Inventory', 'request ' . $id, 'parts request cancelled', $r['request_ref'],
@@ -489,7 +666,8 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $supplier, $purpose, $reqId, $lines, $total, $approver, $threshold) {
             if ($reqId) must((bool)one($p, 'SELECT id FROM part_requests WHERE id=?', [$reqId]), 'Parts request not found.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'part_request_id' => $reqId, 'purpose' => $purpose] + $supplier + [
+            $orderFlag = self::orderTrackingReady($p) ? ['order_confirmation_required' => 1] : [];
+            $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'part_request_id' => $reqId, 'purpose' => $purpose] + $supplier + $orderFlag + [
                 'total_amount' => number_format($total, 2, '.', ''), 'approver_role' => $approver, 'status' => 'Pending Approval', 'requested_by' => $u['id']]);
             $ref = refNumber('PO', $id);
             run($p, 'UPDATE purchase_orders SET po_ref=? WHERE id=?', [$ref, $id]);
@@ -546,15 +724,49 @@ final class Purchasing {
         });
     }
 
+    /** Feature detection keeps pre-migration databases readable and legacy POs valid. */
+    private static function orderTrackingReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 AS ok FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='purchase_orders' AND column_name='order_confirmation_required'");
+    }
+
+    /** Explicit supplier-order confirmation; approval alone is not an order or a delivery. */
+    private static function poOrder(array $u, array $d): array {
+        requireRole($u, 'purchasing');
+        $id = idField($d, 'po_id');
+        return transaction(function (PDO $p) use ($u, $id) {
+            must(self::orderTrackingReady($p), 'Supplier-order tracking requires the purchasing database migration.', 503);
+            $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
+            must((bool)$o, 'Purchase order not found.', 404);
+            must($o['status'] === 'Approved', 'Only approved, unreceived purchase orders can be marked ordered.', 409);
+            must(empty($o['ordered_at']), 'This supplier order is already confirmed.', 409);
+            // Do not create a fabricated supplier order; an authorized user confirms a real action.
+            run($p, 'UPDATE purchase_orders SET ordered_at=NOW(), ordered_by=? WHERE id=?', [$u['id'], $id]);
+            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'supplier order placed', $o['po_ref'],
+                ['Supplier order' => 'Not confirmed'], ['Supplier order' => 'Confirmed by Purchasing']);
+            Notify::user($p, (int)$o['requested_by'], 'Supplier order confirmed', $o['po_ref'] . ' was marked as ordered with the supplier.', 'purchase_orders');
+            return ['message' => $o['po_ref'] . ' marked Ordered. Receiving remains a separate physical verification.'];
+        });
+    }
+
     /** Receiving (stock-in). Partial deliveries are allowed: "Partially Received". */
     private static function poReceive(array $u, array $d): array {
         requireRole($u, 'purchasing');
         $id = idField($d, 'po_id');
         $invoice = optField($d, 'supplier_invoice_no', 80);
         return transaction(function (PDO $p) use ($u, $d, $id, $invoice) {
+            must(self::warrantyConfirmationReady($p), 'Warranty confirmation migration is required before receiving parts.', 503);
+            $warrantyInputs = [];
+            foreach ((array)($d['warranty'] ?? []) as $w) {
+                must(is_array($w) && !empty($w['line_id']), 'Invalid warranty record.');
+                $key = (int)$w['line_id'];
+                must(!isset($warrantyInputs[$key]), 'Duplicate warranty record.');
+                $warrantyInputs[$key] = $w;
+            }
             $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
             must((bool)$o, 'Purchase order not found.', 404);
             must(in_array($o['status'], ['Approved', 'Partially Received'], true), 'Only approved purchase orders can be received (this one is ' . $o['status'] . ').', 409);
+            if (self::orderTrackingReady($p) && (int)$o['order_confirmation_required'] === 1)
+                must(!empty($o['ordered_at']), 'Confirm that the approved purchase order was placed with the supplier before receiving.', 409);
             $got = [];
             foreach ((array)($d['receive'] ?? []) as $x) if (is_array($x) && !empty($x['line_id'])) $got[(int)$x['line_id']] = (int)($x['qty'] ?? 0);
             $total = 0;
@@ -563,10 +775,23 @@ final class Purchasing {
                 if ($q <= 0) continue;
                 must($q <= (int)$l['quantity'] - (int)$l['received_qty'], 'Received quantity of ' . $l['part_number'] . ' is more than the remaining ordered quantity.');
                 self::move($p, $u, (int)$l['part_id'], 'Stock In', $q, (float)$l['unit_price'], 'Received from ' . $o['po_ref'], 'purchase_order', $id);
+                self::allocateArrivedStock($p, (int)$l['part_id']);
                 run($p, 'UPDATE parts SET unit_cost=? WHERE id=?', [$l['unit_price'], $l['part_id']]);
                 run($p, 'UPDATE purchase_order_lines SET received_qty=received_qty+? WHERE id=?', [$q, $l['id']]);
+                must(isset($warrantyInputs[(int)$l['id']]), 'Confirm warranty status for each received item.');
+                $coverage = self::warrantyData($warrantyInputs[(int)$l['id']]);
+                unset($warrantyInputs[(int)$l['id']]);
+                $batchId = insert($p, 'part_warranty_batches', [
+                    'po_line_id' => $l['id'], 'part_id' => $l['part_id'],
+                    'received_qty' => $q, 'received_by' => $u['id'],
+                ] + $coverage);
+                auditWithChanges($p, $u['id'], 'Inventory', 'warranty ' . $batchId,
+                    'warranty receipt recorded', $o['po_ref'] . ' / ' . $l['part_number'],
+                    [], ['Status' => $coverage['warranty_status'], 'Received quantity' => $q,
+                        'Warranty start' => $coverage['warranty_start'], 'Warranty expires' => $coverage['warranty_expires']]);
                 $total += $q;
             }
+            must(!$warrantyInputs, 'Warranty entries must match the items received on this PO.');
             must($total > 0, 'Enter the quantities actually received.');
             Files::store($p, $u, 'receipt', 'purchase', $id, 'Delivery Receipt / Supplier Invoice');
             $left = (int)one($p, 'SELECT COALESCE(SUM(quantity-received_qty),0) AS n FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['n'];
@@ -577,6 +802,33 @@ final class Purchasing {
                 ['PO status' => $o['status'], 'Units received in this action' => 0], ['PO status' => $status, 'Units received in this action' => $total]);
             Notify::roles($p, ['finance'], 'Parts received', $o['po_ref'] . ' is ' . $status . '. Check the supplier invoice before payment.', 'finance');
             return ['message' => "Received $total unit(s). PO is $status; inventory updated."];
+        });
+    }
+
+    /** Complete or correct recorded receipt coverage. Never alters stock quantities. */
+    private static function warrantyConfirm(array $u, array $d): array {
+        requireRole($u, 'purchasing');
+        $id = idField($d, 'batch_id');
+        return transaction(function (PDO $p) use ($u, $d, $id) {
+            must(self::warrantyConfirmationReady($p), 'Warranty confirmation migration is required.', 503);
+            $old = one($p, 'SELECT w.*, o.po_ref, pt.part_number FROM part_warranty_batches w
+                JOIN purchase_order_lines l ON l.id=w.po_line_id
+                JOIN purchase_orders o ON o.id=l.purchase_order_id
+                JOIN parts pt ON pt.id=w.part_id WHERE w.id=? FOR UPDATE', [$id]);
+            must((bool)$old, 'Warranty receipt not found.', 404);
+            $new = self::warrantyData($d);
+            $new['updated_by'] = $u['id'];
+            $new['updated_at'] = date('Y-m-d H:i:s');
+            $cols = implode(',', array_map(static fn($c) => "$c=?", array_keys($new)));
+            run($p, "UPDATE part_warranty_batches SET $cols WHERE id=?", array_merge(array_values($new), [$id]));
+            $before = []; $after = [];
+            foreach (['warranty_status','warranty_months','warranty_start','warranty_expires','start_basis'] as $key) {
+                $before[$key] = $old[$key]; $after[$key] = $new[$key];
+            }
+            auditWithChanges($p, $u['id'], 'Inventory', 'warranty ' . $id,
+                'warranty confirmation updated', $old['po_ref'] . ' / ' . $old['part_number'], $before, $after);
+            Notify::resolve($p, 'warranty-pending-' . $id);
+            return ['message' => 'Warranty information updated. Stock quantities were not changed.'];
         });
     }
 
@@ -627,7 +879,10 @@ final class Purchasing {
             FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id JOIN users ru ON ru.id=o.requested_by LEFT JOIN users du ON du.id=o.decided_by
             LEFT JOIN part_requests r ON r.id=o.part_request_id WHERE o.id=?', [$id]);
         must((bool)$o, 'Purchase order not found.', 404);
-        return ['po' => $o,
+        $warrantyReady = self::warrantyConfirmationReady($p);
+        $o = self::poPublicRow($o, hasRole($u, 'purchasing'));
+        return ['po' => $o, 'warrantyReady' => $warrantyReady,
+            'warrantyBatches' => $warrantyReady ? many($p, "SELECT wb.*, pt.part_number, pt.description FROM part_warranty_batches wb JOIN parts pt ON pt.id=wb.part_id JOIN purchase_order_lines l ON l.id=wb.po_line_id WHERE l.purchase_order_id=? ORDER BY wb.received_at DESC, wb.id DESC", [$id]) : [],
             'lines' => many($p, 'SELECT l.*, pt.part_number, pt.description, pt.unit FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? ORDER BY l.id', [$id]),
             // S4B-2D-B: detailed disbursement records contain Finance-only payment data.
             // Purchasing/Motorpool still receive PO payment_status, but not bank/payment details.
@@ -651,7 +906,9 @@ final class Purchasing {
         $id = idField($d, 'part_id'); $p = db();
         $pt = one($p, 'SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value FROM parts pt WHERE pt.id=?', [$id]);
         must((bool)$pt, 'Part not found.', 404);
+        $warrantyReady = self::warrantyConfirmationReady($p);
         return ['part' => $pt,
+            'warrantyBatches' => $warrantyReady ? many($p, "SELECT wb.id, wb.received_qty, wb.warranty_months, wb.warranty_start, wb.warranty_expires, wb.received_at, o.po_ref FROM part_warranty_batches wb JOIN purchase_order_lines l ON l.id=wb.po_line_id JOIN purchase_orders o ON o.id=l.purchase_order_id WHERE wb.part_id=? ORDER BY wb.warranty_expires, wb.id", [$id]) : [],
             'movements' => many($p, "SELECT sm.id, sm.movement_type, sm.quantity_delta, sm.unit_cost, sm.reason, sm.reference_type, sm.reference_id, sm.created_at,
                     v.plate_number, u.full_name AS actor,
                     CASE sm.reference_type WHEN 'purchase_order' THEN (SELECT po_ref FROM purchase_orders WHERE id=sm.reference_id)
@@ -677,13 +934,14 @@ final class Purchasing {
             FROM part_requests r JOIN vehicles v ON v.id=r.vehicle_id LEFT JOIN maintenance_jobs m ON m.id=r.maintenance_job_id JOIN users ru ON ru.id=r.requested_by
             LEFT JOIN users pu ON pu.id=r.processed_by WHERE r.id=?' . ($motorpool ? " AND ru.role='motorpool'" : ''), [$id]);
         must((bool)$r, 'Request not found.', 404);
+        $reservedColumn = self::reservationsReady($p) ? 'l.reserved_qty' : '0 AS reserved_qty';
         $cols = $motorpool ? self::availabilitySql('pt') . ' AS availability' : 'pt.quantity_on_hand';
-        $out = ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, pt.part_number, pt.description, pt.unit, $cols
+        $out = ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, $reservedColumn, pt.part_number, pt.description, pt.unit, $cols
             FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? ORDER BY l.id", [$id])];
         // STAGE_B_PURCHASING_UI: Purchasing / Admin / Audit also get the linked POs and the request's recorded activity.
         // Motorpool's response is unchanged (no PO, supplier or cost data).
         if (!$motorpool) {
-            $out['orders'] = many($p, "SELECT o.id, o.po_ref, o.status, o.payment_status, o.total_amount, o.created_at, COALESCE(o.supplier_name, s.name) AS supplier
+            $out['orders'] = many($p, "SELECT o.id, o.po_ref, o.status, o.total_amount, o.created_at, COALESCE(o.supplier_name, s.name) AS supplier
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id WHERE o.part_request_id=? ORDER BY o.id", [$id]);
             $out['history'] = self::activity($p, 'request ' . $id, ['Inventory']);
         }
@@ -692,7 +950,12 @@ final class Purchasing {
 
     /** In stock / Low stock / Out of stock, so Motorpool can see availability without stock counts or costs. */
     private static function availabilitySql(string $alias): string {
-        return "CASE WHEN $alias.quantity_on_hand<=0 THEN 'Out of stock' WHEN $alias.reorder_level>0 AND $alias.quantity_on_hand<=$alias.reorder_level THEN 'Low stock' ELSE 'In stock' END";
+        // Motorpool sees physical availability after existing reservations, not just gross on-hand.
+        $reserved = self::reservationsReady(db())
+            ? "(SELECT COALESCE(SUM(rl.reserved_qty),0) FROM part_request_lines rl WHERE rl.part_id=$alias.id)"
+            : '0';
+        $free = "GREATEST(0,$alias.quantity_on_hand-$reserved)";
+        return "CASE WHEN $free<=0 THEN 'Out of stock' WHEN $alias.reorder_level>0 AND $free<=$alias.reorder_level THEN 'Low stock' ELSE 'In stock' END";
     }
 
     /** Parts Motorpool may pick in the request form: identification and availability only. */
@@ -732,7 +995,16 @@ final class Purchasing {
     }
 
     private static function myRequestRows(PDO $p): array {
+        $reservedSql = self::reservationsReady($p)
+            ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
+            : '0';
+        $orderedSql = self::orderTrackingReady($p)
+            ? "(SELECT COUNT(*) FROM purchase_orders o WHERE o.part_request_id=r.id AND o.ordered_at IS NOT NULL AND o.status IN ('Approved','Partially Received','Received'))"
+            : '0';
         return many($p, "SELECT r.id, r.request_ref, r.status, r.purpose, r.notes, r.created_at, r.processed_at, r.vehicle_id, v.plate_number, m.job_ref, ru.full_name AS requested_by_name,
+                $reservedSql AS reserved_units, $orderedSql AS on_order,
+                (SELECT MAX(sm.created_at) FROM stock_movements sm JOIN purchase_orders po ON po.id=sm.reference_id WHERE sm.reference_type='purchase_order' AND sm.movement_type='Stock In' AND po.part_request_id=r.id) AS last_received_at,
+                (SELECT MAX(sm.created_at) FROM stock_movements sm WHERE sm.reference_type='part_request' AND sm.reference_id=r.id AND sm.movement_type='Stock Out') AS last_released_at,
                 (SELECT COALESCE(SUM(l.quantity),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS requested_units,
                 (SELECT COALESCE(SUM(l.released_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id) AS released_units,
                 (SELECT GROUP_CONCAT(CONCAT(pt.part_number, ' x', l.quantity, IF(l.released_qty>0, CONCAT(' (released ', l.released_qty, ')'), '')) SEPARATOR '; ')

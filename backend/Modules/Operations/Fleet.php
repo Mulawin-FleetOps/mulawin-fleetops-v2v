@@ -19,6 +19,7 @@ core('Settings');
 core('Files');
 core('DispatcherAttendance');
 core('FixedAssignments');
+core('FleetDrafts');
 
 final class Fleet {
     private const EDIT = ['operations_head'];
@@ -171,6 +172,7 @@ final class Fleet {
             'crew_status' => self::crewStatus($u, $d),
             'crew_active' => self::crewActive($u, $d),
             'crew_details' => self::crewDetails($u, $d),
+            'draft_get', 'draft_save', 'draft_discard' => FleetDrafts::action($u, $action, $d),
             default => throw new BusinessRuleException('Unknown action.', 404),
         };
     }
@@ -229,7 +231,7 @@ final class Fleet {
             'assigned_driver_id' => optId($d, 'assigned_driver_id'), 'assigned_helper_id' => optId($d, 'assigned_helper_id'),
             'notes' => optField($d, 'notes', 255),
         ];
-        return transaction(function (PDO $p) use ($u, $id, $row) {
+        return transaction(function (PDO $p) use ($u, $id, $row, $d) {
             $dup = one($p, 'SELECT id FROM vehicles WHERE plate_number=? AND id<>?', [$row['plate_number'], $id ?? 0]);
             must(!$dup, 'Plate number ' . $row['plate_number'] . ' is already registered.', 409);
             if ($row['truck_number']) must(!one($p, 'SELECT id FROM vehicles WHERE truck_number=? AND id<>?', [$row['truck_number'], $id ?? 0]), 'Truck number ' . $row['truck_number'] . ' is already used by another truck.', 409);
@@ -249,6 +251,7 @@ final class Fleet {
                 return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' was updated successfully.'];
             }
             $id = insert($p, 'vehicles', $row + ['status' => 'Available']);
+            FleetDrafts::complete($p, $u, $d, 'truck');
             auditWithChanges($p, $u['id'], 'Fleet', 'vehicle ' . $id, 'truck added', $row['plate_number'] . ' (' . $row['truck_type'] . ')',
                 [], self::auditTruckFields($p, $row));
             return ['id' => $id, 'message' => 'Truck ' . $row['plate_number'] . ' was added to the fleet masterlist.'];
@@ -425,7 +428,9 @@ final class Fleet {
             must($helperId===$current,'Regular helper is locked. Contact an administrator for reassignment.',409);
             return;
         }
-        if($helperId===null)return; // A driver can be saved before an unassigned helper becomes available.
+        // Every newly saved fixed Truck crew must have a Helper, regardless of truck type.
+        // Existing historical trip crew records are not rewritten.
+        must($helperId!==null,'Select an available Regular Helper for this Truck.',409);
         $helper=one($p,"SELECT id FROM personnel WHERE id=? AND person_type='Helper' AND active=1 FOR UPDATE",[$helperId]);
         must((bool)$helper,'Selected helper is unavailable. Refresh the form.',409);
         $claimed=one($p,'SELECT id FROM vehicles WHERE active=1 AND assigned_helper_id=? AND id<>? LIMIT 1',
@@ -469,6 +474,8 @@ final class Fleet {
         $row = [
             'full_name' => $name,
             'person_type' => choiceField($d, 'person_type', ['Driver', 'Helper']),
+            'attendance_group' => ($group = optField($d, 'attendance_group', 40)) !== null
+                ? choiceField(['attendance_group'=>$group], 'attendance_group', ['car_carrier_dispatcher', 'container_wingvan_dispatcher']) : null,
             'employee_no' => optField($d, 'employee_no', 40),
             'contact_number' => phoneField($d, 'contact_number', 60),
             'address' => optField($d, 'address', 255),
@@ -515,6 +522,7 @@ final class Fleet {
                 self::saveDriverRegularHelper($p,$u,$id,$d['regular_helper_id']);
             elseif ($row['person_type'] === 'Driver' && hasRole($u,'operations_head'))
                 FixedAssignments::forDriver($p, $u, $id, optId($d, 'fixed_truck_id'), optId($d, 'regular_helper_id'));
+            FleetDrafts::complete($p, $u, $d, strtolower($row['person_type']));
             auditWithChanges($p, $u['id'], 'Fleet', 'personnel ' . $id, 'driver/helper added', $row['full_name'] . ' (' . $row['person_type'] . ')',
                 [], self::auditCrewFields($row));
             return ['id' => $id, 'message' => $row['full_name'] . ' was added to the personnel masterlist.'];

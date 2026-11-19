@@ -259,12 +259,10 @@ App.page('clients', {
       empty:clients.length?'No clients match your search or filters.':'No clients registered yet. Add your first client to start managing profiles.',
     });
     ctx.el.innerHTML='<div class="fleet-clients-workspace">'
-      +RecordComponents.kpis([
-        {label:'Total Clients',value:clients.length},
-        {label:'Active',value:count('Active'),color:'green'},
-        {label:'Pending Rate',value:count('Pending Rate'),color:'blue'},
-        {label:'Incomplete',value:count('Incomplete'),color:count('Incomplete')?'amber':''},
-      ])
+      +'<div class="small text-muted mb-2">Clients: '+UI.num(clients.length)
+      +' · Active: '+UI.num(count('Active'))
+      +' · Pending rate: '+UI.num(count('Pending Rate'))
+      +' · Incomplete: '+UI.num(count('Incomplete'))+'</div>'
       +RecordComponents.panel(table,RecordComponents.categories(quickStatuses.map(([value,label])=>({value,label})),q.status||'','data-client-status'))
       +'</div>';
     UI.activate(ctx.el);

@@ -21,17 +21,17 @@
   ].join(',');
   const labelSelectors = [
     '.kpi-label','.metric-label','.head-fleet-kpi-value > span',
-    '.head-kpi-label','.rpm-kpi-label','.ds-card-copy > span',
-    '.oh-metric-label','.ax-kpi-label','.mp-action-stage-content > b',
+    '.head-kpi-label','.head-kpi > div > span','.rpm-kpi-label','.ds-card-copy > span',
+    '.oh-metric-label','.ax-kpi-label','.ax-kpi > span','.mp-action-stage-content > b',
     '.pr-sum-label','.ws-kpi-label','.stat-label'
   ].join(',');
   // First match takes precedence. A zero count does not change status meaning.
   const rules = [
-    [/overdue|incident|cancel|critical|failed|rejected|unavailable|out of stock|shortage|past due/, 'red'],
+    [/overdue|incident|cancel|delay|problem|critical|failed|rejected|unavailable|out of stock|shortage|past due|blocked|exception/, 'red'],
     [/draft|inactive|archived|not timed in|not on duty/, 'gray'],
     [/for verification|verification|verify|to verify/, 'purple'],
-    [/under maintenance|under repair|repair in progress|low stock|follow.up|pending|approval|awaiting|waiting|needs attention|for review/, 'amber'],
-    [/inspection|inspect|record findings|on trip|ongoing|in progress|dispatch|route|delivery|to bill|new parts|new requests|to receive/, 'blue'],
+    [/under maintenance|under repair|repair in progress|scheduled|preparing|reschedul|low stock|follow.up|pending|approval|awaiting|waiting|needs attention|for review/, 'amber'],
+    [/inspection|inspect|record findings|on trip|in transit|ongoing|in progress|dispatch|route|to bill|new parts|new requests|to receive/, 'blue'],
     [/finance|revenue|receivable|outstanding|billing|invoice|collection|payment|budget|expense|cost|amount|money|fund/, 'purple'],
     [/completed|complete|available|collected|paid|delivered|received|released|resolved|on duty|timed in|success/, 'green'],
     [/reported|new issue|new problem/, 'gray'],
@@ -55,6 +55,8 @@
       if (!icon) return;
       const label = card.querySelector(labelSelectors)?.textContent?.trim() || '';
       const requested = card.getAttribute('data-kpi-color');
+      // Read the actual KPI status before legacy visual tone classes. Explicit
+      // data-kpi-color remains the sole per-card override when supplied.
       const tone = (requested && colors[requested]) ? requested
         : semantic(label) || classColor(card) || 'blue';
       const hex = colors[tone];

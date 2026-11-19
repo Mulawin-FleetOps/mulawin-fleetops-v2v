@@ -226,12 +226,10 @@ const HeadAdminPage = {
               'Admin.user_toggle',{user_id:u.id,active:Number(u.active)?0:1},{danger:Boolean(Number(u.active))});
           }
         });
-        const summary=RecordComponents.kpis([
-          {label:'Total Accounts',value:total,icon:'bi-people',color:'blue'},
-          {label:'Active Accounts',value:active,icon:'bi-person-check',color:'green'},
-          {label:'Inactive Accounts',value:total-active,icon:'bi-person-dash',color:'red'},
-          {label:'Assigned Roles',value:new Set(accounts.map(u=>u.role).filter(Boolean)).size,icon:'bi-shield-check',color:'purple'}
-        ]);
+        const summary='<div class="small text-muted mb-2">Accounts: <b>'+UI.num(total)+'</b>'
+          +' · Active: <b>'+UI.num(active)+'</b>'
+          +' · Inactive: <b>'+UI.num(total-active)+'</b>'
+          +' · Roles: <b>'+UI.num(new Set(accounts.map(u=>u.role).filter(Boolean)).size)+'</b></div>';
         const reference='<details class="head-user-role-reference"><summary><i class="bi bi-shield-check" aria-hidden="true"></i>'
           +'<span>Role & Access Reference</span><small>View configured user roles</small><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>'
           +'<div class="head-user-role-reference-body"><p>Permissions are enforced by the server. Account roles shown here are a reference, not an authorization policy.</p>'
@@ -280,8 +278,13 @@ const HeadAdminPage = {
           To restore: create an empty database and import the .sql file in phpMyAdmin.</p><button class="btn btn-primary btn-sm" data-backup><i class="bi bi-hdd"></i> Create backup now</button></div></div>`
         + UI.table([['File', 'name'], ['Backup date', 'date'], ['Size', 'size', (v) => UI.num(v / 1024, 1) + ' KB']], d.backups, { title: 'Backups', actions: () => UI.btn('dl', 'Download'), onAction: (a, b) => { window.location = 'index.php?api=backup_download&file=' + encodeURIComponent(b.name); } })]);
     }
-    const catForm = (c = {}) => UI.formModal(c.id ? 'Edit category' : 'Add category', [{ name: 'name', label: 'Category', required: true, col: 6, value: c.name }, { name: 'amount', label: 'Preset amount', type: 'money', required: true, col: 3, value: c.amount },
-      { name: 'sort_order', label: 'Order', type: 'number', col: 3, value: c.sort_order ?? 0 }, { name: 'active', label: 'Active (shown to dispatchers)', type: 'checkbox', value: c.id ? c.active : 1, col: 12 }], 'Admin.fund_category_save', { extra: c.id ? { id: c.id } : {} });
+    // The backend assigns sequential display order. New categories start Active;
+    // only existing categories expose the Active/Inactive control in Manage.
+    const catForm = (c = {}) => UI.formModal(c.id ? 'Edit category' : 'Add category', [
+      { name: 'name', label: 'Category', required: true, col: 8, value: c.name },
+      { name: 'amount', label: 'Preset amount', type: 'money', required: true, col: 4, value: c.amount },
+      ...(c.id ? [{ name: 'active', label: 'Active (shown to dispatchers)', type: 'checkbox', value: c.active, col: 12 }] : [])
+    ], 'Admin.fund_category_save', { extra: c.id ? { id: c.id } : {} });
     // Audit Phase 1: concise list, action-first drawer and verified changed fields.
     const activityDetails = (e) => {
       const fields = [
@@ -322,15 +325,9 @@ const HeadAdminPage = {
         return 'Operations';
       };
       const groups=['Financial','Operations','Attendance','Notifications'];
-      const active=categories.filter(item=>Number(item.active)===1).length;
-      host.innerHTML='<div class="head-settings-workspace">'
-        +RecordComponents.kpis([
-          {label:'System Settings',value:settings.length,icon:'bi-sliders',color:'blue'},
-          {label:'Fund Categories',value:categories.length,icon:'bi-wallet2',color:'green'},
-          {label:'Configuration Groups',value:new Set(settings.map(item=>groupFor(item.key))).size,icon:'bi-layers',color:'purple'},
-          {label:'Active Fund Categories',value:active,icon:'bi-check-circle',color:'amber'}
-        ])
-        +'<div data-head-settings-records></div></div>';
+      // Configuration is a form-management page, not an analytics dashboard.
+      // Existing settings, category counts, group selectors and save actions remain unchanged.
+      host.innerHTML='<div class="head-settings-workspace"><div data-head-settings-records></div></div>';
       const records=host.querySelector('[data-head-settings-records]');
       const state={section:'settings',group:'',fundState:'',sort:'default'};
       const sections=[{value:'settings',label:'System Settings'},{value:'funds',label:'Fund Request Categories'}];

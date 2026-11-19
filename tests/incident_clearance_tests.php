@@ -120,7 +120,12 @@ $T1 = $dispatchTrip(1); $t1 = $trip($T1);
 ok($trip($T1)['status'] === 'On Hold - Incident Reported' && (int)$J1['vehicle_id'] === (int)$t1['vehicle_id'], 'incident: trip On Hold, one repair record for the trip truck');
 fails(fn() => Trips::action($wvd, 'resume', ['trip_id' => $T1]), 'resume refused before any assessment', 409);
 fails(fn() => $clear($mp, (int)$J1['id'], 'Fit to Continue'), 'clearance refused before the Minor / Major assessment', 409);
-Maintenance::action($mp, 'assess', ['job_id' => $J1['id'], 'severity' => 'Minor', 'recommendation' => 'Repair on site', 'mechanic_id' => $mech['A']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J1['id'], 'severity' => 'Needs More Information', 'recommendation' => 'Please send clearer damage photos']);
+ok($trip($T1)['status'] === 'On Hold - Incident Reported' && $inc($I1)['severity'] === null
+    && one($p, 'SELECT status FROM maintenance_jobs WHERE id=?', [$J1['id']])['status'] === 'Reported',
+    'Needs More Information keeps trip On Hold and incident unassessed');
+Maintenance::action($mp, 'assess', ['job_id' => $J1['id'], 'severity' => 'Minor', 'recommendation' => 'Repair on site']);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J1['id'], 'mechanic_id' => $mech['A']]);
 ok($inc($I1)['severity'] === 'Minor' && $inc($I1)['clearance'] === null, 'Minor recorded as the damage classification; no clearance yet');
 fails(fn() => $clear($mp, (int)$J1['id'], 'Fit to Continue'), 'Fit to Continue refused while the on-site repair is not completed and verified', 409);
 $repairAndVerify((int)$J1['id']);
@@ -149,7 +154,8 @@ section('E. Stale clearance: a new incident needs its own clearance');
 ok($trip($T1)['status'] === 'On Hold - Incident Reported', 'second incident puts the trip On Hold again');
 fails(fn() => Trips::action($wvd, 'resume', ['trip_id' => $T1]), 'the earlier Fit to Continue does not authorize the new incident', 409);
 fails(fn() => $clear($mp, (int)$J1['id'], 'Fit to Continue'), 'clearance on the earlier incident record is refused', 409);
-Maintenance::action($mp, 'assess', ['job_id' => $J1b['id'], 'severity' => 'Minor', 'recommendation' => 'Inspect brakes on site', 'mechanic_id' => $mech['A']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J1b['id'], 'severity' => 'Minor', 'recommendation' => 'Inspect brakes on site']);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J1b['id'], 'mechanic_id' => $mech['A']]);
 $repairAndVerify((int)$J1b['id']);
 $clear($mp, (int)$J1b['id'], 'Fit to Continue', 'Brake pads within limits; noise from loose shield, fixed');
 Trips::action($wvd, 'resume', ['trip_id' => $T1]);
@@ -159,7 +165,8 @@ ok($trip($T1)['status'] === 'In Transit' && $inc($I1b)['clearance'] === 'Fit to 
 section('B. Minor -> Not Fit to Continue -> trip stays blocked');
 $T2 = $dispatchTrip(2); $t2 = $trip($T2);
 [$I2, $J2] = $report($T2, 'Steering vibration');
-Maintenance::action($mp, 'assess', ['job_id' => $J2['id'], 'severity' => 'Minor', 'recommendation' => 'Check steering on site', 'mechanic_id' => $mech['B']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J2['id'], 'severity' => 'Minor', 'recommendation' => 'Check steering on site']);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J2['id'], 'mechanic_id' => $mech['B']]);
 fails(fn() => $clear($wvd, (int)$J2['id'], 'Fit to Continue'), 'the Dispatcher cannot record a clearance', 403);
 $clear($mp, (int)$J2['id'], 'Not Fit to Continue', 'Tie-rod end loose; unsafe to drive until replaced');
 $i2 = $inc($I2);
@@ -182,7 +189,8 @@ ok($trip($T2)['status'] === 'In Transit', 'trip resumes only after the Fit decis
 section('C. Major -> Not Fit -> For Reschedule -> linked repair -> Operations reschedules');
 $T3 = $dispatchTrip(3); $t3 = $trip($T3);
 [$I3, $J3] = $report($T3, 'Gearbox failure');
-Maintenance::action($mp, 'assess', ['job_id' => $J3['id'], 'severity' => 'Major', 'recommendation' => 'Tow to garage; gearbox overhaul', 'mechanic_id' => $mech['C']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J3['id'], 'severity' => 'Major', 'recommendation' => 'Tow to garage; gearbox overhaul']);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J3['id'], 'mechanic_id' => $mech['C']]);
 $i3 = $inc($I3);
 ok($i3['severity'] === 'Major' && $i3['clearance'] === 'Not Fit to Continue' && (int)$i3['cleared_by'] === $mp['id'] && $i3['clearance_findings'] === 'Tow to garage; gearbox overhaul', 'Major kept; Not Fit to Continue recorded by the assessor');
 ok($trip($T3)['status'] === 'For Reschedule' && $truck((int)$t3['vehicle_id']) === 'Under Maintenance', 'trip For Reschedule; truck Under Maintenance');
@@ -205,7 +213,8 @@ ok($trip($T3)['status'] === 'Pre-Assigned' && (int)$trip($T3)['attempt_number'] 
 section('D. Unauthorized clearance and trip actions');
 $T4 = $dispatchTrip(4);
 [$I4, $J4] = $report($T4, 'Flat tire');
-Maintenance::action($mp, 'assess', ['job_id' => $J4['id'], 'severity' => 'Minor', 'recommendation' => 'Change tire', 'mechanic_id' => $mech['D']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J4['id'], 'severity' => 'Minor', 'recommendation' => 'Change tire']);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J4['id'], 'mechanic_id' => $mech['D']]);
 $repairAndVerify((int)$J4['id']);
 foreach (['container_wingvan_dispatcher' => $wvd, 'car_carrier_dispatcher' => $ccd, 'operations_head' => $ops, 'admin (Head Management)' => $adm, 'audit' => $aud, 'finance' => $fin] as $label => $u)
     fails(fn() => $clear($u, (int)$J4['id'], 'Fit to Continue'), "$label cannot record a vehicle clearance", 403);
@@ -218,7 +227,7 @@ foreach (['admin (Head Management)' => $adm, 'audit' => $aud, 'operations_head' 
 section('G. Minor + Not Fit -> Operations Head authorizes For Reschedule (classification kept)');
 $T5 = $dispatchTrip(5); $t5 = $trip($T5);
 [$I5, $J5] = $report($T5, 'Clutch slipping');
-Maintenance::action($mp, 'assess', ['job_id' => $J5['id'], 'severity' => 'Minor', 'recommendation' => 'Check clutch on site', 'mechanic_id' => $mech['E']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J5['id'], 'severity' => 'Minor', 'recommendation' => 'Check clutch on site']);
 fails(fn() => Trips::action($ops, 'incident_reschedule', ['trip_id' => $T5, 'reason' => 'No clearance yet']), 'Ops Head cannot reschedule before Motorpool records Not Fit', 409);
 $clear($mp, (int)$J5['id'], 'Not Fit to Continue', 'Clutch plate worn; cannot be fixed on site');
 ok($truck((int)$t5['vehicle_id']) === 'Under Maintenance', 'Not Fit: truck Under Maintenance');
@@ -240,7 +249,10 @@ ok($count("SELECT COUNT(*) AS n FROM audit_events WHERE action='for reschedule a
 section('H. Inspection-only Fit to Continue (no repair needed; nothing invented)');
 $T6 = $dispatchTrip(6); $t6 = $trip($T6);
 [$I6, $J6] = $report($T6, 'Warning light on dashboard');
-Maintenance::action($mp, 'assess', ['job_id' => $J6['id'], 'severity' => 'Minor', 'recommendation' => 'Inspect sensor', 'mechanic_id' => $mech['F']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J6['id'], 'severity' => 'Minor', 'recommendation' => 'Inspect sensor']);
+ok(one($p, 'SELECT mechanic_id FROM maintenance_jobs WHERE id=?', [$J6['id']])['mechanic_id'] === null, 'incident assessment does not assign an inspection mechanic');
+fails(fn() => Maintenance::action($mp, 'clearance', ['job_id' => $J6['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'Need physical inspection']), 'inspection-only clearance blocked until mechanic is assigned', 409);
+Maintenance::action($mp, 'assign_mechanic', ['job_id' => $J6['id'], 'mechanic_id' => $mech['F']]);
 fails(fn() => $clear($mp, (int)$J6['id'], 'Fit to Continue'), 'without the inspection-only flag Fit still needs a verified repair', 409);
 $_FILES = ['evidence' => $file('scan.png')];
 try { Maintenance::action($mp, 'clearance', ['job_id' => $J6['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'Loose sensor connector reseated by hand; scan shows no fault codes']); } finally { $_FILES = []; }
@@ -255,7 +267,7 @@ Trips::action($wvd, 'resume', ['trip_id' => $T6]);
 ok($trip($T6)['status'] === 'In Transit', 'Dispatcher resumes after the inspection-only clearance');
 // an inspection-only claim is refused once costs exist
 [$I8, $J8] = (function () use ($dispatchTrip, $report) { $t = $dispatchTrip(8); return $report($t, 'Mirror loose'); })();
-Maintenance::action($mp, 'assess', ['job_id' => $J8['id'], 'severity' => 'Minor', 'recommendation' => 'Fix mirror', 'mechanic_id' => $mech['A']]);
+Maintenance::action($mp, 'assess', ['job_id' => $J8['id'], 'severity' => 'Minor', 'recommendation' => 'Fix mirror']);
 Maintenance::action($mp, 'add_cost', ['job_id' => $J8['id'], 'cost_type' => 'Labor', 'description' => 'Mirror bracket', 'amount' => '150', 'incurred_on' => date('Y-m-d')]);
 fails(fn() => Maintenance::action($mp, 'clearance', ['job_id' => $J8['id'], 'decision' => 'Fit to Continue', 'inspection_only' => '1', 'findings' => 'claim no repair']), 'inspection-only refused once a cost was recorded (a repair took place)', 409);
 

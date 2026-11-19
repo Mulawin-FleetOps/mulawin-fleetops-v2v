@@ -37,6 +37,27 @@ final class Checklist {
         ];
     }
 
+    /**
+     * Truck-equipment failure classes taken from the existing checklist sections.
+     * DOCUMENTS and PPE are not corrective truck repairs. Loose accessories
+     * need separate verification rather than blindly disabling a truck.
+     * Labels stay sourced from sections() to avoid two divergent checklists.
+     */
+    public static function truckDefects(array $check): array {
+        $bad = [];
+        foreach (self::sections() as $section) {
+            if (!in_array($section['key'], ['tractor_head', 'trailer'], true)) continue;
+            foreach ($section['items'] as $i => $label) {
+                $key = $section['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT);
+                $item = $check['items'][$key] ?? null;
+                if (($item['condition'] ?? '') !== 'NOT OK') continue;
+                $remark = trim((string)($item['remarks'] ?? ''));
+                $bad[] = $label . ($remark !== '' ? ' (' . $remark . ')' : '');
+            }
+        }
+        return $bad;
+    }
+
     /** All 57 entries must have a deliberate result; NOT OK is recorded, not erased. */
     public static function validate(array $data): array {
         $items=$data['items']??null;

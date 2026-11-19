@@ -473,6 +473,33 @@ final class Oversight {
                 default => 'purchasing_reports'
             }, $q);
         }])['result'] ?? [];
+        // Read-only evidence for the supported incident workflow. Filter by the
+        // incident's own timestamp; join only the repair explicitly linked to
+        // this incident, never infer a cause from an unrelated truck repair.
+        if ($topic === 'operations' && ($kind === 'general')) {
+            $from = (string)($data['period']['from'] ?? date('Y-m-01'));
+            $to = (string)($data['period']['to'] ?? date('Y-m-d'));
+            $data['incidentEvidence'] = readSections([
+                'records' => fn() => many($p, "SELECT i.id AS incident_id, i.incident_ref, i.incident_type,
+                        i.incident_at, i.status AS incident_status, i.problem, i.location,
+                        t.id AS trip_id, t.trip_ref, t.status AS trip_status,
+                        v.plate_number, m.id AS job_id, m.job_ref, m.status AS job_status,
+                        m.problem AS repair_problem, m.reported_on AS repair_reported_on
+                    FROM incidents i
+                    JOIN trips t ON t.id=i.trip_id
+                    LEFT JOIN vehicles v ON v.id=i.vehicle_id
+                    LEFT JOIN maintenance_jobs m ON m.id=(
+                        SELECT mx.id FROM maintenance_jobs mx
+                        WHERE mx.incident_id=i.id AND mx.trip_id=t.id
+                        ORDER BY mx.id DESC LIMIT 1
+                    )
+                    WHERE DATE(i.incident_at) BETWEEN ? AND ?
+                    ORDER BY i.incident_at DESC, i.id DESC LIMIT 1000", [$from, $to]),
+                'total' => fn() => (int)(one($p,
+                    'SELECT COUNT(*) AS n FROM incidents WHERE DATE(incident_at) BETWEEN ? AND ?',
+                    [$from, $to])['n'] ?? 0),
+            ]);
+        }
         // Inventory movements are quantified by record and by value, avoiding
         // invalid sums of pieces, litres, and sets into one supposed unit.
         if ($topic === 'purchasing') {

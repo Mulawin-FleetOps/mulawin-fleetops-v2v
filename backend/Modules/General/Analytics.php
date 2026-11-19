@@ -25,11 +25,14 @@ final class Analytics {
         // PURCHASING_ANALYTICS_V1: 'purchasing_reports' is served by the Purchasing analytics (inventory, purchasing, recommendations).
         if ($page === 'purchasing_reports') { Actions::load('Purchasing'); return Purchasing::analytics($u, $q); }
         if ($page === 'maintenance_reports') return self::maintenanceReport($u, $q);
-        return $page === 'dashboard' ? self::dashboard($u) : self::reports($u, $q, $page === 'purchasing_reports');
+        return $page === 'dashboard' ? self::dashboard($u) : self::reports($u, $q, $page === 'purchasing_reports', $page);
     }
     public static function action(array $u, string $action, array $d): array {
         if(in_array($action,['operations_export','operations_incident'],true)){
-            requireRole($u,'operations_head');core('OperationsReports');
+            requireRole($u,'operations_head');
+            core('Access');
+            must(Access::canOpen($u, 'reports') || Access::canOpen($u, 'operations_reports'), 'You do not have report access.', 403);
+            core('OperationsReports');
             return $action==='operations_export'?OperationsReports::export($u,$d):OperationsReports::incident($u,$d);
         }
         throw new BusinessRuleException('Unknown action.', 404);
@@ -226,7 +229,7 @@ final class Analytics {
     // REPORTS
     // =================================================================
     /** $purchasing = the Purchasing Reports page: inventory/purchasing section only. The general Reports page no longer carries it. */
-    private static function reports(array $u, array $q, bool $purchasing = false): array {
+    private static function reports(array $u, array $q, bool $purchasing = false, string $scope = 'reports'): array {
         $p = db();
         $from = self::date($q['from'] ?? '') ?? date('Y-m-01');
         $to = self::date($q['to'] ?? '') ?? date('Y-m-d');
@@ -236,9 +239,9 @@ final class Analytics {
         $r = $u['role'];
         $sections = [];
         if (!$purchasing) {
-            if (in_array($r, ['admin', 'operations_head', 'audit'], true)) $sections['trips'] = self::tripReport($p, $q, $from, $to, $pFrom, $pTo);
-            if (in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true)) $sections['fleet'] = self::fleetReport($p, $q, $from, $to);
-            if (in_array($r, ['admin', 'finance', 'billing', 'audit'], true)) $sections['money'] = self::moneyReport($p, $q, $from, $to, $pFrom, $pTo);
+            if ($scope === 'operations_reports' || ($scope === 'reports' && in_array($r, ['admin', 'operations_head', 'audit'], true))) $sections['trips'] = self::tripReport($p, $q, $from, $to, $pFrom, $pTo);
+            if ($scope === 'operations_reports' || ($scope === 'reports' && in_array($r, ['admin', 'operations_head', 'motorpool', 'audit'], true))) $sections['fleet'] = self::fleetReport($p, $q, $from, $to);
+            if (in_array($scope, ['financial_reports', 'billing_reports'], true) || ($scope === 'reports' && in_array($r, ['admin', 'finance', 'billing', 'audit'], true))) $sections['money'] = self::moneyReport($p, $q, $from, $to, $pFrom, $pTo);
         } elseif (in_array($r, ['admin', 'purchasing', 'finance', 'audit'], true)) {
             $sections['stock'] = self::stockReport($p, $from, $to);
         }

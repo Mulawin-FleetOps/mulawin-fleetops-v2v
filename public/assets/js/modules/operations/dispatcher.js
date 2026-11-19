@@ -107,7 +107,7 @@ const DispatcherUI = {
     let d;
     try { d=await App.api('Trips.dispatcher_resources',{trip_id:id}); }
     catch(error){return UI.toast(error.message,'error');}
-    const trip=d.trip||{},cc=trip.truck_type==='Car Carrier';
+    const trip=d.trip||{};
     const pairs=d.drivers||[],helpers=d.helpers||[];
     // These pairs have already passed the server's attendance, authorization,
     // truck availability and resource-hold checks for this trip.
@@ -129,21 +129,17 @@ const DispatcherUI = {
       +'<p>'+UI.esc(planned.pickup_point||'Pickup not specified')+' → '+UI.esc(planned.delivery_point||'Destination not specified')+'</p></details></section>';
     const notice=available
       ?'<p class="ds-assignment-hint"><i class="bi bi-info-circle" aria-hidden="true"></i> '
-        +(cc?'Select an eligible Driver. The system first checks for a second authorized Driver; if none is eligible, a timed-in Helper can be assigned.'
-          :'Select an eligible Driver. The linked Truck and regular Helper fill automatically.')
+        +'Select an eligible Driver. The linked Truck and regular Helper fill automatically.'
         +'</p>'
       :'<div class="alert alert-warning" role="status"><strong>No eligible assignment is available.</strong>'
-        +'<p class="mb-0 mt-1">'+(cc
-          ?'An eligible timed-in Driver and either a second authorized Driver or eligible Helper are required.'
-          :'An eligible timed-in Driver, Truck and Helper are required.')
+        +'<p class="mb-0 mt-1">An eligible timed-in Driver, Truck and Helper are required.'
         +' Check attendance, truck authorization, maintenance and active-trip conflicts.</p></div>';
     const fields=UI.fields([
       {name:'driver_id',label:'Primary Driver',type:'select',required:true,col:12,
         placeholder:'Select an available Driver',
         options:uniqueDrivers.map(p=>[p.id,p.name+(p.shift_warning?' — '+p.shift_warning:'')])},
       {name:'vehicle_id',label:'Compatible Truck',type:'select',required:true,col:12,options:[]},
-      ...(cc?[{name:'driver2_id',label:'Second Authorized Driver',type:'select',col:12,options:[]}]:[]),
-      {name:'helper_id',label:'Trip Helper',type:'select',required:!cc,col:12,
+      {name:'helper_id',label:'Trip Helper',type:'select',required:true,col:12,
         options:helpers.map(p=>[p.id,p.name+(p.shift_warning?' — '+p.shift_warning:'')])},
       {name:'helper_substitution_reason',label:'Helper replacement reason',col:12,attrs:'maxlength="255"'}
     ]);
@@ -159,11 +155,7 @@ const DispatcherUI = {
       const pair=eligiblePairs.find(p=>String(p.id)===String(values.driver_id)
         &&String(p.vehicle_id)===String(values.vehicle_id));
       if(!pair)throw new Error('Choose an eligible Driver and their authorized Truck.');
-      if(cc&&values.driver2_id){
-        if(values.helper_id||!pairs.some(p=>String(p.id)===String(values.driver2_id)
-          &&String(p.vehicle_id)===String(pair.vehicle_id)&&String(p.id)!==String(pair.id)))
-          throw new Error('Choose a different eligible Driver authorized for the same Car Carrier.');
-      }else if(!helpers.some(p=>String(p.id)===String(values.helper_id))){
+      if(!helpers.some(p=>String(p.id)===String(values.helper_id))){
         throw new Error('Choose an eligible, timed-in Helper for the trip.');
       }
       const result=await App.api('Trips.assign_resources',{
@@ -178,8 +170,6 @@ const DispatcherUI = {
         const driver=form.querySelector('[name=driver_id]');
         const truck=form.querySelector('[name=vehicle_id]');
         const secondary=form.querySelector('[name=helper_id]');
-        const secondDriver=cc?form.querySelector('[name=driver2_id]'):null;
-        const secondDriverRow=secondDriver?.closest('[class*=col-]');
         const reason=form.querySelector('[name=helper_substitution_reason]');
         const reasonRow=reason?.closest('[class*=col-]');
         const truckRow=truck.closest('[class*=col-]');
@@ -192,19 +182,17 @@ const DispatcherUI = {
           // explanation; do not show empty Truck / crew pickers.
           truckRow.hidden=true;
           helperRow.hidden=true;
-          if(secondDriverRow)secondDriverRow.hidden=true;
           if(reasonRow)reasonRow.hidden=true;
           driver.disabled=true;
           truck.disabled=true;
           secondary.disabled=true;
-          if(secondDriver)secondDriver.disabled=true;
           if(reason)reason.disabled=true;
           if(submitButton)submitButton.disabled=true;
           const preview=wrap.querySelector('[data-assignment-preview]');
           if(preview)preview.innerHTML='<i class="bi bi-info-circle" aria-hidden="true"></i><span>No eligible Drivers can be selected yet. Record Time In on Attendance, then verify Truck authorization and any active-trip or maintenance holds before retrying.</span>';
           return;
         }
-        let changingHelper=false,usingSecondDriver=false;
+        let changingHelper=false;
         const current=()=>eligiblePairs.find(p=>String(p.id)===driver.value
           &&String(p.vehicle_id)===truck.value);
         const options=(select,entries,placeholder)=>{
@@ -213,9 +201,7 @@ const DispatcherUI = {
           select.value='';
         };
         const showPreview=()=>{
-          const pair=current(),chosen=usingSecondDriver
-            ?pairs.find(p=>String(p.id)===secondDriver?.value&&String(p.vehicle_id)===String(pair?.vehicle_id))
-            :helpers.find(p=>String(p.id)===secondary.value);
+          const pair=current(),chosen=helpers.find(p=>String(p.id)===secondary.value);
           if(!pair){
             preview.classList.remove('is-ready');
             preview.innerHTML='<i class="bi bi-truck" aria-hidden="true"></i><span>Select a Driver to view their compatible Truck and crew.</span>';
@@ -225,13 +211,12 @@ const DispatcherUI = {
             preview.innerHTML='<strong><i class="bi bi-check-circle" aria-hidden="true"></i> Assignment Summary</strong>'
               +'<dl><div><dt>Primary Driver</dt><dd>'+UI.esc(primary?.name||'—')+'</dd></div>'
               +'<div><dt>Truck</dt><dd>'+UI.esc(pair.plate_number||'—')+'</dd></div>'
-              +'<div><dt>'+(usingSecondDriver?'Second Driver':'Helper')+'</dt><dd>'
-              +UI.esc(chosen?.name||(usingSecondDriver?'No second authorized Driver available':'Select an eligible timed-in Helper'))+'</dd></div></dl>';
+              +'<div><dt>Helper</dt><dd>'
+              +UI.esc(chosen?.name||'Select an eligible timed-in Helper')+'</dd></div></dl>';
           }
           if(submitButton)submitButton.disabled=!pair||!chosen||(!!reason?.required&&!reason.value.trim());
         };
         const syncHelper=()=>{
-          if(usingSecondDriver){showPreview();return;}
           const pair=current();
           const preferred=helpers.find(p=>String(p.id)===String(pair?.regular_helper_id));
           if(!pair){secondary.value='';changingHelper=false;}
@@ -243,7 +228,7 @@ const DispatcherUI = {
           if(reason){reason.disabled=!replacing;reason.required=replacing;if(!replacing)reason.value='';}
           if(helperRow)helperRow.hidden=!!preferred&&!changingHelper;
           if(changeHelper){
-            changeHelper.hidden=!pair||!preferred||usingSecondDriver;
+            changeHelper.hidden=!pair||!preferred;
             changeHelper.textContent=changingHelper?'Use Regular Helper':'Change Helper';
           }
           showPreview();
@@ -261,36 +246,12 @@ const DispatcherUI = {
         truck.onchange=()=>{
           const pair=current();
           changingHelper=false;
-          if(cc){
-            const second=[...new Map(pairs.filter(p=>pair
-              &&String(p.vehicle_id)===String(pair.vehicle_id)
-              &&String(p.id)!==String(pair.id)).map(p=>[String(p.id),p])).values()];
-            usingSecondDriver=second.length>0;
-            options(secondDriver,second.map(p=>({id:p.id,label:p.name
-              +(p.shift_warning?' — '+p.shift_warning:'')})),'Select an eligible Second Driver');
-            const fixed=second.find(p=>String(p.id)===String(pair?.regular_driver_id));
-            const automatic=fixed||(second.length===1?second[0]:null);
-            if(usingSecondDriver){
-              secondary.value='';
-              if(automatic)secondDriver.value=String(automatic.id);
-              secondDriverRow.hidden=!!automatic;
-              helperRow.hidden=true;
-              if(reasonRow)reasonRow.hidden=true;
-              if(reason){reason.value='';reason.required=false;reason.disabled=true;}
-              if(changeHelper)changeHelper.hidden=true;
-              showPreview();
-              return;
-            }
-            secondDriver.value='';
-            secondDriverRow.hidden=true;
-          }
           const preferred=helpers.find(p=>String(p.id)===String(pair?.regular_helper_id));
           if(pair&&preferred)secondary.value=String(preferred.id);
           else secondary.value='';
           syncHelper();
         };
         secondary.onchange=()=>syncHelper();
-        if(secondDriver)secondDriver.onchange=showPreview;
         if(reason)reason.addEventListener('input',showPreview);
         if(changeHelper)changeHelper.onclick=()=>{
           changingHelper=!changingHelper;
@@ -522,19 +483,11 @@ const DispatcherUI = {
     const d=ctx.data, diesel=ctx.query.tab==='diesel';
     const funds=Array.isArray(d.funds)?d.funds:null;
     const fuelTrips=Array.isArray(d.fuelTrips)?d.fuelTrips:null;
-    const kpis=diesel
-      ?(fuelTrips?this.recordKpis([
-          ['Authorized Trips',fuelTrips.length,'bi-truck','resources'],
-          ['Documents Attached',fuelTrips.filter(t=>Number(t.diesel_po_docs)>0).length,'bi-file-earmark-check','active'],
-          ['Missing Documents',fuelTrips.filter(t=>!Number(t.diesel_po_docs)).length,'bi-file-earmark-excel','incidents'],
-          ['Total Attachments',fuelTrips.reduce((n,t)=>n+(Number(t.diesel_po_docs)||0),0),'bi-folder2-open','attendance']
-        ]):'')
-      :(funds?this.recordKpis([
-          ['Total Fund Requests',funds.length,'bi-cash-stack','resources'],
-          ['Pending Approval',funds.filter(f=>f.status==='Pending Approval').length,'bi-clock-history','attendance'],
-          ['Ready for Release',funds.filter(f=>f.status==='Ready for Release').length,'bi-check2-circle','active'],
-          ['Released',funds.filter(f=>f.status==='Released').length,'bi-wallet2','resources']
-        ]):'');
+    // Compact request/document status counts; operational dashboard keeps full KPIs.
+    const counts=diesel
+      ?(fuelTrips ? [['Authorized trips',fuelTrips.length],['Documents attached',fuelTrips.filter(t=>Number(t.diesel_po_docs)>0).length],['Missing documents',fuelTrips.filter(t=>!Number(t.diesel_po_docs)).length]] : [])
+      :(funds ? [['Fund requests',funds.length],['Pending approval',funds.filter(f=>f.status==='Pending Approval').length],['Ready for release',funds.filter(f=>f.status==='Ready for Release').length],['Released',funds.filter(f=>f.status==='Released').length]] : []);
+    const kpis=counts.length?'<div class="small text-muted mb-2">'+counts.map(([name,n])=>UI.esc(name)+': <b>'+UI.num(n)+'</b>').join(' · ')+'</div>':'';
     ctx.el.innerHTML=kpis+`<nav class="ds-fund-view-tabs" aria-label="Trip Funds and Fuel tabs"><a href="#funds" ${diesel?'':'class="active" aria-current="page"'}>Trip Fund Requests</a><a href="#funds?tab=diesel" ${diesel?'class="active" aria-current="page"':''}>Diesel PO Requests</a></nav><div data-fund-workspace></div>`;
     const box=ctx.el.querySelector('[data-fund-workspace]');
     if(diesel){
@@ -558,13 +511,19 @@ const DispatcherUI = {
     },{submit:'Continue',confirmBeforeSubmit:false});
   },
   fundForm(t,categories,old=null) {
-    UI.fundForm({title:old?'Revise Trip Fund Request':'Submit Fund Request',categories,action:'Funds.submit',payload:{trip_id:t.id},selected:old?old.lines.filter(l=>+l.is_preset).map(l=>l.category_name):[],presetAmounts:Object.fromEntries((old?.lines||[]).filter(l=>+l.is_preset).map(l=>[l.category_name,l.amount])),editablePresets:true,optionalDieselPo:true,extra:old?old.lines.filter(l=>!+l.is_preset).map(l=>({name:l.category_name,amount:l.amount})):[],notes:old?.notes||'',intro:`${UI.esc(t.trip_ref)}. Select applicable preset categories and adjust the amount for this request if needed. Other expenses can be added below. Review the total before submitting.`,after:()=>{UI.closeDrawer();App.route();}});
+    UI.fundForm({title:old?'Revise Trip Fund Request':'Submit Fund Request',categories,action:'Funds.submit',payload:{trip_id:t.id},selected:old?old.lines.filter(l=>+l.is_preset).map(l=>l.category_name):[],presetAmounts:Object.fromEntries((old?.lines||[]).filter(l=>+l.is_preset).map(l=>[l.category_name,l.amount])),editablePresets:true,optionalDieselPo:true,dieselPo:old?.diesel_po||(old?.diesel_po_json?JSON.parse(old.diesel_po_json):null),dieselPoVehicle:t.truck_type||old?.truck_type||'',dieselPoPlate:t.plate_number||old?.plate_number||'',extra:old?old.lines.filter(l=>!+l.is_preset).map(l=>({name:l.category_name,amount:l.amount})):[],notes:old?.notes||'',intro:`${UI.esc(t.trip_ref)}. Select applicable preset categories and adjust the amount for this request if needed. Other expenses can be added below. Review the total before submitting.`,after:()=>{UI.closeDrawer();App.route();}});
     const modal=[...document.querySelectorAll('.modal')].at(-1),form=modal?.querySelector('form');
     if(form){
-      modal.classList.add('ds-structured-modal');const body=modal.querySelector('.modal-body'),cats=[...form.querySelectorAll('.fund-cat')].map(c=>c.closest('label')),extras=[...form.querySelectorAll('.fund-extra')],notes=form.querySelector('[name=notes]'),notesBox=notes.parentElement,total=form.querySelector('#fundTotal'),totalBox=total.parentElement;
+      modal.classList.add('ds-structured-modal','ds-fund-request-modal');const body=modal.querySelector('.modal-body'),cats=[...form.querySelectorAll('.fund-cat')].map(c=>c.closest('label')),extras=[...form.querySelectorAll('.fund-extra')],notes=form.querySelector('[name=notes]'),notesBox=notes.parentElement,total=form.querySelector('#fundTotal'),totalBox=total.parentElement;
       body.querySelector('p')?.remove();body.querySelectorAll('h6').forEach(h=>h.remove());
-      const sections=['01 — Associated Trip','02 — Preset Expense Categories','03 — Additional Expenses','04 — Diesel PO Documents (Optional)','05 — Request Summary'].map(title=>{const el=document.createElement('fieldset');el.className='ds-form-section';el.innerHTML=`<legend>${title}</legend>`;body.insertBefore(el,body.querySelector('.form-error'));return el;});
-      sections[0].innerHTML+=UI.kv([['Eligible Trip',UI.e(t.trip_ref)],['Truck',UI.e(t.plate_number||'Assignment pending')],...(t.client?[['Client',UI.e(t.client)]]:[])]);
+      const sections=['01 — Associated Trip','02 — Preset Expense Categories','03 — Additional Expenses','04 — Diesel Purchase Order (Optional)','05 — Request Summary'].map((title,index)=>{const el=document.createElement('fieldset');el.className='ds-form-section '+['ds-fund-trip','ds-fund-presets','ds-fund-extras','ds-fund-diesel','ds-fund-summary'][index];el.innerHTML=`<legend>${title}</legend>`;body.insertBefore(el,body.querySelector('.form-error'));return el;});
+      sections[0].insertAdjacentHTML('beforeend',
+        '<div class="ds-fund-trip-summary">'
+        +'<div class="ds-fund-trip-reference"><span class="ds-fund-trip-label">Eligible Trip</span><strong>'+UI.e(t.trip_ref)+'</strong></div>'
+        +'<div class="ds-fund-trip-meta">'
+        +'<div><span class="ds-fund-trip-label">Truck</span><strong>'+UI.e(t.plate_number||'Assignment pending')+'</strong></div>'
+        +'<div><span class="ds-fund-trip-label">Client</span><strong>'+UI.e(t.client||'Not specified')+'</strong></div>'
+        +'</div></div>');
       sections[1].insertAdjacentHTML('beforeend','<p class="form-help">Select the categories needed and edit their amounts for this request. Configured amounts are the default.</p>');cats.forEach(el=>sections[1].append(el));if(!cats.length)sections[1].insertAdjacentHTML('beforeend','<p>No preset categories are available.</p>');
       sections[2].insertAdjacentHTML('beforeend','<p class="form-help">Optional expenses need a unique name and a positive amount.</p>');
       const expenseRows=document.createElement('div');expenseRows.className='ds-additional-expense-list';sections[2].append(expenseRows);
@@ -630,7 +589,12 @@ const DispatcherUI = {
   },
   async openFund(id,d) {
     let f;try{f=(await App.api('Funds.details',{fund_id:id})).fund;}catch(ex){return UI.toast(ex.message,'error');}
-    const el=UI.drawer(UI.esc(f.fund_ref),this.panel('Trip Fund Request',UI.kv([['Trip',UI.e(f.trip_ref)],['Requested By',UI.e(f.requested_by_name)],['Request Date',this.datetime(f.created_at)],['Requested Amount',UI.money(f.amount)],['Status',this.fundStatus(f.status)],['Approved By',UI.e(f.approved_by_name)],['Finance Release',f.status==='Released'?'Released':f.status==='Ready for Release'?'Awaiting Finance release':'Not released'],['Remarks',UI.e(f.notes)],f.rejected_reason?['Reason for Revision',UI.e(f.rejected_reason)]:null]))+this.panel('Expense Breakdown',UI.table([['Category','category_name'],['Amount','amount','money']],f.lines,{plain:true}))+'<div class="ds-form-footer"><button class="btn btn-outline-success" data-ds-trip="'+(+f.trip_id)+'">View Related Trip</button>'+((f.status==='Rejected'&&['Pre-Assigned','Ready for Dispatch'].includes(f.trip_status)&&f.dispatcher_role===App.me.user.role)?'<button class="btn btn-primary" data-revise-fund>Revise Request</button>':'')+'</div>',{subtitle:UI.esc(f.trip_ref)});
+    const po=f.diesel_po;
+    const poPanel=po?this.panel('Diesel Purchase Order',
+      UI.kv([['P.O. Number',UI.e(po.po_number)],['Date',UI.e(po.po_date)],['Vehicle',UI.e(po.vehicle)],
+        ['Plate Number',UI.e(po.plate_number)],['PO Total',UI.money(po.total_amount)]])
+      +UI.table([['Liters','liters'],['Amount per Liter','unit_price','money'],['Total','total','money']],po.lines||[],{plain:true})):'';
+    const el=UI.drawer(UI.esc(f.fund_ref),this.panel('Trip Fund Request',UI.kv([['Trip',UI.e(f.trip_ref)],['Requested By',UI.e(f.requested_by_name)],['Request Date',this.datetime(f.created_at)],['Requested Amount',UI.money(f.amount)],['Status',this.fundStatus(f.status)],['Approved By',UI.e(f.approved_by_name)],['Finance Release',f.status==='Released'?'Released':f.status==='Ready for Release'?'Awaiting Finance release':'Not released'],['Remarks',UI.e(f.notes)],f.rejected_reason?['Reason for Revision',UI.e(f.rejected_reason)]:null]))+this.panel('Expense Breakdown',UI.table([['Category','category_name'],['Amount','amount','money']],f.lines,{plain:true}))+poPanel+'<div class="ds-form-footer"><button class="btn btn-outline-success" data-ds-trip="'+(+f.trip_id)+'">View Related Trip</button>'+((f.status==='Rejected'&&['Pre-Assigned','Ready for Dispatch'].includes(f.trip_status)&&f.dispatcher_role===App.me.user.role)?'<button class="btn btn-primary" data-revise-fund>Revise Request</button>':'')+'</div>',{subtitle:UI.esc(f.trip_ref)});
     this.bindTrips(el);el.querySelector('[data-revise-fund]')?.addEventListener('click',()=>this.fundForm({id:f.trip_id,trip_ref:f.trip_ref},d.categories,f));
   },
   async openDiesel(t,d) {
@@ -643,12 +607,11 @@ const DispatcherUI = {
   incidents(ctx) {
     ctx.setTitle('Incidents','Review incident records and monitor corrective maintenance coordination.');
     const rows=ctx.data.incidents;
-    const kpis=Array.isArray(rows)?this.recordKpis([
-      ['Total Incidents',rows.length,'bi-clipboard2-pulse','resources'],
-      ['Open Incidents',rows.filter(i=>i.status!=='Resolved').length,'bi-exclamation-triangle','incidents'],
-      ['Resolved',rows.filter(i=>i.status==='Resolved').length,'bi-check2-circle','active'],
-      ['Maintenance Linked',rows.filter(i=>Boolean(i.job_ref)).length,'bi-tools','attendance']
-    ]):'';
+    const kpis=Array.isArray(rows)
+      ?'<div class="small text-muted mb-2">Incidents: <b>'+UI.num(rows.length)+'</b>'
+       +' · Open: <b>'+UI.num(rows.filter(i=>i.status!=='Resolved').length)+'</b>'
+       +' · Resolved: <b>'+UI.num(rows.filter(i=>i.status==='Resolved').length)+'</b>'
+       +' · Linked to maintenance: <b>'+UI.num(rows.filter(i=>Boolean(i.job_ref)).length)+'</b></div>':'';
     const fields=[{name:'incident',label:'Incident Status',type:'select',placeholder:'All incidents',options:[['open','Open Incidents'],...this.options(rows,'status') ]},{name:'incident_type',label:'Incident Type',type:'select',placeholder:'All incident types',options:this.options(rows,'incident_type')},{name:'job_status',label:'Maintenance Status',type:'select',placeholder:'All maintenance statuses',options:this.options(rows,'job_status').map(([v,l])=>[v,l==='Under Repair'?'Under Corrective Maintenance':l])}],opts={base:{tab:'incidents'}};
     ctx.el.innerHTML=kpis+this.filters(ctx,fields,{...opts,placeholder:'Search incident, trip, truck, or location…'})+'<div data-incidents></div>';
     if(!Array.isArray(rows)){ctx.el.insertAdjacentHTML('beforeend','<p role="alert">Incident records unavailable.</p>');return;}
@@ -926,7 +889,7 @@ const DispatcherUI = {
     const fields=[{name:'availability',label:'Availability',type:'select',placeholder:'All availability statuses',options:this.options(rows,personnel?'availability':'status')},personnel?{name:'person_type',label:'Role',type:'select',placeholder:'All authorized personnel',options:this.options(rows,'person_type')}:{name:'truck_type',label:'Truck Type',type:'select',placeholder:'All authorized types',options:UI.list(this.types())}],opts={base:{view:'availability'}},q=ctx.query;
     box.innerHTML=this.filters(ctx,fields,{...opts,placeholder:personnel?'Search name, role, trip, or truck…':'Search plate number, type, or current trip…'})+'<div data-availability-records></div>';
     const filtered=rows.filter(r=>(!q.availability||r[personnel?'availability':'status']===q.availability)&&(!q.person_type||r.person_type===q.person_type)&&(!q.truck_type||r.truck_type===q.truck_type)&&this.contains(r,personnel?['full_name','person_type','trip_ref','plate_number']:['plate_number','trip_ref','truck_type'],q.search)),table=box.querySelector('[data-availability-records]');const columns=personnel?[detailColumns[0],detailColumns[1],detailColumns[4],detailColumns[2]]:detailColumns.slice(0,3);table.innerHTML=UI.table(columns,filtered,{showAllColumns:true,dsAvailability:true,actions:()=>UI.btn('view','View'),onAction:async(a,r)=>{try{const result=await App.api(personnel?'Fleet.crew_details':'Fleet.truck_details',{id:r.id}),record=result[personnel?'person':'truck'];if(!record)throw new Error('Record unavailable.');UI.drawer(UI.esc(personnel?record.full_name:record.plate_number),UI.kv(detailColumns.map(([label,key,fmt])=>[label,UI.fmt(fmt,record[key],record)])),{subtitle:'Operational reference'});}catch(ex){UI.toast(ex.message,'error');}},empty:'No matching records found.'});this.activateRecords(table);
-    table.querySelector('.panel-body')?.insertAdjacentHTML('beforeend',`<p class="ds-availability-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>${UI.role('car_carrier_dispatcher')?'Car Carrier dispatch requires two distinct eligible drivers or an eligible driver and timed-in helper.':'Container and Wing Van dispatch requires an eligible driver and helper.'} Availability is a current reference, not a future resource reservation.</span></p>`);
+    table.querySelector('.panel-body')?.insertAdjacentHTML('beforeend',`<p class="ds-availability-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span>${'All truck types require one eligible Driver and one timed-in Helper.'} Availability is a current reference, not a future resource reservation.</span></p>`);
     this.bindFilters(ctx,fields,opts);
     if(personnel)this.standardRecords(ctx,table,{title:'Driver Availability Records',tabs:'.ds-resource-tabs',searchFields:['full_name','person_type','trip_ref','plate_number']});
   },
@@ -1007,14 +970,11 @@ const DispatcherUI = {
     const d=ctx.data,q=ctx.query,rows=d.rows;if(!Array.isArray(rows)){ctx.el.innerHTML='<p role="alert">Attendance roster unavailable.</p>';return;}
     const crewRows=rows.filter(r=>r.person_type===crewType);
     const fields=[{name:'attendance_status',label:'Attendance Status',type:'select',placeholder:'All attendance states',options:this.options(crewRows,'attendance_status')}],opts={base:{view:'attendance',crew_type:crewType}};
-    // Use the same four-card KPI component as Trip and Funds records. Count the
-    // complete authorized roster, not the current search/filter result.
-    const kpis=this.recordKpis([
-      ['Total '+crewLabel+'s',crewRows.length,'bi-people','resources'],
-      ['Timed In',crewRows.filter(r=>r.attendance_status==='Timed In').length,'bi-person-check','active'],
-      ['Not Timed In',crewRows.filter(r=>r.attendance_status==='Not Timed In').length,'bi-clock-history','attendance'],
-      ['Timed Out',crewRows.filter(r=>r.attendance_status==='Timed Out').length,'bi-box-arrow-right','blue']
-    ]);
+    // Compact attendance status counts; the roster and action buttons remain intact.
+    const kpis='<div class="small text-muted mb-2">'+UI.esc(crewLabel)+'s: <b>'+UI.num(crewRows.length)+'</b>'
+      +' · Timed In: <b>'+UI.num(crewRows.filter(r=>r.attendance_status==='Timed In').length)+'</b>'
+      +' · Not Timed In: <b>'+UI.num(crewRows.filter(r=>r.attendance_status==='Not Timed In').length)+'</b>'
+      +' · Timed Out: <b>'+UI.num(crewRows.filter(r=>r.attendance_status==='Timed Out').length)+'</b></div>';
     ctx.el.innerHTML=(!d.schema_ready?'<p role="alert" class="alert alert-warning">Dispatcher attendance sessions are not installed. Apply the additive Dispatcher attendance migration.</p>':'')+kpis+this.filters(ctx,fields,{...opts,placeholder:'Search '+crewLabel.toLowerCase()+' name…'})+'<nav class="ds-attendance-crew-tabs" aria-label="Attendance pages"><div class="ds-attendance-crew-links">'+['Driver','Helper'].map(type=>'<a href="'+UI.esc(this.href(ctx.page,{view:'attendance',crew_type:type}))+'" '+(type===crewType?'class="active" aria-current="page"':'')+'>'+type+' Attendance ('+rows.filter(r=>r.person_type===type).length+')</a>').join('')+'</div></nav><p class="ds-record-context">Attendance date: '+UI.esc(d.attendance_date||d.shift?.date||'Unavailable')+' <span class="ds-attendance-reset-note">· Resets daily at 6:00 AM (PH)</span></p><div data-attendance-records></div><p class="small text-muted">Time Out is blocked while personnel are held by an active trip. One Time In and Time Out cycle is allowed per attendance date; previous records remain in History.</p>';
     const checklist={mode:'time_in',selected:new Set()};
     const selectable=r=>r.can_record!==false&&r.action===(checklist.mode==='time_in'?'Time In':'Time Out');
@@ -1022,7 +982,7 @@ const DispatcherUI = {
       ?'<input type="checkbox" class="form-check-input ds-attendance-check" data-attendance-check="'+(+r.id)+'" aria-label="Select '+UI.esc(r.full_name)+'" '+(checklist.selected.has(String(r.id))?'checked':'')+'>'
       :'<span class="ds-attendance-check-placeholder" aria-hidden="true"></span>';
     const filtered=crewRows.filter(r=>(!q.attendance_status||r.attendance_status===q.attendance_status)&&this.contains(r,['full_name','person_type'],q.search)),box=ctx.el.querySelector('[data-attendance-records]');
-    box.innerHTML=UI.table([['Name','full_name',(v,r)=>'<div class="ds-attendance-person-row">'+checkbox(r)+'<div class="ds-attendance-person"><strong>'+UI.esc(v)+'</strong><button type="button" class="ds-attendance-history" data-attendance-history="'+(+r.id)+'" aria-label="View attendance history for '+UI.esc(v)+'"><i class="bi bi-clock-history" aria-hidden="true"></i> History</button></div></div>'],['Role','person_type',v=>'<span class="ds-attendance-role">'+UI.esc(v)+'</span>'],['Time In','session',session=>session?.time_in?'<span class="ds-attendance-time">'+UI.esc(this.datetime(session.time_in))+'</span>':'<span class="ds-attendance-empty">Not recorded</span>'],['Time Out','session',session=>session?.time_out?'<span class="ds-attendance-time">'+UI.esc(this.datetime(session.time_out))+'</span>':'<span class="ds-attendance-empty">—</span>'],['Status','attendance_status',v=>`<span class="ds-attendance-status ${v==='Timed In'?'is-in':v==='Timed Out'?'is-out':'is-pending'}"><span class="ds-attendance-dot" aria-hidden="true"></span>${UI.esc(v)}</span>`]],filtered,{showAllColumns:true,actions:r=>r.action==='Completed'
+    box.innerHTML=UI.table([['Name','full_name',(v,r)=>'<div class="ds-attendance-person-row">'+checkbox(r)+'<div class="ds-attendance-person"><strong>'+UI.esc(v)+'</strong>'+(+r.has_truck_link?'':'<small class="d-block text-muted">Attendance only · no truck link</small>')+'<button type="button" class="ds-attendance-history" data-attendance-history="'+(+r.id)+'" aria-label="View attendance history for '+UI.esc(v)+'"><i class="bi bi-clock-history" aria-hidden="true"></i> History</button></div></div>'],['Role','person_type',v=>'<span class="ds-attendance-role">'+UI.esc(v)+'</span>'],['Time In','session',session=>session?.time_in?'<span class="ds-attendance-time">'+UI.esc(this.datetime(session.time_in))+'</span>':'<span class="ds-attendance-empty">Not recorded</span>'],['Time Out','session',session=>session?.time_out?'<span class="ds-attendance-time">'+UI.esc(this.datetime(session.time_out))+'</span>':'<span class="ds-attendance-empty">—</span>'],['Status','attendance_status',v=>`<span class="ds-attendance-status ${v==='Timed In'?'is-in':v==='Timed Out'?'is-out':'is-pending'}"><span class="ds-attendance-dot" aria-hidden="true"></span>${UI.esc(v)}</span>`]],filtered,{showAllColumns:true,actions:r=>r.action==='Completed'
       ?'<span class="ds-attendance-completed" title="'+UI.esc(r.action_reason||'Attendance cycle completed')+'"><i class="bi bi-check-circle" aria-hidden="true"></i> Completed</span>'
       :`<button type="button" class="btn btn-sm ${r.action==='Time Out'?'ds-attendance-action-out':'ds-attendance-action-in'}" data-act="record" title="${UI.esc(r.action_reason||'')}" ${!d.schema_ready||r.can_record===false?'disabled':''}>${UI.esc(r.action)}</button>`,onAction:async(a,r,button)=>{
       if(r.action==='Time In')return this.openAttendanceTimeIn(ctx,r);
@@ -1117,11 +1077,15 @@ const DispatcherUI = {
   decorateTrip(el,r) {
     const t=r.trip,body=el.querySelector('.offcanvas-body'),actions=body.querySelector('.drawer-actions'),sections=new Map(),progress=body.querySelector('.ui-workflow');
     el.classList.add('ds-trip-drawer');el.querySelector('.btn-close').setAttribute('aria-label','Close Trip Details');
+    // Hide superseded Dispatcher Trip Details controls without changing existing records.
+    body.querySelectorAll('button').forEach(button=>{
+      if(button.matches('[data-tact="dieselpo"]')||button.textContent.trim()==='Booking / container details')button.remove();
+    });
     el.querySelector('.offcanvas-header > div').insertAdjacentHTML('beforeend',this.status(t.status));
     [...body.querySelectorAll('.drawer-h')].forEach(h=>{const title=h.querySelector('span').textContent,fragment=document.createDocumentFragment();let node=h.nextSibling;while(node&&!(node.nodeType===1&&node.classList.contains('drawer-h'))){const next=node.nextSibling;fragment.append(node);node=next;}h.querySelectorAll('button').forEach(b=>fragment.prepend(b));sections.set(title,fragment);h.remove();});
     const inspection=r.inspections.find(i=>i.kind==='Pre-Dispatch'&&+i.attempt_number===+t.attempt_number),arrival=r.inspections.find(i=>i.kind==='Arrival'&&+i.attempt_number===+t.attempt_number),fund=r.funds.find(f=>+f.attempt_number===+t.attempt_number);
     const preparing=['Pre-Assigned','Ready for Dispatch','For Reschedule'].includes(t.status);
-    const crewAssigned=!!(t.vehicle_id&&t.driver_id&&(t.truck_type==='Car Carrier'?(t.driver2_id||t.helper_id):t.helper_id));
+    const crewAssigned=!!(t.vehicle_id&&t.driver_id&&t.helper_id&&!t.driver2_id);
     const inspectionCompleted=!!(inspection?.completed_at&&+inspection.vehicle_id===+t.vehicle_id&&+inspection.has_not_ok===0);
     const blockers=preparing?(t.dispatch_blockers||[]):[];
     const readinessItems=[
@@ -1149,7 +1113,7 @@ const DispatcherUI = {
     const savedMap=sections.get('Trip')?.querySelector('[data-routemap]');if(savedMap)overview.append(savedMap);
     if(t.pricing_estimate)append('Pricing',UI.kv([['Pricing basis',t.pricing_estimate.frozen?'Dispatch snapshot':'Current estimate only'],['Fixed route rate',t.pricing_estimate.fixed===null||t.pricing_estimate.fixed===undefined?'Unavailable':UI.money(t.pricing_estimate.fixed)],['Fuel charge',t.pricing_estimate.fuel===null?'Fuel Estimate Unavailable':UI.money(t.pricing_estimate.fuel)],['Total',t.pricing_estimate.total===null||t.pricing_estimate.total===undefined?'Pending Fuel Calculation':UI.money(t.pricing_estimate.total)]]));
     append('Delivery & Shipment',UI.kv([['Delivery Instructions',UI.e(t.delivery_details)],['Consignee',UI.e(t.consignee)],['Booking Reference',UI.e(t.booking_reference)],...(t.truck_type==='Car Carrier'?[['Cargo Units',UI.e(t.units_planned)]]:[['Shipment Number',UI.e(t.shipment_number)]]),...(t.truck_type==='Container'?[['Container Number',UI.e(t.container_number)],['Container Size',UI.e(t.container_size)],['Seal Number',UI.e(t.seal_number)]]:[])]));
-    append('Truck & Personnel',UI.kv([['Original Dispatcher Group',UI.e(App.me.roles?.[t.dispatcher_role]||t.dispatcher_role)],['Original Dispatcher Shift',UI.e(t.dispatcher_shift)],['Recorded Dispatch Account',UI.e(t.dispatcher_name)],['Current Responsible Dispatcher',UI.e(t.responsible_dispatcher_name||'Not yet assigned by Operations Head')],['Vehicle',UI.e(t.plate_number)],['Vehicle Availability',UI.e(t.truck_status)],['Driver 1',UI.e(t.driver_name)],...(t.truck_type==='Car Carrier'&&t.driver2_id?[['Driver 2',UI.e(t.driver2_name)]]:[['Helper',UI.e(t.helper_name)]]),['Attendance Policy',UI.e(t.crew_attendance?.mode)],['Attendance Basis','Open Time In session']])+(t.crew_attendance?.crew||[]).map(c=>`<p class="small">${UI.esc(c.role)}: ${UI.esc(c.issue||'Present')}${c.problem?' · '+UI.esc(c.problem):''}${c.outside_scheduled_shift?' · Outside scheduled shift':''}</p>`).join('')+(t.crew_attendance?.missing||[]).map(x=>`<p class="text-danger small">${UI.esc(x)}</p>`).join(''));
+    append('Truck & Personnel',UI.kv([['Original Dispatcher Group',UI.e(App.me.roles?.[t.dispatcher_role]||t.dispatcher_role)],['Original Dispatcher Shift',UI.e(t.dispatcher_shift)],['Recorded Dispatch Account',UI.e(t.dispatcher_name)],['Current Responsible Dispatcher',UI.e(t.responsible_dispatcher_name||'Not yet assigned by Operations Head')],['Vehicle',UI.e(t.plate_number)],['Vehicle Availability',UI.e(t.truck_status)],['Driver',UI.e(t.driver_name)],['Helper',UI.e(t.helper_name)],...(t.driver2_id?[['Legacy Driver 2',UI.e(t.driver2_name)]]:[]),['Attendance Policy',UI.e(t.crew_attendance?.mode)],['Attendance Basis','Open Time In session']])+(t.crew_attendance?.crew||[]).map(c=>`<p class="small">${UI.esc(c.role)}: ${UI.esc(c.issue||'Present')}${c.problem?' · '+UI.esc(c.problem):''}${c.outside_scheduled_shift?' · Outside scheduled shift':''}</p>`).join('')+(t.crew_attendance?.missing||[]).map(x=>`<p class="text-danger small">${UI.esc(x)}</p>`).join(''));
     // Present recorded fund information as a compact summary and itemized breakdown.
     // Retain the existing Print request form element and its bound action.
     const fuel=append('Funds & Fuel',sections.get('Fund request'));
@@ -1189,9 +1153,9 @@ const DispatcherUI = {
       metadata.append(metadataTitle,meta);
       main.append(metadata);
       fuel.append(main);
-    }fuel.insertAdjacentHTML('beforeend','<p id="ds-diesel-unavailable" class="form-help">Diesel PO documents are optional. Attach them while submitting a fund request or upload them separately at any time allowed for this trip.</p>');
+    }
     fuel.querySelectorAll('.badge-s').forEach(b=>{if(b.textContent==='Ready for Release')b.textContent='Approved — Awaiting Release';if(b.textContent==='Rejected')b.textContent='Requires Revision';});
-    const dieselButton=actions?.querySelector('[data-tact=dieselpo]');if(dieselButton){dieselButton.textContent='Attach Diesel PO Document';fuel.append(dieselButton);}
+
     const fundButton=actions?.querySelector('[data-tact=fund]');if(fundButton){fundButton.textContent=fund?.status==='Rejected'?'Revise Trip Funds':'Request Trip Funds';fundButton.onclick=()=>this.fundForm(t,TripUI.data.fundCategories,fund?.status==='Rejected'?fund:null);fuel.append(fundButton);}
 
     append('Pre-Dispatch Checklist',[...sections].find(([title])=>title.startsWith('Pre-dispatch checklist'))?.[1]);

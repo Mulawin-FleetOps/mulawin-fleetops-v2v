@@ -12,30 +12,46 @@ App.page('approvals', {
     }
     const data = ctx.data || {}, all = Array.isArray(data.queue) ? data.queue : [];
     const failed = Object.keys(data._errors || {});
-    const queue = all.filter(r => r.actionable && r.status === 'Pending');
+    const queue = all.filter(r => r.actionable || (role === 'finance' && r.kind === 'fund_release'));
+    const decisions = queue.filter(r => r.actionable);
     const types = [...new Set(queue.map(r => r.type))].sort();
     const shown = queue.filter(r => !ctx.query.type || r.type === ctx.query.type);
     UI.tool(ctx, 'Refresh approvals', () => ctx.reload(), 'bi-arrow-clockwise', 'outline-secondary');
     ctx.el.innerHTML = `<div class="mb-3">${UI.kpiTiles([
-      {label:'Awaiting your approval', value:queue.length, note:'Requests that need your decision', icon:'bi-check2-square',tone:queue.length?'amber':'gray'}
+      {label:role === 'finance' ? 'Ready for Finance action' : 'Awaiting your approval', value:decisions.length, note:role === 'finance' ? 'Approvals and approved trip funds for release' : 'Requests that need your decision', icon:'bi-check2-square',tone:decisions.length?'amber':'gray'}
     ])}</div>
     ${failed.length ? '<div class="alert alert-warning">Some approval data could not be loaded. Please refresh or contact IT.</div>' : ''}
-    ${!queue.length ? '<div class="alert alert-light border">No requests are awaiting your approval. Requests you submit to other departments are tracked in their original records.</div>' : ''}
+    ${!queue.length ? '<div class="alert alert-light border">No requests currently require your action. Requests submitted to other departments are tracked in their original records.</div>' : ''}
     ${UI.generalFilters(ctx,[{name:'type',label:'Request type',options:types}])}`;
     if (!shown.length) return;
     const box = document.createElement('div'); ctx.el.append(box);
+    box.className = 'approval-inbox-table';
     box.innerHTML = UI.table([
-      ['Reference','ref',(v,r)=>`<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(r.summary || '')}</div>`],
-      ['Request','type'],['Department','dept'],['Requested by','requester'],
-      ['Submitted','submitted','datetime'],['Amount','amount','money'],['Status','status','badge']
+      ['Request','ref',(v,r)=>`<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(r.type)} · ${UI.esc(r.summary || '')}</div><div class="cell-sub">By ${UI.esc(r.requester || 'Unknown')} · ${UI.datetime(r.submitted)}</div>`],
+      ['Amount','amount','money'],
+      ['Status','status',(value,r)=>`<div>${UI.badge(value)}</div>${r.kind === 'fund_release' && r.actionable && !r.release_allowed_now
+        ? `<small class="text-muted d-block mt-1">${r.release_opens_at ? 'Opens '+UI.datetime(r.release_opens_at) : 'Release time unavailable'}</small>`
+        : ''}`]
     ],shown,{
-      title:'Pending approvals (' + shown.length + ')',
+      title:(role === 'finance' ? 'Finance approval and fund release queue (' : 'Pending approvals (') + shown.length + ')',
       showAllColumns:true,directActions:true,
-      actions:r=>UI.btn('approve','Approve','success','bi-check-lg')+
-        UI.btn('reject','Reject','outline-danger','bi-x-lg')+
-        (UI.canGo(r.go)?UI.btn('open','Open record','outline-secondary','bi-eye'):''),
+      actions:r=>r.kind === 'fund_release'
+        ? (r.actionable
+            ? (r.release_allowed_now ? UI.btn('release','Release Funds','success','bi-cash-stack') : '')
+              + (UI.canGo(r.go)?UI.btn('open','View','outline-secondary','bi-eye'):'')
+            : (UI.canGo(r.go)?UI.btn('open','View fund request','outline-primary','bi-eye'):'' ))
+        : UI.btn('approve','Approve','success','bi-check-lg')+
+          UI.btn('reject','Reject','outline-danger','bi-x-lg')+
+          (UI.canGo(r.go)?UI.btn('open','Open record','outline-secondary','bi-eye'):''),
       onAction:(action,r)=>{
         if(action==='open')return UI.goTo(r.go);
+        if(r.kind==='fund_release' && action==='release') {
+          if(!r.release_allowed_now || !r.actionable) return UI.toast('The fund release window is not open. Refresh approvals to check again.','error');
+          return UI.confirmAction('Release '+UI.esc(r.ref),
+            'Release <b>'+UI.money(r.amount)+'</b> in <b>cash</b> for '+UI.esc(r.summary)+'.'
+            +'<br><span class="small text-muted">The system records the Philippine release date and generates a payment voucher. This action releases funds, it does not approve the request.</span>',
+            'Funds.release',{fund_id:+r.key.split(':')[1]},{submit:'Confirm Release'});
+        }
         if(r.kind==='po') {
           const approve=action==='approve';
           return UI.confirmAction((approve?'Approve ':'Reject ')+UI.esc(r.ref),

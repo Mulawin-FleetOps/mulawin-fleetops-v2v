@@ -79,7 +79,7 @@ $job = fn(int $id) => one($p, 'SELECT * FROM maintenance_jobs WHERE id=?', [$id]
 $attFor = fn(array $o, string $ref) => array_values(array_filter($o['attention'], fn($r) => $r['job_ref'] === $ref || $r['request_ref'] === $ref));
 $report = function (int $vid, ?int $mech = null, string $problem = 'Engine overheating') use ($mp, $png) {
     $_FILES = ['photos' => $png('damage.png')];
-    $r = Maintenance::action($mp, 'report', ['vehicle_id' => $vid, 'problem' => $problem, 'reported_on' => date('Y-m-d')] + ($mech ? ['mechanic_id' => $mech] : []));
+    $r = Maintenance::action($mp, 'report', ['vehicle_id' => $vid, 'problem' => $problem] + ($mech ? ['mechanic_id' => $mech] : []));
     $_FILES = [];
     return $r;
 };
@@ -128,6 +128,7 @@ $_FILES = [];
 fails(fn() => Maintenance::action($mp, 'report', ['vehicle_id' => $V[1], 'problem' => 'No photo', 'reported_on' => date('Y-m-d')]), 'report without a photo is still refused', 400, 'Please attach');
 $r1 = $report($V[1]);
 $j1 = (int)$r1['job_id'];
+ok($job($j1)['reported_on'] === date('Y-m-d'), 'report without date field uses server date');
 ok($job($j1)['status'] === 'Reported' && one($p, 'SELECT status FROM vehicles WHERE id=?', [$V[1]])['status'] === 'Under Maintenance', 'report: record Reported, truck Under Maintenance (unchanged rule)');
 ok((int)one($p, "SELECT COUNT(*) AS n FROM documents WHERE entity_type='maintenance' AND entity_id=?", [$j1])['n'] === 1, 'issue photo stored');
 $s = $sum();
@@ -136,7 +137,13 @@ $a = $attFor($ov($mp), $r1['job_ref']);
 ok(count($a) === 1 && $a[0]['next_action'] === 'assign' && $a[0]['plate_number'] === 'MNT-1' && $a[0]['truck_number'] === '101' && $a[0]['issue'] === 'Engine overheating', 'needs attention: assign a mechanic, with plate, truck no. and issue', json_encode($a));
 fails(fn() => $report($V[1]), 'second report on the same truck refused (one open record per truck)', 409);
 
-$r2 = $report($V[2], $M[1], 'Brake noise');
+// Legacy or manipulated client date must not override the automatic server date.
+$_FILES = ['photos' => $png('override.png')];
+$rOverride = Maintenance::action($mp, 'report', ['vehicle_id'=>$V[2], 'problem'=>'Brake noise',
+    'mechanic_id'=>$M[1], 'reported_on'=>'2039-01-01']);
+$_FILES = [];
+ok($job((int)$rOverride['job_id'])['reported_on'] === date('Y-m-d'), 'client-supplied future date is ignored, server date recorded');
+$r2 = $rOverride;
 $j2 = (int)$r2['job_id'];
 $s = $sum();
 ok($s['new_reports'] === 1 && $s['under_inspection'] === 1, 'report with a mechanic goes straight to Under Inspection (not a new report)');
@@ -175,9 +182,14 @@ $lines = many($p, 'SELECT id, part_id FROM part_request_lines WHERE part_request
 Purchasing::action($pur, 'request_process', ['request_id' => $req1['id'], 'release' => [['line_id' => $lines[0]['id'], 'qty' => 2], ['line_id' => $lines[1]['id'], 'qty' => 2]]]);
 $s = $sum();
 ok(one($p, 'SELECT status FROM part_requests WHERE id=?', [$req1['id']])['status'] === 'Partially Released' && $s['pending_parts'] === 1 && $s['parts_partially_released'] === 1, 'partial release: still 1 pending (Partially Released)');
+ok((int)Maintenance::action($mp, 'details', ['job_id'=>$j1])['pending_parts_units'] === 2, 'repair details expose two units waiting for release');
+fails(fn() => Maintenance::action($mp, 'complete', ['job_id'=>$j1, 'repair_performed'=>'Replaced hose', 'completed_on'=>date('Y-m-d')]),
+    'partial release blocks repair completion even before evidence validation', 409);
+ok($job($j1)['status'] === 'Under Repair', 'rejected completion retains Under Repair status');
 ok((int)one($p, 'SELECT quantity_on_hand AS q FROM parts WHERE id=?', [$hose])['q'] === 8, 'stock released (inventory unchanged behaviour)');
 Purchasing::action($pur, 'request_process', ['request_id' => $req1['id'], 'release' => [['line_id' => $lines[1]['id'], 'qty' => 2]]]);
 ok($sum()['pending_parts'] === 0, 'fully released request is no longer pending');
+ok((int)Maintenance::action($mp, 'details', ['job_id'=>$j1])['pending_parts_units'] === 0, 'fully released request removes repair completion blocker');
 $det = Maintenance::action($mp, 'details', ['job_id' => $j1]);
 ok(count($det['parts']) === 2 && (int)$det['parts'][0]['released_qty'] === 2, 'parts used still shown on the repair record');
 ok(count($det['costs']) === 1 && count($det['documents']) >= 1 && count($det['events']) >= 3, 'costs, photos and status history still shown');
@@ -214,6 +226,8 @@ Purchasing::action($mp, 'request_create', ['vehicle_id' => $V[2], 'maintenance_j
 $req2 = one($p, 'SELECT * FROM part_requests WHERE maintenance_job_id=?', [$j2]);
 ok($sum()['pending_parts'] === 1, 'new request pending');
 Purchasing::action($pur, 'request_process', ['request_id' => $req2['id'], 'not_available' => 1]);
+fails(fn() => Maintenance::action($mp, 'complete', ['job_id'=>$j2, 'repair_performed'=>'Brake work', 'completed_on'=>date('Y-m-d')]),
+    'Not Available parts must block completing repair', 409);
 $o = $ov($mp);
 ok($o['summary']['pending_parts'] === 0, 'Not Available is not counted as pending (as approved)');
 $a = $attFor($o, $req2['request_ref']);
@@ -244,7 +258,8 @@ $o = $ov($mp);
 ok($o['summary']['new_reports'] === 1 && $o['summary']['new_incidents'] === 1, 'incident counted as a new report from a trip incident');
 $a = $attFor($o, $ij['job_ref']);
 ok(count($a) === 1 && $a[0]['next_action'] === 'assess' && $a[0]['source'] === 'Incident' && $a[0]['incident_ref'] !== null, 'needs attention: assess the incident (Minor or Major)');
-Maintenance::action($mp, 'assess', ['job_id' => $ij['id'], 'severity' => 'Minor', 'recommendation' => 'Change tire on site', 'mechanic_id' => $M[2]]);
+Maintenance::action($mp, 'assess', ['job_id' => $ij['id'], 'severity' => 'Minor', 'recommendation' => 'Change tire on site']);
+ok($job((int)$ij['id'])['mechanic_id'] === null, 'assessment does not assign a mechanic before physical inspection');
 ok($job((int)$ij['id'])['status'] === 'Under Inspection' && one($p, 'SELECT status FROM trips WHERE id=?', [$tid])['status'] === 'On Hold - Incident Reported', 'assess Minor: record Under Inspection, trip stays On Hold (unchanged)');
 $pj = one($p, 'SELECT severity, priority FROM maintenance_jobs WHERE id=?', [$ij['id']]);
 ok($pj['severity'] === 'Minor' && $pj['priority'] === $ij['priority'], 'assess keeps the recorded repair plan (Minor) and derives no Critical / High priority (UNSUPPORTED_CLASSIFICATION_CLEANUP)', json_encode([$pj, $ij['priority'] ?? null]));
@@ -319,6 +334,50 @@ try {
     $o = $ov($mp);
     ok(($o['_errors'] ?? []) === [] && count($o['activity']) > 0, 'overview works with ONLY_FULL_GROUP_BY (MySQL 8 default)', json_encode($o['_errors'] ?? []));
 } finally { $p->exec('SET SESSION sql_mode = ' . $p->quote($mode)); }
+
+// ---------------------------------------------------------------------
+section('I. Combined Report Truck Problem: one submit for repair, mechanics and parts');
+$combinedTruck = insert($p, 'vehicles', ['plate_number' => 'MNT-77', 'truck_number' => '177', 'truck_type' => 'Wing Van']);
+$lead = Mechanics::action($mp, 'save', ['full_name' => 'COMBINED LEAD', 'specialization' => 'Engine'])['id'];
+$assistant = Mechanics::action($mp, 'save', ['full_name' => 'COMBINED ASSIST', 'specialization' => 'Engine'])['id'];
+Mechanics::action($mp, 'time_in', ['id' => $lead]);
+Mechanics::action($mp, 'time_in', ['id' => $assistant]);
+$_FILES = ['photos' => $png('combined-report.png')];
+$combined = Maintenance::action($mp, 'report', [
+    'vehicle_id' => $combinedTruck, 'problem' => 'Air line leak',
+    'mechanic_id' => $lead, 'assistant_mechanic_ids' => [$assistant],
+    'parts_lines' => [['part_id' => $hose, 'quantity' => 2]],
+]);
+$_FILES = [];
+$combinedJob = (int)$combined['job_id'];
+$combinedRequest = one($p, 'SELECT * FROM part_requests WHERE maintenance_job_id=?', [$combinedJob]);
+ok($job($combinedJob)['status'] === 'Under Inspection'
+    && (int)$job($combinedJob)['mechanic_id'] === (int)$lead,
+    'combined submission starts inspection with chosen lead mechanic');
+ok((bool)one($p, 'SELECT id FROM maintenance_job_helpers WHERE maintenance_job_id=? AND mechanic_id=? AND released_at IS NULL',
+    [$combinedJob, $assistant]), 'assisting mechanic linked to the new repair');
+ok((bool)$combinedRequest && (int)$combinedRequest['vehicle_id'] === (int)$combinedTruck
+    && $combinedRequest['status'] === 'Requested'
+    && (int)one($p, 'SELECT quantity FROM part_request_lines WHERE part_request_id=?', [$combinedRequest['id']])['quantity'] === 2,
+    'one linked parts request sent to Purchasing with correct quantity');
+ok((int)one($p, 'SELECT COUNT(*) AS n FROM stock_movements WHERE reference_type=? AND reference_id=?',
+    ['part_request', $combinedRequest['id']])['n'] === 0, 'combined intake never releases stock automatically');
+ok(one($p, 'SELECT status FROM vehicles WHERE id=?', [$combinedTruck])['status'] === 'Under Maintenance',
+    'reported truck taken out of service');
+
+$invalidTruck = insert($p, 'vehicles', ['plate_number' => 'MNT-78', 'truck_number' => '178', 'truck_type' => 'Wing Van']);
+$_FILES = ['photos' => $png('invalid-combined.png')];
+fails(fn() => Maintenance::action($mp, 'report', [
+    'vehicle_id' => $invalidTruck, 'problem' => 'Brake issue',
+    'mechanic_id' => $M[2], 'parts_lines' => [
+        ['part_id' => $hose, 'quantity' => 1], ['part_id' => $hose, 'quantity' => 2]
+    ],
+]), 'duplicate requested parts roll back entire combined repair', 400);
+$_FILES = [];
+ok(!one($p, 'SELECT id FROM maintenance_jobs WHERE vehicle_id=?', [$invalidTruck])
+    && !one($p, 'SELECT id FROM part_requests WHERE vehicle_id=?', [$invalidTruck])
+    && one($p, 'SELECT status FROM vehicles WHERE id=?', [$invalidTruck])['status'] === 'Available',
+    'failed combined submission leaves no job, request or truck-state changes');
 
 // ---------------------------------------------------------------------
 foreach (glob($tmpDir . '/*') ?: [] as $f) @unlink($f); @rmdir($tmpDir);

@@ -65,6 +65,88 @@ const FleetUI = {
   truckRows(d,q) {
     return d.trucks.filter(v=>(q.inactive?true:+v.active)&&(!q.truck_type||v.truck_type===q.truck_type)&&(!q.status||v.status===q.status)&&(!q.docs||(q.docs==='expiring'&&((v.reg_days!==null&&+v.reg_days<=+d.alertDays)||(v.ins_days!==null&&+v.ins_days<=+d.alertDays)))));
   },
+  /** Unfinished Add Driver/Helper/Truck form, stored per account on the server. */
+  bindDraft(wrap, type) {
+    if (!wrap || !['driver','helper','truck'].includes(type)) return;
+    const form=wrap.querySelector('form');
+    const footer=wrap.querySelector('.modal-footer');
+    const save=document.createElement('button');
+    save.type='button';
+    save.className='btn btn-outline-secondary btn-sm';
+    save.innerHTML='<i class="bi bi-floppy" aria-hidden="true"></i> Save Draft';
+    footer?.insertBefore(save,footer.querySelector('[data-bs-dismiss="modal"]'));
+    const names=type==='truck'
+      ? ['plate_number','truck_type','truck_number','make_brand','model','mv_file_number',
+        'chassis_number','engine_number','or_number','cr_number','registration_expiry',
+        'insurance_provider','insurance_policy_number','insurance_expiry','notes']
+      : ['full_name','person_type','attendance_group','employee_no','contact_number','date_hired',
+        'license_number','license_expiry','address','notes'];
+    const capture=()=>{
+      const fields={};
+      names.forEach(name=>{
+        const el=form.elements.namedItem(name);
+        if (el && 'value' in el) fields[name]=String(el.value||'');
+      });
+      if(type==='driver') {
+        fields.auth_truck=String(form.querySelector('[data-driver-truck-selector] input:checked')?.name.slice('auth_truck_'.length)||'');
+        fields.regular_helper_choice=String(form.querySelector('[data-driver-helper-selector] input:checked')?.name.slice('regular_helper_choice_'.length)||'');
+      }
+      return fields;
+    };
+    save.addEventListener('click',async()=>{
+      save.disabled=true;
+      try {
+        const result=await App.api('Fleet.draft_save',{draft_type:type,fields:capture()});
+        wrap.dataset.draftId=String(result.draft_id);
+        wrap.dataset.draftSaved='1';
+        UI.toast('Draft saved. Open Add '+(type==='truck'?'Truck':type==='driver'?'Driver':'Helper')+' later to continue.','success');
+        bootstrap.Modal.getInstance(wrap)?.hide();
+      } catch(e) {
+        UI.toast(e.message,'error');
+      } finally { save.disabled=false; }
+    });
+    const restore=fields=>{
+      names.forEach(name=>{
+        const el=form.elements.namedItem(name);
+        if (!el || !('value' in el) || !Object.prototype.hasOwnProperty.call(fields,name)) return;
+        el.value=String(fields[name]??'');
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      if(type==='driver') {
+        const truck=form.querySelector('[name="auth_truck_'+Number(fields.auth_truck)+'"]');
+        if(truck && !truck.disabled) {
+          truck.checked=true;
+          truck.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+        const helper=form.querySelector('[name="regular_helper_choice_'+Number(fields.regular_helper_choice)+'"]');
+        if(helper && !helper.disabled) {
+          helper.checked=true;
+          helper.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+      }
+    };
+    // Prompt before overwriting fields in the new Add form. No means return
+    // to the masterlist; the owned draft remains untouched.
+    (async()=>{
+      try{
+        const result=await App.api('Fleet.draft_get',{draft_type:type});
+        if(!wrap.isConnected || !result.draft) return;
+        const draft=result.draft;
+        const proceed=await UI.askWithinModal(wrap,'Continue unfinished '+(type==='truck'?'Truck':type==='driver'?'Driver':'Helper')+' form?',
+          'A saved draft was found from '+String(draft.updated_at||'an earlier session')+
+          '. Continue with the saved details? Select Go back to keep it for later.',
+          'Yes, Continue Draft');
+        if(!wrap.isConnected)return;
+        if(!proceed) {
+          bootstrap.Modal.getInstance(wrap)?.hide();
+          return;
+        }
+        wrap.dataset.draftId=String(draft.id);
+        restore(draft.fields||{});
+        UI.toast('Draft restored. Review truck and helper availability before final Save.','success');
+      }catch(e){if(wrap.isConnected) UI.toast(e.message,'error');}
+    })();
+  },
   truckForm(v, d) {
     const truckInfo = [
       { name: 'plate_number', label: 'Plate Number', required: true, col: 6, value: v.plate_number, placeholder: 'NAJ5941' },
@@ -95,15 +177,19 @@ const FleetUI = {
       UI.fields(fixedCrew.map(field=>({name:field.name,type:'hidden',value:field.value}))),
       FormComponents.collapsible('Registration & Insurance', 'Vehicle documents, insurance and notes', 'bi-file-earmark-text', documents),
     ];
-    return FormComponents.modal(
+    const wrap = FormComponents.modal(
       v.id ? 'Edit Truck ' + UI.esc(v.plate_number) : 'Add Truck',
       groups, 'Fleet.truck_save', {
         extra: v.id ? { id: v.id } : {},
         intro: 'Truck authorizations are now managed in Drivers & Helpers. OR/CR and insurance files can be attached from Truck Details → Documents.',
         submit: v.id ? 'Save Changes' : 'Save Truck',
+        transform: (values, form) => !v.id && form.closest('.modal')?.dataset.draftId
+          ? { ...values, draft_id: form.closest('.modal').dataset.draftId } : values,
         after: v.id ? () => FleetUI.truckDetails(v.id, d) : undefined,
       }
     );
+    if (!v.id) this.bindDraft(wrap,'truck');
+    return wrap;
   },
   async truckDetails(id, d) {
     let r; try { r = await App.api('Fleet.truck_details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
@@ -154,6 +240,7 @@ const FleetUI = {
     UI.formModal(p.id ? 'Edit ' + UI.esc(p.full_name) : 'Add driver or helper', [
       { name: 'full_name', label: 'Name (LAST NAME, FIRST NAME)', required: true, col: 8, value: p.full_name, placeholder: 'JUEGOS, HECTOR' },
       { name: 'person_type', label: 'Type', type: 'select', options: UI.list(['Driver', 'Helper']), required: true, col: 4, value: p.person_type },
+      { name: 'attendance_group', label: 'Attendance Group', type: 'select', col: 6, required: true, value: p.attendance_group, options: [['car_carrier_dispatcher','Car Carrier'],['container_wingvan_dispatcher','Container / Wing Van']], help: 'Used for attendance if no regular truck is linked. Does not grant truck authorization.' },
       { name: 'employee_no', label: 'Employee no.', col: 4, value: p.employee_no }, { name: 'contact_number', label: 'Contact number', col: 4, value: p.contact_number },
       { name: 'date_hired', label: 'Employment start date', type: 'date', col: 4, value: p.date_hired },
       { name: 'license_number', label: "Driver's license no. (drivers)", col: 6, value: p.license_number }, { name: 'license_expiry', label: 'Driver’s license expiry date', type: 'date', col: 6, value: p.license_expiry },
@@ -161,10 +248,10 @@ const FleetUI = {
       'Fleet.crew_save', { extra: p.id ? { id: p.id } : {}, intro: 'Drivers need a license number and expiry. A driver with an expired license is not assigned automatically.' });
   },
   async opsCrewForm(p,d) {
-    if(!d.assignmentTrucks||!d.assignmentHelpers){
-      try { d=await App.data('crew'); }
-      catch(error){ return UI.toast(error.message,'error'); }
-    }
+    // Always request the latest crew and truck assignment data before opening
+    // the form. Cached page data can predate a newly created Helper.
+    try { d=await App.data('crew'); }
+    catch(error){ return UI.toast(error.message,'error'); }
     const type=p.person_type==='Helper'?'Helper':'Driver',driver=type==='Driver';
     const allTrucks=d.assignmentTrucks||[];
     const helperTruck = !driver ? allTrucks.find(t => Number(t.assigned_helper_id) === Number(p.id)) : null;
@@ -182,8 +269,6 @@ const FleetUI = {
     const truckCategories=['All',...groups];
     const regularTruck=allTrucks.find(truck=>already.includes(+truck.id));
     const existingHelperId=already.length===1?Number(regularTruck?.assigned_helper_id||0):0;
-    const availableHelpers=(d.assignmentHelpers||[]).filter(helper=>
-      !helper.assigned_vehicle_id||Number(helper.id)===existingHelperId);
 
     const authorizedBoxes=driver?'<div class="driver-auth-selector" data-driver-truck-selector>'
       +'<label class="driver-auth-search-label" for="driver-truck-search">Find a truck</label>'
@@ -227,6 +312,7 @@ const FleetUI = {
       +'</div>':'';    const identity=[
       {name:'person_type',type:'hidden',value:type},
       {name:'full_name',label:'Full Name (LAST NAME, FIRST NAME)',required:true,col:12,value:p.full_name},
+      {name:'attendance_group',label:'Attendance Group',type:'select',required:true,col:6,value:p.attendance_group,options:[['car_carrier_dispatcher','Car Carrier'],['container_wingvan_dispatcher','Container / Wing Van']],help:'For Time In when no regular truck exists. Trip authorization stays separate.'},
       {name:'employee_no',label:'Employee No.',col:4,value:p.employee_no},
       {name:'contact_number',label:'Contact Number',col:4,value:p.contact_number},
       {name:'date_hired',label:'Date Hired',type:'date',col:4,value:p.date_hired},
@@ -286,25 +372,27 @@ const FleetUI = {
       ])] : []),
       FormComponents.section('Additional Information','bi-file-earmark-text',additional),
     ];
-    return FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
+    const wrap=FormComponents.modal((p.id?'Edit ':'Add ')+type,sections,'Fleet.crew_save',{
       intro:'Role: '+type+'. A fixed Truck can be reassigned by the Operations Head if both resources are free from active trips.',
       extra:p.id?{id:p.id}:{},
       submit:'Save '+type,
       compact:true,
       compactSize:driver?'normal':'small',
       transform:(values,form)=>{
-        if(!driver)return values;
+        const draftId=form.closest('.modal')?.dataset.draftId;
+        if(!driver)return draftId?{...values,draft_id:draftId}:values;
         const authorized=[...form.querySelectorAll('[data-driver-truck-selector] input:checked')]
           .map(input=>Number(input.name.slice('auth_truck_'.length)));
         for(const key of Object.keys(values).filter(k=>/^auth_truck_\d+$/.test(k)))delete values[key];
-        const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked');
-        // When changing Trucks, use the Helper linked to the target Truck.
-        // Never move the previous Truck's Helper without explicit selection.
         const chosenTruck=allTrucks.find(t=>Number(t.id)===authorized[0]);
-        const regularHelper=selectedHelper?Number(selectedHelper.name.slice('regular_helper_choice_'.length))
-          :Number(chosenTruck?.assigned_helper_id||0)||null;
+        // Existing fixed pairings are immutable here. For an unpaired Truck,
+        // require the Helper that the user explicitly selected in this form.
+        const fixedHelper=Number(chosenTruck?.assigned_helper_id||0);
+        const selectedHelper=form.querySelector('[data-driver-helper-selector] input:checked:not(:disabled)');
+        const regularHelper=fixedHelper||(selectedHelper
+          ? Number(selectedHelper.name.slice('regular_helper_choice_'.length)) : null);
         for(const key of Object.keys(values).filter(k=>/^regular_helper_choice_\d+$/.test(k)))delete values[key];
-        return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||''};
+        return {...values,authorized_vehicle_ids:JSON.stringify(authorized),regular_helper_id:regularHelper||'',...(draftId?{draft_id:draftId}:{})};
       },
       after(){UI.closeDrawer();App.route();},
       onShow(wrap,form){
@@ -385,47 +473,68 @@ const FleetUI = {
           helperEmpty.hidden=visible>0;
           helperResults.textContent='Showing '+visible+' of '+helperOptions.length+' helpers';
         };
+        // Keep a user's explicit Helper selection when a Truck changes. The old
+        // implementation silently unchecked every Helper during each refresh.
         syncHelpersForTruck=()=>{
           const selected=inputs.find(input=>input.checked);
           const truckId=selected?Number(selected.name.slice('auth_truck_'.length)):0;
           const truck=allTrucks.find(v=>Number(v.id)===truckId);
           const fixedHelper=Number(truck?.assigned_helper_id||0);
-          // A Car Carrier has no regular Helper in the current backend model.
-          const isCarrier=truck?.truck_type==='Car Carrier';
+          const selectedHelperId=Number(helperInputs.find(input=>input.checked&&!input.disabled)?.name.slice('regular_helper_choice_'.length)||0);
           helperInputs.forEach(input=>{
             const helperId=Number(input.name.slice('regular_helper_choice_'.length));
             const helper=(d.assignmentHelpers||[]).find(h=>Number(h.id)===helperId);
             const otherTruck=!!helper?.assigned_vehicle_id&&Number(helper.assigned_vehicle_id)!==truckId;
-            const selectedFixed=!isCarrier&&fixedHelper>0&&helperId===fixedHelper;
-            input.checked=selectedFixed;
-            input.disabled=isCarrier||otherTruck||fixedHelper>0;
+            const isFixed=fixedHelper>0&&helperId===fixedHelper;
+            const locked=!truck||otherTruck||fixedHelper>0;
+            input.checked=isFixed||(fixedHelper===0&&!otherTruck&&!!truck&&helperId===selectedHelperId);
+            input.disabled=locked;
             const option=input.closest('.driver-auth-option');
-            option?.classList.toggle('is-locked',input.disabled);
+            option?.classList.toggle('is-locked',locked);
+            // Never hide available Helpers when an authorized Truck is selected.
             const status=option?.querySelector('.driver-auth-option-status');
             if(status){
-              status.className='driver-auth-option-status '+(selectedFixed?'is-selected':input.disabled?'is-unavailable':'is-available');
-              status.textContent=selectedFixed?'Regular Helper · Locked':input.disabled?'Assigned / Unavailable':'Available';
+              status.className='driver-auth-option-status '+(input.checked?'is-selected':locked?'is-unavailable':'is-available');
+              status.textContent=isFixed?'Regular Helper · Locked'
+                :!truck?'Select Truck first'
+                :otherTruck?'Assigned to another Truck'
+                :fixedHelper?'Truck already has a Regular Helper'
+                :input.checked?'Selected · Pending Save':'Available';
             }
           });
-          helperCount.textContent=isCarrier?'No regular Helper for Car Carrier'
-            :fixedHelper?'Regular Helper of selected Truck'
-            :'Select an available Helper if needed';
+          const available=helperInputs.filter(input=>!input.disabled).length;
+          helperCount.textContent=!truck?'Select an authorized Truck first'
+            :fixedHelper?'This Truck already has a fixed Regular Helper'
+            :helperInputs.some(input=>input.checked&&!input.disabled)?'1 Helper selected'
+            :available?'Choose one of '+available+' available Helpers'
+            :'No unassigned Helpers available for this Truck';
+          refreshHelpers();
         };
         helperInputs.forEach(input=>input.addEventListener('change',()=>{
           if(input.checked)helperInputs.forEach(other=>{if(other!==input)other.checked=false;});
-          helperCount.textContent=helperInputs.some(input=>input.checked)?'1 Helper selected':'No Helper selected';
+          // Truck and Helper are one fixed pair; never retain a stale check.
+          syncHelpersForTruck();
         }));
         helperSearch.addEventListener('input',refreshHelpers);
         syncHelpersForTruck();refreshHelpers();
         form.addEventListener('submit',event=>{
-          if(inputs.some(input=>input.checked))return;
+          const truck=inputs.find(input=>input.checked);
+          const truckId=truck?Number(truck.name.slice('auth_truck_'.length)):0;
+          const fixed=Number(allTrucks.find(t=>Number(t.id)===truckId)?.assigned_helper_id||0);
+          const helper=helperInputs.find(input=>input.checked&&!input.disabled);
+          if(truck&&(fixed||helper))return;
           event.preventDefault();event.stopImmediatePropagation();
           const error=wrap.querySelector('.form-error');
-          if(error){error.textContent='Select at least one authorized truck.';error.style.display='block';}
-          inputs[0]?.focus();
+          if(error){
+            error.textContent=!truck?'Select exactly one Truck before saving.':'Select one available Regular Helper for the chosen Truck.';
+            error.style.display='block';
+          }
+          (!truck?inputs[0]:helperInputs.find(input=>!input.disabled)||helperSearch)?.focus();
         },true);
       },
     });
+    if(!p.id)this.bindDraft(wrap,type.toLowerCase());
+    return wrap;
   },
   async crewDetails(id, d) {
     let r; try { r = await App.api('Fleet.crew_details', { id }); } catch (e) { return UI.toast(e.message, 'error'); }
@@ -510,12 +619,10 @@ App.page('trucks', {
       empty: active.length === 0 ? 'No trucks registered yet. Add your first truck to start managing fleet records.' : 'No trucks match these filters. Try clearing your search or filters.',
     });
     ctx.el.innerHTML = `<div class="fleet-trucks-page">
-      ${RecordComponents.kpis([
-        { label: 'Total Trucks', value: active.length },
-        { label: 'Available', value: count('Available'), color: 'green', go: 'trucks?status=Available' },
-        { label: 'Assigned / On Trip', value: count('Assigned') + count('On Trip'), color: 'blue' },
-        { label: 'Under Maintenance', value: count('Under Maintenance'), color: count('Under Maintenance') ? 'red' : '', go: 'trucks?status=Under%20Maintenance' },
-      ])}
+      <div class="small text-muted mb-2">Active trucks: <b>${UI.num(active.length)}</b>
+        · <a href="#trucks?status=Available">Available: ${UI.num(count('Available'))}</a>
+        · Assigned / On Trip: ${UI.num(count('Assigned') + count('On Trip'))}
+        · <a href="#trucks?status=Under%20Maintenance">Under Maintenance: ${UI.num(count('Under Maintenance'))}</a></div>
       ${RecordComponents.tabs([{value:'master',label:'Master List'},{value:'availability',label:'Availability'}], availabilityView ? 'availability' : 'master','data-truck-view')}
       ${RecordComponents.panel(tableHtml, RecordComponents.categories(typeTabs.map(([value,label]) => ({value,label})),q.truck_type||'','data-truck-type'))}
     </div>`;

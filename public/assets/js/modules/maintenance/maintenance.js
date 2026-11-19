@@ -27,8 +27,8 @@ const MaintUI = {
     if (j.verified_at) return j.source === 'Incident' && j.severity === 'Minor' && j.incident_status !== 'Resolved' && j.incident_status !== 'Repaired - Cleared to Continue'
       ? 'Repair verified. The trip stays On Hold until Motorpool records the vehicle clearance.'
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
-    if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident (Minor or Major) and choose the mechanic.' : 'Assign an available mechanic to start the inspection.';
-    if (j.status === 'Under Inspection') return 'Record the inspection findings and the diagnosis.';
+    if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident (Minor or Major) based on the dispatcher report; mechanic assignment comes later.' : 'Assign an available mechanic to start the inspection.';
+    if (j.status === 'Under Inspection') return j.mechanic_id ? 'Record the inspection findings and the diagnosis.' : 'Incident assessed. Assign a mechanic when inspection or repair can begin; for Minor incidents with no repair needed, use inspection-only clearance.';
     if (j.status === 'Under Repair') return 'Record the corrective action, the completion date and the evidence.';
     return 'Check the truck, then verify it to return it to service.';
   },
@@ -64,23 +64,128 @@ const MaintUI = {
     return (MaintUI.data.mechanics || []).filter(m => m.availability === 'Available' || +m.id === +currentId)
       .map(m => [m.id, `${m.full_name} · ${m.mechanic_code}${m.specialization ? ' · ' + m.specialization : ''}`]);
   },
-  /** Report a truck problem found at the garage. */
-  report(vehicleId) {
+  /** One Motorpool intake: report, lead/assisting mechanics, optional parts request. */
+  async report(vehicleId) {
     const d = MaintUI.data;
-    const ok = d.trucks.filter(v => !v.open_job && !v.on_road);
-    const mech = MaintUI.mechanicOptions();
-    UI.formModalFiles('Report a truck problem', [
-      { name: 'vehicle_id', label: 'Affected truck', type: 'select', required: true, col: 6, value: vehicleId,
-        options: ok.map(v => [v.id, `${v.plate_number}${v.truck_number ? ' · #' + v.truck_number : ''} · ${v.truck_type} (${v.status})`]),
-        help: d.trucks.length > ok.length ? 'Trucks on the road or already under repair are not listed.' : '' },
-      // MOTORPOOL_UI_V2: mechanic required when one is available (the server checks it again); no date field (server time).
-      { name: 'mechanic_id', label: 'Assign mechanic', type: 'select', required: mech.length > 0, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is timed in',
-        help: mech.length ? 'Only Available (timed-in) mechanics are listed.' : 'No mechanic is timed in. The report is saved as Reported; assign a mechanic after Time In.' },
-      { name: 'problem', label: 'Problem or defect', type: 'textarea', required: true, col: 12, placeholder: 'What is wrong with the truck? Where is the damage?' },
-      { name: 'remarks', label: 'Remarks', col: 12 },
-      { name: 'photos', label: 'Photos of the damaged part or truck condition (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="image/png,image/jpeg"' }],
-      'Maintenance.report', { submit: 'Report problem', size: 'modal-lg',
-        intro: 'The date and time reported are recorded automatically when you click Report problem. The truck is taken out of service at once (Under Maintenance) and cannot be assigned to trips until the repair is completed and verified.' });
+    const trucks = (d.trucks || []).filter(v => ['Available', 'Assigned'].includes(v.status) && !v.open_job && !v.on_road);
+    const mechanics = (d.mechanics || []).filter(m => m.availability === 'Available');
+    // The request catalog contains IDs/availability only, never stock value or supplier costs.
+    let parts = [];
+    try { parts = (await App.api('Purchasing.request_catalog')).parts || []; }
+    catch (e) { UI.toast('Parts catalog unavailable. You can report the problem and request parts later.', 'warning'); }
+    const partOptions = parts.map(p => `<option value="${+p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)} (${UI.esc(p.availability)})</option>`).join('');
+    const item = () => `<div class="mp-parts-line" data-part-row>
+      <div class="mp-parts-line-fields">
+        <div><label class="form-label">Part</label><select class="form-select" data-part>
+          <option value="">Choose part…</option>${partOptions}</select></div>
+        <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" data-qty placeholder="Qty"></div>
+      </div>
+      <button type="button" class="btn btn-outline-danger btn-sm mp-parts-remove" data-remove-part aria-label="Remove part"><i class="bi bi-trash"></i></button>
+    </div>`;
+    const fields = UI.fields([
+      { type:'html', col:12, html:'<label class="form-label" for="motorpool-truck-search">Search affected truck</label><input id="motorpool-truck-search" type="search" class="form-control form-control-sm" data-report-truck-search placeholder="Search plate number, truck number, or truck type…" autocomplete="off"><div class="form-help" data-truck-search-count aria-live="polite"></div>' },
+      { name:'vehicle_id', label:'Affected truck', type:'select', required:true, col:6, value:vehicleId,
+        options:trucks.map(v=>[v.id, v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')']),
+        help:'Trucks on trips, returning, unavailable or already under repair are excluded.' },
+      { name:'mechanic_id', label:'Lead mechanic', type:'select', required:mechanics.length>0, col:6,
+        options:mechanics.map(m=>[m.id,m.full_name+' · '+m.mechanic_code+(m.specialization?' · '+m.specialization:'')]),
+        placeholder:mechanics.length?'Choose lead mechanic…':'No available mechanic',
+        help:'Only available, timed-in mechanics are listed.' },
+      { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
+        placeholder:'Describe the truck problem and location of the damage.' },
+      { name:'remarks', label:'Remarks', col:12 },
+      { name:'photos', label:'Photo evidence of the truck problem', type:'file', multiple:true, required:true, col:12,
+        attrs:'accept="image/png,image/jpeg"' }
+    ]);
+    const assistants = mechanics.length
+      ? `<div class="mech-pick" data-assistant-list role="group" aria-label="Assisting mechanics">
+          ${mechanics.map(m=>`<label class="mech-pick-row">
+            <input type="checkbox" class="form-check-input" data-assistant-id="${+m.id}" value="${+m.id}">
+            <span><b>${UI.esc(m.full_name)}</b> · ${UI.esc(m.mechanic_code)}</span>
+          </label>`).join('')}</div>`
+      : '<p class="small text-muted mb-0">No assisting mechanics are available. Assign them later after Time In.</p>';
+    const body = `<p class="modal-intro">The report date is recorded automatically. The truck is taken out of service until the repair is completed and verified.</p>
+      <div class="purchasing-receive-section">Truck problem and lead mechanic</div>${fields}
+      <section class="mp-parts-items mt-3" data-assist-section>
+        <div class="mp-parts-items-head"><div><strong>Assisting mechanics (optional)</strong>
+          <div class="small text-muted">Choose any additional available mechanics. The lead cannot be selected twice.</div></div></div>
+        ${assistants}</section>
+      <section class="mp-parts-items mt-3" data-report-parts>
+        <div class="mp-parts-items-head"><div><strong>Parts needed (optional)</strong>
+          <div class="small text-muted">If known, request the parts now; Purchasing will process the request. Otherwise add them after inspection.</div></div>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-add-part ${parts.length?'':'disabled'}>
+            <i class="bi bi-plus-lg me-1"></i>Add part</button></div>
+        ${parts.length ? '<div data-part-list></div>' :
+          '<p class="small text-muted mb-0">No available parts catalog. You can submit the truck problem without a parts request.</p>'}
+      </section>`;
+    const wrap = UI.modal('Report a truck problem', body, async (values, form) => {
+      const assistant_mechanic_ids = [...form.querySelectorAll('[data-assistant-id]:checked')].map(i=>+i.value);
+      const parts_lines = [...form.querySelectorAll('[data-part-row]')].map(row=>({
+        part_id:row.querySelector('[data-part]').value,
+        quantity:row.querySelector('[data-qty]').value
+      }));
+      if (parts_lines.some(line=>!line.part_id||!/^[1-9][0-9]*$/.test(String(line.quantity))||+line.quantity>100000))
+        throw new Error('Each parts request row must have a part and whole-number quantity (1 to 100000).');
+      if (new Set(parts_lines.map(line=>String(line.part_id))).size!==parts_lines.length)
+        throw new Error('The same part is listed twice. Combine the quantities.');
+      if (assistant_mechanic_ids.length && !values.mechanic_id)
+        throw new Error('Choose a lead mechanic before assigning assisting mechanics.');
+      if (parts_lines.length && !values.mechanic_id)
+        throw new Error('Choose a lead mechanic before requesting parts.');
+      const res = await App.apiForm('Maintenance.report', { ...values, assistant_mechanic_ids, parts_lines }, form);
+      UI.result(res); App.route();
+    }, { submit:'Report problem', size:'modal-lg', onShow:(dialog, form)=>{
+      dialog.classList.add('mp-parts-request-modal');
+      const list=dialog.querySelector('[data-part-list]');
+      const add=dialog.querySelector('[data-add-part]');
+      const sync=()=>{
+        if (!list) return;
+        const rows=[...list.querySelectorAll('[data-part-row]')];
+        rows.forEach(row=>row.querySelector('[data-remove-part]').disabled=false);
+        // Empty parts list is allowed until the Motorpool confirms actual parts.
+      };
+      add?.addEventListener('click',()=>{if(list&&list.children.length<30){list.insertAdjacentHTML('beforeend',item());sync();}});
+      list?.addEventListener('click',event=>{
+        const button=event.target.closest('[data-remove-part]');
+        if(!button)return;
+        button.closest('[data-part-row]').remove();sync();
+      });
+      const search=form.querySelector('[data-report-truck-search]');
+      const select=form.querySelector('[name="vehicle_id"]');
+      const count=form.querySelector('[data-truck-search-count]');
+      const truckOptions=trucks.map(v=>({
+        id:String(v.id),
+        label:v.plate_number+(v.truck_number?' · #'+v.truck_number:'')+' · '+v.truck_type+' ('+v.status+')',
+        search:[v.plate_number,v.truck_number,v.truck_type,v.status].join(' ').toLowerCase()
+      }));
+      const filterTrucks=()=>{
+        const term=(search.value||'').trim().toLowerCase();
+        const selected=select.value;
+        const matches=truckOptions.filter(v=>v.search.includes(term));
+        const visible=matches.slice();
+        // Keep an already selected truck visible even while typing another search.
+        const chosen=truckOptions.find(v=>v.id===selected);
+        if(chosen&&!visible.some(v=>v.id===chosen.id))visible.unshift(chosen);
+        select.replaceChildren(new Option('Choose truck…',''));
+        visible.forEach(v=>select.add(new Option(v.label,v.id)));
+        if(selected&&visible.some(v=>v.id===selected))select.value=selected;
+        count.textContent=matches.length+' matching available truck'+(matches.length===1?'':'s')+
+          (term&&selected&&!matches.some(v=>v.id===selected)?' · currently selected truck retained':'');
+      };
+      search?.addEventListener('input',filterTrucks);
+      filterTrucks();
+      const lead=form.querySelector('[name="mechanic_id"]');
+      const updateLead=()=>{
+        dialog.querySelectorAll('[data-assistant-id]').forEach(box=>{
+          const isLead=box.value===lead.value;
+          if(isLead)box.checked=false;
+          box.disabled=isLead;
+          box.closest('label')?.classList.toggle('is-locked',isLead);
+        });
+      };
+      lead?.addEventListener('change',updateLead);updateLead();
+    } });
+    return wrap;
   },
   /** Motorpool Parts Request: existing Purchasing backend, clear line-item editing and safe truck/repair linking. */
   async requestParts(vehicleId, jobId) {
@@ -183,7 +288,7 @@ const MaintUI = {
   async openRequest(rq) {
     let r; try { r = await App.api('Purchasing.request_details', { request_id: rq.id }); } catch (e) { return UI.toast(e.message, 'error'); }
     UI.modal('Parts request ' + UI.esc(r.request.request_ref), `<p class="small text-muted">Truck ${UI.esc(r.request.plate_number)}${r.request.job_ref ? ' · repair ' + UI.esc(r.request.job_ref) : ''} · ${UI.esc(r.request.purpose)}<br>Status: ${UI.badge(r.request.status)}${r.request.notes ? ' · ' + UI.esc(r.request.notes) : ''}</p>
-      ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
+      ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Reserved', 'reserved_qty', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
   },
   /** Opens the repair record; autoAct = key of a drawer action to start at once (row shortcut, same form and checks). */
   async open(id, autoAct) {
@@ -196,10 +301,10 @@ const MaintUI = {
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
     if (act) {
-      if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Select repair plan', 'primary', 'bi-clipboard-pulse']);
+      if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Assess incident', 'primary', 'bi-clipboard-pulse']);
       if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
-      if (j.status === 'Under Inspection') acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
-      if (j.status === 'Under Repair') acts.push(['complete', 'Complete repair', 'primary', 'bi-check2-circle']);
+      if (j.status === 'Under Inspection') acts.push(j.mechanic_id ? ['inspect', 'Record findings', 'primary', 'bi-search'] : ['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
+      if (j.status === 'Under Repair') acts.push(+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']);
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
       // INCIDENT_CLEARANCE_V1: Motorpool's Fit / Not Fit to Continue decision for a Minor trip incident.
       if (i && i.severity === 'Minor' && !['Repaired - Cleared to Continue', 'Resolved'].includes(i.status)) acts.push(['clearance', 'Vehicle clearance', j.verified_at ? 'primary' : 'outline-primary', 'bi-sign-stop']);
@@ -207,8 +312,10 @@ const MaintUI = {
       // hidden when the database update is missing, so the custodian can see why it cannot be used.
       if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status)) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
         : ['helpers-off', 'Add mechanics (needs database update 12)', 'outline-secondary disabled', 'bi-people']);
-      if (['Under Inspection', 'Under Repair'].includes(j.status)) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right'],
-        ['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
+      if (['Under Inspection', 'Under Repair'].includes(j.status)) {
+        if (j.mechanic_id) acts.push(['mech', 'Change lead mechanic', 'outline-secondary', 'bi-arrow-left-right']);
+        acts.push(['parts', 'Request parts', 'outline-secondary', 'bi-box-seam']);
+      }
     }
     const partsCost = r.parts.reduce((a, p) => a + (+p.released_qty) * (+p.unit_cost || 0), 0), other = r.costs.reduce((a, c) => a + +c.amount, 0);
     const truckLine = `<b>${UI.esc(j.plate_number)}</b>${j.truck_number ? ' · #' + UI.esc(j.truck_number) : ''} · ${UI.esc(j.truck_type)} · ${UI.badge(j.truck_status)}`;
@@ -226,7 +333,7 @@ const MaintUI = {
     // Separate the single recommended workflow action from optional supporting tasks.
     // Vehicle clearance stays available for eligible Minor incidents but does not
     // compete visually with inspection, completion, or verification.
-    const mainAction = acts.find(([a]) => ['assess', 'mech', 'inspect', 'complete', 'verify'].includes(a) && (a !== 'mech' || j.status === 'Reported'))
+    const mainAction = acts.find(([a]) => ['assess', 'mech', 'inspect', 'complete', 'verify'].includes(a) && (a !== 'mech' || !j.mechanic_id))
       || acts.find(([a]) => a === 'clearance');
     const supportActions = acts.filter(a => a !== mainAction);
     const actionButton = ([a, l, c, ic]) => `<button type="button" class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}" aria-hidden="true"></i> ` : ''}${UI.esc(l)}</button>`;
@@ -236,8 +343,12 @@ const MaintUI = {
         ${mainAction ? `<div class="mp-repair-main-action"><span class="small text-muted">Recommended action</span>${actionButton(mainAction)}</div>` : ''}
       </div>
       ${supportActions.length ? `<div class="mp-repair-support-actions"><strong>Other actions</strong><div class="mp-repair-support-buttons">${supportActions.map(actionButton).join('')}</div></div>` : ''}
-      ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at) : 'Reported at the garage')],
+      ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at)
+          : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.preDispatch.actor) + ' · ' + UI.datetime(r.preDispatch.completed_at)
+          : j.trip_ref ? 'Checklist-linked truck problem · ' + UI.esc(j.trip_ref) : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
+        r.preDispatch ? ['Pre-dispatch NOT OK items', (r.preDispatchFindings || []).length
+          ? UI.esc(r.preDispatchFindings.join('; ')) : 'No recorded NOT OK findings'] : null,
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
         ])}
       ${UI.h('Mechanics and repair')}${progress}${readiness}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
@@ -253,7 +364,8 @@ const MaintUI = {
         ['Vehicle clearance', i.clearance ? `${UI.badge(i.clearance)} · ${UI.e(i.cleared_by_name)} · ${UI.datetime(i.cleared_at)}<div class="small text-muted">${UI.e(i.clearance_findings)}</div>` : '<span class="text-muted">Not recorded</span>'],
         ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}
       ${UI.h('Parts and costs', UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-link btn-sm p-0" data-partspage="${+j.vehicle_id}"><i class="bi bi-box-seam"></i> Open in Parts Requests</button>` : '')}
-      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part', 'part_number'], ['Description', 'description'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
+      ${+r.pending_parts_units > 0 ? '<div class="alert alert-warning small">Repair completion is blocked: ' + UI.num(r.pending_parts_units) + ' requested unit(s) await Purchasing release. Open Parts Requests to follow up.</div>' : ''}
+      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
       ${r.costs.length ? UI.table([['Type', 'cost_type'], ['Description', 'description'], ['Provider', 'provider'], ['Date', 'incurred_on', 'date'], ['Amount', 'amount', 'money']], r.costs, { plain: true }) : '<div class="text-muted small mb-2">No labor or outside costs.</div>'}
       <div class="text-end small">Parts ${UI.money(partsCost)} + other ${UI.money(other)} = <b>${UI.money(partsCost + other)}</b></div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
@@ -271,11 +383,10 @@ const MaintUI = {
       const a = b.dataset.a;
       if (a === 'helpers') return MaintUI.addHelpers(j, r.helpers, reopen);
       const mech = MaintUI.mechanicOptions(j.mechanic_id);
-      if (a === 'assess') UI.formModal('Repair plan for ' + UI.esc(i.incident_ref), [
-          { name: 'severity', label: 'Repair plan', type: 'select', required: true, col: 12, options: [['Minor', 'Repair at the incident location; continue the trip after clearance'], ['Major', 'Return the truck for repair; reschedule the trip']] },
-          { name: 'mechanic_id', label: 'Mechanic sent / assigned', type: 'select', required: true, col: 6, options: mech, placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
-          { name: 'recommendation', label: 'Repair recommendation', type: 'textarea', required: true, col: 12 }],
-        'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>${UI.esc(i.problem)}</b> at ${UI.esc(i.location)}.<br>Select the actual repair approach: repair at the incident location and continue after clearance, or return the truck for repair and reschedule the trip.`, after: reopen });
+      if (a === 'assess') UI.formModal('Incident assessment · ' + UI.esc(i.incident_ref), [
+          { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12, options: [['Minor', 'Potential on-site resolution; trip stays On Hold pending clearance'], ['Major', 'Not Fit to Continue; reschedule the trip'], ['Needs More Information', 'Request missing details from Dispatcher; keep trip On Hold']] },
+          { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12 }],
+        'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>Dispatcher incident report (read-only)</b><div class="mt-2"><b>Problem:</b> ${UI.esc(i.problem)}<br><b>Location:</b> ${UI.esc(i.location)}<br><b>Reported:</b> ${UI.datetime(i.incident_at)}<br><b>Details:</b> ${UI.e(i.details)}</div><div class="mt-2 small text-muted">Assess based on available reports; no mechanic or physical inspection is required now. If the report is insufficient, choose Needs More Information (trip remains On Hold). A Major classification moves the trip to For Reschedule. Assign a mechanic separately when inspection or repair can begin.</div>`, after: reopen });
       if (a === 'mech') UI.formModal((j.mechanic_id ? 'Change mechanic for ' : 'Assign mechanic to ') + UI.esc(j.job_ref), [
           { name: 'mechanic_id', label: 'Mechanic', type: 'select', required: true, col: 12, options: mech.filter(o => +o[0] !== +j.mechanic_id), placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
           ...(j.mechanic_id ? [{ name: 'reason', label: 'Reason for the change', required: true, col: 12 }] : [])],
@@ -285,6 +396,7 @@ const MaintUI = {
           { name: 'diagnosis', label: 'Diagnosis', type: 'textarea', required: true, col: 12, placeholder: 'Cause of the problem and what must be repaired or replaced' },
           { name: 'photos', label: 'More photos (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="image/png,image/jpeg"' }],
         'Maintenance.inspect', { extra: { job_id: j.id }, submit: 'Save and start repair', after: reopen });
+      if (a === 'complete' && +r.pending_parts_units > 0) return UI.toast('Purchasing must release the requested parts first (' + r.pending_parts_units + ' units pending).', 'error');
       if (a === 'complete') UI.formModalFiles('Complete repair ' + UI.esc(j.job_ref), [
           { name: 'repair_performed', label: 'Corrective action performed', type: 'textarea', required: true, col: 12 },
           { name: 'completed_on', label: 'Completion date', type: 'date', value: UI.today(), required: true, col: 6 }, { name: 'remarks', label: 'Remarks', col: 6 },
@@ -315,9 +427,9 @@ const MaintUI = {
   /** WS_DESIGN_V1: the one next workflow step offered directly on a Repair Management row (Motorpool only). */
   rowStep(j) {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
-    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Select repair plan', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
-    if (j.status === 'Under Inspection') return ['inspect', 'Record findings', 'bi-search'];
-    if (j.status === 'Under Repair') return ['complete', 'Complete repair', 'bi-check2-circle'];
+    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    if (j.status === 'Under Repair') return +j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle'];
     if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
     return null;
   },
@@ -518,26 +630,30 @@ App.page('maintenance', {
       ['Under Repair', repair.length, 'bi-wrench-adjustable', 'maintenance?view=repair', 'Complete corrective work', 'amber'],
       ['Verify', verify.length, 'bi-shield-check', 'maintenance?view=verify', 'Return to service check', 'purple']
     ];
-    const stageSummary = `<div class="mp-action-stages mp-reference-stages mb-3">${stageTiles.map(([name, count, icon, go, hint, color]) =>
-      `<button type="button" class="mp-action-stage" data-kpi-color="${color}" data-go="${UI.esc(go)}">
-        <span class="mp-action-stage-icon"><i class="bi ${icon}" aria-hidden="true"></i></span>
-        <span class="mp-action-stage-content"><b>${UI.esc(name)}</b><small>${UI.esc(hint)}</small></span>
-        <strong class="mp-action-stage-count">${UI.num(count)}</strong></button>`).join('')}</div>`;
+    // Stage shortcuts stay clickable without duplicating the page's full KPI-card row.
+    const stageSummary = `<div class="d-flex flex-wrap align-items-center gap-2 mb-3" role="group" aria-label="Repair stage shortcuts">${stageTiles.map(([name, count, icon, go, hint]) =>
+      `<button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2" data-go="${UI.esc(go)}" title="${UI.esc(hint)}">
+        <i class="bi ${icon}" aria-hidden="true"></i><span>${UI.esc(name)}</span>
+        <span class="badge rounded-pill text-bg-light border">${UI.num(count)}</span></button>`).join('')}</div>`;
     ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + stageSummary
-      + (d.can.act ? UI.quickBar([{ label: 'Report truck problem', icon: 'bi-plus-lg', act: 'report', primary: true }]) : '')
       + `<section class="panel mb-3 mp-wireframe-flow"><div class="panel-body py-2 px-3">
-       <div class="d-flex flex-wrap align-items-center gap-2 small">
-         <strong class="me-1"><i class="bi bi-tools me-1" aria-hidden="true"></i>Repair process</strong>
-         <span>Report</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-         <span>Inspect &amp; repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-         <span>Verify</span>
-         <span class="text-muted ms-md-auto">Select a record to view details and its next action.</span>
+       <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+         <div class="d-flex flex-wrap align-items-center gap-2 small">
+           <strong class="me-1"><i class="bi bi-tools me-1" aria-hidden="true"></i>Repair process</strong>
+           <span>Report</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+           <span>Inspect &amp; repair</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+           <span>Verify</span>
+         </div>
+         <div class="d-flex flex-column align-items-end gap-2 ms-auto">
+           <span class="text-muted small">Select a record to view details and its next action.</span>
+           ${d.can.act ? '<button type="button" class="btn btn-sm btn-primary" data-qa="report"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i> Report truck problem</button>' : ''}
+         </div>
        </div></div></section>`
        + UI.statusTabs('maintenance', q, 'view', TABS, tab)
        + UI.filterModal(ctx, filters, { hint: 'All trucks, mechanics and sources.' });
     const waited = (j) => { const days = Math.max(0, Math.floor((Date.now() - new Date(String(j.reported_on) + 'T00:00:00').getTime()) / 86400000));
       return days === 0 ? '<span class="text-muted">today</span>' : `<span class="${days >= 7 ? 'text-danger fw-semibold' : ''}">${days} day${days === 1 ? '' : 's'}</span>`; };
-    const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Arrival checklist ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
+    const cols = [['Record', 'job_ref', (v, j) => `<b>${UI.esc(v)}</b><div class="cell-sub">${j.source === 'Incident' ? 'Incident ' + UI.esc(j.incident_ref || '') : (j.trip_ref ? 'Checklist / garage ' + UI.esc(j.trip_ref) : 'Garage report')}</div>`],
       ['Truck', 'plate_number', (v, j) => `${UI.esc(v)}<div class="cell-sub">${UI.esc(j.truck_type)}</div>`],
       ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`],
       ['Mechanic', 'mechanic', (v, j) => { const n = (d.helpers || []).filter(h => +h.job_id === +j.id).length; return v ? UI.esc(v) + (n ? ` <span class="badge-s blue" title="${n} assisting mechanic(s)">+${n}</span>` : '') : '<span class="text-muted">Not assigned</span>'; }],
@@ -547,7 +663,7 @@ App.page('maintenance', {
     // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
     const opt = { directActions: true, showAllColumns: true,
       actions: (j) => { const st = MaintUI.rowStep(j);
-        return (st ? `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
+        return (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
           + (d.can.act && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.ibtn('helpers', 'Add mechanics', 'bi-people') : '')
           + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) ? UI.ibtn('parts', 'Request parts', 'bi-box-seam') : '')
           + UI.ibtn('view', 'Open record', 'bi-eye'); },
@@ -587,7 +703,7 @@ const MpParts = {
   nextStep(r) {
     // MOTORPOOL_UI_V2: order state for open requests (from Purchasing records; no supplier or cost shown).
     if (MpParts.OPEN.includes(r.status) && r.last_received_at && (!r.last_released_at || r.last_received_at > r.last_released_at))
-      return 'Ordered parts arrived on ' + UI.date(r.last_received_at) + '. Waiting for release.';
+      return 'Some linked PO parts were physically received on ' + UI.date(r.last_received_at) + '. Waiting for Purchasing release.';
     if (MpParts.OPEN.includes(r.status) && +r.on_order) return 'Ordered by Purchasing. Waiting for delivery.';
     return {
       'Requested': 'Waiting for the Purchasing Officer to check the stock and release.',
@@ -636,6 +752,7 @@ App.page('mp_parts_requests', {
       ['Truck / repair', 'plate_number', (v, r) => `${UI.esc(v)}${r.job_ref ? `<div class="cell-sub">${UI.esc(r.job_ref)}</div>` : ''}`],
       ['Items', 'items', (v) => `<span class="cell-clip">${UI.esc(v || '')}</span>`],
       ['Progress', 'progress'],
+      ['Reserved', 'reserved_units', (v) => UI.num(v || 0)],
       ['Last released', 'last_released_at', (v) => v ? UI.datetime(v) : '<span class="text-muted">Not yet</span>'],
       ['Status', 'status', 'badge'],
       ['Next step', 'next', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],

@@ -91,10 +91,11 @@ const App = {
     document.getElementById('app').innerHTML = `
     <div class="auth-page"><div class="auth-shell">
       <section class="auth-side" aria-hidden="true">
-        <div class="auth-side-brand"><span class="auth-logo-frame"><img src="assets/img/logo.png" alt="" class="auth-logo" onerror="this.remove()"></span>
-          <div><div class="auth-side-company">R.P. Mulawin Trucking Services</div><div class="auth-side-product">Mulawin FleetOps</div></div></div>
-        <div class="auth-side-copy"><h2>Fleet operations and financial monitoring</h2>
-          <p>Manage trips, fleet, maintenance, purchasing, billing and company records in one secure system.</p></div>
+        <div class="auth-side-brand"><span class="auth-logo-frame"><img src="assets/img/logo.png?v=20261119" alt="" class="auth-logo" onerror="this.remove()"></span>
+          <div class="auth-side-brand-text"><div class="auth-side-company">R.P. Mulawin Trucking Services</div><div class="auth-side-product">Mulawin FleetOps</div></div></div>
+        <div class="auth-side-copy"><h2><span>Driven by</span><br> <strong>reliability.</strong></h2>
+          <span class="auth-side-rule" aria-hidden="true"></span>
+          <p>Manage trips, fleet, maintenance, purchasing, billing and company financial monitoring in one secure system.</p></div>
       </section>
       <main class="auth-main"><div class="auth-card" id="authCard">${inner}</div>
         <p class="auth-foot">Mulawin FleetOps &copy; ${new Date().getFullYear()} · Authorized personnel only</p></main>
@@ -315,7 +316,7 @@ const App = {
     const roleShortNames = { motorpool: { maintenance: 'Repair management', trucks: 'Truck masterlist', mechanics: 'Mechanic masterlist' } };
     const nameOf = (id) => (roleShortNames[u.role] || {})[id] || shortNames[id];
     const order = mainPages[u.role] || ['dashboard'];
-    const allowed = me.nav.filter(n => n.id !== 'notifications'); // bell already links to notifications
+    const allowed = me.nav.filter(n => !['notifications','activity_feed'].includes(n.id)); // topbar icons own these pages
     const primary = order.map(id => allowed.find(n => n.id === id)).filter(Boolean);
     const primaryIds = new Set(primary.map(n => n.id));
     const extra = allowed.filter(n => !primaryIds.has(n.id));
@@ -433,7 +434,7 @@ const App = {
         const groups = [
           { title:'Repair Operations', icon:'bi-wrench-adjustable', ids:['maintenance','mp_parts_requests'] },
           { title:'Personnel', icon:'bi-people', ids:['mechanics','mechanic_attendance'] },
-          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','maintenance_reports'] }
+          { title:'Records & History', icon:'bi-folder2-open', ids:['maint_history','reports_center'] }
         ];
         nav += groups.map(group => {
           const entries = take(group.ids);
@@ -468,7 +469,7 @@ const App = {
         }).join('');
         // Purchasing has one reporting destination: show it directly as a
         // primary sidebar link instead of a one-item "Records & Reports" group.
-        nav += take(['purchasing_reports']).map(n => wsLink({ ...n, label:'Reports' })).join('');
+        nav += take(['reports_center']).map(n => wsLink({ ...n, label:'Reports' })).join('');
         const remaining = items.filter(n => !shown.has(n.id));
         if (remaining.length) nav += UI.sidebarGroup({
           title:'Other Tools', icon:'bi-grid-3x3-gap',
@@ -482,11 +483,11 @@ const App = {
         const lookup = id => items.find(n => n.id === id);
         const home = lookup('billing_overview');
         nav = home ? wsLink({ ...home, label: 'Dashboard' }) : '';
-        const ordered = ['approvals', 'billing', 'billing_collections', 'billing_receivables', 'reports']
+        const ordered = ['approvals', 'billing', 'billing_collections', 'billing_receivables', 'reports_center']
           .map(lookup).filter(Boolean);
         // BILLING_FLAT_NAV_V3: four primary links, no expandable Billing parent.
-        if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports'
-          ? { ...n, label: 'Billing Reports' } : n)).join('');
+        if (ordered.length) nav += ordered.map(n => wsLink(n.id === 'reports_center'
+          ? { ...n, label: 'Reports' } : n)).join('');
         // Clients, routes, trips and documents are supporting pages, opened
         // from authorized record links, not primary Billing menu entries.
       } else {
@@ -569,6 +570,14 @@ const App = {
                 <div class="bell-head"><span>Notifications</span><button type="button" class="btn btn-link btn-sm p-0" id="bellReadAll">Mark all as read</button></div>
                 <div id="bellList" class="bell-list"></div>
                 <a href="#notifications" class="bell-foot" id="bellAll">View all notifications</a>
+              </div>
+            </div>
+            <div class="dropdown">
+              <button class="icon-btn bell updated-bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Recent System Activity" title="Recent System Activity" id="activityBtn"><i class="bi bi-clock-history" aria-hidden="true"></i></button>
+              <div class="dropdown-menu dropdown-menu-end bell-menu">
+                <div class="bell-head"><span>Recent System Activity</span></div>
+                <div id="activityList" class="bell-list"><div class="bell-empty">Loading recorded activity…</div></div>
+                <a href="#audit_logs" class="bell-foot" id="activityAll">View Activity Log</a>
               </div>
             </div>
             <button class="profile-btn my-profile-trigger" type="button" id="myProfileBtn" aria-label="My Profile" title="View my profile">
@@ -769,7 +778,18 @@ const App = {
     document.getElementById('myProfileBtn').onclick = () => this.showMyProfile();
     document.getElementById('bellReadAll').onclick = async () => { if (!await UI.confirmProceed('Mark notifications as read', 'Mark all notifications as read?', 'Mark all as read')) return; try { this.applyBell(await this.api('Admin.notifications_read', {})); } catch (e) { UI.toast(e.message, 'error'); } };
     document.getElementById('bellAll').onclick = () => bootstrap.Dropdown.getInstance(document.getElementById('bellBtn'))?.hide();
+    // Use the EXISTING audited Activity Log as the full-history destination.
+    // Other roles retain their own-action dropdown only; never expose Audit Log.
+    const activityAll = document.getElementById('activityAll');
+    activityAll.hidden = !UI.canGo('audit_logs');
+    activityAll.style.display = UI.canGo('audit_logs') ? '' : 'none';
+    activityAll.onclick = e => {
+      if (!UI.canGo('audit_logs')) { e.preventDefault(); return; }
+      bootstrap.Dropdown.getInstance(document.getElementById('activityBtn'))?.hide();
+    };
+    document.getElementById('activityBtn').addEventListener('show.bs.dropdown', () => this.refreshActivity());
     this.renderBell();
+    this.refreshActivity();
   },
 
   /** Show real account details for the authenticated user, not demo identities. */
@@ -830,7 +850,7 @@ const App = {
         { duration: 450, easing: 'ease-out' });
     }
     const list = document.getElementById('bellList');
-    list.innerHTML = me.notifications.length ? me.notifications.map(n => `
+    list.innerHTML = me.notifications.length ? me.notifications.slice(0,5).map(n => `
       <div class="bell-item ${n.state === 'Unread' ? 'unread' : ''}" data-nid="${n.id}">
         <div class="bell-item-main" data-nopen="${n.id}" role="button" tabindex="0"><div class="bell-cat">${UI.esc(n.category)}</div><div class="bell-msg">${UI.esc(n.message)}</div>
           <div class="bell-time">${UI.datetime(n.created_at)}</div></div>
@@ -858,9 +878,81 @@ const App = {
     try { const r = await this.api('Admin.notifications_read', { id, state }); this.applyBell(r); return r; }
     catch (e) { UI.toast(e.message, 'error'); return null; }
   },
+  // Separate, read-only activity feed. Never expose global audit details to
+  // regular roles; the server scopes audit events to the current actor.
+  async refreshActivity() {
+    const list = document.getElementById('activityList');
+    if (!this.me || !list || document.hidden) return;
+    try {
+      let items;
+      try {
+        const feed = await this.data('activity_feed');
+        if (!Array.isArray(feed?.items)) throw new Error('Activity feed returned no item list.');
+        items = feed.items;
+      } catch (feedError) {
+        // Reuse the existing, permission-checked Audit Logs backend as a
+        // recovery path. Never request global audit logs for ordinary roles.
+        if (!UI.canGo('audit_logs')) throw feedError;
+        console.warn('Activity feed unavailable; using existing Audit Logs.', feedError);
+        const today = new Date();
+        const to = UI.nowManila().slice(0,10);
+        const fromDate = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const from = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(fromDate);
+        const audit = await this.data('audit_logs', {from, to});
+        if (!Array.isArray(audit?.events)) throw new Error('Audit Logs returned no event list.');
+        items = audit.events.slice(0,10);
+      }
+      if (!document.getElementById('activityList') || list !== document.getElementById('activityList')) return;
+      // Leave dropdown position/scroll intact when the feed has not changed.
+      const signature = JSON.stringify(items);
+      if (this._activitySignature === signature) return;
+      this._activitySignature = signature;
+      const top = list.scrollTop;
+      // Keep the dropdown human-readable; technical audit references and
+      // field changes remain available in the existing Activity Log page.
+      const activitySummary = action => {
+        const a = String(action || '').trim();
+        const normalized = a.toLowerCase();
+        if (normalized === 'regular helper assigned') return 'assigned a helper to a truck.';
+        if (normalized === 'fixed truck reassigned') return "reassigned a driver's truck.";
+        if (normalized === 'truck added') return 'added a new truck.';
+        if (normalized === 'signed in') return 'signed in.';
+        if (normalized === 'signed out') return 'signed out.';
+        if (normalized === 'driver/helper added') return 'added a driver or helper.';
+        if (normalized === 'driver/helper updated') return 'updated a driver or helper record.';
+        if (normalized === 'truck and crew assigned manually') return 'assigned a truck and crew to a trip.';
+        // For less common audit actions, preserve the logged meaning rather
+        // than guessing a person, vehicle, or outcome from numeric IDs.
+        if (!a) return 'performed a recorded system action.';
+        return 'performed an action: ' + a.charAt(0).toLowerCase() + a.slice(1).replace(/[.]+$/, '') + '.';
+      };
+      const today = UI.nowManila().slice(0,10);
+      const timestamp = value => {
+        const raw = String(value || '');
+        const formatted = UI.datetime(value);
+        return raw.slice(0,10) === today
+          ? 'Today · ' + String(formatted).split(', ').slice(-1)[0]
+          : formatted;
+      };
+      list.innerHTML = items.length
+        ? items.slice(0,5).map(item => '<div class="bell-item"><div class="bell-item-main">'
+            + '<div class="bell-msg"><strong>'+UI.esc(item.actor || 'System')+'</strong> '
+            + UI.esc(activitySummary(item.action))+'</div>'
+            + '<div class="bell-time">'+UI.esc(timestamp(item.created_at))+'</div>'
+            + '</div></div>').join('')
+        : '<div class="bell-empty"><i class="bi bi-clock-history"></i><span>No recorded activity yet.</span></div>';
+      list.scrollTop = top;
+    } catch (err) {
+      if (list && !this._activitySignature)
+        list.innerHTML = '<div class="bell-empty"><span>Unable to load recorded activity.</span><button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="activityRetry">Retry</button></div>';
+      list?.querySelector('#activityRetry')?.addEventListener('click', () => this.refreshActivity());
+      console.warn('Recent Activity refresh failed', err);
+    }
+  },
   async refreshBell() {
     if (!this.me) return;
     try { const me = await this.request('index.php?api=me'); this.me.notifications = me.notifications; this.me.unread = me.unread; this.renderBell(); } catch { }
+    await this.refreshActivity();
   },
 
   // ---------------------------------------------------------------- router (#page?x=y)
@@ -951,6 +1043,8 @@ const App = {
     // Billing-only compact presentation; never leak styles into other roles or pages.
     el.classList.toggle('billing-design-v2', UI.role('billing') && ['billing_overview','billing','billing_collections','billing_receivables','reports'].includes(page));
     el.classList.toggle('ref-scope', UI.REF_PAGES.has(page) && document.body.classList.contains('ref-body'));
+    // Report-specific layout works in both Admin and delegated-role shells.
+    el.classList.toggle('report-layout-scope', ['maintenance_reports','purchasing_reports','admin_reports'].includes(page));
     const def = this.pages[page];
     if (!def) {
       el.innerHTML = `<div class="page-head"><div><h1 class="page-title">${UI.esc(nav.label)}</h1></div></div>
@@ -964,24 +1058,38 @@ const App = {
         <div class="page-actions no-print" id="pageTools"></div>
         <button type="button" id="rpmBackToTop" class="rpm-back-to-top no-print" aria-label="Back to top" title="Back to top" hidden><span>Back to top</span></button></div>
         <div id="pageBody" class="page-body"><div class="loading-block"><span class="spinner-border spinner-border-sm"></span> Loading…</div></div>`;
-    // Add only an access indicator to the existing header, without replacing
-    // the page shell or the page-body DOM structure used by every module.
-    if (!['admin_analytics', 'admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
-      const header = el.querySelector('.page-head');
-      const actions = header?.querySelector('#pageTools');
-      if (header && actions) {
-        const access = document.createElement('span');
-        access.className = 'page-access-tag';
-        const badgeIcon = document.createElement('i');
-        badgeIcon.className = 'bi bi-shield-check';
-        badgeIcon.setAttribute('aria-hidden', 'true');
-        const label = document.createElement('span');
-        const currentUser = this.me.user;
-        label.textContent = currentUser.role === 'admin' ? 'Management access'
-          : (currentUser.role_label || currentUser.role.replace(/_/g, ' ')) + ' access';
-        access.append(badgeIcon, label);
-        header.insertBefore(access, actions);
+    // Put report navigation directly below the access indicator, never in the
+    // variable page-action toolbar. Other roles never receive this button.
+    const header = el.querySelector('.page-head');
+    const actions = header?.querySelector('#pageTools');
+    // Descriptive/Diagnostic render their heading and Admin controls together
+    // inside the analytics card; avoid a detached, empty shared header.
+    if (header && actions && !['admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
+      const isReport = ['reports','operations_reports','financial_reports','billing_reports',
+        'maintenance_reports','purchasing_reports','audit_reports','admin_reports','admin_analytics',
+        'admin_descriptive_analytics','admin_diagnostic_analytics'].includes(page);
+      const accessGroup = isReport ? document.createElement('div') : null;
+      if (accessGroup) accessGroup.className = 'page-access-actions no-print';
+      const access = document.createElement('span');
+      access.className = 'page-access-tag';
+      const badgeIcon = document.createElement('i');
+      badgeIcon.className = 'bi bi-shield-check';
+      badgeIcon.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      const currentUser = this.me.user;
+      label.textContent = currentUser.role === 'admin' ? 'Management access'
+        : (currentUser.role_label || currentUser.role.replace(/_/g, ' ')) + ' access';
+      access.append(badgeIcon, label);
+      if (accessGroup) accessGroup.append(access);
+      if (accessGroup && currentUser.role === 'admin') {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'btn btn-sm btn-outline-secondary report-back-btn';
+        back.innerHTML = '<i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Reports';
+        back.addEventListener('click', () => App.go('reports_center'));
+        accessGroup.append(back);
       }
+      header.insertBefore(accessGroup || access, actions);
     }
     // A drawer or dialog belongs to the list it was opened from: close it when the user moves to another page, or
     // (workspace pages) to another tab / filter of the same page. A plain reload of the same view keeps it.
@@ -1085,14 +1193,14 @@ UI.refPage = () => UI.REF_PAGES.has(App.current?.page) && document.body.classLis
 UI.WS_MENUS = {
   motorpool: { dept: 'Motorpool', section: 'Maintenance', exclusive: true, items: [['maintenance_overview', 'Dashboard', 'bi-speedometer2'], ['maintenance', 'Repairs', 'bi-wrench-adjustable'],
     ['mp_parts_requests', 'Parts Requests', 'bi-box-seam'], ['mechanics', 'Mechanics', 'bi-person-gear'],
-    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['maintenance_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+    ['mechanic_attendance', 'Attendance', 'bi-person-check'], ['maint_history', 'Maintenance History', 'bi-journal-check'], ['reports_center', 'Reports', 'bi-bar-chart-line'], ['approvals', 'Approvals', 'bi-check2-square']] },
   purchasing: { dept: 'Purchasing', section: 'Purchasing', exclusive: true, items: [['purchasing_overview', 'Overview', 'bi-speedometer2'], ['parts_requests', 'Parts Requests', 'bi-box-arrow-up'],
     ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['inventory', 'Inventory', 'bi-boxes'], ['stock_movements', 'Stock Movements', 'bi-arrow-left-right'],
-    ['purchasing_reports', 'Reports', 'bi-graph-up'], ['approvals', 'Approvals', 'bi-check2-square']] },
+    ['reports_center', 'Reports', 'bi-bar-chart-line'], ['approvals', 'Approvals', 'bi-check2-square']] },
   finance: { dept: 'Finance', items: [['finance_overview', 'Overview', 'bi-speedometer2'], ['purchase_orders', 'Purchase Orders', 'bi-cart-check'], ['approvals', 'Approvals', 'bi-check2-square'],
     ['funds', 'Trip Funds', 'bi-cash-coin'], ['finance', 'Payables & Payments', 'bi-wallet2'], ['finance_budgets', 'Budgets & Expenses', 'bi-piggy-bank']] },
   billing: { dept: 'Billing', items: [['billing_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['billing', 'Billing & Invoices', 'bi-receipt'],
-    ['billing_collections', 'Collections', 'bi-cash-stack'], ['billing_receivables', 'Receivables', 'bi-hourglass-split'], ['reports', 'Billing Reports', 'bi-bar-chart-line']] },
+    ['billing_collections', 'Collections', 'bi-cash-stack'], ['billing_receivables', 'Receivables', 'bi-hourglass-split'], ['reports_center', 'Reports', 'bi-bar-chart-line']] },
   // HEAD_MANAGEMENT_V1: the Admin's own sidebar (exclusive: no extra groups). Other pages the Admin may open stay reachable
   // from the Records shortcuts of each monitoring page; permissions are unchanged (me.nav / Access::canOpen).
   admin: { dept: 'Head Management', section: 'Management', exclusive: true, items: [['admin_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'],
@@ -1100,7 +1208,7 @@ UI.WS_MENUS = {
     ['admin_finance', 'Financial Oversight', 'bi-cash-coin'], ['admin_reports', 'Executive Reports', 'bi-clipboard-check'], ['admin_analytics', 'Analytics', 'bi-graph-up'],
     ['admin', 'Users & Roles', 'bi-people'], ['audit_logs', 'Audit Trail', 'bi-journal-text']] },
   audit: { dept: 'Audit', items: [['audit_overview', 'Overview', 'bi-speedometer2'], ['approvals', 'Approvals', 'bi-check2-square'], ['audit_logs', 'Audit Logs', 'bi-journal-text'],
-    ['audit_history', 'Transaction History', 'bi-clock-history'], ['audit_reports', 'Audit Reports', 'bi-clipboard-data']] },
+    ['audit_history', 'Transaction History', 'bi-clock-history'], ['reports_center', 'Reports', 'bi-bar-chart-line']] },
 };
 UI.WS_GROUPS = [
   ['Fleet & trips', ['trips', 'trucks', 'crew', 'clients', 'routes']],
@@ -1376,7 +1484,7 @@ UI.result = (r) => {
 };
 
 /** Company logo (redrawn from the reference forms). */
-UI.logoTag = (cls = '') => `<img src="assets/img/logo.svg" alt="RPM" class="${cls}">`;
+UI.logoTag = (cls = '') => `<img src="assets/img/logo.png?v=20261119" alt="RPM" class="${cls}">`;
 
 /** A button in the page header (top right). */
 UI.tool = (ctx, label, fn, icon = '', cls = 'outline-secondary') => {
@@ -1395,9 +1503,9 @@ UI.kpiIconColor = (label, requestedColor = '') => {
   if (['green','blue','amber','red','purple'].includes(requestedColor)) return requestedColor;
   const text = String(label || '').toLowerCase();
   const rules = [
-    [/overdue|over 60|incident|cancel|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
+    [/overdue|over 60|incident|cancel|delay|problem|critical|failed|rejected|out of stock|shortage|unavailable|past due/, 'red'],
     [/not timed in|inactive|archived|draft|no action/, 'gray'],
-    [/under maintenance|under repair|low stock|follow.up|pending|awaiting|to approve|for approval|for billing|to bill|for review|needs attention|approval|verification|verify|to release|to liquidate/, 'amber'],
+    [/under maintenance|under repair|scheduled|preparing|reschedul|low stock|follow.up|pending|awaiting|to approve|for approval|for billing|to bill|for review|needs attention|approval|verification|verify|to release|to liquidate/, 'amber'],
     [/collected|completed|complete|available|paid|delivered|resolved|successful|released|received|on duty/, 'green'],
     [/on trip|ongoing|in progress|active|dispatch|to receive|new parts|requests|trips|truck|vehicle|fleet|route|delivery/, 'blue'],
     [/outstanding|balance|cash|revenue|receivable|billing|invoice|finance|budget|expenses|expense|cost|payment|fund|rate|amount|money/, 'purple'],
@@ -1412,8 +1520,8 @@ UI.kpiIconColor = (label, requestedColor = '') => {
 UI.metricVisual = (card) => {
   const label = String(card.label || '').toLowerCase();
   const rules = [
-    [/overdue|incident|cancelled|canceled|critical|failed|shortage|out of stock|unavailable|rejected|problem/, 'bi-exclamation-triangle', 'red'],
-    [/under maintenance|repair|needs attention|low stock|pending|awaiting|for approval|for review|follow.up|verification|verify/, 'bi-tools', 'amber'],
+    [/overdue|incident|cancelled|canceled|delay|problem|critical|failed|shortage|out of stock|unavailable|rejected|problem/, 'bi-exclamation-triangle', 'red'],
+    [/under maintenance|repair|scheduled|preparing|reschedul|needs attention|low stock|pending|awaiting|for approval|for review|follow.up|verification|verify/, 'bi-tools', 'amber'],
     [/completed|complete|finished|resolved|collected|paid|delivered|available|success/, 'bi-check-circle', 'green'],
     [/ongoing|in progress|in transit|on trip|active trip|dispatched|dispatch|route|to bill|for billing/, 'bi-truck', 'blue'],
     [/finance|revenue|receivable|invoice|billing|expense|cost|budget|amount|payment|fund|rate|money/, 'bi-wallet2', 'purple'],
@@ -1433,7 +1541,7 @@ UI.metricVisual = (card) => {
 UI.statusStrip = (items) => `<div class="metric-strip metric-strip-icons">${(items || []).map(c => {
   const go = c.go && UI.canGo(c.go);
   const visual = UI.metricVisual(c);
-  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
+  return `<div class="metric ${UI.esc(c.color || '')} ${go ? 'clickable' : ''} metric-icon-card" data-kpi-color="${UI.esc(visual.color)}" ${go ? `data-go="${UI.esc(c.go)}" role="link" tabindex="0"` : ''}>
     <span class="metric-icon metric-icon-${visual.color}" aria-hidden="true"><i class="bi ${visual.icon}"></i></span>
     <div class="metric-content"><div class="metric-label">${UI.esc(UI.operationsLabel(c.label))}</div>
     <div class="metric-value">${c.format === 'money' ? UI.money(c.value) : UI.esc(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div>
@@ -1533,13 +1641,28 @@ UI.overviewColumns = (columns, opts = {}) => {
   }
   return columns.filter((_,i) => chosen.has(i));
 };
+/** Detect existing "View" buttons by action ID OR displayed label.
+ * Several modules use a different data-act for "View details"; relying on
+ * a fixed set of action IDs can add a duplicate button to Manage.
+ */
+UI.hasRecordViewAction = html => {
+  const buttons = String(html || '').match(/<button\b[^>]*>[\s\S]*?<\/button>/gi) || [];
+  return buttons.some(button => {
+    if (/\bdata-fleet-details\b/i.test(button)) return true;
+    const action = button.match(/\bdata-act\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+    if (/^(view|trip|details|open)$/i.test(action)) return true;
+    const label = button.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ').trim();
+    return /^(view(?:\s+(?:details?|record|trip|info|information))?|open(?:\s+(?:details?|record|trip))?)$/i.test(label);
+  });
+};
 UI.overviewActions = (id, row) => {
   const t = UI._tables[id];
   let html = t.opts.actions ? (t.opts.actions(row) || '') : '';
   // STAGE_B_WORKSPACE_UI: tables that pass directActions show their (already role/state-filtered) icon buttons in the row,
   // instead of collapsing them behind a "Manage" chooser.
   if (t.opts.directActions) return `<div class="row-icons">${html}</div>`;
-  const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(html);
+  const hasView = UI.hasRecordViewAction(html);
   if (t.columns.length < t.allColumns.length && !hasView) html += '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details><i class="bi bi-eye" aria-hidden="true"></i> View</button>';
   const n = (html.match(/<button\b/gi) || []).length;
   if (n > 1) return `<button type="button" class="btn btn-sm btn-outline-primary fleet-manage-btn" data-fleet-manage aria-label="Manage record"><i class="bi bi-three-dots" aria-hidden="true"></i> Manage</button>`;
@@ -1637,7 +1760,7 @@ UI.drawTable = (id) => {
   if (!rows.length) {
     if((!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
       const message=t.filter?'No records match the current search or filters.':t.opts.empty||'No records found.';
-      box.innerHTML='<table class="data-table"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
+      box.innerHTML='<table class="data-table'+(!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : '')+'"><thead><tr>'+t.columns.map(([label,,format])=>'<th>'+UI.esc(UI.columnLabel(label,format))+'</th>').join('')+(t.hasActions?'<th class="actions-col">Action</th>':'')+'</tr></thead><tbody><tr><td colspan="'+(t.columns.length+(t.hasActions?1:0))+'"><div class="table-empty" role="status">'+UI.esc(message)+'</div></td></tr></tbody></table>';
       if(pager&&!t.opts.dsServerPaged)pager.innerHTML=UI.recordPager({total:0});
     } else { box.innerHTML = `<div class="table-empty"><i class="bi ${t.filter ? 'bi-search' : 'bi-inbox'}"></i><span>${UI.esc(t.filter ? 'No record matches "' + t.filter + '".' : (t.opts.empty || 'No records yet.'))}</span></div>`; }
     return;
@@ -1649,7 +1772,7 @@ UI.drawTable = (id) => {
   const cellClass = (f) => f === 'money' ? 'num money-col' : f === 'num' ? 'count-col' : (f === 'badge' || f === 'yes') ? 'status-col' : '';
   // COMPACT_TABLES_V1: on reference pages, columns hug their content; only long-text columns (cell-clip / cell-clamp) take the spare width.
   const grow = UI.refPage() ? t.columns.map(([, k, f]) => typeof f === 'function' && shown.some(r => /cell-cl(?:ip|amp)/.test(String(f(r[k], r) || '')))) : [];
-  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}"><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
+  box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}${!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : ''}"><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
     <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
   if(pager&&t.opts.dsServerPaged){pager.innerHTML='';}
   else if(pager&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
@@ -1673,7 +1796,7 @@ UI.drawTable = (id) => {
     const row = t.rows[Number(rowElement?.dataset.ri)];
     if (!row) return;
     const raw = (t.opts.actions ? t.opts.actions(row) : '') || '';
-    const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(raw);
+    const hasView = UI.hasRecordViewAction(raw);
     const more = t.columns.length < t.allColumns.length && !hasView
       ? '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details>View details</button>' : '';
     const dialog = UI.modal('Manage record', `<div class="fleet-action-chooser">${more}${raw}</div>`, null, {size:''});
@@ -1982,7 +2105,7 @@ UI.modal = (title, bodyHtml, onSubmit, opts = {}) => {
    let discardPending = false;
    wrap.addEventListener('hide.bs.modal', (event) => {
      if (confirmPending || discardPending) { event.preventDefault(); return; }
-     if (allowDiscard || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
+     if (allowDiscard || wrap.dataset.draftSaved === '1' || !onSubmit || opts.guardUnsaved === false || saveCompleted || initialValues === null) return;
      if (UI.modalEditSnapshot(form) === initialValues) return;
      event.preventDefault();
      discardPending = true;
@@ -2189,37 +2312,115 @@ UI.breakdown = (lines, total, totalLabel = 'Total') => `<table class="breakdown 
 /**
  * Fund Request form (PDF #12 Scenario A step 4 / B step 4).
  * The dispatcher picks the preset categories and may add other categories.
- * The total is shown while choosing; the server still takes the real preset amounts.
- * opts: { title, categories:[{name, amount}], selected:[names], extra:[{name, amount}], notes, action, payload, intro }
+ * The total reflects editable request amounts when editablePresets is enabled.
+ * opts: { title, categories, selected, presetAmounts, editablePresets, extra, notes, action, payload, intro }
  */
 UI.fundForm = (opts) => {
   const sel = new Set(opts.selected || []);
-  const extra = (opts.extra || []).concat(Array(Math.max(0, 3 - (opts.extra || []).length)).fill({ name: '', amount: '' }));
-  const cats = (opts.categories || []).map((c, i) => `<label class="d-flex justify-content-between border rounded px-2 py-1 mb-1">
-      <span><input type="checkbox" class="form-check-input me-2 fund-cat" data-name="${UI.esc(c.name)}" data-amount="${+c.amount}" ${sel.has(c.name) ? 'checked' : ''}>${UI.esc(c.name)}</span>
-      <span class="num">${UI.money(c.amount)}</span></label>`).join('') || '<div class="text-muted small">No preset categories yet. Ask the Admin to add them in Administration > Settings.</div>';
+  const extra = (opts.extra && opts.extra.length) ? opts.extra : [{ name: '', amount: '' }];
+  const cats = (opts.categories || []).map((c, i) => {
+    const checked = sel.has(c.name);
+    const amount = opts.presetAmounts?.[c.name] ?? c.amount;
+    const amountControl = opts.editablePresets
+      ? `<span class="d-flex align-items-center gap-1"><span aria-hidden="true">₱</span><input type="number" class="form-control form-control-sm fund-preset-amount text-end" aria-label="Amount for ${UI.esc(c.name)}" min="0.01" step="0.01" value="${UI.esc(String(amount))}" ${checked ? '' : 'disabled'} required></span>`
+      : `<span class="num">${UI.money(c.amount)}</span>`;
+    return `<label class="d-flex justify-content-between align-items-center gap-2 border rounded px-2 py-1 mb-1">
+      <span><input type="checkbox" class="form-check-input me-2 fund-cat" data-name="${UI.esc(c.name)}" data-amount="${+c.amount}" ${checked ? 'checked' : ''}>${UI.esc(c.name)}</span>
+      ${amountControl}</label>`;
+  }).join('') || '<div class="text-muted small">No preset categories yet. Ask the Admin to add them in Administration > Settings.</div>';
   const rows = extra.map((l, i) => `<div class="row g-2 mb-1 fund-extra">
       <div class="col-8"><input class="form-control form-control-sm" maxlength="80" placeholder="Other expense category" value="${UI.esc(l.name || '')}"></div>
       <div class="col-4"><input class="form-control form-control-sm" type="number" min="0" step="0.01" placeholder="Amount" value="${l.amount === '' ? '' : +l.amount}"></div></div>`).join('');
   const body = `${opts.intro ? `<p class="small text-muted">${opts.intro}</p>` : ''}
     <h6>Fund categories (preset amounts)</h6>${cats}
     <h6 class="mt-3">Other expense categories (optional)</h6>${rows}
+    ${opts.optionalDieselPo ? `<div class="fund-diesel-attachment" data-fund-diesel-attachment>
+      <label class="d-flex gap-2 align-items-center mb-2"><input type="checkbox" data-po-enabled ${opts.dieselPo?'checked':''}><strong>Include Diesel Purchase Order</strong> <small>(Optional)</small></label>
+      <div data-po-fields ${opts.dieselPo?'':'hidden'}>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6"><label class="form-label">P.O. Number</label><input class="form-control form-control-sm" name="po_number" maxlength="60" value="${UI.esc(opts.dieselPo?.po_number||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Date</label><input class="form-control form-control-sm" type="date" name="po_date" value="${UI.esc(opts.dieselPo?.po_date||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Vehicle</label><input class="form-control form-control-sm" name="po_vehicle" maxlength="100" value="${UI.esc(opts.dieselPo?.vehicle||opts.dieselPoVehicle||'')}"></div>
+          <div class="col-md-6"><label class="form-label">Plate Number</label><input class="form-control form-control-sm" name="po_plate" maxlength="40" value="${UI.esc(opts.dieselPo?.plate_number||opts.dieselPoPlate||'')}"></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>No. of Liters</th><th>Amount per Liter</th><th>Total</th><th></th></tr></thead><tbody data-po-lines></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center"><button class="btn btn-sm btn-outline-success" type="button" data-po-add>Add Another Line</button><strong data-po-total>₱0.00</strong></div>
+        <p class="form-help mt-2">This optional purchase order does not change the cash fund total.</p>
+      </div>
+    </div>` : ''}
     <div class="mt-2"><label class="form-label small">Notes</label><input class="form-control form-control-sm" name="notes" maxlength="255" value="${UI.esc(opts.notes || '')}"></div>
     <div class="fs-6 mt-3 text-end">Total requested fund: <b id="fundTotal">₱0.00</b></div>`;
   UI.modal(opts.title, body, async (d, form) => {
-    const categories = [...form.querySelectorAll('.fund-cat:checked')].map(c => c.dataset.name);
+    const checkedPresets = [...form.querySelectorAll('.fund-cat:checked')];
+    const categories = checkedPresets.map(c => c.dataset.name);
+    const presetAmounts = {};
+    if (opts.editablePresets) {
+      for (const checkbox of checkedPresets) {
+        const input = checkbox.closest('label').querySelector('.fund-preset-amount');
+        if (!input || !/^\d+(?:\.\d{1,2})?$/.test(input.value) || Number(input.value) <= 0 || !input.checkValidity()) {
+          input?.setCustomValidity('Enter a positive amount with at most two decimal places.');
+          input?.reportValidity();
+          throw new Error('Enter a valid amount for each selected preset expense.');
+        }
+        input.setCustomValidity('');
+        presetAmounts[checkbox.dataset.name] = input.value;
+      }
+    }
     const extraLines = [...form.querySelectorAll('.fund-extra')].map(r => { const [n, a] = r.querySelectorAll('input'); return { name: n.value.trim(), amount: a.value }; }).filter(x => x.name || x.amount);
     if (!categories.length && !extraLines.length) throw new Error('Choose at least one fund category.');
-    const r = await App.api(opts.action, { ...opts.payload, categories, extra: extraLines, notes: d.notes || '' });
+    let dieselPo=null;
+    if(opts.optionalDieselPo&&form.querySelector('[data-po-enabled]')?.checked){
+      const value=name=>form.querySelector('[name='+name+']')?.value.trim()||'';
+      const lines=[...form.querySelectorAll('[data-po-line]')].map(row=>({
+        liters:row.querySelector('[data-po-liters]').value.trim(),
+        unit_price:row.querySelector('[data-po-rate]').value.trim()
+      })).filter(line=>line.liters||line.unit_price);
+      if(!value('po_number')||!value('po_date')||!value('po_vehicle')||!value('po_plate'))throw new Error('Complete the P.O. number, date, vehicle and plate number.');
+      if(!lines.length||lines.some(line=>!/^\d{1,6}(?:\.\d{1,3})?$/.test(line.liters)||+line.liters<=0||!/^\d{1,7}(?:\.\d{1,2})?$/.test(line.unit_price)||+line.unit_price<=0))throw new Error('Enter positive liters and price per liter for every PO line.');
+      dieselPo={po_number:value('po_number'),po_date:value('po_date'),vehicle:value('po_vehicle'),plate_number:value('po_plate'),lines};
+    }
+    const r = await App.api(opts.action, { ...opts.payload, categories, ...(opts.editablePresets ? { preset_amounts: presetAmounts } : {}), extra: extraLines, notes: d.notes || '', ...(dieselPo ? { diesel_po: dieselPo } : {}) });
     UI.result(r); if (opts.after) opts.after(r); else App.route();
   }, { submit: 'Submit Fund Request', onShow(w) {
     const total = () => {
       let t = 0;
-      w.querySelectorAll('.fund-cat:checked').forEach(c => t += +c.dataset.amount);
+      w.querySelectorAll('.fund-cat').forEach(c => {
+        const input = c.closest('label').querySelector('.fund-preset-amount');
+        if (input) {
+          input.disabled = !c.checked;
+          if (!input.disabled) input.setCustomValidity('');
+        }
+        if (c.checked) t += input ? (+input.value || 0) : +c.dataset.amount;
+      });
       w.querySelectorAll('.fund-extra').forEach(r => { const a = +r.querySelectorAll('input')[1].value; if (a > 0) t += a; });
       w.querySelector('#fundTotal').textContent = UI.money(t);
     };
     w.addEventListener('input', total); w.addEventListener('change', total); total();
+    const po=w.querySelector('[data-fund-diesel-attachment]');
+    if(po){
+      const enabled=po.querySelector('[data-po-enabled]'),fields=po.querySelector('[data-po-fields]'),tbody=po.querySelector('[data-po-lines]');
+      const update=()=>{
+        let sum=0;tbody.querySelectorAll('[data-po-line]').forEach(row=>{
+          const liters=+row.querySelector('[data-po-liters]').value||0,rate=+row.querySelector('[data-po-rate]').value||0;
+          const amount=Math.round(liters*rate*100)/100;
+          row.querySelector('[data-po-subtotal]').textContent=UI.money(amount);sum+=amount;
+        });po.querySelector('[data-po-total]').textContent=UI.money(sum);
+      };
+      const addLine=(line={})=>{
+        if(tbody.children.length>=12)return;
+        const row=document.createElement('tr');row.dataset.poLine='1';
+        row.innerHTML='<td><input type="number" min="0.001" step="0.001" class="form-control form-control-sm" data-po-liters aria-label="Liters"></td>'
+          +'<td><input type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-po-rate aria-label="Price per liter"></td>'
+          +'<td class="text-nowrap" data-po-subtotal>₱0.00</td><td><button class="btn btn-sm btn-outline-danger" type="button" data-po-remove>Remove</button></td>';
+        row.querySelector('[data-po-liters]').value=line.liters||'';
+        row.querySelector('[data-po-rate]').value=line.unit_price||'';tbody.append(row);update();
+      };
+      const saved=opts.dieselPo?.lines;(Array.isArray(saved)&&saved.length?saved:[{}]).forEach(addLine);
+      enabled.addEventListener('change',()=>{fields.hidden=!enabled.checked;});
+      po.querySelector('[data-po-add]').addEventListener('click',()=>addLine());
+      po.addEventListener('click',event=>{const btn=event.target.closest('[data-po-remove]');if(btn&&tbody.children.length>1){btn.closest('tr').remove();update();}});
+      po.addEventListener('input',update);update();
+    }
   } });
 };
 

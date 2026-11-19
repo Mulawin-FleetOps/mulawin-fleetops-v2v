@@ -141,7 +141,7 @@ if (isset($_GET['api'])) {
 // Screen files naka-grupo ayon sa department (public/assets/js/modules/<department>/<file>.js).
 $jsModules = ['general/dashboard', 'operations/trips', 'operations/trip-planner', 'operations/fleet', 'operations/clients', 'operations/routes', 'maintenance/mechanics', 'maintenance/maintenance', 'maintenance/history',
               'maintenance/purchasing', 'accounting/funds', 'accounting/billing', 'accounting/finance', 'general/documents', 'general/reports',
-              'general/notifications', 'administration/admin', 'administration/head-management', 'administration/audit', 'administration/oversight', 'operations/ops-head', 'operations/dispatcher-monitoring', 'operations/trip-approvals', 'operations/dispatcher', 'operations/ops-reports', 'operations/dispatcher-turnover', 'general/approvals'];
+              'general/notifications', 'general/reports-center', 'administration/admin', 'administration/head-management', 'administration/audit', 'administration/oversight', 'operations/ops-head', 'operations/dispatcher-monitoring', 'operations/trip-approvals', 'operations/dispatcher', 'operations/ops-reports', 'operations/dispatcher-turnover', 'general/approvals'];
 $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filemtime(__DIR__ . '/' . $f) : '1';
 ?><!doctype html>
 <html lang="en">
@@ -168,6 +168,7 @@ $v = static fn(string $f): string => is_file(__DIR__ . '/' . $f) ? (string)filem
   <link rel="stylesheet" href="assets/css/dispatcher.css?v=<?= $v('assets/css/dispatcher.css') ?>">
   <link rel="stylesheet" href="assets/css/system-typography.css?v=<?= $v('assets/css/system-typography.css') ?>">
   <link rel="stylesheet" href="assets/css/kpi-icons.css?v=<?= $v('assets/css/kpi-icons.css') ?>">
+  <link rel="stylesheet" href="assets/css/reports-center.css?v=<?= $v('assets/css/reports-center.css') ?>">
 </head>
 <body>
   <div id="app"><div class="text-center p-5 text-muted">Loading Mulawin FleetOps…</div></div>

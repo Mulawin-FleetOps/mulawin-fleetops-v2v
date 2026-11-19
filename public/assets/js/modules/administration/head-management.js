@@ -380,15 +380,8 @@ App.page('head-approvals',{
         cols:[['Fund','fund_ref'],['Trip','trip_ref'],['Status','status','badge']],
         empty:'No fund requests awaiting approval.'}
     ];
-    const metrics=[
-      {label:'Route Rates',value:sections[0].rows.length,icon:'bi-signpost-split',color:'blue'},
-      {label:'Maintenance Exceptions',value:sections[1].rows.length,icon:'bi-tools',color:'amber'},
-      {label:'Open Incidents',value:sections[2].rows.length,icon:'bi-exclamation-triangle',color:'red'},
-      {label:'Fund Requests',value:sections[3].rows.length,icon:'bi-wallet2',color:'green'}
-    ];
-    ctx.el.innerHTML='<div class="head-approvals-workspace">'
-      +RecordComponents.kpis(metrics)
-      +'<div data-head-approvals-records></div></div>';
+    // Legacy action center already has category counts in its record tabs.
+    ctx.el.innerHTML='<div class="head-approvals-workspace"><div data-head-approvals-records></div></div>';
     const root=ctx.el.querySelector('[data-head-approvals-records]');
     const select=key=>{
       const group=sections.find(item=>item.key===key)||sections[0];
@@ -545,9 +538,9 @@ const HeadTripsUI = {
     const count=key=>Number(summary[key]||0);
     ctx.el.innerHTML='<div class="head-trip-dashboard">'
       +'<div class="head-trip-kpis">'+[
-        ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','blue'],
-        ['On Trip / In Transit',count('ongoing'),'bi-truck','green'],
-        ['Completed Today',count('completed_today'),'bi-check-circle','purple'],
+        ['Scheduled / Preparing',count('scheduled'),'bi-calendar-check','amber'],
+        ['On Trip / In Transit',count('ongoing'),'bi-truck','blue'],
+        ['Completed Today',count('completed_today'),'bi-check-circle','green'],
         ['Delayed / Problem',count('delayed_problem'),'bi-exclamation-triangle','red']
       ].map(([title,value,icon,tone])=>'<div class="head-kpi '+tone+'"><div class="head-kpi-icon"><i class="bi '+icon+'" aria-hidden="true"></i></div><div><span>'+UI.esc(title)+'</span><strong>'+value+'</strong></div></div>').join('')
       +'</div><div data-head-trip-records></div></div>';

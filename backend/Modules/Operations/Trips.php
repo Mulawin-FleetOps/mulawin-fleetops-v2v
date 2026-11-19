@@ -462,7 +462,7 @@ final class Trips {
     }
     /** The current attempt's pre-dispatch checklist (null when there is none). */
     private static function currentChecklist(PDO $p, array $t): ?array {
-        return one($p, "SELECT id, vehicle_id, completed_at FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch' AND completed_at IS NOT NULL",
+        return one($p, "SELECT id, vehicle_id, completed_at, has_not_ok FROM inspections WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch' AND completed_at IS NOT NULL",
             [$t['id'], $t['attempt_number']]) ?: null;
     }
     /**
@@ -971,6 +971,25 @@ final class Trips {
         return $st['started_at'];
     }
 
+    /**
+     * Preserve every full 57-item submission once the additive history table is
+     * approved and installed. Older installations continue with existing
+     * inspections + immutable trip_events, never fail a dispatch because
+     * an optional migration has not been applied.
+     */
+    private static function savePreDispatchSubmission(PDO $p, array $t, array $u, array $check,
+        ?int $km, ?string $fuel, ?string $remarks, ?int $jobId = null): void {
+        $ready = one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()
+            AND TABLE_NAME='pre_dispatch_checklist_submissions'");
+        if (!$ready) return;
+        run($p, 'INSERT INTO pre_dispatch_checklist_submissions
+            (trip_id, vehicle_id, attempt_number, items_json, has_not_ok, odometer_km, fuel_level, remarks, maintenance_job_id, actor_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?)',
+            [(int)$t['id'], (int)$t['vehicle_id'], (int)$t['attempt_number'],
+             json_encode($check, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+             (int)$check['has_not_ok'], $km, $fuel, $remarks, $jobId, (int)$u['id']]);
+    }
+
     private static function checklist(array $u, array $d): array {
         $id = idField($d, 'trip_id');
         require_once __DIR__ . '/Inspections/Checklist.php';
@@ -992,12 +1011,44 @@ final class Trips {
                            fuel_level=VALUES(fuel_level), remarks=VALUES(remarks), actor_id=VALUES(actor_id), started_at=VALUES(started_at), completed_at=NOW()")
               ->execute([$id, $t['vehicle_id'], $t['attempt_number'], json_encode($check, JSON_UNESCAPED_UNICODE), $check['has_not_ok'] ? 1 : 0, $km, $fuel, $remarks, $u['id'], $started]);
             if ($check['has_not_ok']) {
-                $bad = []; foreach (Checklist::sections() as $s) foreach ($s['items'] as $i => $label) { $k = $s['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT); if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label; }
-                self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'], implode(', ', $bad), [],
-                    ['Inspection result' => 'NOT OK', 'NOT OK item count' => count($bad)]);
-                Notify::roles($p, ['motorpool'], 'Checklist finding', $t['trip_ref'] . ' / ' . $v['plate_number'] . ' NOT OK: ' . implode(', ', array_slice($bad, 0, 6)), 'maintenance');
-                return ['warning' => 'Checklist saved with NOT OK items (' . implode(', ', array_slice($bad, 0, 5)) . '). The trip cannot be Ready for Dispatch until every item is OK. Fix the items and submit the checklist again.'];
+                $bad = [];
+                foreach (Checklist::sections() as $section) foreach ($section['items'] as $i => $label) {
+                    $k = $section['key'] . '_' . str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT);
+                    if ($check['items'][$k]['condition'] === 'NOT OK') $bad[] = $label;
+                }
+                $truckDefects = Checklist::truckDefects($check);
+                // Keep a separate event on every submission, even when the current
+                // inspections row is updated in place for the same trip attempt.
+                self::event($p, $u['id'], $id, 'pre-dispatch checklist has NOT OK items', $t['status'], $t['status'],
+                    count($bad) . ' NOT OK: ' . implode('; ', $bad), [],
+                    ['Inspection result' => 'NOT OK', 'NOT OK item count' => count($bad),
+                     'Truck defects' => count($truckDefects)]);
+                if ($truckDefects) {
+                    Actions::load('Maintenance');
+                    $job = Maintenance::fromPreDispatchChecklist($p, $u, $t, $truckDefects);
+                    run($p, "UPDATE inspections SET maintenance_job_id=? WHERE trip_id=? AND attempt_number=? AND kind='Pre-Dispatch'",
+                        [$job['job_id'], $id, $t['attempt_number']]);
+                    self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks, (int)$job['job_id']);
+                    // A defective Assigned truck must not stay reserved or become
+                    // dispatchable. Reuse existing fixed-pair resource-loss logic.
+                    $next = self::resourceLost($p, $u, $id,
+                        'Pre-dispatch truck defects; corrective maintenance ' . $job['job_ref']);
+                    Notify::roles($p, ['operations_head'], 'Truck failed pre-dispatch inspection',
+                        $v['plate_number'] . ' failed ' . $t['trip_ref'] . ' and requires repair ' . $job['job_ref'] . '.', 'trips');
+                    return ['warning' => 'Checklist saved with NOT OK truck defects. Repair ' . $job['job_ref'] .
+                        ' was ' . ($job['new'] ? 'created' : 'updated') .
+                        ' for Motorpool. The unsafe truck was released from the trip. After Motorpool verifies the repair, Dispatcher must assign a valid truck/crew and complete the full pre-dispatch checklist again. ' . $next];
+                }
+                self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks);
+                Notify::roles($p, ['motorpool'], 'Checklist finding', $t['trip_ref'] . ' / ' . $v['plate_number'] .
+                    ' NOT OK: ' . implode(', ', array_slice($bad, 0, 6)), 'maintenance');
+                return ['warning' => 'Checklist saved with NOT OK items (' . implode(', ', array_slice($bad, 0, 5)) .
+                    '). No automatic truck repair was opened because the failures were outside tractor/trailer equipment. Correct the findings and repeat the full checklist before dispatch.'];
             }
+            self::savePreDispatchSubmission($p, $t, $u, $check, $km, $fuel, $remarks);
+            self::event($p, $u['id'], $id, 'pre-dispatch checklist passed', $t['status'], $t['status'],
+                'All checklist items OK; full pre-dispatch inspection submitted', [],
+                ['Inspection result' => 'All OK']);
             run($p, 'UPDATE trips SET status=? WHERE id=?', ['Ready for Dispatch', $id]);
             self::event($p, $u['id'], $id, 'pre-dispatch checklist completed', $t['status'], 'Ready for Dispatch',
                 'All items OK' . ($km ? "; odometer $km" : ''), [], ['Inspection result' => 'All OK']);
@@ -1025,6 +1076,7 @@ final class Trips {
             $c = self::currentChecklist($p, $t);
             if (!$c) $why[] = 'No pre-dispatch checklist for attempt #' . $t['attempt_number'] . ' (the Dispatcher must select a fixed pair or reschedule so the checklist can be done again).';
             elseif ((int)$c['vehicle_id'] !== (int)$t['vehicle_id']) $why[] = 'The pre-dispatch checklist was done for another truck (the Dispatcher must select a fixed pair so the checklist can be done for the assigned truck).';
+            elseif ((int)$c['has_not_ok'] !== 0) $why[] = 'The pre-dispatch checklist has NOT OK items. Correct the findings and submit a new full checklist before dispatch.';
         }
         $fund = one($p, 'SELECT status FROM fund_requests WHERE trip_id=? AND attempt_number=?', [$t['id'], $t['attempt_number']]);
         if ($fund && $fund['status'] !== 'Released') $why[] = 'Fund status is ' . $fund['status'] . ' (needs Released).';
@@ -1224,15 +1276,16 @@ final class Trips {
 
     private static function complete(array $u, array $d): array {
         $id = idField($d, 'trip_id');
-        $when = dateTimeField($d, 'completed_at');
+        // Completion time is set by the server at the actual completion action, never by the browser.
         $waybill = strtoupper(field($d, 'waybill_number', 100));
         $units = intField($d, 'units_delivered', 0, false, 100);
         $notes = optField($d, 'delivery_notes', 500);
-        return transaction(function (PDO $p) use ($u, $id, $when, $waybill, $units, $notes) {
+        return transaction(function (PDO $p) use ($u, $id, $waybill, $units, $notes) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['Dispatched', 'In Transit'], 'complete the trip');
-            must(strtotime($when) <= time() + 300, 'The completion date and time cannot be in the future.');
+            $when = date('Y-m-d H:i:s'); // Asia/Manila per application bootstrap; timestamp is server-owned.
+
             must(strtotime($when) >= strtotime(substr((string)$t['dispatched_at'], 0, 16)), 'The completion time is before the dispatch time (' . substr((string)$t['dispatched_at'], 0, 16) . ').');
             if ($t['truck_type'] === 'Car Carrier') must($units !== null && $units > 0, 'Enter the number of units delivered.');
             Files::store($p, $u, 'waybill', 'trip', $id, self::DOC_WAYBILL);
@@ -1415,6 +1468,13 @@ final class Trips {
             'updates' => many($p, 'SELECT up.*, us.full_name AS actor FROM trip_updates up JOIN users us ON us.id=up.actor_id WHERE up.trip_id=? ORDER BY up.id DESC', [$id]),
             'inspections' => many($p, 'SELECT i.*, us.full_name AS actor, m.job_ref, m.status AS job_status FROM inspections i JOIN users us ON us.id=i.actor_id
                 LEFT JOIN maintenance_jobs m ON m.id=i.maintenance_job_id WHERE i.trip_id=? ORDER BY i.attempt_number, i.kind DESC', [$id]),
+            'checklist_submissions' => one($p, "SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pre_dispatch_checklist_submissions'")
+                ? many($p, 'SELECT h.*, us.full_name AS actor, v.plate_number, m.job_ref, m.status AS job_status
+                    FROM pre_dispatch_checklist_submissions h JOIN users us ON us.id=h.actor_id
+                    JOIN vehicles v ON v.id=h.vehicle_id
+                    LEFT JOIN maintenance_jobs m ON m.id=h.maintenance_job_id
+                    WHERE h.trip_id=? ORDER BY h.id', [$id])
+                : [],
             'funds' => $funds,
             'incidents' => $incidents,
             'documents' => $docs,

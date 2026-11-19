@@ -431,6 +431,85 @@ App.page('admin_reports', {
   },
 });
 
+// Near-real-time analytics: one poller for the active Admin analytics route.
+// It does not call App.route(), change the URL, or refresh the browser.
+const AnalyticsAutoSync = {
+  active: null,
+  attach(ctx, renderPage) {
+    const route = App.current;
+    if (!route || route.page !== ctx.page || document.getElementById('pageBody') !== ctx.el) return;
+    const token = JSON.stringify({page:ctx.page,query:ctx.query});
+    let job = this.active;
+    if (!job || job.route !== route || job.token !== token) {
+      if (job?.timer) clearInterval(job.timer);
+      job = {route,token,ctx,renderPage,last:JSON.stringify(ctx.data),updated:new Date(),busy:false,error:false,timer:null};
+      this.active = job;
+      job.timer = setInterval(() => this.poll(job), 30000);
+    } else {
+      job.ctx = ctx;
+      job.renderPage = renderPage;
+      job.last = JSON.stringify(ctx.data);
+    }
+    this.status(job);
+  },
+  status(job) {
+    const el = job.ctx.el.querySelector('#ax-sync-status');
+    if (!el) return;
+    el.textContent = job.error ? 'Sync unavailable · showing last loaded data'
+      : 'Auto-sync every 30s · Last checked ' + job.updated.toLocaleTimeString();
+    el.setAttribute('role','status');
+  },
+  async poll(job) {
+    if (this.active !== job || App.current !== job.route ||
+        document.getElementById('pageBody') !== job.ctx.el) {
+      clearInterval(job.timer);
+      if (this.active === job) this.active = null;
+      return;
+    }
+    if (job.busy || document.hidden || document.querySelector('.modal.show') ||
+        (document.activeElement && job.ctx.el.contains(document.activeElement) &&
+         /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) return;
+    job.busy = true;
+    try {
+      const fresh = await App.data(job.ctx.page, job.ctx.query);
+      if (this.active !== job || App.current !== job.route) return;
+      const fingerprint = JSON.stringify(fresh);
+      if (fingerprint !== job.last) {
+        // Preserve the exact investigation, viewport and nested scroll positions.
+        const root = job.ctx.el;
+        const chosen = root.querySelector('#ax-evidence-details [data-incident-ref]')?.dataset.incidentRef;
+        const scrollY = window.scrollY;
+        const scrollers = [...root.querySelectorAll('*')].filter(n => n.scrollTop > 0)
+          .map(n => ({id:n.id,cls:n.className,top:n.scrollTop,left:n.scrollLeft}))
+          .filter(n => typeof n.cls === 'string' && (n.id || n.cls));
+        job.ctx.data = fresh;
+        await job.renderPage(job.ctx);
+        if (chosen) {
+          const rows = job.ctx._incidentEvidenceRows || [];
+          const i = rows.findIndex(r => String(r.incident_ref) === chosen);
+          const btn = i >= 0 ? job.ctx.el.querySelector('[data-ax-evidence="'+i+'"]') : null;
+          if (btn) { job.restoring = true; btn.click(); job.restoring = false; }
+        }
+        scrollers.forEach(saved => {
+          const node = saved.id ? root.querySelector('#'+CSS.escape(saved.id))
+            : [...root.querySelectorAll('*')].find(n => n.className === saved.cls);
+          if(node){node.scrollTop=saved.top;node.scrollLeft=saved.left;}
+        });
+        window.scrollTo(0,scrollY);
+        job.last = fingerprint;
+      }
+      job.updated = new Date();
+      job.error = false;
+    } catch (e) {
+      job.error = true;
+      console.warn('Analytics background sync failed:',e);
+    } finally {
+      job.busy = false;
+      if(this.active === job) this.status(job);
+    }
+  }
+};
+
 // ---------------------------------------------------------------- Head Admin analytics — Objective 5
 // Descriptive: recorded totals and trends. Diagnostic: ranked patterns for review.
 // The same server-validated reports feed the charts; no sample numbers or new actions.
@@ -515,28 +594,36 @@ App.page('admin_reports', {
       note = 'Audit event volume is not a performance rating or evidence of wrongdoing.';
     } else if (topic === 'operations') {
       if (diagnostic) {
-        const entityOptions = [['driver','Per driver'],['helper','Per helper'],['truck','Per truck'],['client','Per client'],['dispatcher','Per dispatcher']];
-        const entity = entityOptions.some(x=>x[0] === q.entity) ? q.entity : 'truck';
-        const table = (trips.tables || []).find(t => t.title === entityOptions.find(x=>x[0]===entity)[1]);
-        const ranked = [...((table || {}).rows || [])].sort((a,b)=>Number(b.incidents)-Number(a.incidents)).slice(0,12);
-        const labels = ranked.map(x=>x.name);
-        basic('Trip groups compared', (table?.rows || []).length);
-        basic('Recorded incidents', ranked.reduce((n,x)=>n+Number(x.incidents||0),0), 'Top 12 groups shown; not unique incident count');
-        basic('Recorded delays', ranked.reduce((n,x)=>n+Number(x.delays||0),0), 'Top 12 groups shown');
-        plot('Incidents and delays by ' + entity, 'hbar', labels,
-          [{label:'Incidents',data:ranked.map(x=>Number(x.incidents)),color:colors[3]},
-           {label:'Delays',data:ranked.map(x=>Number(x.delays)),color:colors[2]}]);
-        plot('Trip exposure for the same groups', 'bar', labels,
-          [{label:'Trips',data:ranked.map(x=>Number(x.trips)),color:colors[0]}],
-          {note:'Compare incident counts with trip exposure; incident counts alone do not establish responsibility.'});
-        plot('Recorded incidents per 100 trips', 'hbar', labels,
-          [{label:'Incidents / 100 trips',data:ranked.map(x=>Number(x.trips)>0?Number((Number(x.incidents)*100/Number(x.trips)).toFixed(1)):0),color:colors[1]}],
-          {note:'Event rate, not necessarily percentage of trips affected; one trip may have multiple incidents.'});
-        supporting = '<div class="ax-subfilter"><label for="ax-entity">Compare by</label><select id="ax-entity" class="form-select form-select-sm">'
-          + entityOptions.map(x=>'<option value="'+x[0]+'"'+(x[0]===entity?' selected':'')+'>'+x[1].replace('Per ','')+'</option>').join('')+'</select></div>'
-          + reportTable('Trip and incident comparisons', [['Person / asset / client','name'],['Trips','trips'],['Completed','completed'],['Incidents','incidents'],['Delays','delays']], ranked, 12)
-          + recordTable(trips,'Delays and incidents',12);
-        note = '5.2.1 · Compare all five groups. These results indicate where investigation may be useful; they do not identify fault.';
+        // Incident reporting is an active workflow. Historical manual Delay
+        // updates are NOT used as a primary diagnostic category.
+        const evidence = d.incidentEvidence || {}, records = Array.isArray(evidence.records) ? evidence.records : [];
+        const type = String(q.incident_type || '');
+        const types = [...new Set(records.map(x=>String(x.incident_type || 'Not coded')))].sort();
+        const counts = types.map(t=>records.filter(x=>String(x.incident_type || 'Not coded')===t).length);
+        const selected = types.includes(type) ? type : '';
+        const filtered = selected ? records.filter(x=>String(x.incident_type || 'Not coded')===selected) : records;
+        const linked = filtered.filter(x=>x.job_id).length;
+        const uniqueTrips = new Set(filtered.map(x=>String(x.trip_id))).size;
+        basic('Recorded incidents', Number(evidence.total ?? records.length), 'Incident date within selected period');
+        basic('Trips with incidents', uniqueTrips, 'Unique trips in current evidence view');
+        basic('Linked repair records', linked, 'Explicit incident and trip relationship');
+        plot('Recorded incidents by type', 'hbar', types, [{label:'Incidents',data:counts,color:colors[3]}],
+          {note:'Click a category below to filter incident records. Multiple incidents may belong to the same trip.'});
+        const filters = '<div class="ax-subfilter" role="group" aria-label="Filter incidents by recorded type">'
+          + '<button type="button" class="btn btn-sm '+(!selected?'btn-success':'btn-outline-secondary')+'" data-ax-incident-type="">All types</button>'
+          + types.map(t=>'<button type="button" class="btn btn-sm '+(t===selected?'btn-success':'btn-outline-secondary')+'" data-ax-incident-type="'+escape(t)+'">'+escape(t)+' ('+counts[types.indexOf(t)]+')</button>').join('')
+          + '</div>';
+        const tableRows = filtered.slice(0,100).map((r,i)=>'<tr><td>'+escape(r.incident_ref)+'</td><td>'+escape(r.incident_type)+'</td><td>'+escape(r.trip_ref)+'</td><td>'+escape(r.plate_number)+'</td><td>'+escape(r.incident_at)+'</td><td>'+escape(r.job_ref||'No linked repair')+'</td><td><button class="btn btn-sm btn-outline-success" type="button" data-ax-evidence="'+i+'">View evidence</button></td></tr>').join('');
+        supporting = filters
+          + '<section class="ax-table-wrap"><h3>Recorded incident evidence</h3>'
+          + '<p class="small text-muted">Showing '+Math.min(filtered.length,100)+' of '+filtered.length+' loaded records. Date basis: incident date. '
+          + (Number(evidence.total||0)>records.length?'The evidence list is limited to the latest 1,000 incidents for this period.':'')
+          + '</p><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Incident</th><th>Type</th><th>Trip</th><th>Truck</th><th>Incident date</th><th>Linked job</th><th>Evidence</th></tr></thead><tbody>'
+          + (tableRows||'<tr><td colspan="7" class="text-muted">No recorded incidents for these filters.</td></tr>')
+          + '</tbody></table></div></section><div id="ax-evidence-details" aria-live="polite"></div>';
+        // Page-local view model, never persisted or used in a mutation.
+        ctx._incidentEvidenceRows = filtered.slice(0,100);
+        note = '5.2.1 · Incident, trip and repair records are linked by stored IDs. An incident or repair is not automatically proof of the root cause of another event. No manual Delay category is inferred.';
       } else {
         cardsOf(trips,['Total trips','Completed trips','Cancelled trips','Trips for reschedule','Delivered units (car carrier)','Incidents']);
         const time = d.buckets || [], activity = d.activity || {};
@@ -656,13 +743,19 @@ App.page('admin_reports', {
       + [['management','Management'],['audit','Audit']].map(([id,name])=>'<a class="'+(kind===id?'active':'')+'" href="#'+analyticsPage+'?topic='+encodeURIComponent(topic)+'&report='+id+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'')+'">'+name+'</a>').join('')+'</div>';
     const visuals = '<div class="ax-charts">' + charts.join('') + '</div>';
     const css = '<style>'
-      // Keep the actual analytics heading inside .ax-shell; hide only the duplicate
-      // generic page title/subtitle for these two Admin analytics screens.
-      + '#pageContent:has(.ax-shell) > .page-head .page-head-text{display:none!important;}'
-      + '#pageContent:has(.ax-shell) > .page-head{min-height:0!important;margin:0!important;padding:0!important;gap:0!important;}'
+      // The analytics card owns the full header, just like the other reports.
+      // Hide the generic page heading so no empty band remains above the card.
+      + '#pageContent:has(.ax-shell) > .page-head{display:none!important;}'
       + '.ax-shell{background:#f6f9f7;border:1px solid #e0e9e2;border-radius:16px;padding:20px;max-width:100%;}'
       + '.ax-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:15px;}'
       + '.ax-header h2{font-size:22px;font-weight:750;margin:4px 0 5px;letter-spacing:-.03em}.ax-header p{font-size:12px;color:#69786f;margin:0;max-width:750px;}'
+      + '.ax-header-right{display:flex;align-items:flex-end;flex-direction:column;gap:9px;min-width:190px;}'
+      + '#pageContent:has(.ax-shell) .ax-header-right .page-access-actions{display:flex;flex-direction:column;align-items:flex-end;gap:7px;margin:0;}'
+      + '#pageContent:has(.ax-shell) .ax-header-right .page-access-tag{display:inline-flex;align-items:center;gap:6px;align-self:flex-end;margin:0;padding:6px 11px;border:1px solid #d6e9dd;border-radius:999px;background:#eaf6ee;color:#126c45;font-size:11px;font-weight:600;line-height:1.4;white-space:nowrap;}'
+      + '#pageContent:has(.ax-shell) .ax-header-right .report-back-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;align-self:flex-end;padding:7px 12px;border:1px solid #c8dccf;border-radius:6px;background:#fff;color:#275d45;font-size:12px;font-weight:500;line-height:1.3;white-space:nowrap;box-shadow:none;}'
+      + '#pageContent:has(.ax-shell) .ax-header-right .report-back-btn:hover{background:#f3f9f5;border-color:#9fc9ac;}'
+      + '.ax-sync-meta{display:flex;align-items:center;justify-content:flex-end;gap:5px;color:#687c70;font-size:12px;white-space:normal;text-align:right;}'
+      + '@media(max-width:650px){.ax-header-right{align-items:flex-start;width:100%;}#pageContent:has(.ax-shell) .ax-header-right .page-access-actions{align-items:flex-start;}#pageContent:has(.ax-shell) .ax-header-right .page-access-tag,#pageContent:has(.ax-shell) .ax-header-right .report-back-btn{align-self:flex-start;}.ax-sync-meta{text-align:left;justify-content:flex-start;}}'
       + '.ax-objective{display:inline-block;border-radius:20px;background:#e5f2e9;color:#207549;padding:5px 10px;font-size:11px;font-weight:650;}'
       + '.ax-mode-tabs{display:flex;gap:10px;border-bottom:1px solid #dfe7e2;margin:12px 0 18px;flex-wrap:wrap;}'
       + '.ax-mode-tabs a{padding:11px 13px;text-decoration:none;color:#63766a;font-size:13px;font-weight:650;border-bottom:3px solid transparent;}'
@@ -691,7 +784,11 @@ App.page('admin_reports', {
     ctx.el.innerHTML = css + '<div class="ax-shell"><div class="ax-header"><div><span class="ax-objective">OBJECTIVE 5 · HEAD ADMIN ONLY</span>'
       + '<h2>'+(diagnostic?'Diagnostic':'Descriptive')+' Analytics · '+escape(kind==='management'?'Management Reports':kind==='audit'?'Audit Reports':selected[1])+'</h2>'
       + '<p>'+(diagnostic?'Investigate recurring issues, ranked contributors, receivables aging and part consumption.':'Recorded performance summaries, totals and trends by reporting period.')+'</p></div>'
-      + '<span class="ax-objective"><i class="bi bi-shield-lock"></i> Management access</span></div>'
+      + '<div class="ax-header-right no-print"><div class="page-access-actions">'
+      + '<span class="page-access-tag"><i class="bi bi-shield-check" aria-hidden="true"></i> <span>Management access</span></span>'
+      + '<button type="button" class="btn btn-sm btn-outline-secondary report-back-btn" data-ax-back-reports>'
+      + '<i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Reports</button></div>'
+      + '<div class="ax-sync-meta"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span id="ax-sync-status" class="small text-muted" aria-live="polite"></span></div></div></div>'
       + modeNav
       + '<div class="ax-filters"><div><label for="ax-from">From</label><input type="date" class="form-control form-control-sm" id="ax-from" value="'+escape(per.from||'')+'"></div>'
       + '<div><label for="ax-to">To</label><input type="date" class="form-control form-control-sm" id="ax-to" value="'+escape(per.to||'')+'"></div>'
@@ -701,6 +798,7 @@ App.page('admin_reports', {
       + '</div>'
       + focusHtml + '<h3 class="h6 mb-3">'+escape(diagnostic?'Diagnostic findings':'Performance overview')+'</h3>'
       + metricHtml + visuals + supporting + '<p class="ax-note">'+escape(note)+'</p>' + reportNav + '</div>';
+    ctx.el.querySelector('[data-ax-back-reports]')?.addEventListener('click', () => App.go('reports_center'));
     ctx.el.querySelectorAll('[data-ax-topic]').forEach(button => button.addEventListener('click',()=>categoryGo(button.dataset.axTopic)));
     ctx.el.querySelector('#ax-apply')?.addEventListener('click',()=>{
       const from=ctx.el.querySelector('#ax-from').value,to=ctx.el.querySelector('#ax-to').value;
@@ -717,6 +815,46 @@ App.page('admin_reports', {
       go({from:iso(from),to:iso(now)});
     });
     ctx.el.querySelector('#ax-entity')?.addEventListener('change',e=>go({entity:e.target.value}));
+    ctx.el.querySelectorAll('[data-ax-incident-type]').forEach(button=>button.addEventListener('click',()=>{
+      go({incident_type:button.dataset.axIncidentType||''});
+    }));
+    ctx.el.querySelectorAll('[data-ax-evidence]').forEach(button=>button.addEventListener('click',()=>{
+      const row=(ctx._incidentEvidenceRows||[])[Number(button.dataset.axEvidence)];
+      const target=ctx.el.querySelector('#ax-evidence-details');
+      if(!row||!target)return;
+      target.innerHTML='<section data-incident-ref="'+escape(row.incident_ref)+'" class="panel mt-3"><div class="panel-head"><h2 class="panel-title">Supporting record · '+escape(row.incident_ref)+'</h2></div><div class="panel-body">'
+        +'<p class="small text-muted">Read-only snapshot of the recorded relationship. Review the source modules for full historical details.</p>'
+        +'<dl class="row small"><dt class="col-sm-4">Incident type / status</dt><dd class="col-sm-8">'+escape(row.incident_type)+' · '+escape(row.incident_status)+'</dd>'
+        +'<dt class="col-sm-4">Recorded problem</dt><dd class="col-sm-8">'+escape(row.problem)+'</dd>'
+        +'<dt class="col-sm-4">Location</dt><dd class="col-sm-8">'+escape(row.location)+'</dd>'
+        +'<dt class="col-sm-4">Trip / status</dt><dd class="col-sm-8">'+escape(row.trip_ref)+' · '+escape(row.trip_status)+'</dd>'
+        +'<dt class="col-sm-4">Linked maintenance job</dt><dd class="col-sm-8">'+escape(row.job_ref||'None recorded')+'</dd>'
+        +(row.job_id?'<dt class="col-sm-4">Repair status / problem</dt><dd class="col-sm-8">'+escape(row.job_status)+' · '+escape(row.repair_problem)+'</dd>':'')
+        +'</dl><div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-success" type="button" data-ax-open-source="trips">Open Trip Management</button>'
+        +(row.job_id?'<button class="btn btn-sm btn-outline-success" type="button" data-ax-open-source="maintenance">Open Repair Management</button>':'')
+        +'</div></div></section>';
+      target.querySelectorAll('[data-ax-open-source]').forEach(b=>b.addEventListener('click',()=>App.go(b.dataset.axOpenSource)));
+      if (!AnalyticsAutoSync.active?.restoring) target.scrollIntoView({block:'nearest',behavior:'smooth'});
+    }));
+
     chartJobs.forEach(job=>{try{job();}catch(err){console.error('Analytics chart error',err);}});
+    // In the Operations diagnostic, clicking an incident-type bar opens its
+    // filtered evidence list. The accessible category buttons work without a chart.
+    if (diagnostic && topic === 'operations' && kind === 'general' && typeof Chart !== 'undefined') {
+      const canvas=ctx.el.querySelector('#ax-chart-0');
+      canvas?.addEventListener('click',event=>{
+        const chart=Chart.getChart(canvas);
+        if(!chart)return;
+        const hits=chart.getElementsAtEventForMode(event,'nearest',{intersect:true},false);
+        if(!hits.length)return;
+        const types=[...new Set(((d.incidentEvidence||{}).records||[])
+          .map(r=>String(r.incident_type||'Not coded')))].sort();
+        const chosen=types[hits[0].index];
+        if(chosen)go({incident_type:chosen});
+      });
+      if(canvas) { canvas.style.cursor='pointer'; canvas.setAttribute('aria-label','Incident types chart. Select a category using the filter buttons below the chart.'); }
+    }
+
+    AnalyticsAutoSync.attach(ctx, App.pages[analyticsPage].render);
   },
 }));

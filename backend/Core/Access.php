@@ -78,7 +78,9 @@ final class Access {
         return [
             // id => [label, icon, section, module, js file, roles]
             'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $dash],
-            'approvals' => ['Approvals', 'bi-check2-square', null, 'Approvals', 'general/approvals', $all],
+            // Purchasing submits and tracks POs but has no approval decision authority.
+            // Remove its general Approvals page from both navigation and direct page/API access.
+            'approvals' => ['Approvals', 'bi-check2-square', null, 'Approvals', 'general/approvals', array_values(array_diff($all, ['motorpool', 'purchasing']))],
             'trips'       => ['Trip Management', 'bi-signpost-split', null, 'Trips', 'operations/trips',
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
 
@@ -120,7 +122,7 @@ final class Access {
             // UI_REFERENCE_V1: Maintenance Reports (Motorpool workspace "Reports"): repairs, downtime and maintenance cost.
             // Read-only, served by Analytics::maintenanceReport. Replaces Motorpool's use of the general Reports page.
             'maintenance_reports' => ['Maintenance Reports', 'bi-graph-up', 'Maintenance', 'Analytics', 'maintenance/maintenance',
-                              ['admin', 'operations_head', 'motorpool', 'audit']],
+                              ['admin']],
 
             // Purchasing workspace (replaces the combined "Parts & Purchasing" page). The five Purchasing pages share
             // one backend module and one screen file. Purchasing Officer: all pages. Finance: Purchase Orders (approvals)
@@ -137,7 +139,7 @@ final class Access {
             'stock_movements' => ['Stock Movements', 'bi-arrow-left-right', 'Purchasing', 'Purchasing', 'maintenance/purchasing',
                               ['admin', 'purchasing', 'audit']],
             'purchasing_reports' => ['Purchasing Reports', 'bi-graph-up', 'Purchasing', 'Analytics', 'maintenance/purchasing',
-                              ['admin', 'purchasing', 'finance', 'audit']],
+                              ['admin']],
 
             'funds'       => ['Trip Funds', 'bi-cash-coin', 'Accounting', 'Funds', 'accounting/funds',
                               array_merge(['admin', 'operations_head', 'finance', 'audit'], $D)],
@@ -156,15 +158,19 @@ final class Access {
                               ['admin', 'finance', 'audit']],
 
             'documents'   => ['Documents', 'bi-folder2-open', 'Records', 'Documents', 'general/documents', $all],
-            'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports',
-                              ['admin', 'operations_head', 'finance', 'billing', 'audit']],
+            'reports'     => ['Reports', 'bi-bar-chart-line', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'operations_reports' => ['Operations Reports', 'bi-truck', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'financial_reports' => ['Financial Reports', 'bi-wallet2', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'billing_reports' => ['Billing Reports', 'bi-receipt', 'Records', 'Analytics', 'general/reports', ['admin']],
+            'reports_center' => ['Reports', 'bi-bar-chart-line', 'Records', 'ReportAccess', 'general/reports-center', $all],
             'notifications' => ['Notifications', 'bi-bell', 'Records', 'Admin', 'general/notifications', $all],
+            'activity_feed' => ['Activity Feed', 'bi-clock-history', 'Records', 'Admin', 'general/notifications', $all],
             // AUDIT_WORKSPACE_V1: read-only audit pages (Admin module, audit_events). Audit uses them instead of its former
             // Activity Log view of User Management (same records, now with filters, record history and reports).
             'audit_overview' => ['Audit Overview', 'bi-speedometer2', 'Audit', 'Admin', 'administration/audit', ['audit']],
             'audit_logs'  => ['Audit Logs', 'bi-journal-text', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
             'audit_history' => ['Transaction History', 'bi-clock-history', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
-            'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
+            'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin']],
             'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin']],
             // HEAD_MANAGEMENT_V1: Head Management (Admin) workspace. Read-only oversight pages (Oversight module); approval
             // decisions use the existing Purchasing / Billing actions, which check the Admin role and the request state.
@@ -201,7 +207,7 @@ final class Access {
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
                 'approvals' => ['Approvals', 'Management Control'],
                 // Legacy Management Action Center remains deep-linkable, but Approvals is the single sidebar entry.
-                'reports' => ['Management Reports', 'Management Control'],
+                'reports_center' => ['Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
             ];
@@ -214,7 +220,7 @@ final class Access {
             return $out;
         }
         foreach (self::pages() as $id => [$label, $icon, $section, $module, $js, $roles]) {
-            if (in_array($u['role'], $roles, true)) {
+            if (in_array($u['role'], $roles, true) && ($id === 'reports_center' ? self::canOpen($u, $id) : !self::reportPage($id))) {
                 // Navigation grouping is per ROLE, not per backend department.
                 // Existing server-side page/action authorization stays unchanged.
                 $section = self::NAV_SECTIONS[$u['role']][$id] ?? $section;
@@ -223,6 +229,8 @@ final class Access {
                 $out[] = ['id' => $id, 'label' => $label, 'icon' => $icon, 'section' => $section, 'js' => $js];
             }
         }
+        // A single Reports entry replaces the role-specific reporting entries.
+        $out = array_values(array_filter($out, fn($item) => !self::reportPage($item['id']) || $item['id'] === 'reports_center'));
         if ($order = self::NAV_ORDER[$u['role']] ?? null) {
             $rank = array_flip($order); $pos = array_flip(array_column($out, 'id'));
             usort($out, fn($a, $b) => [$rank[$a['id']] ?? 999, $pos[$a['id']]] <=> [$rank[$b['id']] ?? 999, $pos[$b['id']]]);
@@ -242,9 +250,20 @@ final class Access {
         return array_values($routes);
     }
 
+    private static function reportPage(string $page): bool {
+        return in_array($page, ['reports','operations_reports','financial_reports','billing_reports','maintenance_reports','purchasing_reports','audit_reports',
+            'admin_reports','admin_analytics','admin_descriptive_analytics','admin_diagnostic_analytics'], true);
+    }
+
     public static function canOpen(array $u, string $page): bool {
         $p = self::pages()[$page] ?? null;
-        return $p !== null && in_array($u['role'], $p[5], true);
+        if ($p === null) return false;
+        if ($page === 'reports_center' || self::reportPage($page)) {
+            require_once dirname(__DIR__).'/Modules/Administration/ReportAccess.php';
+            return $page === 'reports_center' ? ReportAccess::any($u)
+                : ($page === 'admin_analytics' ? ($u['role'] ?? '') === 'admin' : ReportAccess::allowed($u, $page));
+        }
+        return in_array($u['role'], $p[5], true);
     }
 
     public static function moduleOf(string $page): ?string { return self::pages()[$page][3] ?? null; }

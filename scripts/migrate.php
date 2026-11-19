@@ -22,6 +22,7 @@ if (count($args) > 1 || !in_array($args[0] ?? '--status', ['--status', '--apply'
 }
 $mode = $args[0] ?? '--status';
 $apply = $mode === '--apply' || $mode === '--auto';
+$ddlAttempted = false;
 
 // Keep parser unit-testable without loading application/database settings.
 require __DIR__ . '/lib/migration_sql.php';
@@ -182,7 +183,10 @@ try {
         try {
             $statements = migrationSqlStatements($sql);
             if ($statements === []) throw new RuntimeException('No executable SQL statements.');
-            foreach ($statements as $statement) $p->exec($statement);
+            foreach ($statements as $statement) {
+                $ddlAttempted = true;
+                $p->exec($statement);
+            }
             // Ensure recorded in schema_migrations if script didn't insert it
             $stmt = $p->prepare("INSERT IGNORE INTO schema_migrations (id) VALUES (?)");
             $stmt->execute([$name]);
@@ -204,6 +208,10 @@ try {
     }
 } catch (Throwable $e) {
     fwrite(STDERR, "Migration stopped: " . $e->getMessage() . "\n");
-    fwrite(STDERR, "DDL may be partially applied. Inspect schema before retrying.\n");
+    if ($ddlAttempted) {
+        fwrite(STDERR, "SQL execution was attempted and may be partially applied. Inspect schema before retrying.\n");
+    } else {
+        fwrite(STDERR, "Stopped before running migration SQL in this attempt. No DDL was executed by this run.\n");
+    }
     exit(1);
 }

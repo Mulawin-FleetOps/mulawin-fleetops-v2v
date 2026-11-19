@@ -212,7 +212,7 @@ const TripUI = {
       ? `Truck <b>${UI.esc(t.plate_number)}</b> is back. Check every item again; the result before departure is shown beside each item. Items marked <b>Requires Attention</b> require photographs and a description and generate a repair record (the truck becomes Under Maintenance). If all items are satisfactory, the truck becomes Available.`
       : `Inspect Truck <b>${UI.esc(t.plate_number)}</b> and classify each item as <b>Satisfactory</b> or <b>Requires Attention</b>. Any item marked <b>Requires Attention</b> will prevent the trip from proceeding to Ready for Dispatch.`;
     // Only show photo and description evidence when an arrival item requires attention.
-    // General arrival odometer, fuel and remarks are no longer collected.
+    // General odometer, fuel level and remarks are omitted from both checklists.
     const extra = arrival
       ? '<section class="arrival-finding-evidence border rounded p-3 mt-3" data-arrival-evidence hidden>'
           +'<h6 class="mb-1">Items Requiring Attention</h6>'
@@ -221,8 +221,7 @@ const TripUI = {
             { name: 'damage_notes', label: 'Damage or defect details', type: 'textarea', rows: 2, col: 12 },
             { name: 'photos', label: 'Supporting photographs', type: 'file', multiple: true, col: 12, attrs: 'accept="image/*"' }
           ])+'</section>'
-      : UI.fields([{ name: 'odometer_km', label: 'Odometer (km)', type: 'number', col: 4 }, { name: 'fuel_level', label: 'Fuel level', type: 'select', options: UI.list(['Full', '3/4', '1/2', '1/4', 'Low']), col: 4 },
-          { name: 'remarks', label: 'Remarks', col: 4 }]);
+      : '';
     const timerBox = +timer.min_minutes > 0 ? `<div class="alert alert-info py-2 small mb-2 d-flex align-items-center gap-2" data-timer><i class="bi bi-stopwatch"></i><span data-timer-text></span></div>` : '';
     const body = `${timerBox}<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2"><div class="small text-muted">${intro}</div>
       <button type="button" class="btn btn-sm btn-outline-success" id="chkAll"><i class="bi bi-check2-all"></i> Mark All as Satisfactory</button></div>
@@ -244,7 +243,7 @@ const TripUI = {
         if (bad && !form.querySelector('[name=photos]').files.length) throw new Error('Attach photographs of all items requiring attention.');
         r = await App.apiForm('Trips.arrival', { trip_id: t.id, items, meta: {}, damage_notes: d.damage_notes }, form);
       } else {
-        r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {}, odometer_km: d.odometer_km, fuel_level: d.fuel_level, remarks: d.remarks });
+        r = await App.api('Trips.checklist', { trip_id: t.id, items, meta: {} });
       }
       UI.result(r); TripUI.open(t.id); App.route();
     }, { size: 'modal-xl', submit: arrival ? 'Submit arrival checklist' : 'Submit checklist', onShow: (w, form) => {
@@ -286,7 +285,7 @@ const TripUI = {
   complete(t) {
     const cc = t.truck_type === 'Car Carrier';
     const detailsFields=[
-      { name: 'completed_at', label: 'Actual completion date and time', type: 'datetime', value: (() => { const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); })(), required: true, col: 6 },
+      { name: 'completion_time_notice', type: 'html', col: 6, html: '<div class="small fw-semibold mb-2">Actual completion date and time</div><div class="form-control bg-light text-muted" role="status"><i class="bi bi-clock me-2" aria-hidden="true"></i>Recorded automatically on completion (PH time)</div>' },
       { name: 'waybill_number', label: 'Waybill number', required: true, col: 6, value: t.waybill_number },
       ...(cc ? [{ name: 'units_delivered', label: 'Units delivered', type: 'number', min: 1, value: t.units_planned, required: true, col: 6 }] : []),
       { name: 'delivery_notes', label: 'Delivery / return notes', col: cc ? 6 : 12 }
@@ -313,7 +312,7 @@ const TripUI = {
       const btn = form.querySelector('button[type=submit]');
       const check = () => {
         const has = (n) => form.querySelector(`[name=${n}]`).files.length > 0;
-        const items = [['Completion date and time', !!form.completed_at.value], ['Waybill number', !!form.waybill_number.value.trim()],
+        const items = [['Waybill number', !!form.waybill_number.value.trim()],
           ...(cc ? [['Units delivered', +form.units_delivered.value > 0]] : []),
           ['Waybill file', has('waybill') || +t.waybill_docs > 0], ['Acknowledgement receipt file', has('ack_receipt') || +t.ar_docs > 0],
           ['Delivery Receipt (DR) file', has('delivery_receipt') || +t.dr_docs > 0]];
@@ -431,7 +430,7 @@ const TripUI = {
     const fund = r.funds.find(f => +f.attempt_number === +t.attempt_number);
     const ins = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Pre-Dispatch');
     const arr = r.inspections.find(i => +i.attempt_number === +t.attempt_number && i.kind === 'Arrival');
-    const crew = [['Driver', t.driver_name], ...(t.truck_type === 'Car Carrier' ? [['Driver 2', t.driver2_name]] : [['Helper', t.helper_name]])];
+    const crew = [['Driver', t.driver_name], ['Helper', t.helper_name], ...(t.driver2_id ? [['Legacy Driver 2', t.driver2_name]] : [])];
     // CHECKLIST_42_ATTENDANCE_ENFORCEMENT_V1: attendance per crew member for the date of "dispatch now" (server data).
     const att = t.crew_attendance;
     const attBadge = (role) => {
@@ -478,6 +477,22 @@ const TripUI = {
           fund.rejected_reason ? ['Rejected because', UI.esc(fund.rejected_reason)] : null])
         : `<div class="text-muted small">${+t.attempt_number > 1 ? 'No new fund request for this attempt (optional for a redispatch).' : 'No fund request yet.'}</div>`}
       ${UI.h('Pre-dispatch checklist' + (+t.attempt_number > 1 ? ' (attempt #' + t.attempt_number + ')' : ''))}${checklistHtml}
+      ${(r.checklist_submissions || []).length ? UI.h('Pre-dispatch reinspection history') +
+        UI.table([
+          ['Submission', 'id', (v, row) => '#' + UI.num((r.checklist_submissions || []).indexOf(row) + 1)],
+          ['Trip attempt', 'attempt_number', (v) => '#' + UI.num(v)],
+          ['Truck', 'plate_number'],
+          ['Result', 'has_not_ok', (v) => +v ? '<span class="badge-s red">NOT OK</span>' : '<span class="badge-s green">All OK</span>'],
+          ['NOT OK findings', 'items_json', (v) => {
+            let entries = {}; try { entries = JSON.parse(v || '{}').items || {}; } catch {}
+            const labels = (TripUI.data.checklist || []).flatMap(sec => sec.items.map((label, i) => [sec.key + '_' + String(i + 1).padStart(2, '0'), label]));
+            const bad = labels.filter(([key]) => entries[key]?.condition === 'NOT OK').map(([key,label]) => label + (entries[key].remarks ? ' (' + entries[key].remarks + ')' : ''));
+            return bad.length ? UI.esc(bad.join('; ')) : 'All 57 items OK';
+          }],
+          ['Repair record', 'job_ref', (v) => v ? UI.esc(v) : '—'],
+          ['Submitted', 'submitted_at', 'datetime']
+        ], r.checklist_submissions, {showAllColumns:true,empty:'No reinspection submissions yet.'})
+        : ''}
       ${t.status === 'Completed' ? UI.h('Arrival checklist') + TripUI.arrivalHtml(t, ins, arr) : ''}
       ${r.incidents.length ? UI.h('Incidents') + r.incidents.map(i => `<div class="border rounded p-2 mb-2 small"><div class="d-flex justify-content-between"><b>${UI.esc(i.incident_ref)} · ${UI.esc(i.incident_type)}</b>${UI.badge(i.status)}</div>
           ${UI.esc(i.problem)} · ${UI.esc(i.location)} · ${UI.datetime(i.incident_at)}${i.recommendation ? '<br>Recommendation: ' + UI.esc(i.recommendation) : ''}${i.job_ref ? '<br>Maintenance record: ' + UI.esc(i.job_ref) + (i.job_status ? ' (' + UI.esc(i.job_status) + ')' : '') : ''}${i.severity ? '<br>Damage classification: ' + UI.esc(i.severity) : ''}${i.clearance ? '<br>Motorpool clearance: <b>' + UI.esc(i.clearance) + '</b> · ' + UI.esc(i.cleared_by_name || '') + ' · ' + UI.datetime(i.cleared_at) + '<br><span class="text-muted">' + UI.esc(i.clearance_findings || '') + '</span>' : ''}${i.resumed_at ? '<br>Resumed by ' + UI.esc(i.resumed_by_name || '') + ' · ' + UI.datetime(i.resumed_at) : ''}

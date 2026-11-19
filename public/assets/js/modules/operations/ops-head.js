@@ -143,12 +143,10 @@ const OpsHead = {
     });
     const active = (d.active || []).filter(t => !this.closed.includes(t.status) && t.status !== 'Pending Review');
     ctx.el.innerHTML = '<div class="fleet-trips-workspace">'
-      + RecordComponents.kpis([
-        {label:'Active Trips',value:d.opsSummary?.active ?? active.length},
-        {label:'Needs Action',value:d.opsSummary?.attention ?? 0,color:'amber'},
-        {label:'Trips with Incidents',value:d.opsSummary?.incidents ?? 0,color:'red'},
-        {label:'Pending Arrival Inspections',value:d.opsSummary?.arrival ?? 0,color:'blue'},
-      ])
+      +'<div class="small text-muted mb-2">Active trips: <b>'+UI.num(d.opsSummary?.active ?? active.length)+'</b>'
+       +' · Needs action: <b>'+UI.num(d.opsSummary?.attention ?? 0)+'</b>'
+       +' · Incidents: <b>'+UI.num(d.opsSummary?.incidents ?? 0)+'</b>'
+       +' · Arrival inspections: <b>'+UI.num(d.opsSummary?.arrival ?? 0)+'</b></div>'
       + RecordComponents.tabs([{value:'active',label:'Active Trips'},{value:'history',label:'Trip History'}],tab,'data-trip-view')
       + (history ? '<p class="record-workspace-help"><a href="#trips?tab=history&legacy=1">Historical Trip Requests</a></p>' : '')
       + (q.group && !history ? '<p class="record-workspace-help">Monitoring group: <b>' + UI.esc(q.group) + '</b> · <a href="#trips?tab=active">Clear group</a></p>' : '')
@@ -266,12 +264,10 @@ const OpsHead = {
       empty: tab === 'open' ? 'No ongoing incidents match your search or filters.' : 'No resolved incidents match your search or filters.',
     });
     workspace.innerHTML = '<div class="fleet-incidents-workspace">'
-      + RecordComponents.kpis([
-        {label:'Total Incidents',value:rows.length},
-        {label:'Ongoing',value:ongoing.length,color:ongoing.length?'amber':''},
-        {label:'Under Repair',value:underRepair.length,color:'blue'},
-        {label:'Resolved',value:resolved.length,color:'green'},
-      ])
+      +'<div class="small text-muted mb-2">Incidents: <b>'+UI.num(rows.length)+'</b>'
+       +' · Ongoing: <b>'+UI.num(ongoing.length)+'</b>'
+       +' · Under repair: <b>'+UI.num(underRepair.length)+'</b>'
+       +' · Resolved: <b>'+UI.num(resolved.length)+'</b></div>'
       + RecordComponents.tabs([
         {value:'open',label:'Ongoing Incidents'},
         {value:'resolved',label:'Resolved Incidents'},
@@ -413,12 +409,10 @@ const OpsHead = {
       empty:tab==='approved'?'No approved routes match your search or filters.':'No route requests match your search or filters.',
     });
     ctx.el.innerHTML='<div class="fleet-routes-workspace oh-client-routes-workspace">'
-      +RecordComponents.kpis([
-        {label:'Approved Routes',value:approved.length,color:'green'},
-        {label:'Route Requests',value:requests.length},
-        {label:'Pending Rate',value:all.filter(r=>r.status==='Pending Rate').length,color:'blue'},
-        {label:'Pending Approval',value:all.filter(r=>r.status==='Pending Approval'||!!r.pending_rate_id).length,color:'amber'},
-      ])
+      +'<div class="small text-muted mb-2">Approved routes: <b>'+UI.num(approved.length)+'</b>'
+       +' · Requests: <b>'+UI.num(requests.length)+'</b>'
+       +' · Pending rate: <b>'+UI.num(all.filter(r=>r.status==='Pending Rate').length)+'</b>'
+       +' · Pending approval: <b>'+UI.num(all.filter(r=>r.status==='Pending Approval'||!!r.pending_rate_id).length)+'</b></div>'
       +RecordComponents.tabs([
         {value:'approved',label:'Approved Routes'},
         {value:'requests',label:'Route Requests'},
@@ -675,12 +669,10 @@ const OpsHead = {
       empty: typeRows.length ? 'No personnel match your search or filters.' : 'No ' + (type === 'Driver' ? 'drivers' : 'helpers') + ' registered yet.',
     });
     ctx.el.innerHTML = '<div class="fleet-crew-workspace">'
-      + RecordComponents.kpis([
-        {label:'Total ' + (type === 'Driver' ? 'Drivers' : 'Helpers'),value:typeRows.length},
-        {label:'Available',value:available,color:'green'},
-        {label:'On Trip',value:onTrip,color:'blue'},
-        {label:'Unavailable',value:unavailable,color:unavailable?'red':''},
-      ])
+      +'<div class="small text-muted mb-2">'+UI.esc(type)+': <b>'+UI.num(typeRows.length)+'</b>'
+       +' · Available: <b>'+UI.num(available)+'</b>'
+       +' · On Trip: <b>'+UI.num(onTrip)+'</b>'
+       +' · Unavailable: <b>'+UI.num(unavailable)+'</b></div>'
       + RecordComponents.tabs([{value:'Driver',label:'Drivers'},{value:'Helper',label:'Helpers'}],type,'data-crew-type')
       + RecordComponents.panel(table, '')
       + '<p class="record-workspace-help">Attendance readiness reflects the current shift. Dispatch performs its own eligibility checks.</p>'

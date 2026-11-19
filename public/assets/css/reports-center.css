@@ -1,0 +1,19 @@
+/* Central Reports hub — existing report pages render untouched. */
+.rac-root {display:grid;gap:16px;}
+.rac-panel {border:1px solid #dfb75d;border-radius:12px;overflow:hidden;background:#fff;}
+.rac-report-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:11px;margin-top:16px;}
+.rac-report {display:flex;gap:12px;align-items:center;min-width:0;border:1px solid #e2e8e4;border-radius:11px;padding:15px;text-decoration:none;color:#244334;background:#fff;}
+.rac-report:hover,.rac-report:focus-visible {border-color:#158354;background:#f7fcf8;color:#174d32;}
+.rac-icon {flex:0 0 42px;width:42px;height:42px;border-radius:10px;background:#158354;color:#fff;display:grid;place-items:center;font-size:19px;}
+.rac-copy {flex:1;min-width:0;display:grid;gap:3px;}
+.rac-copy strong {font-size:13px;}
+.rac-copy small,.rac-permission small {font-size:11.5px;color:#718079;}
+.rac-controls {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0;}
+.rac-controls label {font-size:12px;font-weight:650;display:grid;gap:6px;}
+.rac-permissions {display:grid;gap:0;border:1px solid #e3e9e5;border-radius:10px;overflow:hidden;}
+.rac-permission {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border-bottom:1px solid #e3e9e5;}
+.rac-permission:last-child {border:0;}
+.rac-permission>div {display:grid;gap:3px;min-width:0;}
+.rac-permission strong {font-size:12.5px;}
+.rac-permission select {max-width:190px;min-width:125px;}
+@media(max-width:650px){.rac-controls{grid-template-columns:1fr;}.rac-permission{align-items:stretch;flex-direction:column;}.rac-permission select{max-width:none;width:100%;}}

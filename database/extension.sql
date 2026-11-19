@@ -21,6 +21,18 @@ INSERT INTO schema_migrations (id) VALUES
   ('2026-11-07_07_trip_routing'), ('2026-11-08_08_attendance'),
   ('2026-11-09_09_billing_adjustments');
 
+-- Unfinished Add Driver/Helper/Truck forms; no operational records until final Save.
+CREATE TABLE fleet_form_drafts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  owner_id INT NOT NULL,
+  draft_type ENUM('driver','helper','truck') NOT NULL,
+  fields_json MEDIUMTEXT NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_fleet_form_draft_owner_type (owner_id,draft_type),
+  CONSTRAINT fk_fleet_form_draft_owner FOREIGN KEY (owner_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations(id) VALUES ('2026-11-19_25_fleet_form_drafts');
+
 -- =====================================================================
 -- OPERATIONS: TRIPS  (Objective 1.3 - 1.6; PDF #12 Scenario A, B, C)
 -- =====================================================================
@@ -296,6 +308,7 @@ CREATE TABLE parts (
   reorder_level INT NOT NULL DEFAULT 0,
   quantity_on_hand INT NOT NULL DEFAULT 0,
   warranty_info VARCHAR(150) NULL,
+  warranty_months SMALLINT UNSIGNED NULL COMMENT 'default coverage for future receipts; legacy text retained',
   active TINYINT NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT chk_parts_qty CHECK (quantity_on_hand >= 0),
@@ -431,11 +444,14 @@ CREATE TABLE part_request_lines (
   part_id INT NOT NULL,
   quantity INT NOT NULL,
   released_qty INT NOT NULL DEFAULT 0,
+  reserved_qty INT NOT NULL DEFAULT 0 COMMENT 'allocated inventory, not yet physically released',
   unit_cost DECIMAL(12,2) NULL COMMENT 'cost at the time of release',
   UNIQUE KEY uq_preq_line (part_request_id, part_id),
   FOREIGN KEY (part_request_id) REFERENCES part_requests(id),
   FOREIGN KEY (part_id) REFERENCES parts(id),
-  CONSTRAINT chk_preq_qty CHECK (quantity > 0 AND released_qty >= 0 AND released_qty <= quantity)
+  CONSTRAINT chk_preq_qty CHECK (quantity > 0 AND released_qty >= 0 AND released_qty <= quantity),
+  CONSTRAINT chk_preq_reservation CHECK (reserved_qty >= 0 AND reserved_qty + released_qty <= quantity),
+  INDEX idx_preq_lines_part (part_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Purchasing budget set by Finance (Objective 3.6).
@@ -475,6 +491,9 @@ CREATE TABLE purchase_orders (
   total_amount DECIMAL(14,2) NOT NULL,
   approver_role VARCHAR(20) NOT NULL COMMENT 'finance (limit and below) or admin (above limit)',
   status VARCHAR(40) NOT NULL DEFAULT 'Pending Approval',
+  order_confirmation_required TINYINT(1) NOT NULL DEFAULT 0,
+  ordered_at DATETIME NULL,
+  ordered_by INT NULL,
   payment_status VARCHAR(20) NULL,
   budget_id INT NULL,
   reserved_amount DECIMAL(14,2) NOT NULL DEFAULT 0 COMMENT 'part of the budget still reserved for this PO',
@@ -490,10 +509,13 @@ CREATE TABLE purchase_orders (
   FOREIGN KEY (budget_id) REFERENCES budgets(id),
   FOREIGN KEY (requested_by) REFERENCES users(id),
   FOREIGN KEY (decided_by) REFERENCES users(id),
+  CONSTRAINT fk_po_ordered_by FOREIGN KEY (ordered_by) REFERENCES users(id),
   INDEX idx_po_status (status, payment_status),
   INDEX idx_po_supplier_name (supplier_name),
   CONSTRAINT chk_po_status CHECK (status IN ('Pending Approval','Approved','Rejected','Rejected - Insufficient Budget','Partially Received','Received','Closed')),
   CONSTRAINT chk_po_pay CHECK (payment_status IS NULL OR payment_status IN ('Pending Payment','Partially Paid','Paid')),
+  CONSTRAINT chk_po_order_confirmation CHECK (order_confirmation_required IN (0,1)),
+  CONSTRAINT chk_po_order_actor CHECK ((ordered_at IS NULL AND ordered_by IS NULL) OR (ordered_at IS NOT NULL AND ordered_by IS NOT NULL)),
   CONSTRAINT chk_po_amounts CHECK (total_amount > 0 AND reserved_amount >= 0 AND paid_amount >= 0 AND paid_amount <= total_amount),
   CONSTRAINT chk_po_approver CHECK (approver_role IN ('finance','admin'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -511,6 +533,48 @@ CREATE TABLE purchase_order_lines (
   FOREIGN KEY (part_id) REFERENCES parts(id),
   CONSTRAINT chk_po_line CHECK (quantity > 0 AND unit_price > 0 AND received_qty >= 0 AND received_qty <= quantity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Each received warranty-covered PO line creates a distinct dated batch.
+-- Historic receipts remain unknown; no synthetic coverage is assigned.
+CREATE TABLE part_warranty_batches (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  po_line_id INT NOT NULL,
+  part_id INT NOT NULL,
+  received_qty INT NOT NULL,
+  warranty_status VARCHAR(24) NOT NULL DEFAULT 'With Warranty',
+  start_basis VARCHAR(24) NULL,
+  warranty_months SMALLINT UNSIGNED NULL,
+  warranty_start DATE NULL,
+  warranty_expires DATE NULL,
+  received_by INT NOT NULL,
+  updated_by INT NULL,
+  updated_at DATETIME NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (po_line_id) REFERENCES purchase_order_lines(id),
+  FOREIGN KEY (part_id) REFERENCES parts(id),
+  FOREIGN KEY (received_by) REFERENCES users(id),
+  CONSTRAINT fk_warranty_updated_by FOREIGN KEY (updated_by) REFERENCES users(id),
+  INDEX idx_warranty_expiry (warranty_expires),
+  INDEX idx_warranty_part (part_id, warranty_expires),
+  INDEX idx_warranty_status (warranty_status, part_id),
+  CONSTRAINT chk_part_warranty_qty CHECK (received_qty > 0),
+  CONSTRAINT chk_part_warranty_months CHECK (warranty_months BETWEEN 1 AND 120),
+  CONSTRAINT chk_part_warranty_dates CHECK (warranty_expires > warranty_start),
+  CONSTRAINT chk_warranty_status CHECK (warranty_status IN ('With Warranty','No Warranty','Not Yet Confirmed','Pending Installation')),
+  CONSTRAINT chk_warranty_complete CHECK (
+    (warranty_status='With Warranty' AND warranty_months BETWEEN 1 AND 120
+      AND warranty_start IS NOT NULL AND warranty_expires IS NOT NULL AND start_basis IS NOT NULL)
+    OR (warranty_status IN ('No Warranty','Not Yet Confirmed') AND warranty_months IS NULL
+      AND warranty_start IS NULL AND warranty_expires IS NULL AND start_basis IS NULL)
+    OR (warranty_status='With Warranty' AND start_basis IS NULL
+      AND warranty_months BETWEEN 1 AND 120 AND warranty_start IS NOT NULL AND warranty_expires IS NOT NULL)
+    OR (warranty_status='Pending Installation' AND warranty_months BETWEEN 1 AND 120
+      AND warranty_start IS NULL AND warranty_expires IS NULL AND start_basis='Installation')
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_20_part_warranty_batches');
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_22_warranty_receipt_confirmation');
+INSERT IGNORE INTO schema_migrations (id) VALUES ('2026-11-18_23_pending_installation_warranty');
 
 -- Every stock change (stock-in, stock-out, adjustment) for inventory history (Objective 2.6, 5.5).
 CREATE TABLE stock_movements (
