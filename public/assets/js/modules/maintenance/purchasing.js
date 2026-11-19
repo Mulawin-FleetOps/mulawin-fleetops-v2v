@@ -767,7 +767,7 @@ App.page('parts_requests', {
       ['Status', 'status', 'badge'],
       ['Linked PO', 'linked_pos', (v) => v ? `<span class="cell-clamp">${UI.esc(v)}</span>` : '<span class="text-muted">None</span>'],
       ['Waiting for', 'status', (v, r) => PurUI.waitingControl(PurUI.reqNext(r), 'request', r.id)]], rows,
-      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
+      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, actions: (r) => k.reqActs(r), onAction: k.reqAct, rowClick: open,
         empty: 'No parts request in this list.' });
     PurRef.inlineFilters(box, ctx.el);
     PurUI.bindWorkflowLinks(box);
@@ -806,7 +806,7 @@ App.page('purchase_orders', {
       ['Total', 'total_amount', 'money'],
       ['Parts Status', 'status', (v, o) => UI.badge(v === 'Approved' && o.ordered_at ? 'Ordered' : v)],
       ['Waiting for', 'status', (v, o) => PurUI.waitingControl(PurUI.poNext(o), 'po', o.id)]], rows,
-      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, directActions: true, actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
+      { title: TABS[tab][0] + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, actions: (o) => k.poActs(o), onAction: k.poAct, rowClick: open,
         empty: 'No purchase order in this list.' });
     const once = UI.takeQuery(ctx, 'new');
     if (once.new && can.stock) PurUI.newPO();
