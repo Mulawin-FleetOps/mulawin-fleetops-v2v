@@ -278,8 +278,13 @@ const HeadAdminPage = {
           To restore: create an empty database and import the .sql file in phpMyAdmin.</p><button class="btn btn-primary btn-sm" data-backup><i class="bi bi-hdd"></i> Create backup now</button></div></div>`
         + UI.table([['File', 'name'], ['Backup date', 'date'], ['Size', 'size', (v) => UI.num(v / 1024, 1) + ' KB']], d.backups, { title: 'Backups', actions: () => UI.btn('dl', 'Download'), onAction: (a, b) => { window.location = 'index.php?api=backup_download&file=' + encodeURIComponent(b.name); } })]);
     }
-    const catForm = (c = {}) => UI.formModal(c.id ? 'Edit category' : 'Add category', [{ name: 'name', label: 'Category', required: true, col: 6, value: c.name }, { name: 'amount', label: 'Preset amount', type: 'money', required: true, col: 3, value: c.amount },
-      { name: 'sort_order', label: 'Order', type: 'number', col: 3, value: c.sort_order ?? 0 }, { name: 'active', label: 'Active (shown to dispatchers)', type: 'checkbox', value: c.id ? c.active : 1, col: 12 }], 'Admin.fund_category_save', { extra: c.id ? { id: c.id } : {} });
+    // The backend assigns sequential display order. New categories start Active;
+    // only existing categories expose the Active/Inactive control in Manage.
+    const catForm = (c = {}) => UI.formModal(c.id ? 'Edit category' : 'Add category', [
+      { name: 'name', label: 'Category', required: true, col: 8, value: c.name },
+      { name: 'amount', label: 'Preset amount', type: 'money', required: true, col: 4, value: c.amount },
+      ...(c.id ? [{ name: 'active', label: 'Active (shown to dispatchers)', type: 'checkbox', value: c.active, col: 12 }] : [])
+    ], 'Admin.fund_category_save', { extra: c.id ? { id: c.id } : {} });
     // Audit Phase 1: concise list, action-first drawer and verified changed fields.
     const activityDetails = (e) => {
       const fields = [
