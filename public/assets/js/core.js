@@ -1777,18 +1777,20 @@ UI.drawTable = (id) => {
   const grow = UI.refPage() ? t.columns.map(([, k, f]) => typeof f === 'function' && shown.some(r => /cell-cl(?:ip|amp)/.test(String(f(r[k], r) || '')))) : [];
   box.innerHTML = `<table class="data-table${t.opts.rowClick ? ' clickable' : ''}${!t.opts.plain && !t.opts.preserveTableWidth ? ' fleet-balanced-table' : ''}"${tableStyle}><thead><tr>${t.columns.map(([l, , f], i) => `<th class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.esc(UI.columnLabel(l, f))}</th>`).join('')}${t.hasActions ? '<th class="actions-col"><span class="visually-hidden">Actions</span></th>' : ''}</tr></thead>
     <tbody>${shown.map((r) => `<tr data-ri="${t.rows.indexOf(r)}">${t.columns.map(([, k, f], i) => `<td class="${cellClass(f)}${grow[i] ? ' col-grow' : ''}">${UI.fmt(f, r[k], r)}</td>`).join('')}${t.hasActions ? `<td class="actions-col"><div class="row-actions" data-row="${id}:${t.rows.indexOf(r)}">${UI.overviewActions(id,r)}</div></td>` : ''}</tr>`).join('')}</tbody></table>`;
-  if(pager&&t.opts.dsServerPaged){pager.innerHTML='';}
-  else if(pager&&(!t.opts.plain||(UI.role('operations_head')&&box.closest('.app-drawer')&&!box.closest('form')&&!t.opts.dsServerPaged))&&(UI.role('operations_head')||UI.isDispatcher())){
-    pager.innerHTML=UI.recordPager({total:rows.length,page:t.page+1,pages:Math.max(1,pages),pageSize:t.limit,previous:'data-tpg="'+(t.page-1)+'"',next:'data-tpg="'+(t.page+1)+'"'});
-    pager.querySelectorAll('[data-tpg]').forEach(button=>button.onclick=()=>{t.page=Number(button.dataset.tpg);UI.drawTable(id);});
-  } else if (pager && pages > 1) {
-    const nums = [];
-    for (let i = 0; i < pages; i++) if (i === 0 || i === pages - 1 || Math.abs(i - t.page) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
-    pager.innerHTML = `<span class="pager-info">${first + 1}–${first + shown.length} of ${rows.length}</span><nav class="pager-pages" aria-label="Pages">
-      <button type="button" class="pg" data-tpg="${t.page - 1}" ${t.page === 0 ? 'disabled' : ''} aria-label="Previous page"><i class="bi bi-chevron-left"></i></button>
-      ${nums.map(n => n === '…' ? '<span class="pg-gap">…</span>' : `<button type="button" class="pg ${n === t.page ? 'active' : ''}" data-tpg="${n}">${n + 1}</button>`).join('')}
-      <button type="button" class="pg" data-tpg="${t.page + 1}" ${t.page >= pages - 1 ? 'disabled' : ''} aria-label="Next page"><i class="bi bi-chevron-right"></i></button></nav>`;
-    pager.querySelectorAll('[data-tpg]').forEach(b => b.onclick = () => { t.page = +b.dataset.tpg; UI.drawTable(id); });
+  // All client-side record tables share the same visible pagination, including page 1 of 1.
+  // Server-paged tables retain their existing controls and must not double-paginate.
+  if (pager && !t.opts.dsServerPaged) {
+    pager.innerHTML = UI.recordPager({
+      total: rows.length, page: t.page + 1, pages: Math.max(1, pages), pageSize: t.limit,
+      previous: 'data-tpg="' + (t.page - 1) + '"',
+      next: 'data-tpg="' + (t.page + 1) + '"'
+    });
+    pager.querySelectorAll('[data-tpg]').forEach(button => button.addEventListener('click', () => {
+      const nextPage = Number(button.dataset.tpg);
+      if (!Number.isInteger(nextPage) || nextPage < 0 || nextPage >= pages) return;
+      t.page = nextPage;
+      UI.drawTable(id);
+    }));
   }
 
   // FLEETOPS_SYSTEMWIDE_OVERVIEW_V3: one compact Manage control for multi-action rows.
