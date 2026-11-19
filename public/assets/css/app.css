@@ -3153,28 +3153,45 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .purchasing-table-purchase-orders .data-table th:nth-child(4) { width: 17%; }
 .purchasing-table-purchase-orders .data-table th:nth-child(5) { width: 23%; }
 .purchasing-table-purchase-orders .data-table th:nth-child(6) { width: 10%; }
-/* Inventory / stock counts render separate tables within one page. */
-.purchasing-inventory-parts-view .table-wrap > table.data-table { min-width: 1370px; }
-.purchasing-inventory-parts-view .data-table th:nth-child(1) { width: 10%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(2) { width: 11%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(3) { width: 18%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(4) { width: 13%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(5),
-.purchasing-inventory-parts-view .data-table th:nth-child(6) { width: 7%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(7) { width: 9%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(8) { width: 9%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(9) { width: 9%; }
-.purchasing-inventory-parts-view .data-table th:nth-child(10) { width: 7%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .table-wrap > table.data-table { min-width: 1250px; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(1) { width: 12%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(2) { width: 17%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(3),
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(4) { width: 8%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(5) { width: 14%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(6) { width: 10%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(7) { width: 14%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(8) { width: 9%; }
-.purchasing-table-inventory:not(.purchasing-inventory-parts-view) .data-table th:nth-child(9) { width: 8%; }
+/* Inventory: natural column sizing. Do not force desktop overflow for short values.
+   Actions reserve room for both labelled buttons; narrower viewports can scroll. */
+.purchasing-table-inventory .table-wrap > table.data-table {
+  table-layout: auto;
+  width: 100%;
+  min-width: 0;
+}
+.purchasing-table-inventory .table-wrap > table.data-table th {
+  width: auto;
+}
+.purchasing-table-inventory .table-wrap > table.data-table th,
+.purchasing-table-inventory .table-wrap > table.data-table td {
+  padding: 10px 9px;
+}
+.purchasing-table-inventory .table-wrap > table.data-table th:nth-child(1),
+.purchasing-table-inventory .table-wrap > table.data-table td:nth-child(1) { white-space: nowrap; }
+.purchasing-table-inventory .table-wrap > table.data-table td:nth-child(3) { min-width: 135px; }
+.purchasing-inventory-parts-view .table-wrap > table.data-table th.actions-col,
+.purchasing-inventory-parts-view .table-wrap > table.data-table td.actions-col {
+  width: 250px;
+  min-width: 250px;
+  text-align: right;
+}
+.purchasing-inventory-parts-view .table-wrap > table.data-table .row-actions,
+.purchasing-inventory-parts-view .table-wrap > table.data-table .row-icons {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.purchasing-inventory-parts-view .table-wrap > table.data-table .row-actions .btn,
+.purchasing-inventory-parts-view .table-wrap > table.data-table .row-icons .btn {
+  padding: 5px 8px;
+  min-height: 32px;
+  font-size: 12px;
+}
+@media (max-width: 1199.98px) {
+  .purchasing-table-inventory .table-wrap > table.data-table { min-width: 1080px; }
+}
 /* Stock Movements: date / part / type / qty / reason / truck / by / actions. */
 .purchasing-table-stock-movements .table-wrap > table.data-table { min-width: 1130px; }
 .purchasing-table-stock-movements .data-table th:nth-child(1) { width: 14%; }
