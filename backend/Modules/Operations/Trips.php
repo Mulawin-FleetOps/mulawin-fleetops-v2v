@@ -1506,6 +1506,7 @@ final class Trips {
                 : [],
             'funds' => $funds,
             'incidents' => $incidents,
+            'clarificationsReady' => (bool)one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'"),
             'incidentClarifications' => one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'") ? many($p,'SELECT c.id,c.incident_id,c.details,c.created_at,u.full_name AS actor FROM incident_clarifications c JOIN users u ON u.id=c.actor_id WHERE c.trip_id=? ORDER BY c.id',[$id]) : [],
             'documents' => $docs,
             'billing' => one($p, 'SELECT * FROM billings WHERE trip_id=?', [$id]),
