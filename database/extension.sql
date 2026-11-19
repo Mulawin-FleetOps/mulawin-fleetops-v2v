@@ -444,11 +444,14 @@ CREATE TABLE part_request_lines (
   part_id INT NOT NULL,
   quantity INT NOT NULL,
   released_qty INT NOT NULL DEFAULT 0,
+  reserved_qty INT NOT NULL DEFAULT 0 COMMENT 'allocated inventory, not yet physically released',
   unit_cost DECIMAL(12,2) NULL COMMENT 'cost at the time of release',
   UNIQUE KEY uq_preq_line (part_request_id, part_id),
   FOREIGN KEY (part_request_id) REFERENCES part_requests(id),
   FOREIGN KEY (part_id) REFERENCES parts(id),
-  CONSTRAINT chk_preq_qty CHECK (quantity > 0 AND released_qty >= 0 AND released_qty <= quantity)
+  CONSTRAINT chk_preq_qty CHECK (quantity > 0 AND released_qty >= 0 AND released_qty <= quantity),
+  CONSTRAINT chk_preq_reservation CHECK (reserved_qty >= 0 AND reserved_qty + released_qty <= quantity),
+  INDEX idx_preq_lines_part (part_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Purchasing budget set by Finance (Objective 3.6).
@@ -488,6 +491,9 @@ CREATE TABLE purchase_orders (
   total_amount DECIMAL(14,2) NOT NULL,
   approver_role VARCHAR(20) NOT NULL COMMENT 'finance (limit and below) or admin (above limit)',
   status VARCHAR(40) NOT NULL DEFAULT 'Pending Approval',
+  order_confirmation_required TINYINT(1) NOT NULL DEFAULT 0,
+  ordered_at DATETIME NULL,
+  ordered_by INT NULL,
   payment_status VARCHAR(20) NULL,
   budget_id INT NULL,
   reserved_amount DECIMAL(14,2) NOT NULL DEFAULT 0 COMMENT 'part of the budget still reserved for this PO',
@@ -503,10 +509,13 @@ CREATE TABLE purchase_orders (
   FOREIGN KEY (budget_id) REFERENCES budgets(id),
   FOREIGN KEY (requested_by) REFERENCES users(id),
   FOREIGN KEY (decided_by) REFERENCES users(id),
+  CONSTRAINT fk_po_ordered_by FOREIGN KEY (ordered_by) REFERENCES users(id),
   INDEX idx_po_status (status, payment_status),
   INDEX idx_po_supplier_name (supplier_name),
   CONSTRAINT chk_po_status CHECK (status IN ('Pending Approval','Approved','Rejected','Rejected - Insufficient Budget','Partially Received','Received','Closed')),
   CONSTRAINT chk_po_pay CHECK (payment_status IS NULL OR payment_status IN ('Pending Payment','Partially Paid','Paid')),
+  CONSTRAINT chk_po_order_confirmation CHECK (order_confirmation_required IN (0,1)),
+  CONSTRAINT chk_po_order_actor CHECK ((ordered_at IS NULL AND ordered_by IS NULL) OR (ordered_at IS NOT NULL AND ordered_by IS NOT NULL)),
   CONSTRAINT chk_po_amounts CHECK (total_amount > 0 AND reserved_amount >= 0 AND paid_amount >= 0 AND paid_amount <= total_amount),
   CONSTRAINT chk_po_approver CHECK (approver_role IN ('finance','admin'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
