@@ -430,6 +430,18 @@ const RecordComponents = Object.freeze({
     const row = document.createElement('div');
     row.className = 'record-workspace-search';
     row.append(search);
+    const reset = toolbar.querySelector('.ref-reset, [data-treset]');
+    if (reset) row.append(reset);
+    const groups = toolbar.querySelector('[data-group-controls]');
+    if (groups) row.append(groups);
+    const liveCount = toolbar.querySelector('[data-tcount]');
+    const subtitle = heading?.querySelector('.record-workspace-count');
+    if (liveCount && subtitle) {
+      subtitle.textContent = '';
+      subtitle.append(liveCount);
+    } else if (liveCount) row.append(liveCount);
+    // Retain any original table-specific action buttons and their listeners.
+    [...toolbar.children].filter(el => el.matches('button')).forEach(button => row.append(button));
     // Existing Motorpool date/truck filters remain URL-backed and authoritative.
     const oldFilter = root.querySelector('.ui-filter-toolbar, .ws-filters, .filter-summary');
     if (oldFilter && !box.contains(oldFilter)) {
