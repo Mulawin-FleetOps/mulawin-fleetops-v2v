@@ -1624,13 +1624,28 @@ UI.overviewColumns = (columns, opts = {}) => {
   }
   return columns.filter((_,i) => chosen.has(i));
 };
+/** Detect existing "View" buttons by action ID OR displayed label.
+ * Several modules use a different data-act for "View details"; relying on
+ * a fixed set of action IDs can add a duplicate button to Manage.
+ */
+UI.hasRecordViewAction = html => {
+  const buttons = String(html || '').match(/<button\b[^>]*>[\s\S]*?<\/button>/gi) || [];
+  return buttons.some(button => {
+    if (/\bdata-fleet-details\b/i.test(button)) return true;
+    const action = button.match(/\bdata-act\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+    if (/^(view|trip|details|open)$/i.test(action)) return true;
+    const label = button.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ').trim();
+    return /^(view(?:\s+(?:details?|record|trip|info|information))?|open(?:\s+(?:details?|record|trip))?)$/i.test(label);
+  });
+};
 UI.overviewActions = (id, row) => {
   const t = UI._tables[id];
   let html = t.opts.actions ? (t.opts.actions(row) || '') : '';
   // STAGE_B_WORKSPACE_UI: tables that pass directActions show their (already role/state-filtered) icon buttons in the row,
   // instead of collapsing them behind a "Manage" chooser.
   if (t.opts.directActions) return `<div class="row-icons">${html}</div>`;
-  const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(html);
+  const hasView = UI.hasRecordViewAction(html);
   if (t.columns.length < t.allColumns.length && !hasView) html += '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details><i class="bi bi-eye" aria-hidden="true"></i> View</button>';
   const n = (html.match(/<button\b/gi) || []).length;
   if (n > 1) return `<button type="button" class="btn btn-sm btn-outline-primary fleet-manage-btn" data-fleet-manage aria-label="Manage record"><i class="bi bi-three-dots" aria-hidden="true"></i> Manage</button>`;
@@ -1764,7 +1779,7 @@ UI.drawTable = (id) => {
     const row = t.rows[Number(rowElement?.dataset.ri)];
     if (!row) return;
     const raw = (t.opts.actions ? t.opts.actions(row) : '') || '';
-    const hasView = /data-act=["'](?:view|trip|details|open)["']/i.test(raw);
+    const hasView = UI.hasRecordViewAction(raw);
     const more = t.columns.length < t.allColumns.length && !hasView
       ? '<button type="button" class="btn btn-sm btn-outline-primary" data-fleet-details>View details</button>' : '';
     const dialog = UI.modal('Manage record', `<div class="fleet-action-chooser">${more}${raw}</div>`, null, {size:''});
