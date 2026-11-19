@@ -139,13 +139,12 @@ const PurUI = {
     const keys = [['supplier_address','address'], ['supplier_contact','contact_person'],
       ['supplier_phone','contact_number'], ['supplier_email','email']];
     let auto = null;
-    const isAuto = () => auto && field('supplier_name').value === auto.name
-      && keys.every(([key]) => field(key).value === auto[key]);
+    const isAuto = () => auto && Object.entries(auto).every(([key, value]) => field(key).value === value);
     const clearAuto = () => {
-      if (isAuto()) {
-        field('supplier_name').value = '';
-        keys.forEach(([key]) => { field(key).value = ''; });
-      }
+      // Clear only values filled by this helper; preserve any manual values.
+      if (auto) Object.entries(auto).forEach(([key, value]) => {
+        if (field(key).value === value) field(key).value = '';
+      });
       auto = null;
     };
     const note = message => { if (info) info.textContent = message; };
@@ -171,7 +170,7 @@ const PurUI = {
       }
       const source = histories[0].get(common[0]);
       const supplier = field('supplier_name');
-      if (supplier.value.trim() && (!auto || supplier.value !== auto.name)) {
+      if (supplier.value.trim() && (!auto || supplier.value !== auto.supplier_name)) {
         note('Previous supplier: ' + source.name + ' (' + source.po_ref + '). Your entered supplier is kept.');
         return;
       }
@@ -182,11 +181,13 @@ const PurUI = {
       }
       clearAuto();
       supplier.value = source.name;
-      const snapshot = { name: supplier.value };
+      const snapshot = { supplier_name: supplier.value };
       keys.forEach(([target, sourceKey]) => {
         const input = field(target);
-        if (!input.value.trim() && source[sourceKey]) input.value = source[sourceKey];
-        snapshot[target] = input.value;
+        if (!input.value.trim() && source[sourceKey]) {
+          input.value = source[sourceKey];
+          snapshot[target] = input.value;
+        }
       });
       auto = snapshot;
       note('Auto-filled from the recorded supplier on ' + source.po_ref + '. Review before submitting.');
