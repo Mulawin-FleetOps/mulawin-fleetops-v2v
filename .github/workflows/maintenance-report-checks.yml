@@ -6,6 +6,7 @@ on:
       - 'backend/Modules/Maintenance/Maintenance.php'
       - 'public/assets/js/modules/maintenance/maintenance.js'
       - 'tests/maintenance_overview_tests.php'
+      - 'backend/Modules/Maintenance/Purchasing.php'
       - '.github/workflows/maintenance-report-checks.yml'
   workflow_dispatch:
 permissions:
@@ -22,6 +23,7 @@ jobs:
       - name: Validate backend and report regression test syntax
         run: |
           php -l backend/Modules/Maintenance/Maintenance.php
+          php -l backend/Modules/Maintenance/Purchasing.php
           php -l tests/maintenance_overview_tests.php
           node --check public/assets/js/modules/maintenance/maintenance.js
       - name: Check automatic server reporting date contract
