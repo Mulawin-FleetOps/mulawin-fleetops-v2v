@@ -403,3 +403,40 @@ const RecordComponents = Object.freeze({
 });
 
 
+
+/* GLOBAL_RECORD_STANDARD_V1
+ * Reuse the Operations records component across all UI.table-based pages.
+ * Presentation-only decoration; preserve the original table node, events,
+ * filters, paginator, data source, role permissions, and page-specific columns.
+ * The shared UI.drawTable renderer also applies to newly paginated tables.
+ */
+RecordComponents.standardizeTables = function(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('.table-wrap[data-tbody]').forEach(wrap => {
+    if (wrap.closest('.plain-table, .modal, .app-drawer, .offcanvas, .print-area')) return;
+    const table = wrap.querySelector('table.data-table');
+    if (!table) return;
+    wrap.classList.add('record-standard-table');
+    const list = wrap.closest('.ref-list');
+    if (list) list.classList.add('record-standard-list');
+    const shell = wrap.closest('.panel, .ref-tablebox, .mp-reference-table, .purchasing-records-card, .purchasing-ref-records');
+    if (shell) shell.classList.add('record-standard-shell');
+  });
+};
+// Do not replace UI.table or clone existing controls: that would break actions,
+// callbacks, filters and page-specific form state.
+{
+  const draw = UI.drawTable;
+  UI.drawTable = function(id) {
+    const result = draw.apply(this, arguments);
+    const wrap = [...document.querySelectorAll('[data-tbody]')].find(node => node.dataset.tbody === String(id));
+    if (wrap) RecordComponents.standardizeTables(wrap.parentElement || wrap);
+    return result;
+  };
+  const activate = UI.activate;
+  UI.activate = function(root) {
+    const result = activate.apply(this, arguments);
+    RecordComponents.standardizeTables(root);
+    return result;
+  };
+}
