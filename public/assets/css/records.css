@@ -1783,3 +1783,29 @@
   border-color:#E7B447 !important;
   box-shadow:none !important;
 }
+
+
+/* BALANCED_REFERENCE_TABLE_SPACING_V1
+   Reference-style shared tables otherwise inherit min-width:100%, which
+   stretches Category and other short fields across the entire workspace.
+   Limit this only to UI.table output; purpose-built table structures retain
+   their own sizing and scroll behavior. */
+.ref-scope .ref-tablebox .table-wrap > .data-table.fleet-balanced-table {
+  width: max-content;
+  min-width: min(100%, 760px);
+  max-width: none;
+  table-layout: auto;
+}
+.ref-scope .ref-tablebox .table-wrap > .data-table.fleet-balanced-table th,
+.ref-scope .ref-tablebox .table-wrap > .data-table.fleet-balanced-table td {
+  padding-left: 15px;
+  padding-right: 15px;
+}
+.ref-scope .ref-tablebox .table-wrap:has(> .data-table.fleet-balanced-table) {
+  overflow-x: auto;
+}
+@media (max-width:767px) {
+  .ref-scope .ref-tablebox .table-wrap > .data-table.fleet-balanced-table {
+    min-width: min(100%, 600px);
+  }
+}
