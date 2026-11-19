@@ -108,6 +108,7 @@ final class Purchasing {
         ];
         $data['countsReady'] = self::countsReady($p);
         $data['warrantyReady'] = self::warrantyConfirmationReady($p);
+        $data['partIdentityReady'] = self::partIdentityReady($p);
         $data['orderTrackingReady'] = self::orderTrackingReady($p);
         $data['reservationsReady'] = self::reservationsReady($p);
         return $data;
@@ -966,7 +967,8 @@ final class Purchasing {
         must((bool)$r, 'Request not found.', 404);
         $reservedColumn = self::reservationsReady($p) ? 'l.reserved_qty' : '0 AS reserved_qty';
         $cols = $motorpool ? self::availabilitySql('pt') . ' AS availability' : 'pt.quantity_on_hand';
-        $out = ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, $reservedColumn, pt.part_number, pt.description, pt.unit, $cols
+        $identitySql = self::partIdentitySql($p);
+        $out = ['request' => $r, 'lines' => many($p, "SELECT l.id, l.part_id, l.quantity, l.released_qty, $reservedColumn, pt.part_number, pt.description, $identitySql, pt.unit, $cols
             FROM part_request_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.part_request_id=? ORDER BY l.id", [$id])];
         // STAGE_B_PURCHASING_UI: Purchasing / Admin / Audit also get the linked POs and the request's recorded activity.
         // Motorpool's response is unchanged (no PO, supplier or cost data).
