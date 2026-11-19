@@ -3003,3 +3003,53 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .head-fuel-date-hint .bi{
   flex:none;margin-top:1px;font-size:15px;color:#24804a;
 }
+
+
+/* BALANCED_SHARED_TABLE_SPACING_V1
+   Shared UI.table record lists: keep labels/values near each other instead
+   of distributing short columns across large desktop monitors.
+   Standalone report grids, print tables and plain/detail tables are untouched.
+   Modules with purpose-built widths can opt out via preserveTableWidth. */
+.table-wrap:has(> .fleet-balanced-table) {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.table-wrap > .data-table.fleet-balanced-table {
+  width: max-content;
+  min-width: min(100%, 760px);
+  max-width: none;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table-wrap > .data-table.fleet-balanced-table th,
+.table-wrap > .data-table.fleet-balanced-table td {
+  box-sizing: border-box;
+  padding-left: 15px;
+  padding-right: 15px;
+  vertical-align: middle;
+}
+.table-wrap > .data-table.fleet-balanced-table th:not(.actions-col),
+.table-wrap > .data-table.fleet-balanced-table td:not(.actions-col) {
+  min-width: 78px;
+}
+.table-wrap > .data-table.fleet-balanced-table th:first-child:not(.actions-col),
+.table-wrap > .data-table.fleet-balanced-table td:first-child:not(.actions-col) {
+  min-width: 170px;
+}
+.table-wrap > .data-table.fleet-balanced-table th.actions-col,
+.table-wrap > .data-table.fleet-balanced-table td.actions-col {
+  min-width: 98px;
+  width: 1%;
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  .table-wrap > .data-table.fleet-balanced-table {
+    min-width: min(100%, 600px);
+  }
+  .table-wrap > .data-table.fleet-balanced-table th,
+  .table-wrap > .data-table.fleet-balanced-table td {
+    padding-left: 11px;
+    padding-right: 11px;
+  }
+}
