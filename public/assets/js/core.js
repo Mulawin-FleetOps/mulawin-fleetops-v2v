@@ -867,9 +867,25 @@ const App = {
     const list = document.getElementById('activityList');
     if (!this.me || !list || document.hidden) return;
     try {
-      const data = await this.data('activity_feed');
+      let items;
+      try {
+        const feed = await this.data('activity_feed');
+        if (!Array.isArray(feed?.items)) throw new Error('Activity feed returned no item list.');
+        items = feed.items;
+      } catch (feedError) {
+        // Reuse the existing, permission-checked Audit Logs backend as a
+        // recovery path. Never request global audit logs for ordinary roles.
+        if (!UI.canGo('audit_logs')) throw feedError;
+        console.warn('Activity feed unavailable; using existing Audit Logs.', feedError);
+        const today = new Date();
+        const to = UI.nowManila().slice(0,10);
+        const fromDate = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const from = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(fromDate);
+        const audit = await this.data('audit_logs', {from, to});
+        if (!Array.isArray(audit?.events)) throw new Error('Audit Logs returned no event list.');
+        items = audit.events.slice(0,10);
+      }
       if (!document.getElementById('activityList') || list !== document.getElementById('activityList')) return;
-      const items = data.items || [];
       // Leave dropdown position/scroll intact when the feed has not changed.
       const signature = JSON.stringify(items);
       if (this._activitySignature === signature) return;
@@ -886,7 +902,8 @@ const App = {
       list.scrollTop = top;
     } catch (err) {
       if (list && !this._activitySignature)
-        list.innerHTML = '<div class="bell-empty">Activity is temporarily unavailable.</div>';
+        list.innerHTML = '<div class="bell-empty"><span>Unable to load recorded activity.</span><button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="activityRetry">Retry</button></div>';
+      list?.querySelector('#activityRetry')?.addEventListener('click', () => this.refreshActivity());
       console.warn('Recent Activity refresh failed', err);
     }
   },
