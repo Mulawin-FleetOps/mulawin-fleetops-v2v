@@ -1044,7 +1044,7 @@ App.page('inventory', {
     ctx.el.classList.remove('purchasing-inventory-parts-view');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query;
     if (can.stock) PurUI.tool(ctx, 'Add part', 'bi-plus-lg', () => k.partForm(), 'btn-outline-secondary');
-    if (can.count && d.countsReady) PurUI.tool(ctx, 'Record stock count', 'bi-clipboard-check', () => PurUI.countForm(d));
+    // Physical counts remain available from View Details and the Stock Counts view.
     const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +(p.available_qty ?? p.quantity_on_hand) <= 0);
     const counts = d.counts || [], pending = counts.filter(c => c.status === 'Submitted');
     // Keep inventory-health KPIs; avoid summing incompatible part units
@@ -1061,19 +1061,28 @@ App.page('inventory', {
     const types = [...new Set(parts.map(p => p.part_type).filter(Boolean))].sort();
     const link = (extra) => 'inventory?' + new URLSearchParams(Object.fromEntries(Object.entries({ ...q, ...extra }).filter(([, v]) => v)));
     // UI_REFERENCE_V1: stock tabs (?stock=) and the Stock counts tab (?view=counts) instead of a KPI row.
-    const stockKey = view === 'counts' ? '' : (['low', 'out', 'inactive', 'all'].includes(q.stock) ? q.stock : 'active');
+    const stockKey = view === 'counts' ? '' : (['available', 'low', 'out', 'inactive', 'active'].includes(q.stock) ? q.stock : 'all');
+    // Compact inventory status is a presentation of existing real stock values.
+    // Never substitute these labels for persisted stock or approval states.
+    const inventoryStatus = p => !+p.active ? 'Inactive'
+      : +(p.available_qty ?? p.quantity_on_hand) <= 0 ? 'Out of Stock'
+      : +p.low_stock ? 'Low Stock' : 'Available';
     const tabBtn = (spec, label, n, on) => `<button type="button" role="tab" aria-selected="${on}" class="tab ${on ? 'active' : ''}" data-go="${UI.esc(spec)}">${UI.esc(label)} <span class="tab-count">${UI.num(n)}</span></button>`;
     ctx.el.innerHTML = inventoryCards + identityNotice + `<div class="purchasing-record-tabs-slot"><div class="line-tabs ws-status-tabs no-print" role="tablist">
-        ${tabBtn(link({ view: '', stock: '' }), 'Active parts', active.length, stockKey === 'active')}${tabBtn(link({ view: '', stock: 'low' }), 'Low stock', low.length, stockKey === 'low')}
-        ${tabBtn(link({ view: '', stock: 'out' }), 'Out of stock', out.length, stockKey === 'out')}${tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, stockKey === 'inactive')}
-        ${d.countsReady ? tabBtn(link({ view: 'counts', part_type: '', category: '', stock: '' }), 'Stock counts', pending.length, view === 'counts') : ''}</div></div>
+        ${tabBtn(link({ view: '', stock: '' }), 'All', parts.length, stockKey === 'all' && view !== 'counts')}
+        ${tabBtn(link({ view: '', stock: 'available' }), 'Available', active.filter(p => inventoryStatus(p) === 'Available').length, stockKey === 'available')}
+        ${tabBtn(link({ view: '', stock: 'low' }), 'Low Stock', active.filter(p => inventoryStatus(p) === 'Low Stock').length, stockKey === 'low')}
+        ${tabBtn(link({ view: '', stock: 'out' }), 'Out of Stock', out.length, stockKey === 'out')}
+        ${stockKey === 'inactive' ? tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, true) : ''}
+        ${stockKey === 'active' ? tabBtn(link({ view: '', stock: 'active' }), 'Active Parts', active.length, true) : ''}
+        ${view === 'counts' ? tabBtn(link({ view: 'counts', stock: '' }), 'Stock Counts', pending.length, true) : ''}</div></div>
       <div class="small text-muted mb-2">Inventory value of active parts: <b>${UI.money(active.reduce((a, p) => a + +p.stock_value, 0))}</b> (on hand × recorded unit cost).
         ${d.countsReady && pending.length ? `${UI.num(pending.length)} stock count(s) wait for the Admin.` : ''}</div>
       ${d.countsReady ? '' : `<div class="alert alert-secondary small py-2"><i class="bi bi-lock me-1"></i> Direct stock adjustments are disabled. Stock changes only when a purchase order is received or parts are released.
         Physical count corrections need the stock count and review step (database update 2026-11-12_13, not applied yet).</div>`}`;
     const box = document.createElement('div'); ctx.el.append(box);
     box.classList.add('purchasing-records-card','purchasing-ref-records');
-    box.insertAdjacentHTML('afterbegin', `<div class="purchasing-ref-records-head"><div><strong>${view === 'counts' ? 'Stock Count Records' : 'Inventory Records'}</strong><small>${UI.num(view === 'counts' ? counts.length : parts.length)} records</small></div><span>Availability and stock levels</span></div>`);
+    box.insertAdjacentHTML('afterbegin', `<div class="purchasing-ref-records-head"><div><strong>${view === 'counts' ? 'Stock Count Records' : 'Inventory Parts Records'}</strong><small>${UI.num(view === 'counts' ? counts.length : parts.length)} records</small></div><span>${view === 'counts' ? 'Physical count review and history' : 'Parts catalog and availability'}</span></div>`);
     const body = document.createElement('div'); body.className='purchasing-ref-records-body'; box.append(body);
     if (view === 'counts') {
       const st = ['Submitted', 'Posted', 'Rejected'].includes(q.count) ? q.count : '';
@@ -1102,35 +1111,38 @@ App.page('inventory', {
     ctx.el.classList.add('purchasing-inventory-parts-view');
     const selectedType = q.part_type || '';
     const rows = parts.filter(p => (!selectedType || p.part_type === selectedType)
-      && (stockKey === 'all' || (stockKey === 'low' ? +p.active && +p.low_stock : stockKey === 'out' ? +p.active && +(p.available_qty ?? p.quantity_on_hand) <= 0 : stockKey === 'inactive' ? !+p.active : +p.active)))
+      && (stockKey === 'all' || (stockKey === 'active' ? +p.active
+        : stockKey === 'inactive' ? !+p.active
+        : inventoryStatus(p).toLowerCase().replace(/\s+/g, '_') === ({available:'available',low:'low_stock',out:'out_of_stock'}[stockKey]))))
+      .map(p => ({ ...p, inventory_status: inventoryStatus(p) }))
       .sort((a,b) => {
+        if (q.sort === 'oldest') return (+a.id || 0) - (+b.id || 0);
         if (q.sort === 'stock_high') return (+b.quantity_on_hand || 0) - (+a.quantity_on_hand || 0);
         if (q.sort === 'stock_low') return (+a.quantity_on_hand || 0) - (+b.quantity_on_hand || 0);
         if (q.sort === 'name') return String(a.description || '').localeCompare(String(b.description || ''));
-        return String(a.part_number || '').localeCompare(String(b.part_number || ''));
+        if (q.sort === 'reference') return String(a.part_number || '').localeCompare(String(b.part_number || ''));
+        return (+b.id || 0) - (+a.id || 0); // Newest catalog record first
       });
-    const openCount = new Set(pending.map(c => +c.part_id));
     body.innerHTML = UI.table([
-        ['Part ID', 'part_number', (v, p) => `<span class="cell-nowrap">${UI.esc(v)}</span>${+p.active ? '' : ' <span class="badge-s">Inactive</span>'}`],
-        ['Part Type', 'part_type', (v) => v ? UI.esc(v) : '<span class="text-muted">Not classified</span>'],
-        ['Part Name', 'description', (v, p) => {
-          const expiry = p.earliest_warranty_expiry;
-          const today = new Date(), date = [today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
-          const near = new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
-          const limit = [near.getFullYear(),String(near.getMonth()+1).padStart(2,'0'),String(near.getDate()).padStart(2,'0')].join('-');
-          const alert = expiry ? (expiry < date ? 'Expired warranty batch' : expiry <= limit ? 'Warranty expiring soon' : '') : '';
-          return `<b class="cell-clamp">${UI.esc(v)}</b>${p.brand ? `<div class="cell-sub">${UI.esc(p.brand)}</div>` : ''}`
-            + (alert ? `<div class="cell-sub"><span class="badge-s ${expiry < date ? 'red' : 'amber'}" title="Earliest recorded warranty expiry: ${UI.esc(expiry)}">${alert}</span></div>` : '');
-        }],
-        ['On hand', 'quantity_on_hand', (v, p) => `<div class="purchasing-stock-cell"><span class="purchasing-stock-amount"><b>${UI.num(v)}</b> ${UI.esc(p.unit)}</span>${+p.low_stock || openCount.has(+p.id) ? `<span class="purchasing-stock-badges">${+p.low_stock ? '<span class="badge-s red">Low</span>' : ''}${openCount.has(+p.id) ? '<span class="badge-s amber" title="A stock count is waiting for review">Count pending</span>' : ''}</span>` : ''}</div>`],
-        ['Reserved', 'reserved_qty', 'num'], ['Available', 'available_qty', 'num'],
-        ['Reorder level', 'reorder_level', 'num'], ['Unit cost', 'unit_cost', 'money'], ['Stock value', 'stock_value', 'money']], rows,
-        { title: ({ active: 'Active parts', low: 'Low stock', out: 'Out of stock', inactive: 'Inactive parts', all: 'All parts' }[stockKey]) + ' (' + rows.length + ')', showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 10, groupBy: 'part_type', groupLabel: 'Part type', actions: (p) => k.partActs(p) + UI.btn('view', 'View Part', 'outline-primary'),
-          onAction: (a, p) => a === 'view' ? PurUI.openPart(p, k) : k.partAct(a, p), rowClick: (p) => PurUI.openPart(p, k), empty: 'No part matches.' });
+      ['Part ID', 'part_number', v => `<b class="cell-nowrap">${UI.esc(v)}</b>`],
+      ['Part Type', 'part_type', v => v ? UI.esc(v) : '<span class="text-muted">Not classified</span>'],
+      ['Specific Part Name', 'description', v => `<span class="cell-clamp">${UI.esc(v)}</span>`],
+      ['Status', 'inventory_status', v =>
+        `<span class="badge-s ${v === 'Available' ? 'green' : v === 'Low Stock' ? 'amber' : 'red'}">${UI.esc(v)}</span>`]
+    ], rows, {
+      title: 'Inventory parts (' + rows.length + ')',
+      showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 10,
+      actions: () => UI.btn('view', 'View Details', 'outline-primary'),
+      onAction: (_action, p) => PurUI.openPart(p, k),
+      rowClick: p => PurUI.openPart(p, k),
+      empty: 'No parts match these filters.'
+    });
     PurRef.recordLayout(ctx, box, {
-      filters: [{ name: 'part_type', label: 'Part Type', type: 'select', col: 12, options: types.map(type => [type, type]) }],
-      sortOptions: [['reference','Part ID'], ['name','Part Name'], ['stock_high','Highest on-hand'], ['stock_low','Lowest on-hand']],
-      sort: ['name','stock_high','stock_low'].includes(q.sort) ? q.sort : 'reference'
+      filters: [{ name: 'part_type', label: 'Part Type', type: 'select', col: 12, options: types.map(type => [type, type]) },
+        { name: 'stock', label: 'Availability', type: 'select', col: 12, options: [['all','All parts'], ['available','Available'], ['low','Low stock'], ['out','Out of stock'], ['inactive','Inactive'], ['active','Active only']] },
+        ...(d.countsReady ? [{ name: 'view', label: 'Record view', type: 'select', col: 12, options: [['counts','Stock Counts']] }] : [])],
+      sortOptions: [['newest','Newest first'], ['oldest','Oldest first'], ['reference','Part ID'], ['name','Part Name'], ['stock_high','Highest on-hand'], ['stock_low','Lowest on-hand']],
+      sort: ['oldest','reference','name','stock_high','stock_low'].includes(q.sort) ? q.sort : 'newest'
     });
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
   },
