@@ -158,17 +158,17 @@ final class Purchasing {
 
     /** Purchasing Overview: what needs action now. Counts and short lists only. */
     private static function overview(array $u, PDO $p, callable $budget): array {
-        $tracking = self::orderTrackingReady($p);
-        $toReceive = $tracking ? "status IN ('Approved','Partially Received') AND (order_confirmation_required=0 OR ordered_at IS NOT NULL)" : "status IN ('Approved','Partially Received')";
-        $toOrder = $tracking ? "status='Approved' AND order_confirmation_required=1 AND ordered_at IS NULL" : '0=1';
-        $toReceiveO = $tracking ? "o.status IN ('Approved','Partially Received') AND (o.order_confirmation_required=0 OR o.ordered_at IS NOT NULL)" : "o.status IN ('Approved','Partially Received')";
+        // Approval is the last system gate before delivery monitoring.
+        // Supplier communication happens outside FleetOps; never infer that
+        // an order was placed simply because Finance/Admin approved the PO.
+        $toReceive = "status IN ('Approved','Partially Received')";
+        $toReceiveO = "o.status IN ('Approved','Partially Received')";
         return readSections([
             'counts' => fn() => [
                 'requests_open' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status='Requested'")['n'],
                 'requests_followup' => (int)one($p, "SELECT COUNT(*) AS n FROM part_requests WHERE status IN ('Partially Released','Not Available')")['n'],
                 'po_pending' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE status='Pending Approval'")['n'],
                 'po_to_receive' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE $toReceive")['n'],
-                'po_to_order' => (int)one($p, "SELECT COUNT(*) AS n FROM purchase_orders WHERE $toOrder")['n'],
                 'inventory_value' => (float)one($p, 'SELECT COALESCE(SUM(quantity_on_hand*unit_cost),0) AS v FROM parts WHERE active=1')['v'],
                 'low_stock' => (int)one($p, 'SELECT COUNT(*) AS n FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level')['n'],
             ],
@@ -190,7 +190,6 @@ final class Purchasing {
             'poStatus' => fn() => one($p, "SELECT
                     COALESCE(SUM(status='Pending Approval'),0) AS pending_approval,
                     COALESCE(SUM($toReceive),0) AS awaiting_delivery,
-                    COALESCE(SUM($toOrder),0) AS ready_to_order,
                     COALESCE(SUM(status='Partially Received'),0) AS partially_received
                 FROM purchase_orders"),
             'activity' => fn() => many($p, "SELECT sm.id, sm.movement_type, sm.quantity_delta, sm.reference_type, sm.reference_id, sm.reason, sm.created_at,
@@ -258,7 +257,6 @@ final class Purchasing {
             'request_cancel' => self::requestCancel($u, $d),
             'po_create' => self::poCreate($u, $d),
             'po_decide' => self::poDecide($u, $d),
-            'po_order' => self::poOrder($u, $d),
             'po_receive' => self::poReceive($u, $d),
             'warranty_confirm' => self::warrantyConfirm($u, $d),
             'po_close' => self::poClose($u, $d),
@@ -727,7 +725,9 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $supplier, $purpose, $reqId, $lines, $total, $approver, $threshold) {
             if ($reqId) must((bool)one($p, 'SELECT id FROM part_requests WHERE id=?', [$reqId]), 'Parts request not found.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            $orderFlag = self::orderTrackingReady($p) ? ['order_confirmation_required' => 1] : [];
+            // Preserve the historical schema/columns. New POs no longer
+            // require a separate "order placed" confirmation.
+            $orderFlag = self::orderTrackingReady($p) ? ['order_confirmation_required' => 0] : [];
             $id = insert($p, 'purchase_orders', ['po_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'part_request_id' => $reqId, 'purpose' => $purpose] + $supplier + $orderFlag + [
                 'total_amount' => number_format($total, 2, '.', ''), 'approver_role' => $approver, 'status' => 'Pending Approval', 'requested_by' => $u['id']]);
             $ref = refNumber('PO', $id);
@@ -790,25 +790,6 @@ final class Purchasing {
         return (bool)one($p, "SELECT 1 AS ok FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='purchase_orders' AND column_name='order_confirmation_required'");
     }
 
-    /** Explicit supplier-order confirmation; approval alone is not an order or a delivery. */
-    private static function poOrder(array $u, array $d): array {
-        requireRole($u, 'purchasing');
-        $id = idField($d, 'po_id');
-        return transaction(function (PDO $p) use ($u, $id) {
-            must(self::orderTrackingReady($p), 'Supplier-order tracking requires the purchasing database migration.', 503);
-            $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
-            must((bool)$o, 'Purchase order not found.', 404);
-            must($o['status'] === 'Approved', 'Only approved, unreceived purchase orders can be marked ordered.', 409);
-            must(empty($o['ordered_at']), 'This supplier order is already confirmed.', 409);
-            // Do not create a fabricated supplier order; an authorized user confirms a real action.
-            run($p, 'UPDATE purchase_orders SET ordered_at=NOW(), ordered_by=? WHERE id=?', [$u['id'], $id]);
-            auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'supplier order placed', $o['po_ref'],
-                ['Supplier order' => 'Not confirmed'], ['Supplier order' => 'Confirmed by Purchasing']);
-            Notify::user($p, (int)$o['requested_by'], 'Supplier order confirmed', $o['po_ref'] . ' was marked as ordered with the supplier.', 'purchase_orders');
-            return ['message' => $o['po_ref'] . ' marked Ordered. Receiving remains a separate physical verification.'];
-        });
-    }
-
     /** Receiving (stock-in). Partial deliveries are allowed: "Partially Received". */
     private static function poReceive(array $u, array $d): array {
         requireRole($u, 'purchasing');
@@ -826,8 +807,6 @@ final class Purchasing {
             $o = one($p, 'SELECT * FROM purchase_orders WHERE id=? FOR UPDATE', [$id]);
             must((bool)$o, 'Purchase order not found.', 404);
             must(in_array($o['status'], ['Approved', 'Partially Received'], true), 'Only approved purchase orders can be received (this one is ' . $o['status'] . ').', 409);
-            if (self::orderTrackingReady($p) && (int)$o['order_confirmation_required'] === 1)
-                must(!empty($o['ordered_at']), 'Confirm that the approved purchase order was placed with the supplier before receiving.', 409);
             $got = [];
             foreach ((array)($d['receive'] ?? []) as $x) if (is_array($x) && !empty($x['line_id'])) $got[(int)$x['line_id']] = (int)($x['qty'] ?? 0);
             $total = 0;
@@ -1064,9 +1043,10 @@ final class Purchasing {
         $reservedSql = self::reservationsReady($p)
             ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_request_id=r.id)'
             : '0';
-        $orderedSql = self::orderTrackingReady($p)
-            ? "(SELECT COUNT(*) FROM purchase_orders o WHERE o.part_request_id=r.id AND o.ordered_at IS NOT NULL AND o.status IN ('Approved','Partially Received','Received'))"
-            : '0';
+        // "On order" now means linked approved PO awaiting/undergoing
+        // receiving, not a redundant supplier-order button timestamp.
+        $orderedSql = "(SELECT COUNT(*) FROM purchase_orders o WHERE o.part_request_id=r.id
+            AND o.status IN ('Approved','Partially Received'))";
         return many($p, "SELECT r.id, r.request_ref, r.status, r.purpose, r.notes, r.created_at, r.processed_at, r.vehicle_id, v.plate_number, m.job_ref, ru.full_name AS requested_by_name,
                 $reservedSql AS reserved_units, $orderedSql AS on_order,
                 (SELECT MAX(sm.created_at) FROM stock_movements sm JOIN purchase_orders po ON po.id=sm.reference_id WHERE sm.reference_type='purchase_order' AND sm.movement_type='Stock In' AND po.part_request_id=r.id) AS last_received_at,
