@@ -852,7 +852,7 @@ const MaintUI = {
             options: [['Fit to Continue', 'Fit to Continue'], ['Not Fit to Continue', 'Not Fit to Continue']] },
           { name: 'checked_by', label: 'Qualified person who confirmed repair and safety (required for Fit)', col: 12,
             placeholder: 'Name of qualified person at the incident location' },
-          { name: 'repair_performed', label: 'Onsite repair performed (required for Fit)', type: 'textarea', required: true, col: 12,
+          { name: 'repair_performed', label: 'Onsite repair performed (required when Fit)', type: 'textarea', col: 12,
             placeholder: 'Describe what was fixed onsite before the truck continues.' },
           { name: 'findings', label: 'Safety check findings after onsite repair', type: 'textarea', required: true, col: 12,
             placeholder: 'What was checked after repair? What evidence supports this decision?' },
