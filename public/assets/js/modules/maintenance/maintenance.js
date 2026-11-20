@@ -218,7 +218,10 @@ const MaintUI = {
     const comps = (d.components || []).filter(c => !(r.excludedComponents || []).includes(+c.id));
     let catalog = [];
     try { catalog = (await App.api('Purchasing.request_catalog')).parts || []; } catch (_) {}
-    const leadOptions = choices.map(m => `<option value="${+m.id}" ${+m.id === +j.mechanic_id ? 'selected' : ''}>${UI.esc(m.full_name)} · ${UI.esc(m.mechanic_code)}${m.specialization ? ' · '+UI.esc(m.specialization) : ''}</option>`).join('');
+    const leadOptions = choices.map(m => ({ id: +m.id,
+      label: m.full_name + ' · ' + m.mechanic_code + (m.specialization ? ' · ' + m.specialization : ''),
+      search: [m.full_name, m.mechanic_code, m.specialization].join(' ').toLocaleLowerCase()
+    }));
     const allMechs = (d.mechanics || []).filter(m => m.availability === 'Available' || assigned.includes(+m.id));
     const summary = j.source === 'Incident' ? `<div class="alert alert-light border small"><b>Incident-related repair:</b> Original Dispatcher incident details stay read-only in Repair Details. Classification: ${UI.esc(j.severity || 'Not assessed')}.</div>` : '';
     const html = `<div class="small text-muted mb-3">Choose the lead mechanic and confirm parts. Open the optional sections only when needed.</div>
@@ -227,7 +230,14 @@ const MaintUI = {
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
       <div class="purchasing-receive-section">Mechanic assignment</div>
       <label class="form-label mt-2" for="mp-final-lead">Lead mechanic *</label>
-      <select id="mp-final-lead" class="form-select mb-2" data-final-lead required><option value="">Choose lead mechanic…</option>${leadOptions}</select>
+      <div class="mp-final-lead-picker mb-2" data-final-lead-picker>
+        <input id="mp-final-lead" class="form-control" type="search" data-final-lead-search
+          placeholder="Click to select or search a mechanic…" autocomplete="off"
+          role="combobox" aria-autocomplete="list" aria-controls="mp-final-lead-results"
+          aria-expanded="false" required>
+        <input type="hidden" data-final-lead name="final_lead_mechanic" value="${+j.mechanic_id || ''}">
+        <div id="mp-final-lead-results" class="mp-final-lead-results" data-final-lead-results role="listbox" aria-label="Available lead mechanics" hidden></div>
+      </div>
       <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
       <summary>Affected components (optional) <span data-component-summary>0 selected</span></summary>
       <div class="mp-final-optional-content">
@@ -305,6 +315,78 @@ const MaintUI = {
       UI.result(response); if(after) after(); else App.route();
     },{submit:j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team' : 'Finalize RA',size:'modal-xl'});
 
+    // Floating, bounded picker: does not open the browser's full-height native select.
+    const picker = dialog.querySelector('[data-final-lead-picker]');
+    const leadSearch = picker.querySelector('[data-final-lead-search]');
+    const leadValue = picker.querySelector('[data-final-lead]');
+    const leadList = picker.querySelector('[data-final-lead-results]');
+    let leadMatches = [], leadActive = -1;
+    const closeLead = () => {
+      leadList.hidden = true;
+      leadList.replaceChildren();
+      leadActive = -1;
+      leadSearch.setAttribute('aria-expanded', 'false');
+      leadSearch.removeAttribute('aria-activedescendant');
+    };
+    const selectLead = (mechanic) => {
+      leadValue.value = String(mechanic.id);
+      leadSearch.value = mechanic.label;
+      closeLead();
+      update();
+    };
+    const renderLead = () => {
+      const selected = leadOptions.find(x => String(x.id) === leadValue.value);
+      if (selected && leadSearch.value === selected.label) {
+        // Clicking a selected mechanic still allows changing it.
+        leadSearch.select();
+      } else leadValue.value = '';
+      const query = selected && leadSearch.value === selected.label ? '' : leadSearch.value.trim().toLocaleLowerCase();
+      const found = query ? leadOptions.filter(x => x.search.includes(query)) : leadOptions;
+      leadMatches = found.slice(0, 6);
+      leadActive = -1;
+      leadList.innerHTML = leadMatches.length
+        ? leadMatches.map((m,i) => `<button type="button" class="mp-final-lead-option" id="mp-final-lead-option-${i}" role="option" aria-selected="${String(m.id) === leadValue.value}" data-lead-id="${m.id}">${UI.esc(m.label)}</button>`).join('')
+        : '<div class="mp-final-lead-empty">No available mechanic matches your search.</div>';
+      leadList.hidden = false;
+      leadSearch.setAttribute('aria-expanded','true');
+    };
+    leadList.addEventListener('mousedown', e => { if (e.target.closest('[data-lead-id]')) e.preventDefault(); });
+    leadList.addEventListener('click', e => {
+      const hit = e.target.closest('[data-lead-id]');
+      const mechanic = hit && leadMatches.find(x => String(x.id) === hit.dataset.leadId);
+      if (mechanic) selectLead(mechanic);
+    });
+    leadSearch.addEventListener('focus', renderLead);
+    leadSearch.addEventListener('click', renderLead);
+    leadSearch.addEventListener('input', () => {
+      leadValue.value = '';
+      renderLead();
+      update();
+    });
+    leadSearch.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeLead(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (leadList.hidden) renderLead();
+        if (!leadMatches.length) return;
+        leadActive = e.key === 'ArrowDown' ? (leadActive + 1) % leadMatches.length
+          : (leadActive <= 0 ? leadMatches.length - 1 : leadActive - 1);
+        leadList.querySelectorAll('[data-lead-id]').forEach((el,i) => {
+          el.classList.toggle('active', i === leadActive);
+          if (i === leadActive) { el.scrollIntoView({block:'nearest'}); leadSearch.setAttribute('aria-activedescendant',el.id); }
+        });
+      } else if (e.key === 'Enter' && !leadList.hidden) {
+        e.preventDefault();
+        if (leadMatches.length) selectLead(leadMatches[leadActive >= 0 ? leadActive : 0]);
+      }
+    });
+    leadSearch.addEventListener('blur', () => {
+      closeLead();
+      const selected = leadOptions.find(x => String(x.id) === leadValue.value);
+      leadSearch.value = selected?.label || '';
+    });
+    const selectedLead = leadOptions.find(x => x.id === +j.mechanic_id);
+    if (selectedLead) leadSearch.value = selectedLead.label;
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
       const custom=dialog.querySelector('[data-other-components]').value.trim();
