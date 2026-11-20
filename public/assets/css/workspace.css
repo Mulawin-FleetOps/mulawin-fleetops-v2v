@@ -3030,3 +3030,103 @@ body.ref-body .offcanvas.app-drawer:has(.mp-history-detail-readonly) .offcanvas-
   .mp-history-fields { grid-template-columns: 1fr; gap: 7px; }
   .mp-history-field-wide { grid-column: auto; }
 }
+
+/* MOTORPOOL_INCIDENT_ASSESSMENT_V1 — one compact read-only incident context,
+   followed by assessment inputs. Scoped to this modal alone. */
+body.ref-body .modal:has(.mp-incident-assessment) .modal-dialog {
+  max-width: min(700px, calc(100vw - 24px));
+}
+body.ref-body .modal:has(.mp-incident-assessment) .modal-header {
+  padding: 17px 23px 15px;
+}
+body.ref-body .modal:has(.mp-incident-assessment) .modal-body {
+  padding: 17px 23px 20px;
+}
+body.ref-body .modal:has(.mp-incident-assessment) .modal-intro {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  margin-bottom: 14px;
+}
+.mp-incident-assessment {
+  border: 1px solid #d7e7db;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+  color: #345444;
+}
+.mp-incident-assessment-heading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 13px;
+  background: #edf6f0;
+  border-bottom: 1px solid #d7e7db;
+  font-size: 12px;
+}
+.mp-incident-assessment-heading span {
+  color: #698172;
+  font-size: 11px;
+  font-weight: 500;
+}
+.mp-incident-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 13px;
+}
+.mp-incident-report-field { min-width: 0; }
+.mp-incident-report-field small {
+  display: block;
+  margin-bottom: 3px;
+  color: #778b7e;
+  font-size: 10.5px;
+}
+.mp-incident-report-field strong,
+.mp-incident-report-field > div {
+  display: block;
+  color: #294737;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.mp-incident-report-wide { grid-column: 1 / -1; }
+.mp-incident-updates {
+  margin: 0 13px 10px;
+  padding: 7px 10px;
+  border: 1px solid #deebe1;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.mp-incident-updates > summary {
+  cursor: pointer;
+  color: #276341;
+  font-weight: 600;
+}
+.mp-incident-update { padding: 9px 0; border-top: 1px solid #e8efea; }
+.mp-incident-update:first-of-type { margin-top: 6px; }
+.mp-incident-update small { display: block; color: #738579; margin-bottom: 3px; }
+.mp-incident-assessment-guidance {
+  border-top: 1px solid #e4eee7;
+  padding: 9px 13px;
+  margin: 0;
+  color: #60796a;
+  font-size: 11px;
+  line-height: 1.55;
+  background: #f8fbf9;
+}
+body.ref-body .modal:has(.mp-incident-assessment) .modal-body textarea.form-control {
+  min-height: 90px;
+}
+body.ref-body .modal:has(.mp-incident-assessment) .modal-footer {
+  padding: 12px 23px;
+}
+@media (max-width: 575.98px) {
+  body.ref-body .modal:has(.mp-incident-assessment) .modal-header,
+  body.ref-body .modal:has(.mp-incident-assessment) .modal-body { padding-inline: 14px; }
+  .mp-incident-report-grid { grid-template-columns: 1fr; }
+  .mp-incident-report-wide { grid-column: auto; }
+}
