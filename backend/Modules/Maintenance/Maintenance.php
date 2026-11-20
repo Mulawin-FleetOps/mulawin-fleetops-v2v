@@ -513,6 +513,8 @@ final class Maintenance {
         // inserted as unverified catalog entries or given fabricated skill mappings.
         $otherComponents = optField($d,'other_components',250);
         $parts = choiceField($d,'parts_requirement',['No Parts Needed','Parts Required']);
+        $garageFindings = optField($d,'findings',2000);
+        $garageDiagnosis = optField($d,'diagnosis',2000);
         must(is_array($helpers) && count($helpers)<=10 && is_array($components) && count($components)<=31,'Invalid repair selections.',422);
         $helpers = array_map('intval',$helpers);
         $components = array_map('intval',$components);
@@ -520,7 +522,7 @@ final class Maintenance {
         must(count($components)===count(array_unique($components)),'Duplicate component.',422);
         $lines = $d['parts_lines'] ?? [];
         must(is_array($lines) && count($lines)<=30 && (!$lines || $parts==='Parts Required'),'Invalid parts requirement.',422);
-        return transaction(function(PDO $p) use($u,$jobId,$lead,$helpers,$components,$otherComponents,$parts,$lines) {
+        return transaction(function(PDO $p) use($u,$jobId,$lead,$helpers,$components,$otherComponents,$parts,$lines,$garageFindings,$garageDiagnosis) {
             must(self::catalogReady($p),'Apply the approved Motorpool catalog migration before finalizing.',409);
             $j=self::lockJob($p,$jobId);
             must(in_array($j['status'],['Under Inspection','Under Repair'],true)
@@ -528,6 +530,13 @@ final class Maintenance {
                 'Record inspection findings and diagnosis before assigning the repair team.',409);
             must(!$j['assignment_finalized_at'],'Repair assignment is finalized and locked.',409);
             if ($j['source']==='Incident') must($j['severity']!==null,'Assess the incident first.',409);
+            $majorGarage = $j['source']==='Incident' && $j['severity']==='Major' && $j['status']==='Under Inspection' && !$j['assignment_finalized_at'];
+            if ($majorGarage) {
+                must((bool)one($p, "SELECT id FROM maintenance_events WHERE maintenance_job_id=? AND details LIKE 'Garage arrival confirmed:%' LIMIT 1", [$jobId]),
+                    'Confirm the original truck arrived at the garage before starting its repair.',409);
+                must($garageFindings !== null && $garageDiagnosis !== null,
+                    'Record the actual garage findings and diagnosis in the repair preparation form.',422);
+            }
             // Allow the initial lead to be changed once before finalization.
             if ((int)$j['mechanic_id']!==$lead) {
                 self::freeMechanic($p,$lead,$jobId);
@@ -566,14 +575,14 @@ final class Maintenance {
             if ($parts === 'No Parts Needed') must(!one($p,"SELECT id FROM part_requests WHERE maintenance_job_id=? AND status<>'Cancelled' LIMIT 1",[$jobId]),'Existing parts requests must be resolved; cannot claim No Parts Needed.',409);
             // The linked parts request requires an active repair. Advance garage reports
             // inside this same transaction (all changes roll back if parts creation fails).
-            $targetStatus = $j['source']==='On-Premise' && $j['status']==='Reported' ? 'Under Repair' : $j['status'];
+            $targetStatus = (($j['source']==='On-Premise' && $j['status']==='Reported') || $majorGarage) ? 'Under Repair' : $j['status'];
             if ($targetStatus !== $j['status']) run($p,'UPDATE maintenance_jobs SET status=? WHERE id=?',[$targetStatus,$jobId]);
             if($lines) {
                 Actions::load('Purchasing');
                 Purchasing::createForRepair($p,$u,(int)$j['vehicle_id'],$jobId,cut((string)$j['problem'],255),$lines);
             }
-            run($p,'UPDATE maintenance_jobs SET status=?, started_by=COALESCE(started_by,?), started_at=COALESCE(started_at,NOW()), assignment_finalized_at=NOW(), assignment_finalized_by=?, parts_requirement=? WHERE id=?',
-                [$targetStatus,$u['id'],$u['id'],$parts,$jobId]);
+            run($p,'UPDATE maintenance_jobs SET status=?, started_by=COALESCE(started_by,?), started_at=COALESCE(started_at,NOW()), assignment_finalized_at=NOW(), assignment_finalized_by=?, parts_requirement=?, findings=COALESCE(?,findings), diagnosis=COALESCE(?,diagnosis) WHERE id=?',
+                [$targetStatus,$u['id'],$u['id'],$parts,$majorGarage?$garageFindings:null,$majorGarage?$garageDiagnosis:null,$jobId]);
             self::event($p,$jobId,$j['status'],$targetStatus,$u['id'],
                 'repair assignment finalized; parts: '.$parts
                 .($otherComponents !== null && trim($otherComponents) !== ''
