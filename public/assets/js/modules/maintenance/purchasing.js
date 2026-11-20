@@ -163,6 +163,9 @@ const PurUI = {
    *  Never replace supplier details manually entered by Purchasing. */
   wirePartSuppliers(w) {
     const history = PurUI.data.partSupplierHistory || [];
+    const preferredParts = new Map((PurUI.data.parts || []).map(part =>
+      [String(part.id), String(part.regular_supplier_name || '').trim()]));
+    const supplierDirectory = PurUI.data.supplierSuggestions || [];
     const byPart = new Map();
     history.forEach(h => {
       const key = String(h.part_id), name = String(h.name || '').trim();
@@ -194,20 +197,31 @@ const PurUI = {
         note('Choose a part to check previous supplier records.');
         return;
       }
+      const preferred = ids.map(id => preferredParts.get(String(id)) || '');
+      const names = [...new Set(preferred.filter(Boolean).map(name => name.toUpperCase()))];
+      if (names.length > 1 || (names.length && preferred.some(name => !name))) {
+        clearAuto();
+        note('These items have different regular suppliers. Confirm the supplier for this PO manually.');
+        return;
+      }
       const histories = ids.map(id => byPart.get(String(id)));
-      if (histories.some(h => !h || !h.size)) {
+      if (!names.length && histories.some(h => !h || !h.size)) {
         clearAuto();
         note('No complete supplier history for the selected items. Enter or confirm the supplier manually.');
         return;
       }
-      const common = [...histories[0].keys()].filter(name => histories.every(h => h.has(name)));
+      const common = names.length ? names : [...histories[0].keys()].filter(name => histories.every(h => h?.has(name)));
       if (common.length !== 1) {
         clearAuto();
         note(common.length ? 'More than one historical supplier matches these parts. Choose the supplier manually.'
           : 'The selected parts have different past suppliers. Choose the supplier for this PO manually.');
         return;
       }
-      const source = histories[0].get(common[0]);
+      const source = names.length
+        ? { name: preferred[0],
+            ...(supplierDirectory.find(x => x.name.toUpperCase() === common[0]) || {}),
+            po_ref: 'Inventory Regular Supplier' }
+        : histories[0].get(common[0]);
       const supplier = field('supplier_name');
       if (supplier.value.trim() && (!auto || supplier.value !== auto.supplier_name)) {
         note('Previous supplier: ' + source.name + ' (' + source.po_ref + '). Your entered supplier is kept.');
@@ -229,7 +243,9 @@ const PurUI = {
         }
       });
       auto = snapshot;
-      note('Auto-filled from the recorded supplier on ' + source.po_ref + '. Review before submitting.');
+      note(names.length
+        ? 'Suggested Regular Supplier from Inventory. Review supplier details and confirm before submitting.'
+        : 'Auto-filled from the recorded supplier on ' + source.po_ref + '. Review before submitting.');
     };
     // Keep manually entered data authoritative; the matcher runs only on part edits.
     w._updatePartSupplier = update;
@@ -572,12 +588,29 @@ PurUI.kit = (d, can) => {
       { name: 'description', label: 'Part Name / Specification', required: true, col: 12, value: p.description, placeholder: 'e.g. 11R22.5 16PR', attrs: 'maxlength="200"', help: 'Enter the exact variant or specification.' },
       { name: 'brand', label: 'Brand (optional)', col: 6, value: p.brand, attrs: 'maxlength="100"' },
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
+      { type: 'html', col: 12, html: '<div class="purchasing-part-form-section-title">Supplier information</div>' },
+      ...(d.regularSupplierReady ? [
+        { name: 'regular_supplier_name', label: 'Regular Supplier (optional)', col: 12,
+          value: p.regular_supplier_name || '', attrs: 'list="partRegularSupplierList" maxlength="150" autocomplete="off"',
+          placeholder: 'Choose a previous supplier or type a supplier name',
+          help: 'Preferred supplier only. Purchase Orders can use another supplier. No separate masterlist is needed.' }
+      ] : [{ type: 'html', col: 12,
+        html: '<p class="small text-muted mb-0">Apply the Regular Supplier migration to enable supplier preferences for parts.</p>' }]),
       { type: 'html', col: 12, html: '<div class="purchasing-part-form-section-title">Stock settings</div>' },
       { name: 'unit_cost', label: 'Reference Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Last recorded unit cost. The actual supplier price is confirmed on the PO.' },
       { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Alert threshold; 0 turns off low-stock alerts.' },
       ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
         transform: ({ part_id_display, ...data }) => data,
-        intro: p.id ? 'Update the verified item identity and reference unit cost. Part ID and on-hand quantity will not change.' : 'Part ID is assigned automatically and stock starts at 0. Enter the last known reference cost if available; the supplier PO price is confirmed separately.' });
+        intro: p.id ? 'Update the verified item identity and reference unit cost. Part ID and on-hand quantity will not change.' : 'Part ID is assigned automatically and stock starts at 0. Enter the last known reference cost if available; the supplier PO price is confirmed separately.',
+        onShow: (modal) => {
+          const target = modal.querySelector('[name="regular_supplier_name"]');
+          if (!target) return;
+          const suggestions = d.supplierSuggestions || [];
+          const list = document.createElement('datalist');
+          list.id = 'partRegularSupplierList';
+          list.innerHTML = suggestions.map(source => '<option value="' + UI.esc(source.name) + '"></option>').join('');
+          modal.querySelector('form').append(list);
+        } });
     };
     const partAct = (a, p) => a === 'edit' ? partForm(p) : a === 'count' ? PurUI.countForm(d, p) : null;
   return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
