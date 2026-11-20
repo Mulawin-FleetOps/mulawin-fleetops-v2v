@@ -49,21 +49,34 @@ const MaintHistoryDetails = {
     // click-to-preview images/PDFs, and the existing protected download links.
     // Keep this standalone Maintenance History drawer read-only.
     const docs = UI.docs(documents, 'No attached documents recorded.');
+    // Compact, read-only history fields. Full text is retained; only the layout changes.
+    const detailField = (label, value, wide = false) =>
+      `<div class="mp-history-field${wide ? ' mp-history-field-wide' : ''}"><div class="mp-history-field-label">${label}</div><div class="mp-history-field-value">${value == null || value === '' ? '—' : value}</div></div>`;
+    const detailGrid = fields => `<div class="mp-history-fields">${fields.join('')}</div>`;
     const html = `<div class="mp-history-detail-readonly">
       <div class="mp-history-detail-summary">
         <span class="mp-history-readonly-label">Recorded maintenance history · Read-only</span>
         <div class="d-flex flex-wrap align-items-center gap-2"><strong>${esc(job.job_ref)}</strong>${UI.badge(outcome)}</div>
       </div>
       ${UI.h('Overview')}
-      ${UI.kv([['Truck',esc(job.plate_number)],['Source',esc(job.source)],['Problem',esc(job.problem)],
-        ['Reported',job.reported_on ? UI.date(job.reported_on) : '—'],
-        ['Completed',job.completed_on ? UI.date(job.completed_on) : '—'],
-        ['Verified',job.verified_at ? UI.datetime(job.verified_at) : 'Not yet verified'],
-        ['Reported by',esc(job.reported_by_name)],['Remarks',UI.e(job.remarks)]])}
+      ${detailGrid([
+        detailField('Truck',esc(job.plate_number)),
+        detailField('Source',esc(job.source)),
+        detailField('Reported',job.reported_on ? UI.date(job.reported_on) : '—'),
+        detailField('Completed',job.completed_on ? UI.date(job.completed_on) : '—'),
+        detailField('Verified',job.verified_at ? UI.datetime(job.verified_at) : 'Not yet verified'),
+        detailField('Reported by',esc(job.reported_by_name)),
+        detailField('Problem',esc(job.problem),true),
+        ...(job.remarks ? [detailField('Remarks',UI.e(job.remarks),true)] : [])
+      ])}
       ${UI.h('Inspection & Repairs')}
-      ${UI.kv([['Lead mechanic',esc(job.mechanic)],['Inspection findings',UI.e(job.findings)],
-        ['Diagnosis',UI.e(job.diagnosis)],['Corrective action',UI.e(job.repair_performed)],
-        ['Verification notes',UI.e(job.verification_notes)]])}
+      ${detailGrid([
+        detailField('Lead mechanic',esc(job.mechanic)),
+        detailField('Inspection findings',UI.e(job.findings),true),
+        detailField('Diagnosis',UI.e(job.diagnosis),true),
+        detailField('Corrective action',UI.e(job.repair_performed),true),
+        detailField('Verification notes',UI.e(job.verification_notes),true)
+      ])}
       ${UI.h('Parts & Costs')}
       <div class="mp-history-cost-summary"><span>Parts: <b>${UI.money(partsCost)}</b></span>
         <span>Labor & others: <b>${UI.money(otherCost)}</b></span>
