@@ -130,8 +130,8 @@ const BillUI = {
         onAction: (a, x) => a === 'soa' ? BillUI.printSOA(x.id) : App.go('billing_receivables', { client: x.client }), empty: 'No outstanding receivable.' });
   },
   printInvoice(r) {
-    const b = r.billing, t = r.trip, c = r.client, vat = +r.vatRate;
-    const total = +b.total_amount, vatable = vat > 0 ? total / (1 + vat / 100) : 0, vatAmt = vat > 0 ? total - vatable : 0;
+    const b = r.billing, t = r.trip, c = r.client;
+    const total = +b.total_amount;
     const lines = [[`Trucking service ${t.trip_ref} (${t.truck_type}): ${t.pickup_point} to ${t.delivery_point}; truck ${t.plate_number || ''}; waybill ${t.waybill_number || ''}`, r.pricing?'1':UI.num(b.distance_km, 2) + ' km', r.pricing?UI.money(r.pricing.fixed):UI.money(b.rate_per_km), r.pricing?UI.money(r.pricing.fixed):UI.money(b.base_amount)],
       ...(r.pricing?[['Fuel charge (dispatch snapshot)','1',UI.money(r.pricing.fuel),UI.money(r.pricing.fuel)]]:[]),
       ...r.charges.map(x => [x.description, '1', UI.money(x.amount), UI.money(x.amount)])];
@@ -139,10 +139,10 @@ const BillUI = {
       <table><tr><th colspan="2">SERVICE TO:</th></tr><tr><td style="width:24%">Registered Name</td><td>${UI.esc(c.company_name)}</td></tr><tr><td>TIN</td><td>${UI.esc(c.tin || '')}</td></tr><tr><td>Business Address</td><td>${UI.esc(c.business_address || '')}</td></tr></table>
       <table><thead><tr><th>Item Description / Nature of Service</th><th class="num">Quantity</th><th class="num">Unit Cost / Price</th><th class="num">Amount</th></tr></thead>
       <tbody>${lines.map(l => `<tr><td>${UI.esc(l[0])}</td><td class="num">${l[1]}</td><td class="num">${l[2]}</td><td class="num">${l[3]}</td></tr>`).join('')}${UI.pfBlank(4, lines.length, 10)}</tbody></table>
-      <div class="d-flex gap-3"><table style="width:48%"><tr><td>VATable Sales</td><td class="num">${UI.money(vatable)}</td></tr><tr><td>VAT (${vat}%)</td><td class="num">${UI.money(vatAmt)}</td></tr>
-        <tr><td>Zero-Rated Sales</td><td class="num">${UI.money(0)}</td></tr><tr><td>VAT-Exempt Sales</td><td class="num">${UI.money(vat > 0 ? 0 : total)}</td></tr></table>
-      <table style="width:52%"><tr><td>Total Sales (VAT inclusive)</td><td class="num">${UI.money(total)}</td></tr><tr><td>Less: VAT</td><td class="num">${UI.money(vatAmt)}</td></tr>
-        <tr><td>Amount: Net of VAT</td><td class="num">${UI.money(total - vatAmt)}</td></tr><tr><td>Add: VAT</td><td class="num">${UI.money(vatAmt)}</td></tr>
+      <div class="d-flex gap-3"><table style="width:48%"><tr><td>VATable Sales</td><td class="num">&nbsp;</td></tr><tr><td>VAT</td><td class="num">&nbsp;</td></tr>
+        <tr><td>Zero-Rated Sales</td><td class="num">&nbsp;</td></tr><tr><td>VAT-Exempt Sales</td><td class="num">&nbsp;</td></tr></table>
+      <table style="width:52%"><tr><td>Total Sales (VAT inclusive)</td><td class="num">&nbsp;</td></tr><tr><td>Less: VAT</td><td class="num">&nbsp;</td></tr>
+        <tr><td>Amount: Net of VAT</td><td class="num">&nbsp;</td></tr><tr><td>Add: VAT</td><td class="num">&nbsp;</td></tr>
         <tr><th>TOTAL AMOUNT DUE</th><th class="num">${UI.money(total)}</th></tr></table></div>
       <div class="pf-signs">${UI.sign('Received the amount of / Received by (client)')}${UI.sign('Authorized representative', b.finalized_by_name || '', b.finalized_by, 'billing', b.id)}</div>`, { number: b.invoice_number });
   },
