@@ -232,7 +232,7 @@ final class Access {
             foreach ($structure as $id => [$label, $section]) {
                 [$oldLabel, $icon, $oldSection, $module, $js, $roles] = $pages[$id];
                 if (in_array('admin', $roles, true))
-                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$icon,'section'=>$section,'js'=>$js];
+                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$id === 'approvals' ? 'bi-clock-history' : $icon,'section'=>$section,'js'=>$js];
             }
             return $out;
         }
