@@ -83,7 +83,7 @@ final class Finance {
             'fuelBudget' => fn() => one($p, "SELECT id,amount,reserved_amount,spent_amount,period_start,period_end,
                     amount-reserved_amount-spent_amount AS available,
                     (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period
-                    FROM budgets WHERE category='Fuel Operations' AND status='Active' ORDER BY id DESC LIMIT 1") ?? [],
+                    FROM budgets WHERE category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Fuel Operations' END) AND status='Active' ORDER BY id DESC LIMIT 1") ?? [],
             'poPayables' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.payment_status, o.total_amount, o.paid_amount, o.supplier_invoice_no, COALESCE(o.supplier_name, s.name) AS supplier, du.full_name AS approved_by_name,
                     (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id LEFT JOIN users du ON du.id=o.decided_by
@@ -100,7 +100,7 @@ final class Finance {
             'tripFunds' => fn() => many($p, "SELECT f.id, f.fund_ref, f.amount, f.status, f.liquidation_status, f.created_at, f.released_at, t.trip_ref, t.scheduled_at, u.full_name AS requested_by_name
                 FROM fund_requests f JOIN trips t ON t.id=f.trip_id JOIN users u ON u.id=f.requested_by
                 ORDER BY f.id DESC LIMIT 500"),
-            'tripOperationsBudget' => fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, period_start, period_end, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Trip Operations' ORDER BY id DESC LIMIT 1") ?? [],
+            'tripOperationsBudget' => fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, period_start, period_end, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Trip Operations' END) ORDER BY id DESC LIMIT 1") ?? [],
             'budgets' => fn() => many($p, "SELECT b.id, b.category, b.created_at, b.period_start, b.period_end, b.amount, b.reserved_amount, b.spent_amount, b.status, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.id DESC"),
             'generalBudget' => fn() => one($p, "SELECT b.*, (b.amount-b.reserved_amount-b.spent_amount) AS available, (CURRENT_DATE() BETWEEN b.period_start AND b.period_end) AS in_period
                   FROM budgets b WHERE b.category='General' AND b.status='Active' ORDER BY b.id DESC LIMIT 1") ?? [],
@@ -148,7 +148,7 @@ final class Finance {
                 UNION ALL (SELECT 'payable', pa.id, pa.payable_ref, pa.payee, pa.amount-pa.paid_amount, pa.due_on, pa.status FROM payables pa WHERE pa.status<>'Paid')
                 ORDER BY (due_on IS NULL), due_on, ref LIMIT 25"),
             'budget' => fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, period_start, period_end, amount-reserved_amount-spent_amount AS available,
-                    (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? [],
+                    (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) ORDER BY id DESC LIMIT 1") ?? [],
         ]);
         $data['can'] = ['act' => hasRole($u, 'finance')];
         $data['today'] = $today;
