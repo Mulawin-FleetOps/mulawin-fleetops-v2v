@@ -31,7 +31,7 @@ const MaintUI = {
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
     if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident from the Operations report; no garage mechanic is needed.' : 'Assign an available mechanic to start the inspection.';
     if (j.status === 'Under Inspection') {
-      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Major') return j.garageArrivalConfirmed ? 'Truck received at garage. Assign an available mechanic; incident assessment is already complete.' : 'Trip is For Reschedule. Confirm the truck has arrived at the garage before beginning repair; Operations can use a replacement truck.';
+      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Major') return j.garageArrivalConfirmed ? 'Truck received. Open Start garage repair to record findings, components, mechanics, and parts in one form; no reassessment.' : 'Trip is For Reschedule. Confirm the truck has arrived at the garage before beginning repair; Operations can use a replacement truck.';
       if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Minor') return 'Trip is On Hold. Record the actual onsite repair and safety confirmation before the Dispatcher resumes the same trip.';
       return j.mechanic_id ? 'Record the inspection findings and diagnosis.' : 'Assign a mechanic when the truck is physically available for garage inspection.';
     }
@@ -229,11 +229,18 @@ const MaintUI = {
       <input type="checkbox" data-team-mechanic value="${+m.id}" ${assigned.includes(+m.id) ? 'checked' : ''}>
       <span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)}${m.specialization ? ' · '+UI.esc(m.specialization) : ''}</small><em class="mp-final-team-recommended" data-team-match hidden></em></span>
     </label>`).join('');
+    const majorGarage = j.source === 'Incident' && j.severity === 'Major' && j.status === 'Under Inspection' && !j.assignment_finalized_at;
     const summary = j.source === 'Incident' ? `<div class="alert alert-light border small"><b>Incident-related repair:</b> Original Dispatcher incident details stay read-only in Repair Details. Classification: ${UI.esc(j.severity || 'Not assessed')}.</div>` : '';
     const html = `<div class="small text-muted mb-3">Choose the affected components first. Recommended mechanics will appear in the checklist below.</div>
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
+      ${majorGarage ? `<div class="purchasing-receive-section">Garage findings & diagnosis</div>
+        <p class="small text-muted mt-2">The incident was already classified Major. Record only the actual condition found after arrival; no second incident assessment is required.</p>
+        <label class="form-label" for="mp-garage-findings">Actual garage findings *</label>
+        <textarea class="form-control mb-2" id="mp-garage-findings" data-garage-findings maxlength="2000" rows="2" required placeholder="Observed damage and affected parts at the garage"></textarea>
+        <label class="form-label" for="mp-garage-diagnosis">Repair diagnosis *</label>
+        <textarea class="form-control mb-3" id="mp-garage-diagnosis" data-garage-diagnosis maxlength="2000" rows="2" required placeholder="What needs to be repaired or replaced"></textarea>` : ''}
       <details class="mp-final-optional-section mb-2" open>
       <summary>Affected components (choose first) <span data-component-summary>0 selected</span></summary>
       <div class="mp-final-optional-content">
@@ -277,7 +284,7 @@ const MaintUI = {
         <div class="mp-final-parts-list" data-final-lines></div>
         <button type="button" class="btn btn-outline-primary btn-sm mp-final-add-part" data-final-add-part><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add Part</button>
       </div>`;
-    const dialog = UI.modal((j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team · ' : 'Finalize RA · ') + UI.esc(j.job_ref),html,async (_values,form)=>{
+    const dialog = UI.modal((majorGarage ? 'Start Garage Repair · ' : j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team · ' : 'Finalize RA · ') + UI.esc(j.job_ref),html,async (_values,form)=>{
       const mechanics = [...form.querySelectorAll('[data-team-mechanic]:checked')].map(x=>+x.value);
       // Preserve the primary-reference database model without exposing lead/assistant steps.
       const lead = mechanics.includes(+j.mechanic_id) ? +j.mechanic_id : mechanics[0];
@@ -285,6 +292,9 @@ const MaintUI = {
       const components = [...form.querySelectorAll('[data-component]:checked')].map(x=>+x.dataset.component);
       const other_components = form.querySelector('[data-other-components]').value.trim();
       const parts_requirement = form.querySelector('[data-final-parts]').value;
+      const findings = majorGarage ? form.querySelector('[data-garage-findings]').value.trim() : null;
+      const diagnosis = majorGarage ? form.querySelector('[data-garage-diagnosis]').value.trim() : null;
+      if (majorGarage && (!findings || !diagnosis)) throw new Error('Enter garage findings and repair diagnosis.');
       const parts_lines = [...form.querySelectorAll('[data-final-part-row]')].map(el=>({part_id:+el.querySelector('[data-part-id]').value,quantity:+el.querySelector('[data-part-qty]').value}));
       if (!lead) throw new Error('Select at least one mechanic.');
       if (other_components.length > 250) throw new Error('Other component description is too long.');
@@ -309,9 +319,9 @@ const MaintUI = {
       if (parts_lines.some(x=>!x.part_id||!Number.isInteger(x.quantity)||x.quantity<1)) throw new Error('Choose a part and valid quantity.');
       if (new Set(parts_lines.map(x=>x.part_id)).size!==parts_lines.length) throw new Error('Combine duplicate parts into one request.');
       if (parts_requirement !== 'Parts Required' && parts_lines.length) throw new Error('Select Parts Required before adding parts.');
-      const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,other_components,parts_requirement,parts_lines});
+      const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,other_components,parts_requirement,parts_lines,findings,diagnosis});
       UI.result(response); if(after) after(); else App.route();
-    },{submit:j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team' : 'Finalize RA',size:'modal-xl'});
+    },{submit:majorGarage ? 'Start garage repair' : j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team' : 'Finalize RA',size:'modal-xl'});
 
     const teamSearch=dialog.querySelector('[data-team-search]');
     const teamRows=[...dialog.querySelectorAll('.mp-final-team-choice')];
@@ -618,10 +628,12 @@ const MaintUI = {
         ? ['finalize', 'Assign Mechanic Team', 'primary', 'bi-people']
         : ['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
       if (j.status === 'Under Inspection') {
-        if (j.mechanic_id) acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
+        if (j.source === 'Incident' && j.severity === 'Major' && j.garageArrivalConfirmed && !j.assignment_finalized_at)
+          acts.push(['finalize', 'Start garage repair', 'primary', 'bi-tools']);
+        else if (j.mechanic_id) acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
         else if (j.source === 'Incident' && j.severity === 'Major')
           acts.push(j.garageArrivalConfirmed
-            ? ['mech', 'Assign mechanic & start garage repair', 'primary', 'bi-person-plus']
+            ? ['finalize', 'Start garage repair', 'primary', 'bi-tools']
             : ['garage_arrival', 'Confirm truck arrived at garage', 'primary', 'bi-truck']);
         else if (j.source !== 'Incident') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
         // Minor roadside incidents use Vehicle clearance below, not garage assignment.
@@ -924,7 +936,7 @@ const MaintUI = {
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : (j.findings && j.diagnosis ? ['finalize', 'Assign Mechanic Team', 'bi-people'] : ['mech', 'Assign mechanic', 'bi-person-plus']);
     if (j.status === 'Under Inspection') {
       if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
-        return +j.garage_arrival_confirmed ? ['mech', 'Assign mechanic', 'bi-person-plus'] : ['garage_arrival', 'Confirm garage arrival', 'bi-truck'];
+        return +j.garage_arrival_confirmed ? ['finalize', 'Start garage repair', 'bi-tools'] : ['garage_arrival', 'Confirm garage arrival', 'bi-truck'];
       if (j.source === 'Incident' && j.severity === 'Minor' && !j.mechanic_id)
         return j.incident_clearance ? null : ['clearance', 'Confirm onsite repair', 'bi-shield-check'];
       if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
