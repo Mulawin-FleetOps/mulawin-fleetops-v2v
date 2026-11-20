@@ -567,16 +567,14 @@ PurUI.kit = (d, can) => {
     const partForm = (p = {}) => {
       if (!d.partIdentityReady) return UI.toast('Part Type / Brand database migration is required before adding or editing parts. Existing stock and records remain readable.', 'warning');
       return UI.formModal(p.id ? 'Edit part' : 'Add part', [
-      { name: 'part_id_display', label: 'Part ID', col: 4, value: p.part_number || 'Assigned after saving', attrs: 'readonly aria-readonly="true" tabindex="-1"', help: p.id ? 'Permanent reference · cannot be edited.' : 'Automatically generated when you save.' },
-      { name: 'part_type', label: 'Part Type', required: !p.id || !!p.part_type, col: 4, value: p.part_type, placeholder: 'e.g. Tire', attrs: 'maxlength="100"', help: p.id && !p.part_type ? 'Legacy item: classify when its actual type is verified.' : 'General part type; may be shared by different variants.' },
-      { name: 'description', label: 'Part Name / Specification', required: true, col: 4, value: p.description, placeholder: 'Specific item or size', attrs: 'maxlength="200"', help: 'Use the exact recorded specification; do not guess for legacy stock.' },
+      { name: 'part_id_display', label: 'Part ID', col: 6, value: p.part_number || 'Assigned after saving', attrs: 'readonly aria-readonly="true" tabindex="-1"', help: p.id ? 'Permanent reference · cannot be edited.' : 'Automatically generated on save.' },
+      { name: 'part_type', label: 'Part Type', required: !p.id || !!p.part_type, col: 6, value: p.part_type, placeholder: 'e.g. Tire', attrs: 'maxlength="100"', help: p.id && !p.part_type ? 'Legacy part: classify only when verified.' : 'General category of part.' },
+      { name: 'description', label: 'Part Name / Specification', required: true, col: 12, value: p.description, placeholder: 'e.g. 11R22.5 16PR', attrs: 'maxlength="200"', help: 'Enter the exact variant or specification.' },
       { name: 'brand', label: 'Brand (optional)', col: 6, value: p.brand, attrs: 'maxlength="100"' },
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
-      { name: 'unit_cost', label: 'Reference Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Last known cost per unit, used to suggest the PO price. If unknown, 0 means unverified; confirm the actual price when ordering. Receiving updates this cost.' },
-      { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
-      { name: 'warranty_info', label: 'Warranty Notes (optional)', col: 12, value: p.warranty_info,
-        placeholder: 'Supplier warranty terms, if known. Actual coverage is confirmed during receiving.',
-        attrs: 'maxlength="150"' },
+      { type: 'html', col: 12, html: '<div class="purchasing-part-form-section-title">Stock settings</div>' },
+      { name: 'unit_cost', label: 'Reference Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Last recorded unit cost. The actual supplier price is confirmed on the PO.' },
+      { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Alert threshold; 0 turns off low-stock alerts.' },
       ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
         transform: ({ part_id_display, ...data }) => data,
         intro: p.id ? 'Update the verified item identity and reference unit cost. Part ID and on-hand quantity will not change.' : 'Part ID is assigned automatically and stock starts at 0. Enter the last known reference cost if available; the supplier PO price is confirmed separately.' });
