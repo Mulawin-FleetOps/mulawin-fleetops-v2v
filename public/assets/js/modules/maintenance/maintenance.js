@@ -31,7 +31,7 @@ const MaintUI = {
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
     if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident from the Operations report; no garage mechanic is needed.' : 'Assign an available mechanic to start the inspection.';
     if (j.status === 'Under Inspection') {
-      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Minor') return 'Trip stays On Hold. Record a verified roadside vehicle check or Not Fit to Continue; no garage mechanic is required for the roadside decision.';
+      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Minor') return 'Trip is On Hold. Select Vehicle Clearance to record the roadside condition and Fit / Not Fit decision. Garage mechanic assignment is not required.';
       if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Major') return 'Trip is For Reschedule. Garage repair starts only after truck recovery.';
       return j.mechanic_id ? 'Record the inspection findings and diagnosis.' : 'Assign a mechanic when the truck is physically available for garage inspection.';
     }
@@ -705,7 +705,11 @@ const MaintUI = {
         </ol>`
       : '<div class="mp-repair-history-empty">No status events have been recorded for this repair.</div>';
     const html = `<div class="mp-repair-overview-summary">
-        <div class="mp-repair-overview-top"><span class="small text-muted">Current status</span>${UI.badge(j.verified_at ? 'Returned to service' : j.status)}</div>
+        <div class="mp-repair-overview-top"><span class="small text-muted">Current status</span>${UI.badge(j.verified_at ? 'Returned to service'
+          : i && j.status === 'Under Inspection' && !j.mechanic_id && i.severity === 'Minor'
+            ? (i.clearance === 'Not Fit to Continue' ? 'Not Fit to Continue' : 'Awaiting Clearance')
+          : i && j.status === 'Under Inspection' && !j.mechanic_id && i.severity === 'Major'
+            ? 'For Reschedule' : j.status)}</div>
         <div class="mp-repair-next"><strong>Next step</strong><span>${UI.esc(MaintUI.nextStep(j))}</span></div>
         ${mainAction ? `<div class="mp-repair-main-action"><span class="small text-muted">Recommended action</span>${actionButton(mainAction)}</div>` : ''}
       </div>
@@ -857,7 +861,13 @@ const MaintUI = {
   rowStep(j) {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : (j.findings && j.diagnosis ? ['finalize', 'Assign Mechanic Team', 'bi-people'] : ['mech', 'Assign mechanic', 'bi-person-plus']);
-    if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    if (j.status === 'Under Inspection') {
+      if (j.source === 'Incident' && j.severity === 'Minor' && !j.mechanic_id)
+        return j.incident_clearance ? null : ['clearance', 'Vehicle clearance', 'bi-shield-check'];
+      if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
+        return null; // Garage work starts after physical recovery, not as the roadside next step.
+      return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    }
     if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
     if (j.status === 'Completed') return null; // Details are read-only after completion.
     return null;
@@ -1022,7 +1032,13 @@ App.page('maintenance', {
     } catch { /* storage unavailable: stay on Repair Management */ }
     // Garage problems may be reported here or from the Motorpool Dashboard; no trip is required.
     const q = ctx.query;
-    const jobs = d.jobs.map(j => ({ ...j, display_status: j.verified_at ? 'Returned to service' : (j.status === 'Completed' ? 'Awaiting verification' : j.status) }));
+    const jobs = d.jobs.map(j => ({ ...j, display_status:
+      j.verified_at ? 'Returned to service'
+      : j.source === 'Incident' && j.severity === 'Minor' && j.status === 'Under Inspection' && !j.mechanic_id
+        ? (j.incident_clearance === 'Not Fit to Continue' ? 'Not Fit to Continue' : 'Awaiting Clearance')
+      : j.source === 'Incident' && j.severity === 'Major' && j.status === 'Under Inspection' && !j.mechanic_id
+        ? 'For Reschedule'
+      : j.status === 'Completed' ? 'Awaiting verification' : j.status }));
     // STAGE_A_MOTORPOOL_UI: filters (truck, source, mechanic, stage). Field names = URL keys, so a filter survives a reload and can be linked.
     const view = MaintUI.VIEWS[q.view];
     // MOTORPOOL_REPORTS_V2: ?from= / ?to= (date reported) so report drill-downs open exactly the period's repairs.
