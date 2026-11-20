@@ -228,7 +228,7 @@ const MaintUI = {
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
-      <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
+      <details class="mp-final-optional-section mb-2" open>
       <summary>Affected components (choose first) <span data-component-summary>0 selected</span></summary>
       <div class="mp-final-optional-content">
       <div class="mp-final-component-tabs" role="tablist" aria-label="Component category">
