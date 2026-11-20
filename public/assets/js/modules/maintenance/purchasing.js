@@ -917,7 +917,7 @@ App.page('purchasing_overview', {
       const pages = Math.max(1, Math.ceil(items.length / dashboardPageSize));
       return `<div class="purchasing-dashboard-pager" data-purchasing-dash-pager="${key}" data-page="1" data-size="${dashboardPageSize}">
         <ul class="mo-list purchasing-dashboard-page-list">${items.map((html, i) =>
-          `<li class="purchasing-dashboard-page-item" data-dash-index="${i}">${html}</li>`).join('')}</ul>
+          html.replace('<li ', `<li data-dash-index="${i}" `)).join('')}</ul>
         <div class="purchasing-dashboard-page-footer no-print">
           <span data-dash-range>Showing 1–${Math.min(dashboardPageSize,items.length)} of ${items.length}</span>
           <span class="purchasing-dashboard-page-controls">
