@@ -300,10 +300,10 @@ const PurUI = {
     const supplierMain = UI.fields([{ ...supplierFields[0], col: 12 }]);
     const supplierOptional = UI.fields(supplierFields.slice(1));
     const budgetMessage = d.budget && d.budget.id && +d.budget.in_period
-      ? 'Purchasing budget available now: <b>' + UI.money(d.budget.available) + '</b> (checked again at approval).'
+      ? 'Purchasing budget available now: <b>' + UI.money(d.budget.available) + '</b>. Inventory restock requests over this amount are automatically rejected when submitted; approved requests are rechecked at approval.'
       : d.budget && d.budget.id
-        ? 'The purchasing budget period ended on ' + UI.date(d.budget.period_end) + '. Finance must set a new budget before approval.'
-        : 'There is no active purchasing budget. Finance must create one before approval.';
+        ? 'The purchasing budget period ended on ' + UI.date(d.budget.period_end) + '. An Inventory Restock request will be automatically rejected until an active budget is available.'
+        : 'There is no active purchasing budget. Inventory Restock requests will be automatically rejected until an active budget is available.';
     const html = '<div class="po-simple-form">' +
       '<section class="po-simple-section"><h6>1. What is this purchase for?</h6>' + sourceOptions +
         '<div data-po-request-section ' + (linked ? '' : 'hidden') + '>' + requestField +
@@ -337,7 +337,7 @@ const PurUI = {
         UI.result(r);
         App.route();
       },
-      { submit: 'Send for Approval', onShow: (w) => {
+      { submit: linked ? 'Send for Approval' : 'Submit Restock Request', onShow: (w) => {
         w.classList.add('purchasing-po-modal','po-simplified-modal');
         PurUI.wireLines(w, true);
         PurUI.wireSupplier(w);
@@ -364,6 +364,8 @@ const PurUI = {
         };
         const setSource = () => {
           const mode = form.querySelector('[name="po_purchase_type"]:checked')?.value;
+          const submitButton = w.querySelector('button[type="submit"]');
+          if (submitButton) submitButton.textContent = mode === 'restock' ? 'Submit Restock Request' : 'Send for Approval';
           requestSection.hidden = mode !== 'motorpool';
           requestSelect.disabled = mode !== 'motorpool';
           refreshLoadButton();
