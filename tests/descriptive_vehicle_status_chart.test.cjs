@@ -35,4 +35,14 @@ for(const state of ['Spent','Reserved','Available'])assert.ok(admin.includes("la
 assert.match(admin,/No currently effective, Admin-approved General Budget/);
 assert.match(admin,/not a historical amount filtered by the selected report dates/);
 console.log('PASS: Admin Finance Descriptive General Budget utilization, active-only source, clear empty state');
+assert.ok(!admin.includes("plot('Parts with requests not fully released'"),'Old Inventory Diagnostic chart must be removed');
+assert.match(admin,/plot\('Parts Issued Quantity by Part','hbar'/);
+assert.match(admin,/const issuedParts = used\.filter\(x=>Number\(x\.units\)>0\)/);
+assert.match(admin,/issuedParts\.map\(x=>Number\(x\.units\)\)/);
+assert.match(admin,/\[x\.description, x\.part_number\]/);
+assert.match(admin,/x\.unit \? ' \('/);
+assert.match(admin,/quantities of different parts or units are not added together/);
+assert.ok(admin.includes("plot('Most used parts by issued value'"),'Preserve issued value chart');
+assert.ok(admin.includes("plot('Part use frequency · releases'"),'Preserve release frequency chart');
+console.log('PASS: Admin Diagnostic Inventory uses recorded issued quantity per Part ID and unit, replacing empty unfulfilled-request chart');
 console.log('PASS: Descriptive vehicle type/status chart contract, filters, statuses, and KPI preservation');
