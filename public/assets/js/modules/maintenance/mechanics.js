@@ -192,6 +192,16 @@ App.page('mechanic_attendance', {
         ['Timed out by', 'time_out_by'],
       ], sessions, { showAllColumns: true, limit: 10, empty: `No Time In recorded for these dates (at most ${range.max_days || 62} days at a time).` });
     if (typeof RecordComponents !== 'undefined') RecordComponents.maintenanceWorkspace(ctx.el, {box:'.mp-session-section'});
+    // Session date filters belong beside Search, not in a detached row above it.
+    // Move the original inputs without replacing the URL-backed handlers.
+    const sessionSearch = hist.querySelector('.record-workspace-search');
+    const sessionDates = hist.querySelector(':scope > .ws-filters');
+    if (sessionSearch && sessionDates) {
+      sessionDates.classList.add('mp-session-inline-dates');
+      const sortButton = sessionSearch.querySelector('.record-workspace-sort-trigger');
+      if (sortButton) sortButton.before(sessionDates);
+      else sessionSearch.append(sessionDates);
+    }
     }
   },
 });
