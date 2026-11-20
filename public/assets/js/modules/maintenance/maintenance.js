@@ -342,7 +342,8 @@ const MaintUI = {
       } else leadValue.value = '';
       const query = selected && leadSearch.value === selected.label ? '' : leadSearch.value.trim().toLocaleLowerCase();
       const found = query ? leadOptions.filter(x => x.search.includes(query)) : leadOptions;
-      leadMatches = found.slice(0, 6);
+      // Keep every eligible match in the scrollable dropdown; CSS limits only visible height.
+      leadMatches = found;
       leadActive = -1;
       leadList.innerHTML = leadMatches.length
         ? leadMatches.map((m,i) => `<button type="button" class="mp-final-lead-option" id="mp-final-lead-option-${i}" role="option" aria-selected="${String(m.id) === leadValue.value}" data-lead-id="${m.id}">${UI.esc(m.label)}</button>`).join('')
