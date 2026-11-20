@@ -52,7 +52,7 @@ final class Maintenance {
             'jobs' => fn() => many($p, "SELECT m.id, m.job_ref, m.vehicle_id, m.source, m.problem, m.reported_on, m.priority, m.severity, m.status, m.mechanic_id, m.trip_id, m.incident_id,
                     $finalizedField, m.expected_completion, m.completed_on, m.verified_at, m.created_at, mc.full_name AS mechanic, mc.mechanic_code,
                     v.plate_number, v.truck_number, v.truck_type, v.status AS truck_status,
-                    i.incident_ref, i.status AS incident_status, t.trip_ref, t.status AS trip_status,
+                    i.incident_ref, i.status AS incident_status, i.clearance AS incident_clearance, t.trip_ref, t.status AS trip_status,
                     (SELECT COALESCE(SUM(c.amount),0) FROM maintenance_costs c WHERE c.maintenance_job_id=m.id) AS other_cost,
                     (SELECT COALESCE(SUM(l.released_qty*l.unit_cost),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id) AS parts_cost,
                     (SELECT COALESCE(SUM(l.quantity-l.released_qty),0) FROM part_request_lines l JOIN part_requests r ON r.id=l.part_request_id WHERE r.maintenance_job_id=m.id AND r.status <> 'Cancelled') AS pending_parts_units
