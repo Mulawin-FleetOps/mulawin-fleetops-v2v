@@ -66,7 +66,8 @@ mpok((int)one($p,'SELECT COUNT(*) AS n FROM maintenance_job_components WHERE mai
 $_FILES=['evidence'=>$file()];
 Maintenance::action($mp,'complete',['job_id'=>$jid,'repair_performed'=>'Replaced faulty connector','completed_on'=>date('Y-m-d')]);
 $_FILES=[];
-mpok($j()['status']==='Completed','repair can complete with confirmed no parts and evidence');
+mpok($j()['status']==='Completed' && $j()['completed_on']===date('Y-m-d'),
+    'repair completion uses the server date and saves required evidence');
 Maintenance::action($mp,'verify',['job_id'=>$jid,'result'=>'Passed','verification_notes'=>'Headlight working']);
 mpok($j()['verified_at']!==null,'verified repair remains auditable');
 $garageTruck=insert($p,'vehicles',['plate_number'=>'MPV-002','truck_type'=>'Wing Van']);
