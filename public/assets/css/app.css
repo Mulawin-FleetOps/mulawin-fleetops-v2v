@@ -3780,3 +3780,40 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .purchasing-stock-alerts .mo-item { align-items:flex-start; gap:8px; }
   .purchasing-stock-alerts .mo-item-side { margin-top:2px; }
 }
+
+/* MOTORPOOL_FINALIZE_COMPACT_V1 — keep rarely used selections folded, not removed. */
+.mp-final-optional-section {
+  border: 1px solid #d8e7dc;
+  border-radius: 9px;
+  background: #fff;
+  overflow: hidden;
+}
+.mp-final-optional-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 11px 13px;
+  color: #215b3c;
+  font-weight: 600;
+  font-size: 13px;
+  list-style: none;
+}
+.mp-final-optional-section > summary::-webkit-details-marker { display: none; }
+.mp-final-optional-section > summary::before {
+  content: "+";
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 400;
+}
+.mp-final-optional-section[open] > summary::before { content: "−"; }
+.mp-final-optional-section > summary span {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: #6b8173;
+}
+.mp-final-optional-content {
+  padding: 8px 12px 13px;
+  border-top: 1px solid #e4eee7;
+}
