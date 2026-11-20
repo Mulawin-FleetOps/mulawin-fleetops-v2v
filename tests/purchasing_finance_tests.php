@@ -45,7 +45,6 @@ test_import($p, test_sql('database/schema.sql'));
     $extensionSql=preg_replace('/ALTER TABLE users ADD COLUMN dispatcher_truck_types JSON NULL AFTER dispatcher_truck_type\s*;/is','',$extensionSql);
     test_import($p,$extensionSql);
 $p->exec("CREATE TABLE IF NOT EXISTS schema_migrations (id VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
-test_import($p, test_sql('database/migrations/2026-11-19_02_part_type_name_brand.sql'));
 test_import($p, test_sql('database/migrations/2026-11-21_01_general_budget_approvals.sql'));
 $staff = ['admin' => ['tvillanueva', 'Teresita Villanueva'], 'motorpool' => ['ebautista', 'Ernesto Bautista'], 'purchasing' => ['msantos', 'Maricel Santos'],
     'finance' => ['laquino', 'Lourdes Aquino'], 'audit' => ['amendoza', 'Arnel Mendoza'], 'billing' => ['jramos', 'Jocelyn Ramos']];
