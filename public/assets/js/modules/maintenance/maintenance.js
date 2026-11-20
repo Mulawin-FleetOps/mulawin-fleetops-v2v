@@ -744,14 +744,24 @@ const MaintUI = {
         ${mainAction ? `<div class="mp-repair-main-action"><span class="small text-muted">Recommended action</span>${actionButton(mainAction)}</div>` : ''}
       </div>
       ${supportActions.length ? `<div class="mp-repair-support-actions"><strong>Other actions</strong><div class="mp-repair-support-buttons">${supportActions.map(actionButton).join('')}</div></div>` : ''}
-      ${remoteIncident ? incidentOverview : `${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at)
-          : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.preDispatch.actor) + ' · ' + UI.datetime(r.preDispatch.completed_at)
-          : j.trip_ref ? 'Checklist-linked truck problem · ' + UI.esc(j.trip_ref) : 'Reported at the garage')],
-        r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
-        r.preDispatch ? ['Pre-dispatch NOT OK items', (r.preDispatchFindings || []).length
-          ? UI.esc(r.preDispatchFindings.join('; ')) : 'No recorded NOT OK findings'] : null,
-        ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
-        ])}
+      ${remoteIncident ? incidentOverview : `
+        ${UI.h('Problem & truck')}
+        <div class="mp-incident-detail-grid">
+          ${incidentField('Truck',truckLine,true)}
+          ${incidentField('Source',j.source === 'Incident'
+            ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '')
+            : r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '')
+            : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '')
+            : j.trip_ref ? 'Checklist-linked truck problem · ' + UI.esc(j.trip_ref)
+            : 'Reported at the garage',true)}
+          ${incidentField('Problem',UI.e(j.problem),true)}
+          ${incidentField('Date reported',UI.date(j.reported_on))}
+          ${incidentField('Reported by',UI.e(j.reported_by_name))}
+          ${r.arrival?.damage_notes ? incidentField('Damage / missing on arrival',UI.e(r.arrival.damage_notes),true) : ''}
+          ${r.preDispatch ? incidentField('Pre-dispatch NOT OK items',
+            (r.preDispatchFindings || []).length ? UI.esc(r.preDispatchFindings.join('; ')) : 'No recorded NOT OK findings',true) : ''}
+        </div>
+      `}
       ${UI.h('Mechanics and repair')}${progress}${readiness}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
         ['Assisting mechanics', r.helpersReady ? MaintUI.helperList(r.helpers, Boolean(act) && MaintUI.ACTIVE.includes(j.status))
           : '<span class="text-muted">Not available until database update 2026-11-12_12 is applied.</span>'],
@@ -759,11 +769,24 @@ const MaintUI = {
         ['Corrective action', j.status === 'Completed' && !j.repair_performed ? '<span class="text-muted">Inspection only — no repair performed</span>' : UI.e(j.repair_performed)], ['Repair completion date', j.completed_on ? UI.date(j.completed_on) + ' · ' + UI.e(j.completed_by_name) : '—'],
         ['Verification', j.verified_at ? `Passed · ${UI.e(j.verified_by_name)} · ${UI.datetime(j.verified_at)}<div class="small text-muted">${UI.e(j.verification_notes)}</div>` : (j.status === 'Completed' ? '<span class="badge-s amber">Waiting for verification</span>' : '—')],
         ['Remarks', UI.e(j.remarks)]])}
-      ${i ? UI.h('Trip incident', act ? `<button class="btn btn-link btn-sm p-0" data-a="printinc"><i class="bi bi-printer"></i> Incident report form</button>` : '') + UI.kv([['Reference', UI.esc(i.incident_ref) + ' ' + UI.badge(i.status)], ['Type', UI.e(i.incident_type)],
-        ['Incident date and time / location', UI.datetime(i.incident_at) + ' · ' + UI.esc(i.location)], ['Original details', UI.e(i.details)], ['Additional information', (r.incidentClarifications || []).length ? (r.incidentClarifications || []).map(c=>'<div class="border-bottom py-1"><small class="text-muted">'+UI.esc(c.actor)+' · '+UI.datetime(c.created_at)+'</small><div>'+UI.esc(c.details)+'</div></div>').join('') : '<span class="text-muted">None submitted</span>'], ['Persons involved', UI.e(i.persons_involved)], ['Reported by', UI.e(i.reported_by_name)], ['Recommendation', UI.e(i.recommendation)],
-        ['Damage classification', i.severity ? UI.esc(i.severity) + (i.assessed_by_name ? ' · ' + UI.esc(i.assessed_by_name) + ' · ' + UI.datetime(i.assessed_at) : '') : '<span class="text-muted">Not assessed yet</span>'],
-        ['Vehicle clearance', i.clearance ? `${UI.badge(i.clearance)} · ${UI.e(i.cleared_by_name)} · ${UI.datetime(i.cleared_at)}<div class="small text-muted">${UI.e(i.clearance_findings)}</div>` : '<span class="text-muted">Not recorded</span>'],
-        ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}`}
+      ${i && !remoteIncident ? `
+        ${UI.h('Trip incident', act ? `<button type="button" class="btn btn-link btn-sm p-0" data-a="printinc"><i class="bi bi-printer" aria-hidden="true"></i> Incident report form</button>` : '')}
+        <div class="mp-incident-detail-grid">
+          ${incidentField('Reference',UI.esc(i.incident_ref) + ' ' + UI.badge(i.status))}
+          ${incidentField('Type',UI.e(i.incident_type))}
+          ${incidentField('Incident date & time',UI.datetime(i.incident_at))}
+          ${incidentField('Location',UI.e(i.location))}
+          ${incidentField('Original details',UI.e(i.details),true)}
+          ${i.persons_involved ? incidentField('Persons involved',UI.e(i.persons_involved),true) : ''}
+          ${incidentField('Reported by',UI.e(i.reported_by_name))}
+          ${incidentField('Damage classification',UI.badge(i.severity || 'Not assessed'))}
+          ${incidentField('Assessment / recommendation',UI.e(i.recommendation),true)}
+          ${incidentField('Vehicle clearance',i.clearance ? UI.badge(i.clearance) + ' · ' + UI.e(i.cleared_by_name) : 'Not recorded',true)}
+          ${i.clearance_findings ? incidentField('Clearance findings',UI.e(i.clearance_findings),true) : ''}
+          ${i.resumed_at ? incidentField('Trip resumed',UI.e(i.resumed_by_name)+' · '+UI.datetime(i.resumed_at),true) : ''}
+        </div>
+        ${(r.incidentClarifications || []).length ? `<details class="mp-incident-detail-updates"><summary>Dispatcher updates (${r.incidentClarifications.length})</summary>${r.incidentClarifications.map(x => `<div class="mp-incident-detail-update"><small>${UI.esc(x.actor)} · ${UI.datetime(x.created_at)}</small><div>${UI.e(x.details)}</div></div>`).join('')}</details>` : ''}
+      ` : ''}
       ${UI.h('Parts and costs')}
       <div class="mp-repair-parts-costs">
         <div class="mp-repair-cost-summary">
