@@ -724,18 +724,16 @@ final class Purchasing {
         return transaction(function (PDO $p) use ($u, $supplier, $purpose, $reqId, $lines, $total, $approver, $threshold) {
             if ($reqId) must((bool)one($p, 'SELECT id FROM part_requests WHERE id=?', [$reqId]), 'Parts request not found.');
             foreach ($lines as $l) must((bool)one($p, 'SELECT id FROM parts WHERE id=? AND active=1', [$l['part_id']]), 'Unknown part in the list.');
-            // Pre-screen inventory restock requests before creating an approver queue item.
-            // This is NOT a budget reservation; approval must still perform its
-            // atomic locked recheck because other approved POs may use the balance.
+            // Every PO request is screened before entering Finance/Admin approval.
+            // This does not reserve funds. Approval rechecks atomically because
+            // available budget may change after the PO was composed.
             $restockRejectedReason = null;
-            if (!$reqId) {
-                $budget = one($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
-                $available = $budget ? round((float)$budget['amount'] - (float)$budget['reserved_amount'] - (float)$budget['spent_amount'], 2) : 0.0;
-                if (!$budget || $available < $total) {
-                    $restockRejectedReason = !$budget
-                        ? 'no active Purchasing budget for today'
-                        : 'available budget PHP ' . number_format($available, 2) . ' is less than the restock request PHP ' . number_format($total, 2);
-                }
+            $budget = one($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
+            $available = $budget ? round((float)$budget['amount'] - (float)$budget['reserved_amount'] - (float)$budget['spent_amount'], 2) : 0.0;
+            if (!$budget || $available < $total) {
+                $restockRejectedReason = !$budget
+                    ? 'no active Purchasing budget for today'
+                    : 'available budget PHP ' . number_format($available, 2) . ' is less than the request PHP ' . number_format($total, 2);
             }
             // Preserve the historical schema/columns. New POs no longer
             // require a separate "order placed" confirmation.
@@ -753,11 +751,11 @@ final class Purchasing {
                 // PO document, approval task or budget reservation.
                 run($p, "UPDATE purchase_orders SET decided_at=NOW(), decision_notes=? WHERE id=?",
                     [cut('System: ' . $restockRejectedReason, 255), $id]);
-                auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'restock request rejected - insufficient budget',
+                auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'PO request rejected - insufficient budget',
                     $ref . ': ' . $restockRejectedReason, [],
                     ['PO status' => 'Rejected - Insufficient Budget', 'Supplier' => $supplier['supplier_name'],
                      'Total amount' => number_format($total, 2, '.', '')]);
-                return ['warning' => 'Restock request ' . $ref . ' rejected - insufficient budget: ' .
+                return ['warning' => 'PO request ' . $ref . ' rejected - insufficient budget: ' .
                     $restockRejectedReason . '. Not sent to Finance or Admin for approval.'];
             }
             auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'purchase order request created', "$ref " . $supplier['supplier_name'] . ' PHP ' . number_format($total, 2) . ' -> ' . ($approver === 'finance' ? 'Finance' : 'Admin'),
