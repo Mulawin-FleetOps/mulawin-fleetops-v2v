@@ -4001,3 +4001,24 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 }
 .mp-final-team-recommended[hidden] { display: none !important; }
 .mp-final-team-choice[hidden] { display: none !important; }
+
+
+/* Reports: consistent evidence explanation and responsive chart presentation */
+.chart-panel .panel-body { min-width:0; }
+.chart-panel .chart-box { min-width:0; width:100%; }
+.chart-panel canvas { max-width:100%; }
+.chart-why, .report-chart-why {
+  clear:both; margin:12px 0 0; padding:10px 12px;
+  background:#f7faf8; border:1px solid #e1ebe4; border-radius:9px;
+  color:#617468; font-size:12px; line-height:1.55; overflow-wrap:anywhere;
+}
+.chart-why strong, .report-chart-why strong {
+  display:flex; align-items:center; gap:6px; color:#285c42;
+  font-size:12px; font-weight:750; margin-bottom:4px;
+}
+.chart-why p, .report-chart-why p { margin:0; }
+.ws-panel .report-chart-why { margin:12px 14px 14px; }
+@media(max-width:760px) {
+  .chart-grid { grid-template-columns:minmax(0,1fr); }
+  .chart-why, .report-chart-why { font-size:11px; }
+}
