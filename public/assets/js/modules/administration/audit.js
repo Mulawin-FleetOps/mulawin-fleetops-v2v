@@ -70,9 +70,8 @@ App.page('audit_overview', {
       { label: 'Rejections', value: count('Rejection'), note: 'rejected / failed, last 7 days', icon: 'bi-x-octagon', tone: count('Rejection') ? 'amber' : 'gray', go: 'audit_logs?type=Rejection&' + r7 },
       { label: 'Payments and releases', value: count('Payment'), note: 'money events, last 7 days', icon: 'bi-cash-coin', tone: 'blue', go: 'audit_logs?type=Payment&' + r7 },
       { label: 'Cancellations', value: count('Cancellation'), note: 'cancelled, closed, deactivated', icon: 'bi-slash-circle', tone: count('Cancellation') ? 'amber' : 'gray', go: 'audit_logs?type=Cancellation&' + r7 },
-      { label: 'Active users', value: users, note: 'users with recorded activity, last 7 days', icon: 'bi-people', tone: 'gray', go: 'audit_reports?' + r7 }])}
-      ${UI.quickBar([{ label: 'Search audit logs', icon: 'bi-search', go: 'audit_logs' }, { label: 'Trace a transaction', icon: 'bi-clock-history', go: 'audit_history' },
-        { label: 'Audit reports', icon: 'bi-clipboard-data', go: 'audit_reports' }])}
+      { label: 'Active users', value: users, note: 'users with recorded activity, last 7 days', icon: 'bi-people', tone: 'gray', go: 'audit_logs?' + r7 }])}
+      ${UI.quickBar([{ label: 'Search audit logs', icon: 'bi-search', go: 'audit_logs' }, { label: 'Trace a transaction', icon: 'bi-clock-history', go: 'audit_history' }])}
       <div class="mo-grid"><div class="mo-main" data-recent></div><div class="mo-side">
         <section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Activity by area (last 7 days)</h2></div><div class="panel-body">
           ${ev.length ? AuditUI.bars(Object.entries(ev.reduce((a, e) => (a[e.area] = (a[e.area] || 0) + 1, a), {})).map(([area, n]) => ({ area, n })).sort((a, b) => b.n - a.n), 'area', 'n', (r) => 'audit_logs?area=' + encodeURIComponent(r.area) + '&' + r7) : '<div class="text-muted">No activity in the last 7 days.</div>'}
@@ -128,27 +127,3 @@ App.page('audit_history', {
   },
 });
 
-// ---------------------------------------------------------------- Audit Reports
-App.page('audit_reports', {
-  title: 'Audit Reports',
-  subtitle: 'Recorded activity counted by area, action type and user for the chosen dates.',
-  render(ctx) {
-    const d = ctx.data, s = d.summary || { total: 0, byType: {}, byUser: [], byArea: [] };
-    const r = `from=${d.range.from}&to=${d.range.to}`;
-    const types = Object.entries(s.byType).map(([type, n]) => ({ type, n })).sort((a, b) => b.n - a.n);
-    const byUser = [...s.byUser].sort((a, b) => b.n - a.n), byArea = [...s.byArea].sort((a, b) => b.n - a.n);
-    const months = [...new Set((d.byMonth || []).map(x => x.m))], areas = [...new Set((d.byMonth || []).map(x => x.area))];
-    ctx.el.innerHTML = (UI.canGo('audit_overview') ? UI.crumb('audit_overview', 'Audit Overview') : '') + AuditUI.rangeBar(ctx, d)
-      + UI.generalFilters(ctx, [{ name: 'area', label: 'Areas', options: d.areas || [] }, { name: 'actor_id', label: 'Users', options: (d.actors || []).map(u => [u.id, u.full_name]) }])
-      + `<div class="small text-muted mb-2">${UI.num(s.total)} event(s), ${UI.date(d.range.from)} – ${UI.date(d.range.to)}.${s.truncated ? ' <b>Only the latest 20,000 events are counted: narrow the dates.</b>' : ''} Counts of recorded events only; they describe activity and are not a performance score.</div>`
-      + `<div class="mo-grid maint-overview"><div class="mo-main">`
-      + UI.table([['Area', 'area'], ['Events', 'n', 'num'], ['With field changes', 'changes', 'num']], byArea, { title: 'Events by area', showAllColumns: true, directActions: true,
-        actions: () => UI.ibtn('logs', 'Show these events', 'bi-journal-text', 'outline-primary'), onAction: (a, x) => App.go('audit_logs', { ...ctx.query, area: x.area }), empty: 'No events.' })
-      + UI.table([['User', 'actor'], ['Role', 'role', (v) => UI.esc(d.roles[v] || v || 'System')], ['Events', 'n', 'num']], byUser, { title: 'Events by user', showAllColumns: true, empty: 'No events.' })
-      + `</div><div class="mo-side"><section class="panel"><div class="panel-head"><h2 class="panel-title">Events by action type</h2></div><div class="panel-body">
-        ${types.length ? AuditUI.bars(types, 'type', 'n', (x) => 'audit_logs?type=' + encodeURIComponent(x.type) + '&' + r) : '<div class="text-muted">No events.</div>'}
-        <div class="ws-foot">Type rule: keywords in the recorded action, e.g. approved/verified = Approval, rejected/failed = Rejection, payment/paid/released = Payment, signed in/login = Sign-in, time in/out = Attendance.</div></div></section></div></div>`
-      + (months.length ? UI.blocks({ charts: [{ type: 'bar', title: 'Events per month by area', labels: months,
-          datasets: areas.map(a => ({ label: a, data: months.map(m => +((d.byMonth.find(x => x.m === m && x.area === a) || {}).n || 0)) })) }] }) : '');
-  },
-});
