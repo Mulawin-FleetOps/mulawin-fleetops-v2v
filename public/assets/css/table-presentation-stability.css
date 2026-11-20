@@ -839,3 +839,57 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 @media(max-width:620px) {
   .modal .mp-final-components-pane,.modal .mp-final-helper-list {grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* MOTORPOOL_SKILL_MATCH_RECOMMENDATIONS_V1 */
+.modal .mp-final-skill-needs {
+  padding:10px 12px;
+  border:1px solid #dce8df;
+  background:#f6faf7;
+  border-radius:8px;
+  color:#345c42;
+  line-height:1.55;
+}
+.modal .mp-final-helper-tools {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.modal .mp-final-helper-tools > input[type="search"] {
+  flex:1 1 220px;
+  min-width:0;
+}
+.modal .mp-final-helper-filter {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-size:12px;
+  font-weight:650;
+  color:#38694a;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.modal .mp-final-helper-filter input {
+  accent-color:#176b3d;
+}
+.modal .mp-final-helper-choice.mp-helper-recommended {
+  border-color:#a0cbb0;
+}
+.modal .mp-final-helper-choice.mp-helper-skill-gap {
+  background:#f1faf4;
+}
+.modal .mp-final-helper-choice.mp-helper-already-chosen {
+  border-color:#176b3d;
+}
+.modal .mp-final-helper-choice [data-helper-match] {
+  display:block;
+  margin-top:3px;
+  color:#176b3d;
+  font-size:11px;
+  line-height:1.4;
+  font-style:normal;
+}
+.modal .mp-final-helper-choice [data-helper-match][hidden] {
+  display:none!important;
+}
