@@ -1000,3 +1000,103 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 .offcanvas .mp-repair-other-entry > div {display:flex;flex-direction:column;gap:4px;min-width:0}
 .offcanvas .mp-repair-other-entry strong {font-size:12.5px;color:#294a35}
 .offcanvas .mp-repair-other-entry > b {font-size:12.5px;white-space:nowrap;color:#294a35}
+
+
+/* MOTORPOOL_REPAIR_HISTORY_CARDS_V1: readable repair status audit timeline. */
+.offcanvas .mp-repair-status-timeline {
+  position:relative;
+  list-style:none;
+  margin:4px 0 6px;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.offcanvas .mp-repair-history-event {
+  display:grid;
+  grid-template-columns:14px minmax(0,1fr);
+  gap:10px;
+  position:relative;
+  min-width:0;
+}
+.offcanvas .mp-repair-history-event:not(:last-child)::before {
+  content:'';
+  position:absolute;
+  top:17px;
+  bottom:-14px;
+  left:6px;
+  width:2px;
+  background:#e0eae2;
+}
+.offcanvas .mp-repair-history-marker {padding-top:16px;position:relative;z-index:1}
+.offcanvas .mp-repair-history-marker span {
+  display:block;width:13px;height:13px;
+  background:#fff;border:2px solid #9abda4;border-radius:50%;
+}
+.offcanvas .mp-repair-history-event:first-child .mp-repair-history-marker span {
+  background:#237449;border-color:#237449;
+  box-shadow:inset 0 0 0 3px #fff;
+}
+.offcanvas .mp-repair-history-card {
+  min-width:0;
+  padding:12px 13px;
+  border:1px solid #dce8df;
+  border-radius:10px;
+  background:#fff;
+}
+.offcanvas .mp-repair-history-top {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:4px 10px;
+  flex-wrap:wrap;
+}
+.offcanvas .mp-repair-history-status {
+  color:#215d39;
+  font-weight:700;
+  font-size:12.5px;
+}
+.offcanvas .mp-repair-history-time {
+  color:#78877b;
+  font-size:11px;
+  line-height:1.4;
+}
+.offcanvas .mp-repair-history-change {
+  color:#566d5c;
+  font-size:11.5px;
+  margin-top:5px;
+  line-height:1.5;
+}
+.offcanvas .mp-repair-history-note {
+  margin:9px 0 0;
+  padding:9px 11px;
+  background:#f6faf7;
+  border-left:3px solid #bfd8c6;
+  border-radius:5px;
+  color:#324c3c;
+  font-size:12px;
+  line-height:1.55;
+  overflow-wrap:anywhere;
+}
+.offcanvas .mp-repair-history-meta {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:5px 13px;
+  margin-top:9px;
+  color:#718475;
+  font-size:11px;
+}
+.offcanvas .mp-repair-history-meta i {margin-right:3px}
+.offcanvas .mp-repair-history-empty {
+  padding:20px 12px;
+  border:1px dashed #dce8df;
+  border-radius:9px;
+  color:#718475;
+  font-size:12px;
+  text-align:center;
+}
+@media(max-width:520px) {
+  .offcanvas .mp-repair-history-top {flex-direction:column}
+  .offcanvas .mp-repair-history-card {padding:10px}
+}
