@@ -31,13 +31,28 @@ const FinUI = {
       { name: 'description', label: 'Description', required: true, col: 12 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 }, { name: 'due_on', label: 'Due date', type: 'date', col: 6 },
       { name: 'bill', label: 'Bill / invoice file (optional)', type: 'file', col: 12 }], 'Finance.payable_add', { intro: 'Bills that do not come from a purchase order (utilities, outside services, …).' });
   },
+  // Keep the expense form small: four essential fields, with optional
+  // documentation behind a disclosure. Vehicle assignment is not needed.
+  expenseFields(d) {
+    return [
+      { name: 'category', label: 'Expense category', type: 'select', options: UI.list(d.categories), required: true, col: 12 },
+      { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 },
+      { name: 'incurred_on', label: 'Expense date', type: 'date', value: UI.today(), required: true, col: 6, attrs: 'max="' + UI.today() + '"' },
+      { name: 'description', label: 'What was the expense for?', required: true, col: 12, placeholder: 'e.g. Office supplies' },
+      { name: 'additional', type: 'html', col: 12, html:
+        '<details class="border rounded-3 p-3 mt-2"><summary class="fw-semibold small" style="cursor:pointer">Additional details (optional)</summary>' +
+        '<div class="mt-3">' + UI.fields([
+          { name: 'payee', label: 'Paid to', col: 6 },
+          { name: 'reference_number', label: 'Receipt / reference number', col: 6 },
+          { name: 'receipt', label: 'Attach receipt (optional)', type: 'file', col: 12 }
+        ]) + '</div></details>' }
+    ];
+  },
   addExpense(d) {
-    UI.formModalFiles('Add expense', [
-      { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 },
-      { name: 'incurred_on', label: 'Date', type: 'date', value: UI.today(), required: true, col: 6 }, { name: 'vehicle_id', label: 'Truck (optional)', type: 'select', options: UI.opts(d.trucks, v => v.plate_number), col: 6 },
-      { name: 'payee', label: 'Payee', col: 6 }, { name: 'reference_number', label: 'Reference / OR no.', col: 6 }, { name: 'description', label: 'Description', required: true, col: 12 },
-      { name: 'receipt', label: 'Receipt (optional)', type: 'file', col: 12 }], 'Finance.expense_add',
-      { intro: 'Fund releases, PO payments, payables and repair costs are recorded automatically. Add only other expenses here (fuel, office, utilities …).' });
+    UI.formModalFiles('Add expense', this.expenseFields(d), 'Finance.expense_add', {
+      submit: 'Save expense',
+      intro: 'Record an additional expense here. Trip fund releases, PO payments, payable payments and repair costs already appear automatically.'
+    });
   },
   setBudget(d) {
     UI.formModal('Submit General Budget for approval', [
@@ -185,11 +200,7 @@ const HeadFinancePage = {
         const h = period + UI.table([['Date', 'incurred_on', 'date'], ['Category', 'category'], ['Amount', 'amount', 'money'], ['Trip', 'trip_ref'], ['Payee', 'payee'], ['Reference', 'reference_number'],
           ['Description', 'description'], ['Source', 'source']], d.expenses, { title: 'Operating expenses (fund releases, PO payments, repairs and manual entries)',
             tools: act ? '<button class="btn btn-sm btn-primary" data-addexp><i class="bi bi-plus"></i> Add expense</button>' : '' });
-        setTimeout(() => body.querySelector('[data-addexp]')?.addEventListener('click', () => UI.formModalFiles('Add expense', [
-          { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 },
-          { name: 'incurred_on', label: 'Date', type: 'date', value: UI.today(), required: true, col: 6 }, { name: 'vehicle_id', label: 'Truck (optional)', type: 'select', options: UI.opts(d.trucks, v => v.plate_number), col: 6 },
-          { name: 'payee', label: 'Payee', col: 6 }, { name: 'reference_number', label: 'Reference / OR no.', col: 6 }, { name: 'description', label: 'Description', required: true, col: 12 },
-          { name: 'receipt', label: 'Receipt (optional)', type: 'file', col: 12 }], 'Finance.expense_add', { intro: 'Fund releases, PO payments and repair costs are recorded automatically; add only other expenses here (fuel, office, utilities ...).' })), 0);
+        setTimeout(() => body.querySelector('[data-addexp]')?.addEventListener('click', () => FinUI.addExpense(d)), 0);
         return h;
       }],
       ['disb', 'Disbursements', () => period + UI.table([['Voucher', 'voucher_number'], ['Date', 'released_on', 'date'], ['For', 'source_type', (v) => ({ fund_request: 'Trip fund', purchase_order: 'Purchase order', payable: 'Payable' }[v] || v)],
