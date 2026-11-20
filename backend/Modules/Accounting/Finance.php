@@ -245,6 +245,7 @@ final class Finance {
             $bal = round((float)$a['amount'] - (float)$a['paid_amount'], 2);
             must($bal > 0, 'This payable is already paid.', 409);
             must((float)$amount <= $bal, 'The amount is more than the balance (PHP ' . number_format($bal, 2) . ').');
+            self::chargeGeneralBudget($p, (float)$amount, $pay['released_on']);
             Money::disburse($p, $u, 'payable', $id, $a['payee'], $amount, $pay);
             Files::store($p, $u, 'or_doc', 'payable', $id, 'Official Receipt / Payment Confirmation');
             $paid = round((float)$a['paid_amount'] + (float)$amount, 2);
@@ -258,6 +259,21 @@ final class Finance {
         });
     }
 
+    /** Count new manual expenses and non-PO payables against the current overall allocation.
+     * PO receipts and trip fund releases already change reserved -> spent in their own modules.
+     */
+    private static function chargeGeneralBudget(PDO $p, float $amount, string $expenseDate): void {
+        $exists = one($p,"SELECT id FROM budgets WHERE category='General' AND status='Active' LIMIT 1");
+        if (!$exists) return; // Legacy allocations remain authoritative until Admin approves the first General Budget.
+        $b=one($p,"SELECT * FROM budgets WHERE category='General' AND status='Active' FOR UPDATE");
+        must((bool)$b && $expenseDate >= $b['period_start'] && $expenseDate <= $b['period_end'],
+            'The expense date is outside the approved General Budget period.',409);
+        $available=round((float)$b['amount']-(float)$b['reserved_amount']-(float)$b['spent_amount'],2);
+        must($available >= round($amount,2),
+            'Insufficient General Budget: PHP '.number_format($available,2).' available.',409);
+        run($p,'UPDATE budgets SET spent_amount=spent_amount+? WHERE id=?',[$amount,$b['id']]);
+    }
+
     private static function expenseAdd(array $u, array $d): array {
         requireRole($u, 'finance');
         $cat = choiceField($d, 'category', self::EXPENSE_CATEGORIES);
@@ -268,6 +284,7 @@ final class Finance {
         $payee = optField($d, 'payee', 150); $ref = optField($d, 'reference_number', 100); $desc = field($d, 'description', 500);
         return transaction(function (PDO $p) use ($u, $cat, $amount, $date, $tripId, $vid, $payee, $ref, $desc) {
             if ($tripId) must((bool)one($p, 'SELECT id FROM trips WHERE id=?', [$tripId]), 'Trip not found.');
+            self::chargeGeneralBudget($p, (float)$amount, $date);
             $id = Money::expense($p, $u, $cat, $amount, $date, 'Manual', null, $tripId, $vid, $payee, $ref, $desc);
             Files::store($p, $u, 'receipt', 'expense', $id, 'Expense Receipt');
             auditWithChanges($p, $u['id'], 'Finance', 'expense ' . $id, 'expense recorded', "$cat PHP $amount: $desc", [],
