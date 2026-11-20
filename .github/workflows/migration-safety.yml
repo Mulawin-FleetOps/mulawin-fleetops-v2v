@@ -16,6 +16,8 @@ on:
       - 'database/migrations/**'
       - 'tests/migration_safety_checks.php'
       - 'tests/migration_mysql_integration.php'
+      - 'tests/inventory_finance_tests.php'
+      - 'tests/purchasing_finance_tests.php'
       - 'tests/migration_release_checks.php'
       - '.github/workflows/migration-safety.yml'
   pull_request:
@@ -33,6 +35,8 @@ on:
       - 'database/migrations/**'
       - 'tests/migration_safety_checks.php'
       - 'tests/migration_mysql_integration.php'
+      - 'tests/inventory_finance_tests.php'
+      - 'tests/purchasing_finance_tests.php'
       - 'tests/migration_release_checks.php'
       - '.github/workflows/migration-safety.yml'
   workflow_dispatch:
