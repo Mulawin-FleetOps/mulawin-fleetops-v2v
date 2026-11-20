@@ -1724,6 +1724,10 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   text-align:right;
   white-space:nowrap;
 }
+/* Center only the Actions heading; leave row action buttons right-aligned. */
+#pageContent .mp-repair-records-table .data-table th.actions-col {
+  text-align: center !important;
+}
 #pageContent .mp-repair-records-table .data-table .row-actions,
 #pageContent .mp-repair-records-table .data-table .row-icons{
   display:inline-flex !important;
