@@ -1076,8 +1076,6 @@ App.page('inventory', {
         ${stockKey === 'inactive' ? tabBtn(link({ view: '', stock: 'inactive' }), 'Inactive', parts.length - active.length, true) : ''}
         ${stockKey === 'active' ? tabBtn(link({ view: '', stock: 'active' }), 'Active Parts', active.length, true) : ''}
         ${view === 'counts' ? tabBtn(link({ view: 'counts', stock: '' }), 'Stock Counts', pending.length, true) : ''}</div></div>
-      <div class="small text-muted mb-2">Inventory value of active parts: <b>${UI.money(active.reduce((a, p) => a + +p.stock_value, 0))}</b> (on hand × recorded unit cost).
-        ${d.countsReady && pending.length ? `${UI.num(pending.length)} stock count(s) wait for the Admin.` : ''}</div>
       ${d.countsReady ? '' : `<div class="alert alert-secondary small py-2"><i class="bi bi-lock me-1"></i> Direct stock adjustments are disabled. Stock changes only when a purchase order is received or parts are released.
         Physical count corrections need the stock count and review step (database update 2026-11-12_13, not applied yet).</div>`}`;
     const box = document.createElement('div'); ctx.el.append(box);
@@ -1142,7 +1140,7 @@ App.page('inventory', {
       filters: [{ name: 'part_type', label: 'Part Type', type: 'select', col: 12, options: types.map(type => [type, type]) },
         { name: 'stock', label: 'Availability', type: 'select', col: 12, options: [['all','All parts'], ['available','Available'], ['low','Low stock'], ['out','Out of stock'], ['inactive','Inactive'], ['active','Active only']] },
         ...(d.countsReady ? [{ name: 'view', label: 'Record view', type: 'select', col: 12, options: [['counts','Stock Counts']] }] : [])],
-      sortOptions: [['newest','Newest first'], ['oldest','Oldest first'], ['reference','Part ID'], ['name','Part Name'], ['stock_high','Highest on-hand'], ['stock_low','Lowest on-hand']],
+      sortOptions: [['newest','Newest'], ['oldest','Oldest'], ['reference','Part ID'], ['name','Part Name'], ['stock_high','Highest on-hand'], ['stock_low','Lowest on-hand']],
       sort: ['oldest','reference','name','stock_high','stock_low'].includes(q.sort) ? q.sort : 'newest'
     });
     PurUI.openFromQuery(ctx, parts, (p) => PurUI.openPart(p, k));
