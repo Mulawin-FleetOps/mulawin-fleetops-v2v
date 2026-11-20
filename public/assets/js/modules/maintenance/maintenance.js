@@ -31,7 +31,7 @@ const MaintUI = {
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
     if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident from the Operations report; no garage mechanic is needed.' : 'Assign an available mechanic to start the inspection.';
     if (j.status === 'Under Inspection') {
-      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Minor') return 'Trip is On Hold. Select Vehicle Clearance to record the roadside condition and Fit / Not Fit decision. Garage mechanic assignment is not required.';
+      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Minor') return 'Trip is On Hold. Record the actual onsite repair and safety confirmation before the Dispatcher resumes the same trip.';
       if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Major') return 'Trip is For Reschedule. Garage repair starts only after truck recovery.';
       return j.mechanic_id ? 'Record the inspection findings and diagnosis.' : 'Assign a mechanic when the truck is physically available for garage inspection.';
     }
@@ -626,7 +626,7 @@ const MaintUI = {
       if (j.status === 'Under Repair') acts.push(d.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'primary', 'bi-lock'] : (+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']));
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
       // INCIDENT_CLEARANCE_V1: Motorpool's Fit / Not Fit to Continue decision for a Minor trip incident.
-      if (i && i.severity === 'Minor' && !['Repaired - Cleared to Continue', 'Resolved'].includes(i.status)) acts.push(['clearance', 'Vehicle clearance', j.verified_at ? 'primary' : 'outline-primary', 'bi-sign-stop']);
+      if (i && i.severity === 'Minor' && !['Repaired - Cleared to Continue', 'Resolved'].includes(i.status)) acts.push(['clearance', 'Confirm onsite repair & clearance', j.verified_at ? 'primary' : 'outline-primary', 'bi-sign-stop']);
       // JOB_HELPER_MECHANICS_V1: assisting mechanics once a lead is assigned. Shown (disabled, with the reason) instead of
       // hidden when the database update is missing, so the custodian can see why it cannot be used.
       if (j.mechanic_id && MaintUI.ACTIVE.includes(j.status) && !d.motorpoolCatalogReady) acts.push(r.helpersReady ? ['helpers', 'Add mechanics', 'outline-primary', 'bi-people']
@@ -832,7 +832,7 @@ const MaintUI = {
               <div class="mp-incident-report-field mp-incident-report-wide"><small>Original details</small><div>${UI.e(i.details)}</div></div>
             </div>
             ${(r.incidentClarifications || []).length ? `<details class="mp-incident-updates"><summary>Dispatcher updates (${r.incidentClarifications.length})</summary>${r.incidentClarifications.map(c => `<div class="mp-incident-update"><small>${UI.esc(c.actor)} · ${UI.datetime(c.created_at)}</small><div>${UI.esc(c.details)}</div></div>`).join('')}</details>` : ''}
-            <p class="mp-incident-assessment-guidance">Assess from the Dispatcher report; no garage mechanic or physical inspection is required at this stage. <b>Minor</b> keeps the trip On Hold pending safe vehicle clearance. <b>Major</b> marks the truck Not Fit to Continue and moves the trip to For Reschedule.</p>
+            <p class="mp-incident-assessment-guidance">Assess from the Dispatcher report; no garage mechanic or physical inspection is required at this stage. <b>Minor</b> opens onsite repair and safety confirmation before the same trip resumes. <b>Major</b> sends the trip For Reschedule immediately so Dispatch can select a replacement truck while the incident vehicle returns for garage repair.</p>
           </section>`,
           after: reopen });
       if (a === 'mech') return MaintUI.assignMechanic(j, reopen);
@@ -847,18 +847,20 @@ const MaintUI = {
           { name: 'evidence', label: 'Evidence of the repair (photos or documents, required)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/png,image/jpeg"' }],
         'Maintenance.complete', { extra: { job_id: j.id }, submit: 'Complete repair', intro: 'Add parts and labor costs before completing. The mechanic becomes available again. The truck stays out of service until you verify it.', after: reopen });
       if (a === 'clearance' && j.source === 'Incident' && j.severity === 'Minor' && !j.mechanic_id && j.status === 'Under Inspection')
-        UI.formModalFiles('Roadside vehicle clearance · ' + UI.esc(i.incident_ref), [
+        UI.formModalFiles('Onsite repair & vehicle clearance · ' + UI.esc(i.incident_ref), [
           { name: 'decision', label: 'Vehicle clearance decision', type: 'select', required: true, col: 12,
             options: [['Fit to Continue', 'Fit to Continue'], ['Not Fit to Continue', 'Not Fit to Continue']] },
-          { name: 'checked_by', label: 'Person who physically checked the vehicle (required for Fit)', col: 12,
+          { name: 'checked_by', label: 'Qualified person who confirmed repair and safety (required for Fit)', col: 12,
             placeholder: 'Name of qualified person at the incident location' },
-          { name: 'findings', label: 'Roadside vehicle condition and findings', type: 'textarea', required: true, col: 12,
-            placeholder: 'What was checked? What evidence supports this decision?' },
-          { name: 'on_site_checked', label: 'I confirm a qualified person physically checked the truck on site (required for Fit)', type: 'checkbox', col: 12 },
-          { name: 'evidence', label: 'Roadside check evidence (required for Fit: photo or PDF)', type: 'file',
+          { name: 'repair_performed', label: 'Onsite repair performed (required for Fit)', type: 'textarea', required: true, col: 12,
+            placeholder: 'Describe what was fixed onsite before the truck continues.' },
+          { name: 'findings', label: 'Safety check findings after onsite repair', type: 'textarea', required: true, col: 12,
+            placeholder: 'What was checked after repair? What evidence supports this decision?' },
+          { name: 'on_site_checked', label: 'I confirm the onsite repair is complete and a qualified person physically checked the truck', type: 'checkbox', col: 12 },
+          { name: 'evidence', label: 'Onsite repair and safety evidence (required for Fit: photo or PDF)', type: 'file',
             multiple: true, col: 12, attrs: 'accept="image/png,image/jpeg,image/webp,application/pdf"' }],
-          'Maintenance.clearance', { extra: { job_id: j.id, roadside_check: 1 }, submit: 'Record vehicle clearance',
-            intro: 'Motorpool reviews the report from Operations and evidence of a physical roadside check. No garage mechanic is assigned. Fit to Continue requires the on-site checker, confirmation and supporting evidence. If safety is uncertain, choose Not Fit to Continue.', after: reopen });
+          'Maintenance.clearance', { extra: { job_id: j.id, roadside_check: 1 }, submit: 'Confirm onsite repair & clearance',
+            intro: 'Minor: document the completed onsite fix, qualified checker, physical safety confirmation and evidence. Fit to Continue allows the Dispatcher to resume the SAME trip. If unsafe or unrepairable onsite, choose Not Fit to Continue so Operations can reschedule with another truck.', after: reopen });
       else if (a === 'clearance') UI.formModalFiles('Vehicle clearance · ' + UI.esc(i.incident_ref), [
           { name: 'decision', label: 'Decision', type: 'select', required: true, col: 12, placeholder: false, options: [['Fit to Continue', 'Fit to Continue: the truck may continue this trip'], ['Not Fit to Continue', 'Not Fit to Continue: the trip stays On Hold']] },
           { name: 'findings', label: 'Findings (what was checked and the truck\'s actual condition)', type: 'textarea', required: true, col: 12 },
@@ -892,7 +894,7 @@ const MaintUI = {
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : (j.findings && j.diagnosis ? ['finalize', 'Assign Mechanic Team', 'bi-people'] : ['mech', 'Assign mechanic', 'bi-person-plus']);
     if (j.status === 'Under Inspection') {
       if (j.source === 'Incident' && j.severity === 'Minor' && !j.mechanic_id)
-        return j.incident_clearance ? null : ['clearance', 'Vehicle clearance', 'bi-shield-check'];
+        return j.incident_clearance ? null : ['clearance', 'Confirm onsite repair', 'bi-shield-check'];
       if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
         return null; // Garage work starts after physical recovery, not as the roadside next step.
       return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
