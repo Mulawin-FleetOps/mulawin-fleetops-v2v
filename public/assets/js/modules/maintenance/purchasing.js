@@ -1434,7 +1434,7 @@ App.page('purchase_orders', {
     const isFinanceOrAdmin = ['finance', 'admin', 'audit'].includes(role);
     const poType = q.type === 'fuel' && isFinanceOrAdmin ? 'fuel' : 'parts';
 
-    if (can.stock && poType === 'parts') PurUI.tool(ctx, 'Create Purchase Order', 'bi-cart-plus', () => PurUI.newPO());
+    if (can.stock && poType === 'parts') PurUI.tool(ctx, 'Create PO', 'bi-cart-plus', () => PurUI.newPO());
 
     // Switch between Parts PO and Fuel PO for authorized roles
     const typeSwitcher = isFinanceOrAdmin ? `<div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
