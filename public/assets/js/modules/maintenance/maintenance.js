@@ -1389,6 +1389,7 @@ App.page('maintenance_overview', {
    Row 3: Maintenance Expense Breakdown (donut + entries) · Repair Frequency by Truck (most / least repaired).
    Nothing on this page writes or creates records. */
 const MaintReport = {
+  whyChart: message => '<div class="report-chart-why"><strong><i class="bi bi-info-circle" aria-hidden="true"></i> Why this chart?</strong><p>' + UI.esc(message) + '</p></div>',
   charts: [],
   SERIES: [
     ['reported', 'Reported repairs', '#d97706', []], ['under_repair', 'Under repair', '#2563eb', []], ['completed', 'Completed repairs', '#16a34a', []],
@@ -1456,10 +1457,10 @@ App.page('maintenance_reports', {
       <div><h3>Least repaired</h3>${least.length ? `<ul>${least.map(row).join('')}</ul>` : '<div class="ws-sug-empty">No active truck.</div>'}</div></div>`;
 
     ctx.el.innerHTML = `${UI.wsPeriod('maintenance_reports', per)}${UI.kpiTiles(tiles, 'ws-kpi4')}
-      ${UI.wsPanel('Maintenance Activity Timeline', 'bi-graph-up', timelineBody, { cls: 'mr-timeline', tipHtml: MaintReport.sugList(sug.timeline, 'No action is suggested from the recorded maintenance activity.') })}
+      ${UI.wsPanel('Maintenance Activity Timeline', 'bi-graph-up', timelineBody + MaintReport.whyChart('This timeline compares reported, ongoing and completed repairs by week. It uses recorded reporting, completion and status-history dates; select a point to inspect that week.'), { cls: 'mr-timeline', tipHtml: MaintReport.sugList(sug.timeline, 'No action is suggested from the recorded maintenance activity.') })}
       <div class="ws-grid2 ws-report-row mt-3">
-        ${UI.wsPanel('Maintenance Expense Breakdown', 'bi-pie-chart', costBody, { cls: 'ws-l1', foot: `<button type="button" class="btn btn-link btn-sm p-0" data-cost-open>View recorded entries</button> · parts at release date, other costs at the date incurred` })}
-        ${UI.wsPanel('Repair Frequency by Truck', 'bi-truck', freqBody, { cls: 'ws-r1', tipHtml: MaintReport.sugList(sug.trucks, 'Repair counts per truck are shown as recorded; no rule applies.'),
+        ${UI.wsPanel('Maintenance Expense Breakdown', 'bi-pie-chart', costBody + MaintReport.whyChart('This breakdown compares recorded parts costs with other maintenance expenses for the selected period. A 100% parts share means no other positive cost type is recorded for these dates.'), { cls: 'ws-l1', foot: `<button type="button" class="btn btn-link btn-sm p-0" data-cost-open>View recorded entries</button> · parts at release date, other costs at the date incurred` })}
+        ${UI.wsPanel('Repair Frequency by Truck', 'bi-truck', freqBody + MaintReport.whyChart('The lists rank recorded repair frequency across active trucks during the period. Without mileage or utilization data, repair count is not a reliability rating.'), { cls: 'ws-r1', tipHtml: MaintReport.sugList(sug.trucks, 'Repair counts per truck are shown as recorded; no rule applies.'),
           foot: `Repair jobs reported in the period for ${UI.num(freq.length)} active trucks (cancelled excluded). Not a reliability measure: truck usage is not recorded here.` })}
       </div>`;
     UI.bindTips(ctx.el); UI.bindPeriod(ctx.el);
