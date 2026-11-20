@@ -591,7 +591,10 @@ const MaintUI = {
     const seq = App.navSeq;
     let r; try { r = await App.api('Maintenance.details', { job_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
     if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading
-    const j = r.job, i = r.incident, act = d.can.act;
+    const j = r.job, i = r.incident;
+    // Once the repair has been completed or cancelled its detail view is
+    // immutable. Verification remains a separate action in the dedicated queue.
+    const act = d.can.act && !['Completed','Cancelled'].includes(j.status) && !j.verified_at;
     if (i && j.incident_status === undefined) j.incident_status = i.status; // stage text needs the incident state
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
@@ -676,13 +679,13 @@ const MaintUI = {
         ['Problem', UI.e(j.problem)], ['Date reported', UI.date(j.reported_on) + (j.reported_by_name ? ' · ' + UI.esc(j.reported_by_name) : '')],
         ])}
       ${UI.h('Mechanics and repair')}${progress}${readiness}${UI.kv([['Lead mechanic', j.mechanic ? `${UI.esc(j.mechanic)} · ${UI.esc(j.mechanic_code)}${j.mechanic_contact ? ' · ' + UI.esc(j.mechanic_contact) : ''}` : 'Not assigned'],
-        ['Assisting mechanics', r.helpersReady ? MaintUI.helperList(r.helpers, act && MaintUI.ACTIVE.includes(j.status))
+        ['Assisting mechanics', r.helpersReady ? MaintUI.helperList(r.helpers, Boolean(act) && MaintUI.ACTIVE.includes(j.status))
           : '<span class="text-muted">Not available until database update 2026-11-12_12 is applied.</span>'],
         ['Inspection findings', UI.e(j.findings)], ['Diagnosis', UI.e(j.diagnosis)],
         ['Corrective action', j.status === 'Completed' && !j.repair_performed ? '<span class="text-muted">Inspection only — no repair performed</span>' : UI.e(j.repair_performed)], ['Repair completion date', j.completed_on ? UI.date(j.completed_on) + ' · ' + UI.e(j.completed_by_name) : '—'],
         ['Verification', j.verified_at ? `Passed · ${UI.e(j.verified_by_name)} · ${UI.datetime(j.verified_at)}<div class="small text-muted">${UI.e(j.verification_notes)}</div>` : (j.status === 'Completed' ? '<span class="badge-s amber">Waiting for verification</span>' : '—')],
         ['Remarks', UI.e(j.remarks)]])}
-      ${i ? UI.h('Trip incident', `<button class="btn btn-link btn-sm p-0" data-a="printinc"><i class="bi bi-printer"></i> Incident report form</button>`) + UI.kv([['Reference', UI.esc(i.incident_ref) + ' ' + UI.badge(i.status)], ['Type', UI.e(i.incident_type)],
+      ${i ? UI.h('Trip incident', act ? `<button class="btn btn-link btn-sm p-0" data-a="printinc"><i class="bi bi-printer"></i> Incident report form</button>` : '') + UI.kv([['Reference', UI.esc(i.incident_ref) + ' ' + UI.badge(i.status)], ['Type', UI.e(i.incident_type)],
         ['Incident date and time / location', UI.datetime(i.incident_at) + ' · ' + UI.esc(i.location)], ['Original details', UI.e(i.details)], ['Additional information', (r.incidentClarifications || []).length ? (r.incidentClarifications || []).map(c=>'<div class="border-bottom py-1"><small class="text-muted">'+UI.esc(c.actor)+' · '+UI.datetime(c.created_at)+'</small><div>'+UI.esc(c.details)+'</div></div>').join('') : '<span class="text-muted">None submitted</span>'], ['Persons involved', UI.e(i.persons_involved)], ['Reported by', UI.e(i.reported_by_name)], ['Recommendation', UI.e(i.recommendation)],
         ['Damage classification', i.severity ? UI.esc(i.severity) + (i.assessed_by_name ? ' · ' + UI.esc(i.assessed_by_name) + ' · ' + UI.datetime(i.assessed_at) : '') : '<span class="text-muted">Not assessed yet</span>'],
         ['Vehicle clearance', i.clearance ? `${UI.badge(i.clearance)} · ${UI.e(i.cleared_by_name)} · ${UI.datetime(i.cleared_at)}<div class="small text-muted">${UI.e(i.clearance_findings)}</div>` : '<span class="text-muted">Not recorded</span>'],
@@ -696,7 +699,7 @@ const MaintUI = {
         </div>
         <div class="mp-repair-cost-section">
           <div class="mp-repair-cost-section-head"><strong>Requested parts</strong>
-            ${UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-sm btn-outline-primary" data-partspage="${+j.vehicle_id}">Open Parts Requests</button>` : ''}
+            ${act && UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-sm btn-outline-primary" data-partspage="${+j.vehicle_id}">Open Parts Requests</button>` : ''}
           </div>
           ${+r.pending_parts_units > 0 ? `<div class="mp-repair-cost-notice" role="status"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>${UI.num(r.pending_parts_units)} requested unit(s) still need Purchasing release before repair completion.</span></div>` : ''}
           ${r.parts.length ? `<div class="mp-repair-parts-list">${r.parts.map(p=>`
@@ -764,23 +767,25 @@ const MaintUI = {
           { name: 'evidence', label: 'Supporting evidence (optional)', type: 'file', multiple: true, col: 12, attrs: 'accept="application/pdf,image/png,image/jpeg"' }],
         'Maintenance.clearance', { extra: { job_id: j.id }, submit: 'Record clearance', after: reopen,
           intro: `Damage classification: <b>${UI.esc(i.severity)}</b>. Fit to Continue needs the on-site repair record completed and verified (${UI.esc(j.job_ref)}); the dispatcher then resumes the trip. Not Fit to Continue keeps the trip On Hold.` });
-      if (a === 'verify') {
+      if (a === 'verify') return MaintUI.verifyForm(j, reopen);
+      if (a === 'parts') { UI.closeDrawer(); MaintUI.requestParts(j.vehicle_id, j.id); }
+      if (a === 'printinc') TripUI.printIncident({ ...i }, { trip_ref: j.trip_ref, plate_number: j.plate_number });
+    });
+    if (autoBtn) autoBtn.click();
+  },
+  verifyForm(j, after) {
+    if (j.status !== 'Completed' || j.verified_at) return UI.toast('This repair is not awaiting verification.', 'error');
         const wrap = UI.formModal('Verify & return to service · ' + UI.esc(j.plate_number), [
           { name: 'result', label: 'Operational check result', type: 'select', required: true, col: 12, placeholder: false, options: [['Passed', 'Passed: the truck is safe and operational'], ['Failed', 'Failed: the problem is not fixed']] },
           { name: 'verification_notes', label: 'What was checked (road test, engine, brakes, lights…)', type: 'textarea', required: true, col: 12 },
           { name: 'mechanic_id', label: 'Mechanic to continue the repair (if failed)', type: 'select', col: 12, options: MaintUI.mechanicOptions(j.mechanic_id), value: j.mechanic_id, placeholder: 'Same mechanic' },
           { name: 'reassignment_reason', label: 'Reason for replacing the finalized lead (if changed)', col: 12 }],
-          'Maintenance.verify', { extra: { job_id: j.id }, size: '', submit: 'Save verification', after: reopen,
+          'Maintenance.verify', { extra: { job_id: j.id }, size: '', submit: 'Save verification', after,
             intro: 'Passed returns the truck to service (Available, or Assigned if a trip is waiting). Failed sends the record back to Under Repair.' });
         const res = wrap.querySelector('[name=result]'), mc = wrap.querySelector('[name=mechanic_id]').closest('[class*=col-]');
         const reason = wrap.querySelector('[name=reassignment_reason]').closest('[class*=col-]');
         const t = () => { mc.style.display = res.value === 'Failed' ? '' : 'none'; reason.style.display = res.value === 'Failed' && +wrap.querySelector('[name=mechanic_id]').value !== +j.mechanic_id ? '' : 'none'; };
         res.onchange = t; wrap.querySelector('[name=mechanic_id]').onchange = t; t();
-      }
-      if (a === 'parts') { UI.closeDrawer(); MaintUI.requestParts(j.vehicle_id, j.id); }
-      if (a === 'printinc') TripUI.printIncident({ ...i }, { trip_ref: j.trip_ref, plate_number: j.plate_number });
-    });
-    if (autoBtn) autoBtn.click();
   },
   /** WS_DESIGN_V1: the one next workflow step offered directly on a Repair Management row (Motorpool only). */
   rowStep(j) {
@@ -788,7 +793,7 @@ const MaintUI = {
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
-    if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
+    if (j.status === 'Completed') return null; // Details are read-only after completion.
     return null;
   },
 };
@@ -1022,11 +1027,15 @@ App.page('maintenance', {
     // WS_DESIGN_V1: direct row actions: the next workflow step, Request parts while the repair is active, and Open.
     const opt = { directActions: true, showAllColumns: true, limit: 10, groupBy: 'display_status', groupLabel: 'Repair status',
       actions: (j) => { const st = MaintUI.rowStep(j);
-        return (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
+        return (tab === 'verify' && j.status === 'Completed' && !j.verified_at && d.can.act
+            ? UI.btn('verify', 'Verify', 'primary') : '')
+          + (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
           + (d.can.act && !d.motorpoolCatalogReady && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.btn('helpers', 'Add mechanics', 'outline-secondary') : '')
           + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) && (!d.motorpoolCatalogReady || j.assignment_finalized_at) ? UI.btn('parts', 'Request parts', 'outline-secondary') : '')
           + UI.btn('view', 'Details', 'outline-primary'); },
-      onAction: (a, j) => a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id) : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
+      onAction: (a, j) => a === 'verify' ? MaintUI.verifyForm(j, () => App.route())
+        : a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id)
+        : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
     const label = TABS.find(t => t[0] === tab)[1];
