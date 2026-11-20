@@ -29,9 +29,9 @@ App.page('admin_overview', {
   render(ctx) {
     const d = ctx.data, k = d.kpis && !Array.isArray(d.kpis) ? d.kpis : {};
     UI.tool(ctx, 'Executive reports', () => App.go('admin_reports'), 'bi-graph-up');
-    UI.tool(ctx, 'Review approvals', () => App.go('approvals'), 'bi-check2-square', 'primary');
+    UI.tool(ctx, 'Review approvals', () => App.go('admin_approvals'), 'bi-check2-square', 'primary');
     const tiles = [
-      { label: 'Awaiting your approval', value: UI.num(k.approvals), note: 'decisions routed to the Admin', tone: k.approvals ? 'amber' : 'gray', go: 'approvals' },
+      { label: 'Awaiting your approval', value: UI.num(k.approvals), note: 'decisions routed to the Admin', tone: k.approvals ? 'amber' : 'gray', go: 'admin_approvals' },
       { label: 'Active trips', value: UI.num(k.active_trips), note: 'dispatched or in transit (now)', tone: 'gray', go: 'admin_operations' },
       { label: 'Trucks under repair', value: UI.num(k.trucks_repair), note: 'truck status Under Maintenance', tone: k.trucks_repair ? 'amber' : 'gray', go: 'admin_maintenance' },
       { label: 'Open purchase orders', value: UI.num(k.open_pos), note: 'awaiting approval or delivery', tone: 'gray', go: 'admin_purchasing' },
@@ -41,7 +41,7 @@ App.page('admin_overview', {
     const att = Array.isArray(d.attention) ? d.attention : [], dec = Array.isArray(d.decisions) ? d.decisions : [], act = Array.isArray(d.activity) ? d.activity : [];
     const deps = Array.isArray(d.departments) ? d.departments : [];
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">${UI.kpiTiles(tiles, 'ws-kpi6')}
-      ${UI.quickBar([{ label: 'Approvals', icon: 'bi-check2-square', go: 'approvals' }, { label: 'Financial oversight', icon: 'bi-cash-coin', go: 'admin_finance' },
+      ${UI.quickBar([{ label: 'Pending approvals', icon: 'bi-check2-square', go: 'admin_approvals' }, { label: 'Financial oversight', icon: 'bi-cash-coin', go: 'admin_finance' },
         { label: 'Users & roles', icon: 'bi-people', go: 'admin' }, { label: 'Audit trail', icon: 'bi-journal-text', go: 'audit_logs' }, { label: 'Documents', icon: 'bi-folder2-open', go: 'documents' },
         { label: 'Company dashboard', icon: 'bi-grid-1x2', go: 'dashboard' }])}
       <div class="ws-grid2">
@@ -50,8 +50,8 @@ App.page('admin_overview', {
           x.items.map(([l, n]) => `${UI.esc(l)} <b>${UI.num(n)}</b>`).join(' · '), '')), 'No department data.'), { cls: 'ws-r1' })}
         ${UI.wsPanel('Recent cross-department activity', 'bi-activity', HM.list(act.map(e => HM.entry('audit_logs', `<b>${UI.esc(e.action)}</b> <span class="mo-ref">${UI.esc(e.area)}${e.record_ref ? ' · ' + UI.esc(e.record_ref) : ''}</span>`,
           `${UI.esc(e.actor)} · ${UI.datetime(e.created_at)}`, '')), 'No recorded activity yet.'), { cls: 'ws-l2', go: 'audit_logs', goLabel: 'Audit trail' })}
-        ${UI.wsPanel('Pending management decisions', 'bi-check2-square', HM.list(dec.map(r => HM.entry('approvals?open=' + encodeURIComponent(r.key), `<b>${UI.esc(r.ref)}</b> <span class="mo-ref">${UI.esc(r.type)}</span>`,
-          `${UI.esc(r.dept)} · ${UI.esc(r.requester || '')} · ${UI.money(r.amount)}`, HM.pill(r.actionable ? 'Your decision' : 'Own request', r.actionable ? 'amber' : 'gray'))), 'Nothing is waiting for an Admin decision.'), { cls: 'ws-r2', count: dec.length, go: 'approvals' })}
+        ${UI.wsPanel('Pending management decisions', 'bi-check2-square', HM.list(dec.map(r => HM.entry('admin_approvals?open=' + encodeURIComponent(r.key), `<b>${UI.esc(r.ref)}</b> <span class="mo-ref">${UI.esc(r.type)}</span>`,
+          `${UI.esc(r.dept)} · ${UI.esc(r.requester || '')} · ${UI.money(r.amount)}`, HM.pill(r.actionable ? 'Your decision' : 'Own request', r.actionable ? 'amber' : 'gray'))), 'Nothing is waiting for an Admin decision.'), { cls: 'ws-r2', count: dec.length, go: 'admin_approvals' })}
       </div></div>`;
   },
 });
