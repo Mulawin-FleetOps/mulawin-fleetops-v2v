@@ -954,18 +954,65 @@ PurUI.confirmWarranty = (batch, onSaved) => {
 };
 
 /** Purchase order drawer: supplier, amounts (total / received / paid / balance), line progress, payments, documents, activity. */
+
+/* Compact PO details layout: presentation only; preserves original PO fields and workflow. */
+PurUI.poDetailsLayout = (p, x, row) => {
+  const safe = v => UI.esc(v == null ? '' : String(v));
+  const val = (v, fallback = '—') => v == null || v === '' ? fallback : safe(v);
+  const field = (label, content, extra = '') =>
+    '<div class="pur-po-field ' + extra + '"><div class="pur-po-label">' + safe(label) +
+    '</div><div class="pur-po-value">' + content + '</div></div>';
+  const section = (heading, content) =>
+    '<section class="pur-po-section"><h3 class="pur-po-section-title">' + safe(heading) +
+    '</h3><div class="pur-po-grid">' + content + '</div></section>';
+  const secondary = v => v ? '<div class="pur-po-secondary">' + safe(v) + '</div>' : '';
+  const rejected = /^Rejected/i.test(p.status || '');
+  const status = p.status === 'Approved' ? 'Waiting for Delivery' : p.status;
+  const statusLabel = UI.badge(status);
+  const approvalRole = p.approver_role === 'finance' ? 'Finance' : 'Admin';
+  const approvalName = p.decided_by_name || 'System';
+  const approvedAt = p.decided_at ? UI.datetime(p.decided_at) : '';
+  const requested = val(p.requested_by_name) + secondary(UI.datetime(p.created_at));
+  const reviewed = p.decided_at
+    ? safe(approvalRole + ' · ' + approvalName) + secondary(approvedAt)
+    : safe(approvalRole) + secondary('Not decided yet');
+  const tracking = ['Approved', 'Partially Received'].includes(p.status)
+    ? 'Waiting for physical delivery / remaining parts' : 'See current PO status';
+  const received = (x.lines || []).reduce((sum, line) => sum + (+line.received_qty || 0), 0);
+  const ordered = (x.lines || []).reduce((sum, line) => sum + (+line.quantity || 0), 0);
+  const supplier = '<strong>' + val(p.supplier) + '</strong>' + secondary(p.supplier_contact);
+  const decision = p.decision_notes ? field('Decision notes', val(p.decision_notes), 'pur-po-full') : '';
+  const invoice = p.supplier_invoice_no ? field('Supplier invoice', val(p.supplier_invoice_no)) : '';
+  const notice = rejected
+    ? '<div class="pur-po-notice"><strong>' + safe(p.status) +
+      '</strong><span>' + (p.decision_notes ? safe(p.decision_notes) : 'Create a new PO if still needed.') + '</span></div>'
+    : PurUI.nextBox(PurUI.poNext(row));
+  return '<div class="pur-po-details">' + notice +
+    section('Purchase information',
+      field('Purpose', val(p.purpose)) +
+      field('Parts status', statusLabel) +
+      field('Parts request', val(p.request_ref, 'Not linked')) +
+      field('Delivery tracking', safe(tracking))) +
+    section('Supplier',
+      field('Supplier name', supplier, 'pur-po-full') +
+      field('Contact number', val(p.supplier_phone)) +
+      field('Email', val(p.supplier_email)) +
+      (p.supplier_address ? field('Location', val(p.supplier_address), 'pur-po-full') : '')) +
+    section('Request & approval',
+      field('Requested by', requested) +
+      field('Reviewed by', reviewed) + decision + invoice) +
+    section('Order total',
+      field('PO total', '<strong class="pur-po-total">' + UI.money(p.total_amount) + '</strong>') +
+      field('Received quantities', UI.num(received) + ' of ' + UI.num(ordered))) +
+    '</div>';
+};
+
 PurUI.openPO = async (o, k) => {
   const seq = App.navSeq; const x = await App.api('Purchasing.po_details', { po_id: o.id }); const p = x.po;
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
   const received = x.lines.reduce((a, l) => a + l.received_qty * l.unit_price, 0);
   const row = { ...o, ...p, received_value: received };
-  const html = `${PurUI.nextBox(PurUI.poNext(row))}
-    ${UI.kv([['Parts Status', UI.badge(p.status === 'Approved' ? 'Waiting for Delivery' : p.status)], ['Supplier', `<b>${UI.esc(p.supplier)}</b>` + [p.supplier_contact, p.supplier_phone, p.supplier_email].filter(Boolean).map(v => `<div class="cell-sub">${UI.esc(v)}</div>`).join('') + (p.supplier_address ? `<div class="cell-sub">${UI.esc(p.supplier_address)}</div>` : '')],
-      ['Purpose', UI.e(p.purpose)], ['Parts request', p.request_ref ? UI.esc(p.request_ref) : 'Not linked'],
-      ['Requested', UI.esc(p.requested_by_name) + ' · ' + UI.datetime(p.created_at)],
-      ['Approval', (p.approver_role === 'finance' ? 'Finance' : 'Admin') + (p.decided_at ? ' · ' + UI.esc(p.decided_by_name || 'System') + ' · ' + UI.datetime(p.decided_at) : ' · not decided yet') + (p.decision_notes ? `<div class="cell-sub">${UI.esc(p.decision_notes)}</div>` : '')],
-      p.supplier_invoice_no ? ['Supplier invoice', UI.esc(p.supplier_invoice_no)] : null])}
-    ${UI.h('Order details')}${UI.kv([['PO total', UI.money(p.total_amount)], ['Delivery tracking', ['Approved','Partially Received'].includes(p.status) ? 'Waiting for physical delivery / remaining parts' : 'See current PO status'], ['Received quantities', UI.num(x.lines.reduce((sum, line) => sum + (+line.received_qty || 0), 0)) + ' of ' + UI.num(x.lines.reduce((sum, line) => sum + (+line.quantity || 0), 0))]])}
+  const html = `${PurUI.poDetailsLayout(p, x, row)}
     ${UI.h('Items')}<div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th>Received / ordered</th><th class="money-col">Unit price</th><th class="money-col">Amount</th></tr></thead>
     <tbody>${x.lines.map(l => `<tr><td><b>${UI.esc(l.part_number)}</b><div class="cell-sub">${PurUI.partLabel(l)}</div></td><td class="cell-nowrap">${PurUI.bar(+l.received_qty, +l.quantity)} ${UI.esc(l.unit)}</td><td class="money-col">${UI.money(l.unit_price)}</td><td class="money-col">${UI.money(l.line_total)}</td></tr>`).join('')}</tbody></table></div>
     ${(x.payments || []).length ? UI.h('Payments') + UI.table([['Voucher', 'voucher_number'], ['Released', 'released_on', 'date'], ['Method', 'payment_method'], ['Amount', 'amount', 'money']], x.payments, { plain: true }) : ''}
