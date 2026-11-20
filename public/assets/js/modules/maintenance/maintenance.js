@@ -631,7 +631,7 @@ const MaintUI = {
         if (j.source === 'Incident' && j.severity === 'Major' && j.garageArrivalConfirmed && !j.assignment_finalized_at)
           acts.push(['finalize', 'Start garage repair', 'primary', 'bi-tools']);
         else if (j.mechanic_id) acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
-        else if (j.source === 'Incident' && j.severity === 'Major')
+        else if (j.source === 'Incident' && j.severity === 'Major' && !j.garageArrivalConfirmed)
           acts.push(j.garageArrivalConfirmed
             ? ['finalize', 'Start garage repair', 'primary', 'bi-tools']
             : ['garage_arrival', 'Confirm truck arrived at garage', 'primary', 'bi-truck']);
