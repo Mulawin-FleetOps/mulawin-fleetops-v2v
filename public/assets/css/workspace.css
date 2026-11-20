@@ -2414,3 +2414,108 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   max-width:100%;
   overflow-wrap:anywhere;
 }
+
+
+/* MOTORPOOL_DASHBOARD_PURCHASING_PARITY_V1
+   Match Purchasing's content-card typography and list spacing; keep the
+   Motorpool grid, KPIs and domain-specific summary content unchanged. */
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel {
+  overflow:hidden;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .panel-head {
+  padding:15px 17px;
+  background:#fff;
+  border-bottom:1px solid #dfe9e2;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .panel-title {
+  font-size:16px;
+  font-weight:750;
+  line-height:1.4;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .panel-tools :is(.ws-seeall,button,a) {
+  font-size:13px;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .panel-body.flush {
+  padding:0 16px;
+  min-width:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel :is(.mo-item-top,.mo-item-top b,.ws-trucks b) {
+  font-size:14px;
+  line-height:1.45;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel :is(.mo-item-issue,.mo-item-next,.ws-trucks .cell-sub) {
+  font-size:12.5px;
+  line-height:1.5;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .mo-ref {
+  font-size:12px;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .mo-empty,
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .ws-panel-foot {
+  font-size:13px;
+  line-height:1.5;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel :is(.mo-list,.ws-trucks) {
+  max-height:none !important;
+  overflow:visible !important;
+  height:auto !important;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-page-list > [hidden] {
+  display:none !important;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-paged {
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  min-width:0;
+}
+#pageContent .mp-wireframe-dashboard .mp-content-column > .ws-panel .mp-dashboard-page-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:11px 13px;
+  margin:0;
+  border-top:1px solid #e5eee8;
+  color:#6c8475;
+  font-size:11.5px;
+  line-height:1.5;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-page-controls {
+  display:inline-flex;
+  align-items:center;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:6px;
+  margin-left:auto;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-page-controls > button {
+  min-height:30px;
+  padding:6px 9px;
+  border:1px solid #d6e4da;
+  border-radius:7px;
+  background:#fff;
+  color:#176b3d;
+  font-size:11.5px;
+  font-weight:600;
+  cursor:pointer;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-page-controls > button:hover:not(:disabled) {
+  border-color:#9ac7aa;
+  background:#f2f8f4;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-page-controls > button:disabled {
+  opacity:.43;
+  cursor:not-allowed;
+}
+#pageContent .mp-wireframe-dashboard .mp-dashboard-page-controls [data-mp-page-label] {
+  color:#556e60;
+  font-weight:600;
+  white-space:nowrap;
+}
+@media(max-width:620px) {
+  #pageContent .mp-wireframe-dashboard .mp-dashboard-page-controls {
+    margin-left:0;
+  }
+}
