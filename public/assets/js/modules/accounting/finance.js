@@ -40,12 +40,14 @@ const FinUI = {
       { intro: 'Fund releases, PO payments, payables and repair costs are recorded automatically. Add only other expenses here (fuel, office, utilities …).' });
   },
   setBudget(d) {
-    const b = (d.budgets || []).find(x => x.status === 'Active' && x.category === 'Purchasing');
-    UI.formModal('Set budget allocation', [
-      { name: 'category', label: 'Budget category', type: 'select', options: [['Purchasing','Purchasing'], ['Trip Operations','Trip Operations'], ['Fuel Operations','Fuel Operations']], required: true, col: 12 },
-      { name: 'amount', label: 'Budget amount', type: 'money', required: true, col: 12 }, { name: 'period_start', label: 'Start date', type: 'date', value: UI.today(), required: true, col: 6 },
-      { name: 'period_end', label: 'End date', type: 'date', required: true, col: 6 }], 'Finance.budget_set',
-      { intro: 'Choose Purchasing, Trip Operations, or Fuel Operations. Each allocation is separate. Replacing an allocation carries forward its outstanding commitments: parts POs, approved trip cash funds, or approved Diesel POs respectively.' });
+    UI.formModal('Submit General Budget for approval', [
+      { name: 'amount', label: 'General Budget Amount', type: 'money', required: true, col: 12 },
+      { name: 'period_start', label: 'Effective start date', type: 'date', value: UI.today(), required: true, col: 6 },
+      { name: 'period_end', label: 'Effective end date', type: 'date', required: true, col: 6 },
+      { name: 'remarks', label: 'Remarks (optional)', col: 12 }
+    ], 'Finance.budget_set', {
+      intro: 'One overall General Budget for company operations. Admin must approve before it becomes Active. Existing approved commitments and allocations remain unchanged while this request is pending.'
+    });
   },
   /** Voucher drawer: who was paid, how, and the source record. */
   openVoucher(v) {
@@ -284,74 +286,76 @@ App.page('finance', {
   },
 });
 
-// ---------------------------------------------------------------- Budgets & Expenses
+// ---------------------------------------------------------------- General Budget & Expenses
 App.page('finance_budgets', {
   title: 'Budgets & Expenses',
-  subtitle: 'Purchasing budget (reserved at PO approval, spent at receipt), operating and maintenance expenses, cash flow.',
+  subtitle: 'General Budget approvals, available allocation, recorded expenses and budget history.',
   render(ctx) {
-    const d = ctx.data, act = d.can.act, q = ctx.query;
-    if (act) { UI.tool(ctx, 'Add expense', () => FinUI.addExpense(d), 'bi-plus-lg', 'outline-secondary'); UI.tool(ctx, 'Set new budget', () => FinUI.setBudget(d), 'bi-piggy-bank', 'primary'); }
-    const b = (d.budgets || []).find(x => x.status === 'Active' && x.category === 'Purchasing');
-    const tripBudget = d.tripOperationsBudget || {};
-    const fuelBudget = d.fuelBudget || {};
-    const fuelOrders = d.fuelCommitments || [];
-    const exp = d.expenses || [], total = exp.reduce((a, e) => a + +e.amount, 0);
-    const tripFundExpenses = exp.filter(e => e.source === 'Fund Release');
-    const poPaymentExpenses = exp.filter(e => e.source === 'PO Payment');
-    const byCat = {}; (d.expenseMix || []).forEach(m => { byCat[m.category] = (byCat[m.category] || 0) + +m.total; });
-    const top = Object.entries(byCat).sort((a, c) => c[1] - a[1]);
-    const maint = (byCat.Maintenance || 0) + (byCat.Parts || 0);
-    // Keep Purchasing and Trip Operations distinct. When no purchasing budget exists,
-    // show the actual Trip Operations allocation instead of misleading "No budget" KPIs.
-    const activeTripBudget = tripBudget.id && +tripBudget.in_period ? tripBudget : null;
-    const displayedBudget = b || activeTripBudget;
-    const displayedCategory = b ? 'Purchasing' : activeTripBudget ? 'Trip Operations' : null;
-    const util = displayedBudget && +displayedBudget.amount
-      ? Math.round((+displayedBudget.spent_amount + +displayedBudget.reserved_amount) / +displayedBudget.amount * 100) : null;
-    ctx.el.innerHTML = `${UI.crumb('finance_overview', 'Finance Overview')}${UI.kpiTiles([
-      { label: displayedCategory ? displayedCategory + ' budget available' : 'Budget available',
-        value: displayedBudget ? UI.money(displayedBudget.available) : 'No budget',
-        note: displayedBudget ? UI.date(displayedBudget.period_start) + ' – ' + UI.date(displayedBudget.period_end) : 'Set a Purchasing or Trip Operations budget',
-        icon: 'bi-piggy-bank', tone: displayedBudget ? (util >= 80 ? 'amber' : 'green') : 'red' },
-      { label: displayedCategory ? displayedCategory + ' budget used' : 'Budget used',
-        value: util === null ? '—' : util + '%',
-        note: displayedBudget ? `${b ? 'paid' : 'released'} ${UI.money(displayedBudget.spent_amount)} + reserved ${UI.money(displayedBudget.reserved_amount)}` : '',
-        icon: 'bi-speedometer', tone: util >= 80 ? 'amber' : 'gray' },
-      { label: 'Expenses in period', value: UI.money(total), note: exp.length + ' record(s), ' + UI.date(d.period.from) + ' – ' + UI.date(d.period.to), icon: 'bi-wallet2', tone: 'blue' },
-      { label: 'Maintenance and parts', value: UI.money(maint), note: total ? Math.round(maint / total * 100) + '% of the expenses in period' : 'no expenses in period', icon: 'bi-tools', tone: 'gray', go: 'finance_budgets?category=Maintenance' + (q.from ? '&from=' + q.from + '&to=' + (q.to || '') : '') }])}`;
-    const box = document.createElement('div'); ctx.el.append(box);
-    const budgets = UI.table([['Period', 'period_start', (v, r) => `<span class="cell-nowrap">${UI.date(v)} – ${UI.date(r.period_end)}</span>`], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'],
-      ['Available', 'available', 'money'], ['Used', 'amount', (v, r) => +v ? Math.round((+r.spent_amount + +r.reserved_amount) / v * 100) + '%' : '—'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], (d.budgets || []).filter(x => x.category === 'Purchasing'),
-      { title: 'Purchasing budgets', showAllColumns: true, empty: 'No budget yet.', limit: 5 });
-    const tripBudgetSummary = `<section class="panel"><div class="panel-head"><h2 class="panel-title">Trip Operations Budget</h2></div><div class="panel-body"><div class="ws-foot">${tripBudget.id
-      ? `Allocation: ${UI.money(tripBudget.amount)} · Reserved for Head-approved funds: ${UI.money(tripBudget.reserved_amount)} · Released: ${UI.money(tripBudget.spent_amount)} · Available: ${UI.money(tripBudget.available)} · ${UI.date(tripBudget.period_start)} – ${UI.date(tripBudget.period_end)}${+tripBudget.in_period ? '' : ' (outside active budget period)'}`
-      : 'No Trip Operations Budget configured. The Operations Head cannot complete new fund approvals and Finance cannot release existing approved funds until a valid allocation is set.'}</div></div></section>`;
-    const fuelBudgetSummary = `<section class="panel"><div class="panel-head"><h2 class="panel-title">Fuel Operations Budget</h2></div><div class="panel-body"><div class="ws-foot">${fuelBudget.id
-      ? `Allocation: ${UI.money(fuelBudget.amount)} · Reserved Diesel PO commitments: ${UI.money(fuelBudget.reserved_amount)} · Available: ${UI.money(fuelBudget.available)} · ${UI.date(fuelBudget.period_start)} – ${UI.date(fuelBudget.period_end)}${+fuelBudget.in_period?'':' (outside budget period)'}`
-      : 'No Fuel Operations Budget configured. New Diesel PO approvals require a separate fuel allocation.'}
-      · Approved Diesel PO commitments in system: ${UI.money(fuelOrders.reduce((sum,o)=>sum+(+o.amount||0),0))}.
-      Existing approvals remain recorded; new approvals require available Fuel Operations budget.</div></div></section>`;
-    const fundRequests = d.tripFunds || [];
-    const pendingFunds = fundRequests.filter(f => f.status === 'Pending Approval' || f.status === 'Ready for Release');
-    const releasedFunds = fundRequests.filter(f => f.status === 'Released');
-    const tripFunds = UI.table([['Fund', 'fund_ref', (v) => `<b>${UI.esc(v)}</b>`], ['Trip', 'trip_ref'], ['Requested by', 'requested_by_name'], ['Amount', 'amount', 'money'],
-      ['Status', 'status', 'badge'], ['Scheduled trip', 'scheduled_at', 'date']], fundRequests,
-      { title: 'Trip fund requests (' + fundRequests.length + ')', showAllColumns: true, limit: 5,
-        tools: '<button type="button" class="btn btn-sm btn-outline-primary" data-go="funds"><i class="bi bi-box-arrow-up-right"></i> Open Trip Fund Releases</button>',
-        empty: 'No trip fund requests yet.' });
-    const fundSummary = `<div class="ws-foot">Dispatcher trip funds: ${pendingFunds.length} awaiting Head approval or Finance release (${UI.money(pendingFunds.reduce((sum, f) => sum + +f.amount, 0))}) · ${releasedFunds.length} released (${UI.money(releasedFunds.reduce((sum, f) => sum + +f.amount, 0))}). Head approval reserves the Trip Operations budget; Finance release converts the reservation into recorded cash outflow and expense.</div>`;
-    const cats = [...new Set(exp.map(e => e.category))].sort(), srcs = [...new Set(exp.map(e => e.source))].sort();
-    const rows = exp.filter(e => (!q.category || e.category === q.category) && (!q.source || e.source === q.source));
-    const mix = top.length ? `<section class="panel"><div class="panel-head"><h2 class="panel-title">Expenses by category (period)</h2></div><div class="panel-body">${top.map(([k, v]) => `
-      <div class="ws-bar"><div class="ws-bar-top"><span>${UI.esc(k)}</span><b>${UI.money(v)} · ${Math.round(v / total * 100)}%</b></div><div class="ws-bar-track"><div class="ws-bar-fill tone-blue" style="width:${(v / top[0][1] * 100).toFixed(1)}%"></div></div></div>`).join('')}
-      <div class="ws-foot">Source of each amount: fund releases, PO payments, payables, repair costs and manual entries (expenses table). Totals follow the period above.</div></div></section>` : '';
-    box.innerHTML = budgets + tripBudgetSummary + fuelBudgetSummary + fundSummary + tripFunds + `<div class="ws-foot">Operating trip funds released: ${UI.money(tripFundExpenses.reduce((sum, e) => sum + +e.amount, 0))} (${tripFundExpenses.length} record(s)) · Purchasing PO payments: ${UI.money(poPaymentExpenses.reduce((sum, e) => sum + +e.amount, 0))} (${poPaymentExpenses.length} record(s)). These are expenses in the selected period; the purchasing budget is set separately.</div>` + FinUI.period(ctx, d) + `<div class="mo-grid maint-overview" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)"><div class="mo-main">`
-      + UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }, { name: 'source', label: 'Sources', options: srcs }])
-      + UI.table([['Date', 'incurred_on', 'date'], ['Category', 'category'], ['Amount', 'amount', 'money'], ['Source', 'source', (v, e) => `${UI.esc(v)}${e.reference_number ? `<div class="cell-sub">${UI.esc(e.reference_number)}</div>` : ''}`],
-        ['Trip / truck', 'trip_ref', (v, e) => UI.e(v || e.plate_number)], ['Payee', 'payee'], ['Description', 'description', (v) => `<span class="cell-clamp" title="${UI.esc(v)}">${UI.esc(v)}</span>`]], rows,
-        { title: 'Expenses (' + rows.length + ')', showAllColumns: true, empty: 'No expense in this period.' })
-      + `</div><div class="mo-side">${mix}</div></div>`
-      + UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections + returned trip cash) vs cash out (payment vouchers), last 12 months', labels: (d.cashflow || []).map(x => x.m),
-        datasets: [{ label: 'Cash in', data: (d.cashflow || []).map(x => +x.cash_in) }, { label: 'Cash out', data: (d.cashflow || []).map(x => +x.cash_out) }] }] });
-  },
+    const d=ctx.data||{}, act=!!d.can?.act, q=ctx.query||{};
+    const requests=d.budgetRequests||[], allocations=d.budgets||[], active=d.generalBudget||{};
+    const pending=requests.filter(r=>r.status==='Pending Approval');
+    const approved=requests.filter(r=>r.status==='Approved');
+    const rejected=requests.filter(r=>r.status==='Rejected');
+    const exp=d.expenses||[], period=d.period||{};
+    const recorded=exp.reduce((sum,e)=>sum+(+e.amount||0),0);
+    if(act) {
+      UI.tool(ctx,'Add expense',()=>FinUI.addExpense(d),'bi-plus-lg','outline-secondary');
+      UI.tool(ctx,'Set General Budget',()=>FinUI.setBudget(d),'bi-piggy-bank','primary');
+    }
+    const current=!!active.id;
+    const cards=[
+      {label:'General Budget',value:current?+active.amount:'Not approved',format:current?'money':'',icon:'bi-wallet2',tone:current?'green':'gray',
+        note:current?UI.date(active.period_start)+' – '+UI.date(active.period_end):'Awaiting an approved overall allocation'},
+      {label:'Available Budget',value:current?+active.available:'—',format:current?'money':'',icon:'bi-piggy-bank',tone:'green',note:'Total allocation less reserved and spent'},
+      {label:'Reserved',value:current?+active.reserved_amount:'—',format:current?'money':'',icon:'bi-hourglass-split',tone:'amber',note:'Approved commitments not yet fully used'},
+      {label:'Used',value:current?+active.spent_amount:'—',format:current?'money':'',icon:'bi-receipt',tone:'blue',note:'Usage recorded against current allocation'}
+    ];
+    ctx.el.innerHTML=UI.crumb('finance_overview','Finance Overview')+UI.kpiTiles(cards);
+    const box=document.createElement('div');ctx.el.append(box);
+    const alert=Object.keys(d._errors||{}).length
+      ? '<div class="alert alert-warning">Some General Budget information could not be loaded. Check that the approved database migration is installed.</div>' : '';
+    const status=current
+      ? '<div class="ws-foot">Active General Budget: '+UI.money(active.amount)+' · Reserved: '+UI.money(active.reserved_amount)+
+        ' · Used: '+UI.money(active.spent_amount)+' · Available: '+UI.money(active.available)+
+        ' · '+UI.date(active.period_start)+' – '+UI.date(active.period_end)+
+        (+active.in_period?'':' · The budget is outside its effective period')+'</div>'
+      : '<div class="ws-foot">No approved General Budget yet. Finance may submit an allocation for Admin approval. Existing legacy allocations are preserved until approval.</div>';
+    const requestsTable=UI.table([
+      ['Reference','id',(v)=>'<b>GBR-'+String(v).padStart(6,'0')+'</b>'],
+      ['Submitted','submitted_at','datetime'],['Amount','amount','money'],
+      ['Period','period_start',(v,r)=>UI.date(v)+' – '+UI.date(r.period_end)],
+      ['Submitted by','submitted_by_name'],['Status','status','badge']
+    ],requests,{title:'General Budget requests ('+requests.length+')',limit:5,showAllColumns:true,
+      empty:'No General Budget requests submitted yet.'});
+    const history=UI.table([
+      ['Budget','id',(v)=>'<b>GB-'+String(v).padStart(6,'0')+'</b>'],
+      ['Amount','amount','money'],
+      ['Effective period','period_start',(v,r)=>UI.date(v)+' – '+UI.date(r.period_end)],
+      ['Reserved','reserved_amount','money'],['Used','spent_amount','money'],
+      ['Status','status','badge'],['Set by','set_by_name']
+    ],allocations.filter(r=>r.category==='General'),
+      {title:'General Budget allocation history',limit:10,showAllColumns:true,
+        empty:'No General Budget allocation has been approved yet.'});
+    const legacy=allocations.filter(r=>r.category!=='General');
+    const legacyHistory=legacy.length
+      ? '<details class="mt-3"><summary class="small">Previous allocations (legacy category budgets) · '+legacy.length+'</summary>'+
+        UI.table([['Budget','id',(v,r)=>UI.esc(r.category)+' #'+v],
+          ['Amount','amount','money'],['Period','period_start',(v,r)=>UI.date(v)+' – '+UI.date(r.period_end)],
+          ['Status','status','badge'],['Set by','set_by_name']],legacy,
+          {title:'Preserved historical allocations',limit:10,showAllColumns:true})+'</details>' : '';
+    const expenses=UI.table([
+      ['Date','incurred_on','date'],['Description','description'],
+      ['Amount','amount','money'],['Recorded by','recorded_by_name'],
+      ['Reference','reference_number',(v,r)=>UI.esc(v||r.source||'—')],
+      ['Category','category']
+    ],exp,{title:'Expense records ('+exp.length+')',showAllColumns:true,limit:10,
+      empty:'No expenses recorded in this date range.'});
+    box.innerHTML=alert+status+
+      (pending.length?'<div class="alert alert-info mt-3">'+pending.length+' General Budget request(s) waiting for Admin approval. The existing active budget stays in effect until approval.</div>':'')+
+      '<div class="mt-3">'+requestsTable+'</div>'+
+      '<div class="mt-3">'+history+legacyHistory+'</div>'+
+      '<div class="mt-3">'+FinUI.period(ctx,d)+'</div>'+
+      '<div class="mt-3">'+expenses+'</div>'+
+      '<div class="ws-foot">Expenses are recorded by source and category for accountability. There are no expense-by-category or cash-flow charts on this page. Fund releases follow the existing scheduled release window.</div>';
+  }
 });
