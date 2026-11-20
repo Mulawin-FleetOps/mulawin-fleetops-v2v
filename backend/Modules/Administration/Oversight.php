@@ -461,12 +461,11 @@ final class Oversight {
         $topic = (string)($data['topic'] ?? 'operations');
         $defaultKind = $topic === 'purchasing' ? 'purchasing' : 'general';
         $kind = (string)($q['report'] ?? $defaultKind);
-        $allowed = ['management', 'general', 'maintenance', 'purchasing', 'audit'];
+        $allowed = ['management', 'general', 'maintenance', 'purchasing'];
         if (!in_array($kind, $allowed, true)) $kind = 'management';
         $data['reportKind'] = $kind;
         $data['reportData'] = readSections(['result' => static function () use ($kind, $u, $p, $q) {
             if ($kind === 'management') return self::executive($u, $p);
-            if ($kind === 'audit') { Actions::load('Admin'); return Admin::read($u, 'audit_reports', $q); }
             Actions::load('Analytics');
             return Analytics::read($u, match ($kind) {
                 'general' => 'reports', 'maintenance' => 'maintenance_reports',
