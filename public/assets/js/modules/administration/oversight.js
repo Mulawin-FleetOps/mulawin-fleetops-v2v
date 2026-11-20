@@ -648,15 +648,6 @@ const AnalyticsAutoSync = {
       plot('Recorded issues by department', 'hbar', Object.keys(byDept), [{label:'Issues',data:Object.values(byDept),color:colors[3]}]);
       supporting = reportTable('Management decisions and issues', [['Department','dept'],['Record','ref'],['Issue','issue'],['Recorded reason','reason'],['Next step','next']], items, 20);
       note = 'Management report: live workflow exceptions and 30-day performance. These are not automatic root-cause conclusions.';
-    } else if (kind === 'audit') {
-      const summary = report.summary || {}, byArea = summary.byArea || [], byUser = summary.byUser || [];
-      basic('Audit events', summary.total || 0, 'Latest 20,000 event cap; check date range');
-      basic('Areas with activity', byArea.length);
-      basic('Users with activity', byUser.length);
-      plot('Audit events by area', 'hbar', byArea.slice(0,10).map(x=>x.area), [{label:'Events',data:byArea.slice(0,10).map(x=>Number(x.n)),color:colors[0]}]);
-      plot('Events with field changes by area', 'bar', byArea.slice(0,10).map(x=>x.area), [{label:'Field-change events',data:byArea.slice(0,10).map(x=>Number(x.changes)),color:colors[1]}]);
-      supporting = reportTable('Audit activity by user', [['User','actor'],['Role','role'],['Events','n']], byUser, 20);
-      note = 'Audit event volume is not a performance rating or evidence of wrongdoing.';
     } else if (topic === 'operations') {
       if (diagnostic) {
         // Incident reporting is an active workflow. Historical manual Delay
@@ -805,7 +796,7 @@ const AnalyticsAutoSync = {
     const modeNav = '<div class="ax-mode-tabs"><a href="#admin_descriptive_analytics?'+baseQuery+'" class="'+(!diagnostic?'active':'')+'"><i class="bi bi-bar-chart-line"></i> Descriptive Analytics</a>'
       + '<a href="#admin_diagnostic_analytics?'+baseQuery+'" class="'+(diagnostic?'active':'')+'"><i class="bi bi-search"></i> Diagnostic Analytics</a></div>';
     const reportNav = '<div class="ax-report-nav"><span>Other consolidated reports:</span>'
-      + [['management','Management'],['audit','Audit']].map(([id,name])=>'<a class="'+(kind===id?'active':'')+'" href="#'+analyticsPage+'?topic='+encodeURIComponent(topic)+'&report='+id+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'')+'">'+name+'</a>').join('')+'</div>';
+      + [['management','Management']].map(([id,name])=>'<a class="'+(kind===id?'active':'')+'" href="#'+analyticsPage+'?topic='+encodeURIComponent(topic)+'&report='+id+'&from='+encodeURIComponent(per.from||'')+'&to='+encodeURIComponent(per.to||'')+'">'+name+'</a>').join('')+'</div>';
     const visuals = '<div class="ax-charts">' + charts.join('') + '</div>';
     const css = '<style>'
       // The analytics card owns the full header, just like the other reports.
