@@ -14,6 +14,7 @@
     "2026-11-19_25_fleet_form_drafts.sql": "8bddd1cb22f2e2e3f2108fb7496af21d817c3eab591b846598de30e4e20531df",
     "2026-11-20_01_part_regular_supplier.sql": "6c61589d256e305d7a92e27a2c3756fd7e5f96240506eddb31c89ff7102ffd7c",
     "2026-11-20_02_trip_shipment_details.sql": "cba9369e37d851f7428fca45d7e2780b651c2bf49f80f2bcbffdb1d95b71bcf2",
-    "2026-11-20_03_diesel_po_soa_workflow.sql": "2ac65e2777a44adb22d5a39f5170e815e0ea083a46e5a61248a59e4fd458c872"
+    "2026-11-20_03_diesel_po_soa_workflow.sql": "2ac65e2777a44adb22d5a39f5170e815e0ea083a46e5a61248a59e4fd458c872",
+    "2026-11-21_01_general_budget_approvals.sql": "94265b11427e6f61d66fb960d17f92fc015baf5f1521196171726d121efdca83"
   }
 }
