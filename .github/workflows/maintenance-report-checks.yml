@@ -10,6 +10,7 @@ on:
       - 'backend/Modules/General/Analytics.php'
       - 'tests/descriptive_vehicle_status_chart.test.cjs'
       - 'public/assets/js/modules/administration/oversight.js'
+      - 'public/assets/js/modules/accounting/finance.js'
       - 'backend/Modules/Administration/Oversight.php'
       - '.github/workflows/maintenance-report-checks.yml'
   workflow_dispatch:
@@ -31,6 +32,7 @@ jobs:
           php -l backend/Modules/General/Analytics.php
           php -l backend/Modules/Administration/Oversight.php
           node --check public/assets/js/modules/administration/oversight.js
+          node --check public/assets/js/modules/accounting/finance.js
           php -l tests/maintenance_overview_tests.php
           node --check public/assets/js/modules/maintenance/maintenance.js
       - name: Check three vehicle types and trip status reporting contract
