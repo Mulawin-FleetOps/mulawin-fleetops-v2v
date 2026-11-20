@@ -57,9 +57,9 @@ final class Finance {
         // tabs on the same page. Finance personnel use the narrower task pages.
         $keys = $page === 'finance' && hasRole($u, 'admin')
             ? ['poPayables', 'fuelCommitments', 'fuelBudget', 'payables', 'disbursements', 'suppliers', 'trucks',
-               'expenses', 'budgets', 'cashflow', 'expenseMix']
+               'expenses', 'budgets', 'cashflow', 'expenseMix', 'generalBudget', 'budgetRequests']
             : ($page === 'finance_budgets'
-                ? ['expenses', 'budgets', 'tripFunds', 'tripOperationsBudget', 'fuelBudget', 'fuelCommitments', 'cashflow', 'trucks', 'expenseMix']
+                ? ['expenses', 'budgets', 'tripFunds', 'tripOperationsBudget', 'fuelBudget', 'fuelCommitments', 'cashflow', 'trucks', 'expenseMix', 'generalBudget', 'budgetRequests']
                 : ['poPayables', 'fuelCommitments', 'fuelBudget', 'payables', 'disbursements', 'suppliers', 'trucks']);
         $data = readSections(array_intersect_key($sections, array_flip($keys)));
         $data['period'] = ['from' => $from, 'to' => $to];
@@ -101,7 +101,11 @@ final class Finance {
                 FROM fund_requests f JOIN trips t ON t.id=f.trip_id JOIN users u ON u.id=f.requested_by
                 ORDER BY f.id DESC LIMIT 500"),
             'tripOperationsBudget' => fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, period_start, period_end, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Trip Operations' ORDER BY id DESC LIMIT 1") ?? [],
-            'budgets' => fn() => many($p, "SELECT b.id, b.period_start, b.period_end, b.amount, b.reserved_amount, b.spent_amount, b.status, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.status, b.id DESC"),
+            'budgets' => fn() => many($p, "SELECT b.id, b.category, b.created_at, b.period_start, b.period_end, b.amount, b.reserved_amount, b.spent_amount, b.status, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.id DESC"),
+            'generalBudget' => fn() => one($p, "SELECT b.*, (b.amount-b.reserved_amount-b.spent_amount) AS available, (CURRENT_DATE() BETWEEN b.period_start AND b.period_end) AS in_period
+                  FROM budgets b WHERE b.category='General' AND b.status='Active' ORDER BY b.id DESC LIMIT 1") ?? [],
+            'budgetRequests' => fn() => self::budgetRequestsReady($p) ? many($p, "SELECT r.*, su.full_name AS submitted_by_name, du.full_name AS decided_by_name
+                  FROM general_budget_requests r JOIN users su ON su.id=r.submitted_by LEFT JOIN users du ON du.id=r.decided_by ORDER BY r.id DESC LIMIT 1000") : [],
             'cashflow' => fn() => many($p, "SELECT m, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (
                     SELECT DATE_FORMAT(payment_date,'%Y-%m') AS m, amount AS cash_in, 0 AS cash_out FROM collections WHERE payment_date>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
                     UNION ALL SELECT DATE_FORMAT(released_on,'%Y-%m'), 0, amount FROM disbursements WHERE released_on>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
@@ -158,6 +162,7 @@ final class Finance {
             'payable_pay' => self::payablePay($u, $d),
             'expense_add' => self::expenseAdd($u, $d),
             'budget_set' => self::budgetSet($u, $d),
+            'budget_decide' => self::budgetDecide($u, $d),
             default => throw new BusinessRuleException('Unknown action.', 404),
         };
     }
@@ -271,64 +276,92 @@ final class Finance {
         });
     }
 
-    /** Purchasing budget. Only one Active budget; a new one closes the previous. */
+    /** Budget requests must be migrated before Finance can submit an allocation. */
+    public static function budgetRequestsReady(PDO $p): bool {
+        return (bool)one($p, "SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()
+            AND TABLE_NAME='general_budget_requests' LIMIT 1");
+    }
+
+    /** The form proposes ONE overall budget. Saving never activates an unapproved amount. */
     private static function budgetSet(array $u, array $d): array {
         requireRole($u, 'finance');
         $amount = moneyField($d, 'amount');
-        $category = choiceField($d, 'category', ['Purchasing', 'Trip Operations', 'Fuel Operations']);
-        $start = dateField($d, 'period_start'); $end = dateField($d, 'period_end');
-        must($end >= $start, 'The end date is before the start date.');
-        return transaction(function (PDO $p) use ($u, $amount, $start, $end, $category) {
-            if ($category === 'Fuel Operations') {
-                // Existing approved Diesel POs, including those approved before
-                // this budget feature, are commitments. Preserve them on replacement.
-                must(DieselPo::ready($p), 'Diesel PO workflow is not installed.', 409);
-                $old = many($p, "SELECT id FROM budgets WHERE status='Active' AND category='Fuel Operations' FOR UPDATE");
-                $open = one($p, "SELECT COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(f.diesel_po_json,'$.total_amount')) AS DECIMAL(14,2))),0) AS total
+        $start = dateField($d, 'period_start');
+        $end = dateField($d, 'period_end');
+        $remarks = optField($d, 'remarks', 500);
+        must($end >= $start, 'The end date is before the start date.', 422);
+        return transaction(function(PDO $p) use ($u,$amount,$start,$end,$remarks) {
+            must(self::budgetRequestsReady($p), 'General Budget migration is required before submitting an allocation.', 409);
+            must(!one($p, "SELECT id FROM general_budget_requests WHERE status='Pending Approval' LIMIT 1 FOR UPDATE"),
+                 'An allocation is already waiting for Admin approval. Ask Admin to decide it before submitting another.', 409);
+            $id = insert($p, 'general_budget_requests', [
+                'amount'=>$amount, 'period_start'=>$start, 'period_end'=>$end,
+                'remarks'=>$remarks, 'status'=>'Pending Approval', 'submitted_by'=>$u['id']
+            ]);
+            auditWithChanges($p,$u['id'],'Finance','general budget request '.$id,'general budget submitted',
+                'PHP '.number_format((float)$amount,2).' '.$start.' to '.$end,
+                [],['Amount'=>$amount,'Period start'=>$start,'Period end'=>$end,'Status'=>'Pending Approval']);
+            Notify::roles($p, ['admin'], 'General Budget approval required',
+                'Finance submitted a General Budget of PHP '.number_format((float)$amount,2).' for '.$start.' to '.$end.'.', 'admin_approvals');
+            return ['message'=>'General Budget submitted for Admin approval. The existing active allocation remains unchanged.'];
+        });
+    }
+
+    /** Activate only after Admin approval, carrying outstanding commitments without duplication. */
+    private static function budgetDecide(array $u, array $d): array {
+        requireRole($u,'admin');
+        $id = idField($d,'request_id');
+        $decision = choiceField($d,'decision',['approve','reject']);
+        $notes = $decision === 'reject' ? field($d,'reason',500) : optField($d,'notes',500);
+        return transaction(function(PDO $p) use ($u,$id,$decision,$notes) {
+            must(self::budgetRequestsReady($p), 'General Budget migration is not installed.',409);
+            $r = one($p, 'SELECT * FROM general_budget_requests WHERE id=? FOR UPDATE',[$id]);
+            must((bool)$r,'General Budget request not found.',404);
+            must($r['status']==='Pending Approval','This request has already been decided.',409);
+            must((int)$r['submitted_by'] !== (int)$u['id'],'The submitting user cannot approve their own budget.',403);
+            if ($decision === 'reject') {
+                run($p, "UPDATE general_budget_requests SET status='Rejected',decided_by=?,decided_at=NOW(),decision_notes=? WHERE id=?",[$u['id'],$notes,$id]);
+                auditWithChanges($p,$u['id'],'Finance','general budget request '.$id,'general budget rejected',
+                    (string)$notes,['Status'=>'Pending Approval'],['Status'=>'Rejected']);
+                Notify::user($p,(int)$r['submitted_by'],'General Budget rejected','Admin rejected the allocation: '.$notes,'finance_budgets');
+                return ['message'=>'Budget request rejected. The existing budget remains active.'];
+            }
+            must($r['period_start'] <= date('Y-m-d') && $r['period_end'] >= date('Y-m-d'),
+                'The approved General Budget period must include today. Ask Finance to submit a current allocation.',409);
+            // Lock all existing allocations. Each originating transaction still retains its audit history.
+            $old = many($p,"SELECT * FROM budgets WHERE status='Active' ORDER BY id FOR UPDATE");
+            $reserved = round(array_sum(array_map(static fn($b)=>(float)$b['reserved_amount'],$old)),2);
+            // A purchasing PO keeps its original budget_id until the decision is atomic.
+            $poCarry = many($p,"SELECT id, budget_id, reserved_amount FROM purchase_orders
+                WHERE reserved_amount>0 AND status IN ('Approved','Partially Received','Received','Closed')
+                FOR UPDATE");
+            $poTotal = round(array_sum(array_map(static fn($o)=>(float)$o['reserved_amount'],$poCarry)),2);
+            $funds = round((float)one($p,"SELECT COALESCE(SUM(amount),0) AS v FROM fund_requests WHERE status='Ready for Release'")['v'],2);
+            $diesel = 0.0;
+            if (DieselPo::ready($p)) {
+                $diesel = round((float)one($p,"SELECT COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(f.diesel_po_json,'$.total_amount')) AS DECIMAL(14,2))),0) AS v
                     FROM diesel_purchase_orders po JOIN fund_requests f ON f.id=po.fund_request_id
-                    WHERE po.status IN ('Awaiting SOA','SOA Received','Verified','Discrepancy')");
-                $carry = round((float)$open['total'], 2);
-                must((float)$amount >= $carry, 'The Fuel Operations budget must cover PHP ' . number_format($carry, 2) . ' in approved Diesel PO commitments.');
-                run($p, "UPDATE budgets SET status='Closed',reserved_amount=0 WHERE category='Fuel Operations' AND status='Active'");
-                $id = insert($p, 'budgets', ['category'=>'Fuel Operations', 'amount'=>$amount, 'reserved_amount'=>$carry,
-                    'period_start'=>$start, 'period_end'=>$end, 'status'=>'Active','set_by'=>$u['id']]);
-                audit($p,$u['id'],'Finance','budget '.$id,'fuel operations budget set',
-                    'PHP '.number_format((float)$amount,2).' including PHP '.number_format($carry,2).' existing approved Diesel POs.');
-                return ['message'=>'Fuel Operations budget set. PHP '.number_format($carry,2).' reserved for approved Diesel POs.'];
+                    WHERE po.status IN ('Awaiting SOA','SOA Received','Verified','Discrepancy')")['v'],2);
             }
-            if ($category === 'Trip Operations') {
-                $previous = many($p, "SELECT id, amount, reserved_amount, spent_amount FROM budgets WHERE status='Active' AND category='Trip Operations' FOR UPDATE");
-                // The outstanding approved fund requests are the source of truth for cash reservations.
-                $ready = one($p, "SELECT COALESCE(SUM(amount),0) AS total FROM fund_requests WHERE status='Ready for Release'");
-                $carry = round((float)$ready['total'], 2);
-                must((float)$amount >= $carry, 'The new Trip Operations budget must cover PHP ' . number_format($carry, 2) . ' in approved funds awaiting release.');
-                run($p, "UPDATE budgets SET reserved_amount=0, status='Closed' WHERE status='Active' AND category='Trip Operations'");
-                $id = insert($p, 'budgets', ['category'=>'Trip Operations', 'amount'=>$amount, 'reserved_amount'=>$carry,
-                    'period_start'=>$start, 'period_end'=>$end, 'status'=>'Active', 'set_by'=>$u['id']]);
-                audit($p, $u['id'], 'Finance', 'budget ' . $id, 'trip operations budget set',
-                    'PHP ' . number_format((float)$amount,2) . '; approved fund commitments PHP ' . number_format($carry,2));
-                return ['message'=>'Trip Operations budget set. PHP ' . number_format($carry,2) . ' reserved for approved trip funds.'];
-            }
-            // ACCOUNTING_INTEGRITY_G8: open commitments move to the new budget, so later payments draw on an Active budget and
-            // reserved + spent stay consistent. The old budget keeps its spent amount (history) and loses only what moved.
-            $old = many($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' FOR UPDATE");
-            $carry = many($p, "SELECT id, po_ref, budget_id, reserved_amount FROM purchase_orders WHERE budget_id IN (SELECT id FROM budgets WHERE status='Active' AND category='Purchasing')
-                AND reserved_amount > 0 AND status IN ('Approved','Partially Received','Received','Closed') FOR UPDATE");
-            $moved = round(array_sum(array_map(fn($o) => (float)$o['reserved_amount'], $carry)), 2);
-            must((float)$amount >= $moved, 'The new budget (PHP ' . number_format((float)$amount, 2) . ') is less than the PHP ' . number_format($moved, 2)
-                . ' still reserved by approved purchase orders that will move to it. Enter at least that amount.');
-            run($p, "UPDATE budgets SET status='Closed' WHERE status='Active' AND category='Purchasing'");
-            $id = insert($p, 'budgets', ['category' => 'Purchasing', 'amount' => $amount, 'period_start' => $start, 'period_end' => $end, 'status' => 'Active', 'set_by' => $u['id']]);
-            foreach ($carry as $o) {
-                run($p, 'UPDATE budgets SET reserved_amount=GREATEST(reserved_amount-?,0) WHERE id=?', [$o['reserved_amount'], $o['budget_id']]);
-                run($p, 'UPDATE purchase_orders SET budget_id=? WHERE id=?', [$id, $o['id']]);
-            }
-            if ($moved > 0) run($p, 'UPDATE budgets SET reserved_amount=? WHERE id=?', [$moved, $id]);
-            auditWithChanges($p, $u['id'], 'Finance', 'budget ' . $id, 'purchasing budget set', "PHP $amount ($start to $end)"
-                . ($carry ? '; ' . count($carry) . ' open PO(s) moved with PHP ' . number_format($moved, 2) . ' reserved: ' . implode(', ', array_column($carry, 'po_ref')) : ''),
-                ['Previous active budget' => $old ? implode(', ', array_map(fn($b) => 'budget ' . $b['id'] . ' reserved ' . $b['reserved_amount'], $old)) : null],
-                ['Category' => 'Purchasing', 'Amount' => $amount, 'Period start' => $start, 'Period end' => $end, 'Status' => 'Active', 'Reserved carried over' => number_format($moved, 2, '.', '')]);
-            return ['message' => 'Purchasing budget set: PHP ' . number_format((float)$amount, 2) . '.' . ($carry ? ' ' . count($carry) . ' open purchase order(s) moved to it with PHP ' . number_format($moved, 2) . ' reserved.' : '')];
+            // Never activate a budget that cannot cover existing outstanding obligations.
+            $carry = max($reserved,round($poTotal+$funds+$diesel,2));
+            must((float)$r['amount'] >= $carry,
+                'The requested budget is below outstanding approved commitments of PHP '.number_format($carry,2).'. Finance must submit a larger allocation.',409);
+            $budgetId = insert($p,'budgets',[
+                'category'=>'General','amount'=>$r['amount'],'period_start'=>$r['period_start'],
+                'period_end'=>$r['period_end'],'reserved_amount'=>$carry,'status'=>'Active','set_by'=>$r['submitted_by']
+            ]);
+            // Move open PO reservations to the new General allocation; no PO, fund or diesel approval is recreated.
+            foreach($poCarry as $po) run($p,'UPDATE purchase_orders SET budget_id=? WHERE id=?',[$budgetId,$po['id']]);
+            run($p,"UPDATE budgets SET status='Closed', reserved_amount=0 WHERE status='Active' AND id<>?",[$budgetId]);
+            run($p,"UPDATE general_budget_requests SET status='Approved',decided_by=?,decided_at=NOW(),decision_notes=?,activated_budget_id=? WHERE id=?",
+                [$u['id'],$notes,$budgetId,$id]);
+            auditWithChanges($p,$u['id'],'Finance','general budget request '.$id,'general budget approved',
+                'Budget '.$budgetId.' PHP '.number_format((float)$r['amount'],2).' with PHP '.number_format($carry,2).' carried forward',
+                ['Status'=>'Pending Approval'],['Status'=>'Approved','Active budget'=>$budgetId,'Reserved commitments'=>$carry]);
+            Notify::user($p,(int)$r['submitted_by'],'General Budget approved',
+                'Admin approved the General Budget. PHP '.number_format($carry,2).' in existing commitments was carried forward.','finance_budgets');
+            return ['message'=>'General Budget approved and activated. Outstanding reservations carried forward: PHP '.number_format($carry,2).'.'];
         });
     }
 }
