@@ -567,6 +567,7 @@ const PurUI = {
             const status = wrap.querySelector('[data-wstatus="' + id + '"]');
             const details = wrap.querySelector('[data-wdetails="' + id + '"]');
             const qty = wrap.querySelector('[data-rcv="' + id + '"]');
+            status.required = +qty.value > 0 && !status.disabled;
             const covered = status.value === 'With Warranty' && +qty.value > 0;
             const show = covered;
             details.hidden = !show;
