@@ -20,6 +20,22 @@ final class HeadManagementNavigationTest extends TestCase {
         self::assertSame('Client & Commercial',$nav[4]['section']);
         self::assertSame('Financial Oversight',$nav[6]['section']);
         self::assertSame('Management Control',$nav[9]['section']);
+        self::assertSame('History',$nav[11]['label']);
+        self::assertSame('approvals',$nav[11]['id']);
+    }
+
+    public function testHeadManagementHistoryIsReadOnlyAndPendingApprovalsRemainAccessible(): void {
+        $root=dirname(__DIR__,2);
+        $history=file_get_contents($root.'/public/assets/js/modules/general/approvals.js');
+        $oversight=file_get_contents($root.'/public/assets/js/modules/administration/oversight.js');
+        $backend=file_get_contents($root.'/backend/Modules/Administration/Oversight.php');
+        self::assertStringContainsString("ctx.setTitle('History'", $history);
+        self::assertStringContainsString("r.status !== 'Pending' && r.decided_at", $history);
+        self::assertStringContainsString("actionable:false", $history);
+        self::assertStringContainsString("limit:12", $history);
+        self::assertStringContainsString("App.go('admin_approvals')", $history);
+        self::assertStringContainsString("HM.entry('admin_approvals?open='", $oversight);
+        self::assertStringContainsString('rt.decided_at >= NOW() - INTERVAL 90 DAY', $backend);
     }
 
     public function testBrowserShellUsesRoleSpecificExecutiveNavigationAndLoadsOverviewScreens(): void {
