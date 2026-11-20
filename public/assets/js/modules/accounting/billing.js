@@ -143,7 +143,7 @@ const BillUI = {
         <tr><td>Zero-Rated Sales</td><td class="num">&nbsp;</td></tr><tr><td>VAT-Exempt Sales</td><td class="num">&nbsp;</td></tr></table>
       <table style="width:52%"><tr><td>Total Sales (VAT inclusive)</td><td class="num">&nbsp;</td></tr><tr><td>Less: VAT</td><td class="num">&nbsp;</td></tr>
         <tr><td>Amount: Net of VAT</td><td class="num">&nbsp;</td></tr><tr><td>Add: VAT</td><td class="num">&nbsp;</td></tr>
-        <tr><th>TOTAL AMOUNT DUE</th><th class="num">${UI.money(total)}</th></tr></table></div>
+        <tr><th>TOTAL AMOUNT DUE</th><th class="num">&nbsp;</th></tr></table></div>
       <div class="pf-signs">${UI.sign('Received the amount of / Received by (client)')}${UI.sign('Authorized representative', b.finalized_by_name || '', b.finalized_by, 'billing', b.id)}</div>`, { number: b.invoice_number });
   },
   /** Amount in words for receipts, e.g. 13875.5 -> "THIRTEEN THOUSAND EIGHT HUNDRED SEVENTY-FIVE PESOS AND 50/100". */
