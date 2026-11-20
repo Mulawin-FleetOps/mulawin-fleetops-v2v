@@ -677,8 +677,9 @@ final class Maintenance {
             $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
             $t = one($p, 'SELECT * FROM trips WHERE id=? FOR UPDATE', [$j['trip_id']]);
             must($inc && $t && $t['status'] === 'On Hold - Incident Reported', 'The trip is not On Hold.', 409);
-            // Assessment does not reserve a mechanic or claim that the incident truck was inspected.
-            // Once the truck is accessible, assign an available mechanic separately in Repair Management.
+            // Assessment does not reserve a garage mechanic or claim a physical inspection.
+            // Minor incidents proceed to documented roadside safety clearance;
+            // Major incidents proceed to rescheduling, with garage repair only after recovery.
             run($p, "UPDATE maintenance_jobs SET status='Under Inspection', severity=?, started_by=?, started_at=NOW(), remarks=? WHERE id=?",
                 [$sev, $u['id'], $rec, $id]);
             run($p, "UPDATE incidents SET severity=?, recommendation=?, status='Under Repair', assessed_by=?, assessed_at=NOW() WHERE id=?",
@@ -694,12 +695,12 @@ final class Maintenance {
                 $now = FleetState::reconcile($p, (int)$j['vehicle_id'], $u['id'], 'Major damage ' . $inc['incident_ref']);
                 Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Major damage',
                     $t['trip_ref'] . ' is For Reschedule. Truck is ' . $now . '.', 'trips');
-                return ['message' => 'Assessed as MAJOR. No mechanic assigned yet. Truck is ' . $now . ' and trip is For Reschedule. Assign a mechanic when physical inspection or repair can begin.'];
+                return ['message' => 'Assessed as MAJOR. Truck is ' . $now . ' and trip is For Reschedule. No garage mechanic is assigned until the truck is recovered and garage repair begins.'];
             }
             Trips::event($p, $u['id'], (int)$t['id'], 'minor damage assessed; awaiting inspection or clearance', $t['status'], $t['status'], $inc['incident_ref']);
             Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Minor damage',
                 $t['trip_ref'] . ': Motorpool assessed a minor incident. Trip stays On Hold pending fit-to-continue clearance.', 'trips');
-            return ['message' => 'Assessed as MINOR. Trip remains On Hold. Assign a mechanic if inspection/repair is needed, or record inspection-only clearance if no repair is required.'];
+            return ['message' => 'Assessed as MINOR. Trip remains On Hold. Review documented roadside condition and record Vehicle Clearance; a garage mechanic is not required for roadside assessment.'];
         });
     }
 
@@ -950,7 +951,7 @@ final class Maintenance {
                 return ['message' => 'Fit to Continue recorded for ' . $inc['incident_ref'] . ($roadside ? ' (roadside safety check; no garage mechanic assigned)' : ($inspectionOnly ? ' (inspection only, no repair performed)' : '')) . '. The dispatcher can resume ' . $t['trip_ref'] . '.'];
             }
             Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Not fit to continue', $t['trip_ref'] . ': Motorpool recorded Not Fit to Continue. The trip stays On Hold.', 'trips');
-            return ['message' => 'Not Fit to Continue recorded for ' . $inc['incident_ref'] . '. The trip stays On Hold; continue the repair in ' . $j['job_ref'] . '.'];
+            return ['message' => 'Not Fit to Continue recorded for ' . $inc['incident_ref'] . '. Trip remains On Hold; Operations Head can move it to For Reschedule. Garage repair starts after truck recovery if required.'];
         });
     }
 
