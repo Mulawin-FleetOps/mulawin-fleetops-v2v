@@ -1226,6 +1226,8 @@ App.page('maintenance_overview', {
     const queueSize = 4;
     const queuePager = (entries, kind, className) => {
       if (!entries.length) return '';
+      // Match Purchasing: short queues display as plain lists, no pointless 1/1 pager.
+      if (entries.length <= queueSize) return `<ul class="${className}">${entries.join('')}</ul>`;
       const pages = Math.max(1, Math.ceil(entries.length / queueSize));
       return `<div class="mp-dashboard-paged" data-mp-dashboard-paged="${kind}">
         <ul class="${className} mp-dashboard-page-list">${entries.map((html, index) =>
