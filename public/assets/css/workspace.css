@@ -2665,3 +2665,100 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   border-top:1px solid #e4ede6;
   margin-top:4px;
 }
+
+
+/* PURCHASING_PO_PROGRESS_FOUR_STEPS_V1
+   Dedicated, compact PO progress dialog. Does not restyle Motorpool or
+   Parts Request timelines, and retains all persisted history behind details. */
+.po-progress-view {display:flex;flex-direction:column;gap:16px;min-width:0}
+.po-progress-heading {
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;padding:14px 16px;
+  border:1px solid #dbe9df;border-radius:10px;background:#f8fbf9;
+}
+.po-progress-heading > div {display:flex;flex-direction:column;gap:4px}
+.po-progress-heading small {
+  font-size:10px;color:#708478;font-weight:700;letter-spacing:.055em;
+}
+.po-progress-heading strong {font-size:17px;color:#175a34}
+.po-progress-steps {
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;list-style:none;padding:0;margin:0;
+}
+.po-progress-step {
+  display:flex;align-items:flex-start;gap:10px;min-width:0;
+  border:1px solid #e0e9e3;border-radius:10px;
+  padding:14px 12px;background:#fff;
+}
+.po-progress-step.is-complete {border-color:#b9d8c3;background:#f7fbf8}
+.po-progress-step.is-current {border-color:#c7ad6b;background:#fffcf3}
+.po-progress-step.is-exception {border-color:#e9bcbc;background:#fff8f8}
+.po-progress-step.is-skipped {background:#f8faf9}
+.po-progress-step-index {
+  width:27px;height:27px;flex:0 0 27px;
+  display:grid;place-items:center;border-radius:50%;
+  font-size:12px;font-weight:750;
+  color:#77877d;background:#eef2ef;
+}
+.po-progress-step.is-complete .po-progress-step-index {background:#177a46;color:white}
+.po-progress-step.is-current .po-progress-step-index {background:#c0932f;color:white}
+.po-progress-step.is-exception .po-progress-step-index {background:#b73737;color:white}
+.po-progress-step-content {display:flex;flex-direction:column;gap:6px;min-width:0}
+.po-progress-step-content > strong {font-size:13px;color:#294b36;line-height:1.4}
+.po-progress-step-state {
+  font-size:10.5px;font-weight:700;letter-spacing:.01em;color:#60766a;
+}
+.po-progress-step.is-complete .po-progress-step-state {color:#167445}
+.po-progress-step.is-current .po-progress-step-state {color:#916915}
+.po-progress-step.is-exception .po-progress-step-state {color:#ad3333}
+.po-progress-step-content > small {font-size:11px;color:#788a7d}
+.po-progress-step-content > p {
+  margin:0;color:#61756a;font-size:11.5px;line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.po-progress-next {
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  border:1px solid #dce9e0;background:#f7faf8;border-radius:10px;
+  padding:14px 16px;
+}
+.po-progress-next > div {min-width:0}
+.po-progress-next small {
+  color:#417451;font-size:10.5px;font-weight:750;letter-spacing:.055em;
+}
+.po-progress-next p {margin:5px 0 0;font-size:12.5px;color:#2e4f39;line-height:1.55}
+.po-progress-next .btn {white-space:normal;flex-shrink:0}
+.po-progress-quantities {border:1px solid #e0e9e3;border-radius:10px;overflow:hidden}
+.po-progress-quantities h6 {
+  font-size:12.5px;font-weight:750;color:#355d43;
+  margin:0;padding:12px 15px;border-bottom:1px solid #e2eae4;
+}
+.po-progress-quantity-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.po-progress-quantity-grid > div {
+  display:flex;flex-direction:column;gap:5px;padding:13px 15px;min-width:0;
+}
+.po-progress-quantity-grid > div:not(:last-child) {border-right:1px solid #e9eee9}
+.po-progress-quantity-grid small {font-size:11px;color:#6d8173}
+.po-progress-quantity-grid b {font-size:19px;color:#215b39}
+.po-progress-linked {
+  display:flex;gap:9px;align-items:flex-start;
+  font-size:12px;line-height:1.55;color:#607466;
+  padding:10px 12px;border-radius:8px;background:#f5f8f6;
+}
+.po-progress-linked i {color:#228251}
+.po-progress-audit {border:1px solid #e0e9e3;border-radius:9px;overflow:hidden}
+.po-progress-audit summary {
+  padding:12px 14px;color:#256541;cursor:pointer;
+  font-size:12px;font-weight:650;
+}
+.po-progress-audit[open] > .ws-timeline {margin:0 14px 14px}
+@media(max-width:900px) {
+  .po-progress-steps {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:540px) {
+  .po-progress-steps {grid-template-columns:minmax(0,1fr)}
+  .po-progress-next {flex-direction:column;align-items:stretch}
+  .po-progress-next .btn {width:100%}
+  .po-progress-heading {padding:12px}
+  .po-progress-quantity-grid > div {padding:10px}
+  .po-progress-quantity-grid b {font-size:16px}
+}
