@@ -437,3 +437,31 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
   margin:0;
   border:0;
 }
+
+
+/* Motorpool session dates use the same Operations filter toolbar row. */
+#pageContent .mp-session-section .record-workspace-search .mp-session-inline-dates {
+  display:flex;
+  align-items:center;
+  flex:0 1 auto;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+#pageContent .mp-session-section .record-workspace-search .mp-session-inline-dates input[type="date"] {
+  width:145px;
+  max-width:100%;
+  min-height:37px;
+  border:1px solid #d5e2d9;
+  border-radius:8px;
+  background:#fff;
+  font-size:12px;
+}
+@media(max-width:700px) {
+  #pageContent .mp-session-section .record-workspace-search .mp-session-inline-dates {
+    flex:1 1 100%;
+  }
+}
