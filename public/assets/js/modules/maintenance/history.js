@@ -30,7 +30,7 @@ App.page('maint_history', {
       ['Record', 'job_ref', (v, r) => `<b>${UI.esc(v)}</b><div class="cell-sub">${r.source === 'Incident' ? 'Incident ' + UI.esc(r.incident_ref || '') : 'Garage report'}</div>`],
       ['Truck', 'plate_number'], ['Problem', 'problem', (v) => `<span class="cell-clip">${UI.esc(v)}</span>`], ['Mechanic', 'mechanic'],
       ['Completed', 'completed_on', 'date'], ['Outcome', 'display_status', 'badge'], ['Total cost', 'total_cost', 'money']], shown,
-      { showAllColumns: true, directActions: true, limit: 10, actions: () => UI.btn('view', 'Open record', 'outline-primary'), onAction: (a, r) => open(r), rowClick: open,
+      { showAllColumns: true, directActions: true, limit: 10, actions: () => UI.btn('view', 'Details', 'outline-primary'), onAction: (a, r) => open(r), rowClick: open,
         empty: 'No finished maintenance records match.' })
       );
     if (typeof RecordComponents !== 'undefined') RecordComponents.maintenanceWorkspace(ctx.el, {box:'.mp-history-records'});
