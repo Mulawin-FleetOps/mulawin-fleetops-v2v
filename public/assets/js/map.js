@@ -269,7 +269,30 @@ UI.routeMap = (box, t, opts = null) => {
       bounds=bounds.extend(leg.getBounds());
     }
   }
-  map.fitBounds(bounds.pad(0.2)); setTimeout(() => map.invalidateSize(), 300);
+  // The trip drawer moves this map into initially hidden tabs and details.
+  // Refit only when its container has measurable dimensions.
+  // Establish the initial Leaflet view even if the drawer tab is currently hidden.
+  map.fitBounds(bounds, { padding: [18, 18], maxZoom: 13, animate: false });
+  box._routeMapInstance = map;
+  box._routeMapBounds = bounds;
+  UI.refreshRouteMap = UI.refreshRouteMap || ((root) => {
+    if (!root) return;
+    const boxes = [
+      ...(root.matches?.('[data-routemap],.route-map') ? [root] : []),
+      ...(root.querySelectorAll?.('[data-routemap],.route-map') || [])
+    ];
+    boxes.forEach(target => {
+      const leaflet = target._routeMapInstance;
+      if (!leaflet || !target.isConnected || !target.getClientRects().length
+        || !target.clientWidth || !target.clientHeight) return;
+      leaflet.invalidateSize({ pan: false });
+      if (target._routeMapBounds?.isValid()) {
+        leaflet.fitBounds(target._routeMapBounds, { padding: [18, 18], maxZoom: 13, animate: false });
+      }
+    });
+  });
+  // When initially visible, show the full route; hidden maps are handled on tab open.
+  map.whenReady(() => setTimeout(() => UI.refreshRouteMap(box), 0));
 };
 
 /**

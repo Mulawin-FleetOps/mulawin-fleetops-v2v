@@ -1334,3 +1334,40 @@ a.oh-metric:hover, a.oh-metric:focus-visible { border-color: #277747; background
     padding:10px 9px;
   }
 }
+
+/* Container review: clear hierarchy, balanced fields and visible required inputs. */
+.oh-trip-planner-modal .oh-review-trip-row .trip-cargo-compact-fields .form-select{
+  border:1px solid #cbded2;border-radius:8px;min-height:38px;font-size:12px;
+}
+.oh-trip-planner-modal .oh-review-trip-row .trip-cargo-compact-fields .form-label.req{
+  color:#235a39;font-weight:750;
+}
+.oh-trip-planner-modal .oh-review-trip-row .trip-cargo-compact-fields .form-control:focus,
+.oh-trip-planner-modal .oh-review-trip-row .trip-cargo-compact-fields .form-select:focus{
+  border-color:#268453;box-shadow:0 0 0 3px rgba(38,132,83,.10);
+}
+.oh-trip-planner-modal .oh-review-trip-row .trip-cargo-compact-fields textarea.form-control{
+  min-height:72px;
+}
+
+/* Keep the read-only route map usable and compact inside Operations Head Trip Details. */
+.oh-trip-drawer .oh-trip-tab-panel [data-routemap] {
+  display: block;
+  width: 100%;
+  height: 230px;
+  min-height: 230px;
+  max-height: 230px;
+  margin: 10px 0 0;
+  border: 1px solid #dce7df;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #edf3f0;
+}
+.oh-trip-drawer .oh-trip-tab-panel [data-routemap].d-none { display: none; }
+@media (max-width: 767px) {
+  .oh-trip-drawer .oh-trip-tab-panel [data-routemap] {
+    height: 190px;
+    min-height: 190px;
+    max-height: 190px;
+  }
+}

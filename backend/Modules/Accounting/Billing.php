@@ -25,6 +25,7 @@ core('Money');
 core('Settings');
 
 core('TripPricing');
+core('DieselPo');
 final class Billing {
     public const DOC_PAYMENT = 'Payment Acknowledgement Receipt';
 
@@ -420,7 +421,7 @@ final class Billing {
         $docs = array_merge(Files::of($p, 'trip', (int)$b['trip_id']), Files::of($p, 'billing', $id));
         return [
             'billing' => $b, 'pricing' => TripPricing::saved($p,$id),
-            'trip' => one($p, 'SELECT t.id, t.trip_ref, t.truck_type, t.pickup_point, t.delivery_point, t.dispatched_at, t.completed_at, t.waybill_number, t.units_delivered, v.plate_number, d1.full_name AS driver_name, d2.full_name AS driver2_name, h.full_name AS helper_name FROM trips t
+            'trip' => one($p, 'SELECT t.id, t.trip_ref, t.truck_type, t.pickup_point, t.delivery_point, t.dispatched_at, t.completed_at, t.driver_id, t.driver2_id, t.waybill_number, t.units_delivered, v.plate_number, d1.full_name AS driver_name, d2.full_name AS driver2_name, h.full_name AS helper_name FROM trips t
                 LEFT JOIN vehicles v ON v.id=t.vehicle_id LEFT JOIN personnel d1 ON d1.id=t.driver_id LEFT JOIN personnel d2 ON d2.id=t.driver2_id LEFT JOIN personnel h ON h.id=t.helper_id WHERE t.id=?', [$b['trip_id']]),
             'client' => one($p, 'SELECT id, company_name, tin, business_address, contact_person, contact_number, email, payment_terms_days FROM clients WHERE id=?', [$b['client_id']]),
             // charges = ONLY the lines in the billing total (also used for the printed invoice); requests = everything else.
@@ -430,6 +431,7 @@ final class Billing {
                 WHERE c.billing_id=? AND NOT (' . self::counted('c') . ') ORDER BY (c.status=\'Pending Approval\') DESC, c.id DESC', [$id]),
             'collections' => many($p, 'SELECT co.*, u.full_name AS recorded_by_name FROM collections co JOIN users u ON u.id=co.recorded_by WHERE co.billing_id=? ORDER BY co.id', [$id]),
             'documents' => $docs,
+            'diesel_po_record' => DieselPo::byTrip($p,(int)$b['trip_id'],optId($d,'po_id')),
             'vatRate' => Settings::value('vat_rate'),
         ];
     }

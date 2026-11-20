@@ -40,11 +40,12 @@ const FinUI = {
       { intro: 'Fund releases, PO payments, payables and repair costs are recorded automatically. Add only other expenses here (fuel, office, utilities …).' });
   },
   setBudget(d) {
-    const b = (d.budgets || []).find(x => x.status === 'Active');
-    UI.formModal('Set purchasing budget', [
+    const b = (d.budgets || []).find(x => x.status === 'Active' && x.category === 'Purchasing');
+    UI.formModal('Set budget allocation', [
+      { name: 'category', label: 'Budget category', type: 'select', options: [['Purchasing','Purchasing'], ['Trip Operations','Trip Operations'], ['Fuel Operations','Fuel Operations']], required: true, col: 12 },
       { name: 'amount', label: 'Budget amount', type: 'money', required: true, col: 12 }, { name: 'period_start', label: 'Start date', type: 'date', value: UI.today(), required: true, col: 6 },
       { name: 'period_end', label: 'End date', type: 'date', required: true, col: 6 }], 'Finance.budget_set',
-      { intro: 'The current active budget is closed. Approved purchase orders that are not fully paid move to the new budget with their reserved amount' + (b ? ` (now ${UI.money(b.reserved_amount)})` : '') + ', so the new amount must cover it.' });
+      { intro: 'Choose Purchasing, Trip Operations, or Fuel Operations. Each allocation is separate. Replacing an allocation carries forward its outstanding commitments: parts POs, approved trip cash funds, or approved Diesel POs respectively.' });
   },
   /** Voucher drawer: who was paid, how, and the source record. */
   openVoucher(v) {
@@ -124,7 +125,7 @@ const HeadFinancePage = {
     }
     const act = !!d.can?.act;
     const head = UI.role('admin');
-    const b = d.budgets.find(x => x.status === 'Active');
+    const b = d.budgets.find(x => x.status === 'Active' && x.category === 'Purchasing');
     const poDue = d.poPayables.reduce((a, o) => a + Math.max(0, +o.received_value - +o.paid_amount), 0);
     const apDue = d.payables.filter(p => p.status !== 'Paid').reduce((a, p) => a + +p.balance, 0);
     ctx.el.innerHTML = UI.cards([
@@ -193,11 +194,9 @@ const HeadFinancePage = {
         ['Payee', 'payee'], ['Method', 'payment_method'], ['Reference', 'reference_number'], ['Amount', 'amount', 'money']], d.disbursements, { title: 'Cash released (payment vouchers)',actions:()=>UI.btn('details','View Details'),onAction:(action,row)=>{const drawer=UI.drawer(UI.esc(row.voucher_number),UI.h('Transaction')+UI.kv([['Voucher',UI.e(row.voucher_number)],['Source',UI.e(row.source_type)],['Payee',UI.e(row.payee)],['Amount',UI.money(row.amount)],['Method',UI.e(row.payment_method)],['Reference',UI.e(row.reference_number)],['Release date',UI.date(row.released_on)]])+UI.h('Recorded Activity')+UI.kv([['Recorded at',UI.datetime(row.created_at)],['Recorded by',UI.e(row.recorded_by_name)]]),{subtitle:'Disbursement details'});UI.drawerSections(drawer,[['summary','Summary',['Transaction']],['activity','Recorded Activity',['Recorded Activity']]],{key:'disbursement-details'});} })],
       ['budget', 'Purchasing budget', (body) => {
         const h = `<div class="small text-muted mb-2">Purchase orders are approved only when the active budget can cover them. The amount is <b>reserved</b> at approval and becomes <b>spent</b> when Finance pays.</div>`
-          + UI.table([['Period', 'period_start', (v, r) => UI.date(v) + ' – ' + UI.date(r.period_end)], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'], ['Available', 'available', 'money'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets,
+          + UI.table([['Period', 'period_start', (v, r) => UI.date(v) + ' – ' + UI.date(r.period_end)], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'], ['Available', 'available', 'money'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets.filter(x => x.category === 'Purchasing'),
             { title: 'Budgets', tools: act ? '<button class="btn btn-sm btn-primary" data-setb><i class="bi bi-plus"></i> Set new budget</button>' : '', empty: 'No budget yet.' });
-        setTimeout(() => body.querySelector('[data-setb]')?.addEventListener('click', () => UI.formModal('Set purchasing budget', [
-          { name: 'amount', label: 'Budget amount', type: 'money', required: true, col: 12 }, { name: 'period_start', label: 'Start date', type: 'date', value: UI.today(), required: true, col: 6 },
-          { name: 'period_end', label: 'End date', type: 'date', required: true, col: 6 }], 'Finance.budget_set', { intro: 'The current active budget is closed; reservations of approved POs stay with their budget.' })), 0);
+        setTimeout(() => body.querySelector('[data-setb]')?.addEventListener('click', () => FinUI.setBudget(d)), 0);
         return h;
       }],
       ['cash', 'Cash flow', () => UI.blocks({ charts: [{ type: 'bar', format: 'money', title: 'Cash in (collections + returned trip cash) vs cash out (disbursements), last 12 months', labels: d.cashflow.map(x => x.m),
@@ -217,16 +216,21 @@ App.page('finance', {
     if (UI.role('admin')) return HeadFinancePage.render(ctx);
     const d = ctx.data, act = d.can.act, q = ctx.query, today = UI.today();
     if (act) UI.tool(ctx, 'Add payable', () => FinUI.addPayable(d), 'bi-plus-lg', 'primary');
-    const po = (d.poPayables || []).map(o => ({ ...o, due: Math.max(0, +o.received_value - +o.paid_amount) }));
+    const fuel = (d.fuelCommitments || []).map(o=>({...o,amount:+o.amount||0}));
+    const fuelOpen = fuel.reduce((sum,o)=>sum+o.amount,0);
+    const fuelVerified = fuel.filter(o=>o.status==='Verified');
+    const fuelPayable = fuelVerified.reduce((sum,o)=>sum+o.amount,0);
+    const po = (d.poPayables || []).map(o => ({ ...o, due: Math.max(0, +o.received_value - +o.paid_amount), awaitingDelivery: Math.max(0, +o.total_amount - +o.received_value) }));
     const ap = d.payables || [];
     const poDue = po.reduce((a, o) => a + o.due, 0), apOpen = ap.filter(p => p.status !== 'Paid'), apDue = apOpen.reduce((a, p) => a + +p.balance, 0);
     const overdue = apOpen.filter(p => FinUI.overdue(p.due_on, today));
-    const TABS = { po: 'PO payables', ap: 'Other payables', vouchers: 'Payment vouchers' };
+    const TABS = { po: 'PO payables', fuel: 'Fuel / Diesel PO', ap: 'Other payables', vouchers: 'Payment vouchers' };
     const tab = TABS[q.tab] ? q.tab : 'po';
     ctx.el.innerHTML = `${UI.crumb('finance_overview', 'Finance Overview')}${UI.kpiTiles([
       { label: 'PO payments due', value: UI.money(poDue), note: po.filter(o => o.due > 0).length + ' PO(s) with received items not paid', icon: 'bi-cart-check', tone: poDue ? 'amber' : 'gray', go: 'finance?tab=po' },
       { label: 'Other payables', value: UI.money(apDue), note: apOpen.length + ' unpaid bill(s)', icon: 'bi-receipt', tone: apDue ? 'amber' : 'gray', go: 'finance?tab=ap' },
       { label: 'Overdue bills', value: overdue.length, note: overdue.length ? UI.money(overdue.reduce((a, p) => a + +p.balance, 0)) + ' past the due date' : 'none past the due date', icon: 'bi-alarm', tone: overdue.length ? 'red' : 'gray', go: 'finance?tab=ap&status=overdue' },
+      { label: 'Fuel PO commitments', value: UI.money(fuelOpen), note: fuelVerified.length + ' verified SOA(s); ' + UI.money(fuelPayable) + ' pending payment processing', icon: 'bi-fuel-pump', tone: fuelOpen ? 'amber' : 'gray', go: 'finance?tab=fuel' },
       { label: 'Released in period', value: UI.money((d.disbursements || []).reduce((a, v) => a + +v.amount, 0)), note: (d.disbursements || []).length + ' voucher(s), ' + UI.date(d.period.from) + ' – ' + UI.date(d.period.to), icon: 'bi-box-arrow-up-right', tone: 'blue', go: 'finance?tab=vouchers' }])}
       <div class="line-tabs no-print" role="tablist">${Object.entries(TABS).map(([k, l]) => `<button type="button" role="tab" class="tab ${k === tab ? 'active' : ''}" data-go="finance?${new URLSearchParams({ ...(k === 'vouchers' ? { from: q.from || '', to: q.to || '' } : {}), tab: k })}">${l}</button>`).join('')}</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
@@ -234,13 +238,27 @@ App.page('finance', {
     if (tab === 'po') {
       const sup = [...new Set(po.map(o => o.supplier).filter(Boolean))].sort();
       const rows = po.filter(o => (!q.supplier || o.supplier === q.supplier) && (q.due !== 'due' || o.due > 0));
-      box.innerHTML = UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: sup }, { name: 'due', label: 'Payment state', all: 'All open POs', options: [['due', 'Has an amount to pay now']] }])
+      const pendingDelivery = rows.reduce((sum, o) => sum + o.awaitingDelivery, 0);
+      const readyToPay = rows.reduce((sum, o) => sum + o.due, 0);
+      box.innerHTML = `<div class="ws-foot">PO commitments: ${UI.money(rows.reduce((sum, o) => sum + Math.max(0, +o.total_amount - +o.paid_amount), 0))} remaining on approved orders · ${UI.money(pendingDelivery)} awaiting delivery · ${UI.money(readyToPay)} received and ready to pay. Only received, unpaid items are payable.</div>`
+        + UI.generalFilters(ctx, [{ name: 'supplier', label: 'Suppliers', options: sup }, { name: 'due', label: 'Payment state', all: 'All open POs', options: [['due', 'Has an amount to pay now']] }])
         + UI.table([['PO', 'po_ref', (v, o) => `<b>${UI.esc(v)}</b>${o.supplier_invoice_no ? `<div class="cell-sub">Invoice ${UI.esc(o.supplier_invoice_no)}</div>` : ''}`], ['Supplier', 'supplier', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`],
           ['PO total', 'total_amount', 'money'], ['Received', 'received_value', 'money'], ['Paid', 'paid_amount', 'money'], ['To pay now', 'due', 'money'], ['Payment', 'payment_status', 'badge'],
           ['Next action', 'due', (v, o) => o.due > 0 ? next('finance', 'Record payment') : '<span class="cell-sub">Waiting for delivery (Purchasing)</span>']], rows,
           { title: 'Approved purchase orders not fully paid (' + rows.length + ')', showAllColumns: true, directActions: true,
             actions: (o) => (act && o.due > 0 ? UI.ibtn('pay', 'Record payment', 'bi-cash-coin', 'primary') : '') + UI.ibtn('open', 'Open PO details', 'bi-eye', 'outline-primary'),
             onAction: (a, o) => a === 'pay' ? FinUI.payPO(d, o) : FinUI.openPO(o.id), rowClick: (o) => FinUI.openPO(o.id), empty: 'No purchase order is waiting for payment.' });
+    } else if (tab === 'fuel') {
+      const budget=d.fuelBudget||{};
+      box.innerHTML = '<div class="ws-foot">Approved Diesel PO commitments: '+UI.money(fuelOpen)
+        +' · Verified Supplier SOAs pending Finance payment processing: '+UI.money(fuelPayable)
+        +' · Fuel Operations budget: '+(budget.id?UI.money(budget.available)+' available'+(+budget.in_period?'':' (outside budget period)'):'Not configured')
+        +'. Diesel POs do not appear in Parts PO payments due. No fuel cash payment or voucher is recorded at SOA approval.</div>'
+        +UI.table([['Diesel PO','po_number',v=>'<b>'+UI.esc(v)+'</b>'],['Trip','trip_ref'],
+          ['Approved commitment','amount','money'],['Status','status','badge'],
+          ['Supplier SOA','soa_documents',(n,o)=>+n>0?'Attached':'Awaiting upload'],
+          ['Payment state','status',v=>v==='Verified'?'Verified SOA · payment processing required':'Not yet payable']], fuel,
+          {title:'Fuel / Diesel PO commitments ('+fuel.length+')',showAllColumns:true,empty:'No approved Diesel PO commitments.'});
     } else if (tab === 'ap') {
       const cats = [...new Set(ap.map(p => p.category))].sort();
       const rows = ap.filter(p => (!q.category || p.category === q.category) && (!q.status || (q.status === 'overdue' ? p.status !== 'Paid' && FinUI.overdue(p.due_on, today) : p.status === q.status)));
@@ -255,7 +273,9 @@ App.page('finance', {
     } else {
       const v = d.disbursements || [];
       const rows = v.filter(x => !q.source || x.source_type === q.source);
-      box.innerHTML = FinUI.period(ctx, d) + UI.generalFilters(ctx, [{ name: 'source', label: 'Sources', options: [['purchase_order', 'Purchase orders'], ['fund_request', 'Trip funds'], ['payable', 'Payables']].filter(([k]) => v.some(x => x.source_type === k)) }])
+      const releasedFunds = v.filter(x => x.source_type === 'fund_request');
+      box.innerHTML = `<div class="ws-foot">Trip funds released in this period: ${UI.money(releasedFunds.reduce((sum, x) => sum + +x.amount, 0))} across ${releasedFunds.length} voucher(s). Trip fund payments also appear in Budgets &amp; Expenses as operating expenses, not purchasing budget allocations.</div>`
+        + FinUI.period(ctx, d) + UI.generalFilters(ctx, [{ name: 'source', label: 'Sources', options: [['purchase_order', 'Purchase orders'], ['fund_request', 'Trip funds'], ['payable', 'Payables']].filter(([k]) => v.some(x => x.source_type === k)) }])
         + UI.table([['Voucher', 'voucher_number', (x) => `<b>${UI.esc(x)}</b>`], ['Released', 'released_on', 'date'], ['Paid for', 'source_type', (s, x) => `${UI.esc({ fund_request: 'Trip fund', purchase_order: 'Purchase order', payable: 'Payable' }[s] || s)}${x.source_ref ? `<div class="cell-sub">${UI.esc(x.source_ref)}</div>` : ''}`],
           ['Payee', 'payee'], ['Method', 'payment_method'], ['Amount', 'amount', 'money']], rows,
           { title: 'Payment vouchers (' + rows.length + ')', showAllColumns: true, directActions: true, actions: () => UI.ibtn('open', 'Open voucher', 'bi-eye', 'outline-primary'),
@@ -271,27 +291,61 @@ App.page('finance_budgets', {
   render(ctx) {
     const d = ctx.data, act = d.can.act, q = ctx.query;
     if (act) { UI.tool(ctx, 'Add expense', () => FinUI.addExpense(d), 'bi-plus-lg', 'outline-secondary'); UI.tool(ctx, 'Set new budget', () => FinUI.setBudget(d), 'bi-piggy-bank', 'primary'); }
-    const b = (d.budgets || []).find(x => x.status === 'Active');
+    const b = (d.budgets || []).find(x => x.status === 'Active' && x.category === 'Purchasing');
+    const tripBudget = d.tripOperationsBudget || {};
+    const fuelBudget = d.fuelBudget || {};
+    const fuelOrders = d.fuelCommitments || [];
     const exp = d.expenses || [], total = exp.reduce((a, e) => a + +e.amount, 0);
+    const tripFundExpenses = exp.filter(e => e.source === 'Fund Release');
+    const poPaymentExpenses = exp.filter(e => e.source === 'PO Payment');
     const byCat = {}; (d.expenseMix || []).forEach(m => { byCat[m.category] = (byCat[m.category] || 0) + +m.total; });
     const top = Object.entries(byCat).sort((a, c) => c[1] - a[1]);
     const maint = (byCat.Maintenance || 0) + (byCat.Parts || 0);
-    const util = b && +b.amount ? Math.round((+b.spent_amount + +b.reserved_amount) / b.amount * 100) : null;
+    // Keep Purchasing and Trip Operations distinct. When no purchasing budget exists,
+    // show the actual Trip Operations allocation instead of misleading "No budget" KPIs.
+    const activeTripBudget = tripBudget.id && +tripBudget.in_period ? tripBudget : null;
+    const displayedBudget = b || activeTripBudget;
+    const displayedCategory = b ? 'Purchasing' : activeTripBudget ? 'Trip Operations' : null;
+    const util = displayedBudget && +displayedBudget.amount
+      ? Math.round((+displayedBudget.spent_amount + +displayedBudget.reserved_amount) / +displayedBudget.amount * 100) : null;
     ctx.el.innerHTML = `${UI.crumb('finance_overview', 'Finance Overview')}${UI.kpiTiles([
-      { label: 'Budget available', value: b ? UI.money(b.available) : 'No budget', note: b ? UI.date(b.period_start) + ' – ' + UI.date(b.period_end) : 'set a purchasing budget', icon: 'bi-piggy-bank', tone: b ? (util >= 80 ? 'amber' : 'green') : 'red' },
-      { label: 'Budget used', value: util === null ? '—' : util + '%', note: b ? `paid ${UI.money(b.spent_amount)} + reserved ${UI.money(b.reserved_amount)}` : '', icon: 'bi-speedometer', tone: util >= 80 ? 'amber' : 'gray' },
+      { label: displayedCategory ? displayedCategory + ' budget available' : 'Budget available',
+        value: displayedBudget ? UI.money(displayedBudget.available) : 'No budget',
+        note: displayedBudget ? UI.date(displayedBudget.period_start) + ' – ' + UI.date(displayedBudget.period_end) : 'Set a Purchasing or Trip Operations budget',
+        icon: 'bi-piggy-bank', tone: displayedBudget ? (util >= 80 ? 'amber' : 'green') : 'red' },
+      { label: displayedCategory ? displayedCategory + ' budget used' : 'Budget used',
+        value: util === null ? '—' : util + '%',
+        note: displayedBudget ? `${b ? 'paid' : 'released'} ${UI.money(displayedBudget.spent_amount)} + reserved ${UI.money(displayedBudget.reserved_amount)}` : '',
+        icon: 'bi-speedometer', tone: util >= 80 ? 'amber' : 'gray' },
       { label: 'Expenses in period', value: UI.money(total), note: exp.length + ' record(s), ' + UI.date(d.period.from) + ' – ' + UI.date(d.period.to), icon: 'bi-wallet2', tone: 'blue' },
       { label: 'Maintenance and parts', value: UI.money(maint), note: total ? Math.round(maint / total * 100) + '% of the expenses in period' : 'no expenses in period', icon: 'bi-tools', tone: 'gray', go: 'finance_budgets?category=Maintenance' + (q.from ? '&from=' + q.from + '&to=' + (q.to || '') : '') }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
     const budgets = UI.table([['Period', 'period_start', (v, r) => `<span class="cell-nowrap">${UI.date(v)} – ${UI.date(r.period_end)}</span>`], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Paid', 'spent_amount', 'money'],
-      ['Available', 'available', 'money'], ['Used', 'amount', (v, r) => +v ? Math.round((+r.spent_amount + +r.reserved_amount) / v * 100) + '%' : '—'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets || [],
+      ['Available', 'available', 'money'], ['Used', 'amount', (v, r) => +v ? Math.round((+r.spent_amount + +r.reserved_amount) / v * 100) + '%' : '—'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], (d.budgets || []).filter(x => x.category === 'Purchasing'),
       { title: 'Purchasing budgets', showAllColumns: true, empty: 'No budget yet.', limit: 5 });
+    const tripBudgetSummary = `<section class="panel"><div class="panel-head"><h2 class="panel-title">Trip Operations Budget</h2></div><div class="panel-body"><div class="ws-foot">${tripBudget.id
+      ? `Allocation: ${UI.money(tripBudget.amount)} · Reserved for Head-approved funds: ${UI.money(tripBudget.reserved_amount)} · Released: ${UI.money(tripBudget.spent_amount)} · Available: ${UI.money(tripBudget.available)} · ${UI.date(tripBudget.period_start)} – ${UI.date(tripBudget.period_end)}${+tripBudget.in_period ? '' : ' (outside active budget period)'}`
+      : 'No Trip Operations Budget configured. The Operations Head cannot complete new fund approvals and Finance cannot release existing approved funds until a valid allocation is set.'}</div></div></section>`;
+    const fuelBudgetSummary = `<section class="panel"><div class="panel-head"><h2 class="panel-title">Fuel Operations Budget</h2></div><div class="panel-body"><div class="ws-foot">${fuelBudget.id
+      ? `Allocation: ${UI.money(fuelBudget.amount)} · Reserved Diesel PO commitments: ${UI.money(fuelBudget.reserved_amount)} · Available: ${UI.money(fuelBudget.available)} · ${UI.date(fuelBudget.period_start)} – ${UI.date(fuelBudget.period_end)}${+fuelBudget.in_period?'':' (outside budget period)'}`
+      : 'No Fuel Operations Budget configured. New Diesel PO approvals require a separate fuel allocation.'}
+      · Approved Diesel PO commitments in system: ${UI.money(fuelOrders.reduce((sum,o)=>sum+(+o.amount||0),0))}.
+      Existing approvals remain recorded; new approvals require available Fuel Operations budget.</div></div></section>`;
+    const fundRequests = d.tripFunds || [];
+    const pendingFunds = fundRequests.filter(f => f.status === 'Pending Approval' || f.status === 'Ready for Release');
+    const releasedFunds = fundRequests.filter(f => f.status === 'Released');
+    const tripFunds = UI.table([['Fund', 'fund_ref', (v) => `<b>${UI.esc(v)}</b>`], ['Trip', 'trip_ref'], ['Requested by', 'requested_by_name'], ['Amount', 'amount', 'money'],
+      ['Status', 'status', 'badge'], ['Scheduled trip', 'scheduled_at', 'date']], fundRequests,
+      { title: 'Trip fund requests (' + fundRequests.length + ')', showAllColumns: true, limit: 5,
+        tools: '<button type="button" class="btn btn-sm btn-outline-primary" data-go="funds"><i class="bi bi-box-arrow-up-right"></i> Open Trip Fund Releases</button>',
+        empty: 'No trip fund requests yet.' });
+    const fundSummary = `<div class="ws-foot">Dispatcher trip funds: ${pendingFunds.length} awaiting Head approval or Finance release (${UI.money(pendingFunds.reduce((sum, f) => sum + +f.amount, 0))}) · ${releasedFunds.length} released (${UI.money(releasedFunds.reduce((sum, f) => sum + +f.amount, 0))}). Head approval reserves the Trip Operations budget; Finance release converts the reservation into recorded cash outflow and expense.</div>`;
     const cats = [...new Set(exp.map(e => e.category))].sort(), srcs = [...new Set(exp.map(e => e.source))].sort();
     const rows = exp.filter(e => (!q.category || e.category === q.category) && (!q.source || e.source === q.source));
     const mix = top.length ? `<section class="panel"><div class="panel-head"><h2 class="panel-title">Expenses by category (period)</h2></div><div class="panel-body">${top.map(([k, v]) => `
       <div class="ws-bar"><div class="ws-bar-top"><span>${UI.esc(k)}</span><b>${UI.money(v)} · ${Math.round(v / total * 100)}%</b></div><div class="ws-bar-track"><div class="ws-bar-fill tone-blue" style="width:${(v / top[0][1] * 100).toFixed(1)}%"></div></div></div>`).join('')}
       <div class="ws-foot">Source of each amount: fund releases, PO payments, payables, repair costs and manual entries (expenses table). Totals follow the period above.</div></div></section>` : '';
-    box.innerHTML = budgets + FinUI.period(ctx, d) + `<div class="mo-grid maint-overview" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)"><div class="mo-main">`
+    box.innerHTML = budgets + tripBudgetSummary + fuelBudgetSummary + fundSummary + tripFunds + `<div class="ws-foot">Operating trip funds released: ${UI.money(tripFundExpenses.reduce((sum, e) => sum + +e.amount, 0))} (${tripFundExpenses.length} record(s)) · Purchasing PO payments: ${UI.money(poPaymentExpenses.reduce((sum, e) => sum + +e.amount, 0))} (${poPaymentExpenses.length} record(s)). These are expenses in the selected period; the purchasing budget is set separately.</div>` + FinUI.period(ctx, d) + `<div class="mo-grid maint-overview" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)"><div class="mo-main">`
       + UI.generalFilters(ctx, [{ name: 'category', label: 'Categories', options: cats }, { name: 'source', label: 'Sources', options: srcs }])
       + UI.table([['Date', 'incurred_on', 'date'], ['Category', 'category'], ['Amount', 'amount', 'money'], ['Source', 'source', (v, e) => `${UI.esc(v)}${e.reference_number ? `<div class="cell-sub">${UI.esc(e.reference_number)}</div>` : ''}`],
         ['Trip / truck', 'trip_ref', (v, e) => UI.e(v || e.plate_number)], ['Payee', 'payee'], ['Description', 'description', (v) => `<span class="cell-clamp" title="${UI.esc(v)}">${UI.esc(v)}</span>`]], rows,

@@ -5,11 +5,122 @@
    Backend: backend/Modules/Accounting/Funds.php */
 'use strict';
 const FundUI = {
-  async details(id) {
+  async details(id, initialTab = 'overview', reviewTarget = null, releaseContext = null) {
     let f;try{f=(await App.api('Funds.details',{fund_id:id})).fund;}catch(error){return UI.toast(error.message,'error');}
-    const html=UI.fundProgress(f)+UI.h('Request')+UI.kv([['Reference',UI.e(f.fund_ref)],['Trip',UI.e(f.trip_ref)],['Client',UI.e(f.client)],['Truck',UI.e(f.plate_number)],['Trip status',UI.e(f.trip_status)],['Requested by',UI.e(f.requested_by_name)],['Amount',UI.money(f.amount)],['Status',UI.badge(f.status)],['Rejection reason',UI.e(f.rejected_reason)],['Notes',UI.e(f.notes)]])+UI.h('Breakdown')+UI.table([['Category','category_name'],['Amount','amount','money']],f.lines||[],{plain:true})+UI.h('Release & Liquidation')+UI.kv([['Approved by',UI.e(f.approved_by_name)],['Released by',UI.e(f.released_by_name)],['Voucher',UI.e(f.voucher_number)],['Payment method',UI.e(f.payment_method)],['Reference',UI.e(f.reference_number)],['Released',UI.datetime(f.released_at)],['Liquidation status',UI.e(f.liquidation_status)],['Spent',UI.money(f.liquidated_amount)],['Returned',UI.money(f.returned_amount)],['Liquidation notes',UI.e(f.liquidation_notes)]])+UI.h('Documents')+UI.docs(f.documents||[])+UI.h('Activity')+UI.activity(f.history||[]);
-    const drawer=UI.drawer(UI.esc(f.fund_ref),html,{subtitle:'Fund request details'});
-    UI.drawerSections(drawer,[['summary','Summary',['Request']],['breakdown','Expense Breakdown',['Breakdown']],['release','Release & Liquidation',['Release & Liquidation']],['docs','Documents',['Documents']],['history','Activity',['Activity']]],{key:'fund-details'});
+    const po=f.diesel_po_record;
+    const legacy=f.diesel_po_legacy;
+    const status=f.status||'Pending Approval';
+    // Review the selected financial instrument only: cash and Diesel PO are independent.
+    const cashPending=f.status==='Pending Approval';
+    const poPending=po?.status==='Draft';
+    const target=reviewTarget==='diesel'?'diesel':reviewTarget==='cash'?'cash'
+      :(initialTab==='diesel'?'diesel':'cash');
+    const canReview=UI.role('operations_head')&&(target==='diesel'?poPending:cashPending);
+    const heading='<div class="fund-detail-header">'
+      +'<div><span class="small text-muted">CASH FUND REQUEST</span><div class="fw-bold">'+UI.esc(f.fund_ref)+'</div>'
+      +'<div class="small text-muted">'+UI.esc(f.trip_ref)+' · '+UI.esc(f.client||'')+'</div></div>'
+      +'<div class="fund-detail-total"><span>Cash requested</span><strong>'+UI.money(f.amount)+'</strong>'+UI.badge(status)+'</div></div>';
+    const overview='<div class="fund-detail-milestones d-flex flex-wrap gap-2 mb-3">'
+      +[['Submitted',!!f.created_at],['Approved',!!f.approved_at],['Released',!!f.released_at],['Liquidated',f.liquidation_status==='Liquidated']]
+        .map(([label,done])=>'<span class="fund-detail-milestone '+(done?'is-done':'')+'"><i class="bi '+(done?'bi-check-circle-fill':'bi-circle')+'"></i> '+label+'</span>').join('')+'</div>'
+      +'<div class="fund-detail-section"><h3 class="fs-6 fw-semibold">Request Information</h3>'
+      +UI.kv([['Trip',UI.e(f.trip_ref)],['Client',UI.e(f.client)],['Truck',UI.e(f.plate_number)],
+        ['Requested by',UI.e(f.requested_by_name)],['Trip status',UI.e(f.trip_status)],
+        ['Request date',UI.datetime(f.created_at)],['Notes',UI.e(f.notes)],
+        f.rejected_reason?['Rejection reason',UI.e(f.rejected_reason)]:null])+'</div>'
+      +'<div class="fund-detail-section"><h3 class="fs-6 fw-semibold">Approval & Cash Release</h3>'
+      +UI.kv([['Approved by',UI.e(f.approved_by_name)],['Released by',UI.e(f.released_by_name)],
+        ['Release date',UI.datetime(f.released_at)],['Voucher',UI.e(f.voucher_number)],
+        ['Payment method',UI.e(f.payment_method)],['Payment reference',UI.e(f.reference_number)],
+        ['Liquidation status',UI.e(f.liquidation_status)],['Spent',f.liquidated_amount!=null?UI.money(f.liquidated_amount):'—'],
+        ['Returned',f.returned_amount!=null?UI.money(f.returned_amount):'—'],
+        f.liquidation_notes?['Liquidation notes',UI.e(f.liquidation_notes)]:null])+'</div>';
+    // Expense breakdown is a short read-only summary, not a paginated data table.
+    // Keep the exact stored category labels and amounts, including any extra lines.
+    const expenseRows=(f.lines||[]).map(line=>'<div class="fund-expense-line">'
+      +'<span class="fund-expense-name">'+UI.esc(line.category_name||'Other expense')+'</span>'
+      +'<strong class="fund-expense-amount">'+UI.money(line.amount)+'</strong></div>').join('');
+    const expenses='<div class="fund-detail-section fund-expense-summary">'
+      +'<div class="d-flex justify-content-between gap-2 align-items-center mb-2">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Requested Cash Expenses</h3>'
+      +'<span class="small text-muted">'+UI.num((f.lines||[]).length)+' categories</span></div>'
+      +(expenseRows||'<p class="small text-muted mb-0">No cash expenses recorded.</p>')
+      +'<div class="fund-expense-total"><span>Total Cash Request</span><strong>'+UI.money(f.amount)+'</strong></div></div>'
+      +'<p class="small text-muted mt-2">Finance releases only this cash fund. Diesel PO is processed separately.</p>';
+    const poHtml=f.diesel_po?'<div class="fund-detail-section"><div class="d-flex justify-content-between align-items-center gap-2 mb-3">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Diesel Purchase Order</h3>'+(po?UI.badge(po.status):'<span class="small text-muted">Legacy PO — read only</span>')+'</div>'
+      +UI.kv([['P.O. Number',UI.e(f.diesel_po.po_number)],['Created',UI.e(f.diesel_po.po_date)],
+        ['Vehicle',UI.e(f.diesel_po.vehicle)],['Plate',UI.e(f.diesel_po.plate_number)],
+        ['Liters',UI.e(f.diesel_po.lines?.map(line=>line.liters).join(', '))],
+        ['Price per liter',UI.e(f.diesel_po.lines?.map(line=>UI.money(line.unit_price)).join(', '))],
+        ['PO Total',UI.money(f.diesel_po.total_amount)],
+        ['Supplier SOA',po?UI.e(po.received_at?'Received '+UI.datetime(po.received_at):'Awaiting receipt after trip'):'Not tracked'],
+        po?.decision_reason?['Decision reason',UI.e(po.decision_reason)]:null,
+        po?.verification_notes?['SOA verification',UI.e(po.verification_notes)]:null])
+      +(UI.isDispatcher?.()&&['Draft','Rejected'].includes(po?.status)
+        ?'<div class="mt-3"><button class="btn btn-sm btn-primary" data-po-revise>Edit Diesel PO</button></div>':'')
+      +'</div><p class="small text-muted">Diesel PO approval does not release cash funds or mark supplier SOA as paid.</p>'
+      :'<div class="fund-detail-empty">No Diesel PO attached to this request.</div>';
+    // Finance tracks fuel purchase orders on Purchase Orders > Fuel / Diesel PO,
+    // not on the cash fund review and release drawer.
+    const records='<div class="fund-detail-section"><h3 class="fs-6 fw-semibold mb-2">Documents</h3>'
+      +UI.docs(f.documents||[])+'</div>'
+      +'<div class="fund-detail-section"><h3 class="fs-6 fw-semibold mb-2">Activity History</h3>'
+      +UI.activity(f.history||[])+'</div>';
+    const drawer=UI.drawer(UI.esc(f.fund_ref),'<div class="fund-detail-view">'+heading
+      +'<div class="fund-detail-toolbar d-flex flex-wrap gap-2 mb-3 align-items-center"><button type="button" class="btn btn-sm btn-outline-secondary" data-fund-print><i class="bi bi-printer"></i> Print Fund Request</button>'
+      +(UI.canGo('trips')?'<button type="button" class="btn btn-sm btn-outline-secondary" data-fund-trip><i class="bi bi-truck"></i> View Trip</button>':'')
+      +(canReview?'<div class="fund-detail-review-actions d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-success" data-fund-review="approve">Approve</button><button type="button" class="btn btn-sm btn-outline-danger" data-fund-review="reject">Reject</button></div>':'')
+      +(UI.role('finance')&&f.status==='Ready for Release'&&releaseContext
+        ?'<div class="fund-detail-review-actions d-flex align-items-center gap-2">'
+          +(releaseContext.release_allowed_now
+            ?'<button type="button" class="btn btn-sm btn-success" data-fund-release>Confirm Release</button>'
+            :'<span class="small text-muted">Cash release opens '+UI.datetime(releaseContext.release_opens_at)+' (PH time)</span>')
+          +'</div>':'')
+      +'</div><div data-fund-detail-tabs></div></div>',{subtitle:'Fund approval and Diesel PO review'});
+    drawer.querySelector('[data-fund-release]')?.addEventListener('click',()=>{
+      if(!UI.role('finance')||f.status!=='Ready for Release'||!releaseContext?.release_allowed_now)return;
+      UI.confirmAction('Confirm release of '+UI.esc(f.fund_ref),
+        'Release <b>'+UI.money(f.amount)+'</b> in <b>cash</b> for '+UI.esc(f.trip_ref)+'.'
+        +'<br><span class="small text-muted">Finance releases cash only. The payment voucher and Philippine release date are recorded automatically. Diesel PO is independent.</span>',
+        'Funds.release',{fund_id:id},{submit:'Confirm Release',
+          after:()=>App.go('funds',{tab:'release'})});
+    });
+    drawer.querySelector('[data-fund-print]')?.addEventListener('click',()=>FundUI.print(id));
+    drawer.querySelector('[data-fund-trip]')?.addEventListener('click',()=>{
+      UI.closeDrawer();
+      App.go('trips',{tab:'active',open:f.trip_id});
+    });
+    const tabs=drawer.querySelector('[data-fund-detail-tabs]');
+    UI.tabs(tabs,[['overview','Overview',()=>overview],['expenses','Expenses',()=>expenses],
+      ...(f.diesel_po&&!UI.role('finance')?[['diesel','Diesel PO',()=>poHtml]]:[]),['records','Documents & Activity',()=>records]],
+      !UI.role('finance')&&initialTab==='diesel'&&f.diesel_po?'diesel':'overview',
+      {key:'fund-detail-compact',forceActive:true,retainPanels:true});
+    drawer.querySelector('[data-po-revise]')?.addEventListener('click',()=>{
+      UI.formModal('Edit Diesel PO',[{name:'liters',label:'Number of Liters',type:'number',required:true,col:12,
+        value:f.diesel_po?.lines?.[0]?.liters||'',min:0.001}],
+        'Funds.diesel_revise',{extra:{po_id:po.id},intro:'Update the Diesel PO without changing approved cash funds.',
+          after:()=>FundUI.details(id,'diesel')});
+    });
+    // Approval controls stay attached to the selected queue, not to the details tab.
+    // Approving Cash Fund never approves Diesel PO, or vice versa.
+    drawer.querySelectorAll('[data-fund-review]').forEach(button=>button.onclick=()=>{
+      const decision=button.dataset.fundReview,approve=decision==='approve';
+      const diesel=target==='diesel';
+      const entity=diesel?'Diesel PO':'Cash Fund';
+      UI.confirmAction((approve?'Approve ':'Reject ')+entity,
+        (approve?'Approve ':'Reject ')+UI.esc(diesel?po.po_number:f.fund_ref)+' for '+UI.esc(f.trip_ref)+'?'
+          +(approve?(diesel
+            ?'<br><span class="small text-muted">This reserves the Fuel Operations Budget and moves the Diesel PO to Awaiting SOA. Cash Fund status is unchanged.</span>'
+            :'<br><span class="small text-muted">This reserves the Trip Operations Budget and moves the Cash Fund to Finance release. Diesel PO status is unchanged.</span>')
+            :'<br><span class="small text-muted">Only this request is rejected and may be revised separately.</span>'),
+        diesel?'Funds.diesel_decide':'Funds.decide',
+        diesel?{po_id:po.id,decision}:{fund_id:id,decision},{
+          submit:approve?'Approve '+entity:'Reject '+entity,danger:!approve,
+          fields:approve?[]:[{name:'reason',label:'Reason for rejection',required:true,col:12}],
+          after:()=>{UI.closeDrawer();App.go('funds',{tab:diesel?'diesel':'cash'});}
+        });
+    });
   },
   async print(id) {
     let r; try { r = await App.api('Funds.details', { fund_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
@@ -62,19 +173,28 @@ App.page('funds', {
     const cols = [['Fund', 'fund_ref'], ['Trip', 'trip_ref'], ['Client', 'client'], ['Truck', 'plate_number'], ['Breakdown', 'breakdown'], ['Amount', 'amount', 'money'],
       ['Status', 'status', 'badge'], ['Requested by', 'requested_by_name'], ['Request date', 'created_at', 'date']];
     const actions = (f) => {
-      let h = UI.btn('details', 'View Details') + UI.btn('print', 'Print form', 'outline-secondary');
-      if (UI.canGo('trips')) h += UI.btn('trip', 'View trip');
-      if (d.can.approve && f.status === 'Pending Approval') h += UI.btn('approve', 'Approve', 'success') + UI.btn('reject', 'Reject', 'outline-danger');
-      if (d.can.release && f.status === 'Ready for Release') {
-        if (f.release_allowed_now) h += UI.btn('release', 'Confirm Release', 'primary');
-        else h += `<span class="small text-muted" title="Refresh this page once the window opens"><i class="bi bi-clock"></i> Release opens ${UI.datetime(f.release_opens_at)} (PH time)</span>`;
+      // Show actions relevant to this queue; Print and View Trip live in Details.
+      if (d.can.approve && (active.value==='cash'||active.value==='diesel')) {
+        const pending=active.value==='cash'?f.status==='Pending Approval':f.diesel_po_record?.status==='Draft';
+        return pending?UI.btn('review','Review','outline-success'):UI.btn('details','View');
       }
+      // Finance reviews the request before releasing it; completed releases are view-only.
+      if (UI.role('finance') && active.value==='release' && f.status==='Ready for Release')
+        return UI.btn('release_review','Review','outline-success');
+      let h=UI.btn('details','View');
       if (d.can.release && f.status === 'Released' && f.liquidation_status === 'Not Liquidated' && ['Completed', 'Cancelled'].includes(f.trip_status)) h += UI.btn('liquidate', 'Liquidate', 'outline-primary');
       if (d.can.submit && f.status === 'Rejected' && !['Completed', 'Cancelled', 'Rejected'].includes(f.trip_status)) h += UI.btn('revise', 'Revise', 'primary');
       return h;
     };
     const onAction = async (a, f) => {
-      if (a === 'details') return FundUI.details(f.id);
+      if (a==='review') {
+        const diesel=active.value==='diesel';
+        return FundUI.details(f.id,diesel?'diesel':'overview',diesel?'diesel':'cash');
+      }
+      if(a==='release_review') return FundUI.details(f.id,'overview','cash',{
+        release_allowed_now:f.release_allowed_now,release_opens_at:f.release_opens_at
+      });
+      if (a === 'details' || a === 'po') return FundUI.details(f.id, a==='po'?'diesel':'overview', a==='po'?'diesel':'cash');
       if (a === 'print') FundUI.print(f.id);
       if (a === 'trip' && UI.canGo('trips')) App.go('trips', { tab: 'active', open: f.trip_id });
       if (a === 'approve') UI.confirmAction('Approve ' + UI.esc(f.fund_ref), `Approve ${UI.money(f.amount)} for ${UI.esc(f.trip_ref)}? It goes to Finance for release.<br><span class="small text-muted">${UI.esc(f.breakdown)}</span>`, 'Funds.decide', { fund_id: f.id, decision: 'approve' }, { submit: 'Approve' });
@@ -95,16 +215,26 @@ App.page('funds', {
         UI.fundForm({ title: 'Revise ' + f.fund_ref, categories: d.categories, action: 'Funds.submit', payload: { trip_id: f.trip_id }, selected: old.lines.filter(l => +l.is_preset).map(l => l.category_name),
           extra: old.lines.filter(l => !+l.is_preset).map(l => ({ name: l.category_name, amount: l.amount })), intro: 'Rejected because: ' + UI.esc(f.rejected_reason || '') }); }
     };
-    const def = UI.role('operations_head') ? 'pending' : UI.role('finance') ? 'release' : d.can.submit ? 'revision' : 'history';
-    const views = [
-      {value:'pending',label:'Pending Approval',count:n('Pending Approval'),rows:d.funds.filter(f=>f.status==='Pending Approval'),empty:'Nothing waiting for approval.'},
+    const head=UI.role('operations_head');
+    const cashApprovals=d.funds.filter(f=>f.status==='Pending Approval');
+    const dieselApprovals=d.funds.filter(f=>f.diesel_po_record?.status==='Draft');
+    const headRevision=d.funds.filter(f=>f.status==='Rejected'||f.diesel_po_record?.status==='Rejected');
+    const headHistory=d.funds.filter(f=>!cashApprovals.includes(f)&&!dieselApprovals.includes(f)&&!headRevision.includes(f));
+    const def=head?'cash':UI.role('finance')?'release':d.can.submit?'revision':'history';
+    const views=head?[
+      {value:'cash',label:'Cash Fund Approvals',count:cashApprovals.length,rows:cashApprovals,empty:'No Cash Fund requests awaiting approval.'},
+      {value:'diesel',label:'Diesel PO Approvals',count:dieselApprovals.length,rows:dieselApprovals,empty:'No Diesel POs awaiting approval.'},
+      {value:'revision',label:'Needs Revision',count:headRevision.length,rows:headRevision,empty:'No requests need revision.'},
+      {value:'history',label:'History',count:headHistory.length,rows:headHistory,empty:'No historical fund requests.',extra:[['Liquidation','liquidation_status','badge'],['Voucher','voucher_number']]}
+    ]:[
+      ...(d.can.approve?[{value:'cash',label:'Cash Fund Approvals',count:cashApprovals.length,rows:cashApprovals,empty:'No cash fund approvals pending.'},{value:'diesel',label:'Diesel PO Approvals',count:dieselApprovals.length,rows:dieselApprovals,empty:'No Diesel PO approvals pending.'}]:[]),
       {value:'release',label:'To Release',count:n('Ready for Release'),rows:d.funds.filter(f=>f.status==='Ready for Release'),empty:'Nothing to release.'},
       {value:'liquidate',label:'For Liquidation',count:toLiq.length,rows:toLiq,empty:'Nothing for liquidation.',extra:[['Release Date','released_at','date'],['Voucher','voucher_number']]},
       {value:'revision',label:'Needs Revision',count:needsRevision.length,rows:needsRevision,empty:'No fund requests need revision.'},
       {value:'history',label:'History',count:history.length,rows:history,empty:'No historical fund requests.',extra:[['Liquidation','liquidation_status','badge'],['Voucher','voucher_number']]}
     ];
     const workspace=document.createElement('div');
-    workspace.className='fund-approval-workspace';
+    workspace.className='fund-approval-workspace fund-approval-compact-table'+(head?' fund-head-table':UI.role('finance')?' fund-finance-table':'');
     ctx.el.append(workspace);
     let active=views.find(v=>v.value===(ctx.query?.tab||def))||views[0];
     const renderView=()=>{
@@ -118,16 +248,32 @@ App.page('funds', {
         +[['newest','Newest first'],['oldest','Oldest first'],['amount-high','Highest amount'],['amount-low','Lowest amount']].map(([value,label],i)=>'<label class="record-workspace-sort-option"><input type="radio" name="fund_sort" data-record-sort value="'+value+'" '+(!i?'checked':'')+'> '+label+'</label>').join('')
         +'</div></div>';
       const tabs=RecordComponents.tabs(views.map(v=>({value:v.value,label:v.label+' ('+v.count+')'})),active.value,'data-fund-view');
-      const compactCols=[
+      const compactCols=head?[
+
+        // Keep the request date under its reference: no separate wide date column.
+        ['Request / Trip','fund_ref',(value,f)=>'<b>'+UI.esc(value)+'</b>'
+          +'<div class="cell-sub">'+UI.esc(f.trip_ref||'')+'</div>'
+          +'<div class="cell-sub">'+UI.date(f.created_at)+'</div>'],
+        ['Dispatcher','requested_by_name'],
+        ['Cash Amount','amount','money'],
+        ['Cash Status','status','badge'],
+        ['Diesel PO','diesel_po_record',p=>p?UI.badge(p.status):'—']
+      ]:UI.role('finance')?[
+        ['Request / Trip','fund_ref',(value,f)=>'<b>'+UI.esc(value)+'</b><div class="cell-sub">'+UI.esc(f.trip_ref||'')+'</div><div class="cell-sub">'+UI.date(f.created_at)+'</div>'],
+        ['Dispatcher','requested_by_name'],
+        ['Cash Amount','amount','money'],
+        ['Cash Status','status','badge']
+      ]:[
         ['Request / Trip','fund_ref',(value,f)=>'<b>'+UI.esc(value)+'</b><div class="cell-sub">'+UI.esc(f.trip_ref||'')+'</div>'],
         ['Dispatcher','requested_by_name'],
         ['Expense Categories','breakdown'],
-        ['Amount','amount','money'],
+        ['Cash Amount','amount','money'],
         ['Requested','created_at','date'],
-        ['Status','status','badge']
+        ['Cash Status','status','badge'],
+        ['Diesel PO','diesel_po_record',p=>p?UI.badge(p.status):'—']
       ];
       const table=UI.table([...compactCols,...(active.extra||[])],active.rows,{
-        tools:toolbar,actions,onAction,directActions:UI.role('finance'),showAllColumns:true,empty:active.empty
+        tools:toolbar,actions,onAction,directActions:!!d.can.approve||UI.role('finance'),showAllColumns:true,preserveTableWidth:true,empty:active.empty
       });
       workspace.innerHTML=tabs+RecordComponents.panel(table);
       UI.activate(workspace);
@@ -140,6 +286,9 @@ App.page('funds', {
       const tbody=workspace.querySelector('[data-tbody]');
       const state=tbody?UI._tables[tbody.dataset.tbody]:null;
       const original=state?state.rows.slice():[];
+      // The shared pager is useful for multiple pages, not for 1–10 visible records.
+      const updatePager=()=>workspace.classList.toggle('fund-single-page',!state||state.rows.length<=state.limit);
+      updatePager();
       let status='';
       let sort='newest';
       const refresh=()=>{
@@ -157,6 +306,7 @@ App.page('funds', {
         // Shared table pages use zero-based indexing. Show the first matching row.
         state.page=0;
         UI.drawTable(tbody.dataset.tbody);
+        updatePager();
       };
       RecordComponents.bindDropdowns(workspace,{
         apply(panel){status=panel.querySelector('[name="status"]')?.value||'';refresh();},

@@ -2183,3 +2183,225 @@ body:has(#pageContent .mp-wireframe-marker) .offcanvas.show .offcanvas-body {
   body:has(#pageContent .purchasing-live-v1) .modal.show .modal-body,
   body:has(#pageContent .mp-wireframe-marker) .modal.show .modal-body {padding:13px}
 }
+
+/* Fund Approvals: keep the Head's independent Cash and Diesel PO actions visible
+   without the generic "Manage record" dialog. Scope only to this workspace. */
+.fund-approval-workspace .record-workspace-tabs{
+  display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;
+}
+.fund-approval-workspace .record-workspace-tab{
+  font-size:12px;padding:8px 11px;min-height:36px;
+}
+.fund-approval-workspace .record-workspace-heading{
+  padding:11px 14px 6px;
+}
+.fund-approval-workspace .record-workspace-search{
+  padding:6px 14px 10px;
+}
+.fund-approval-workspace .data-table th,
+.fund-approval-workspace .data-table td{
+  vertical-align:middle;
+}
+.fund-approval-workspace .data-table .row-icons{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;
+  gap:5px;min-width:145px;
+}
+.fund-approval-workspace .data-table .row-icons .btn{
+  font-size:11.5px;line-height:1.2;min-height:29px;padding:5px 8px;
+  white-space:nowrap;border-radius:7px;
+}
+.fund-detail-view{min-width:0;font-size:13px;}
+.fund-detail-header{
+  display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;
+  gap:12px;margin-bottom:14px;padding:14px;
+  border:1px solid #d9e8dd;background:#f6faf7;border-radius:10px;
+}
+.fund-detail-total{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.fund-detail-total>span{font-size:11px;color:#61766a}
+.fund-detail-total>strong{font-size:23px;line-height:1.1;color:#1e653b;font-variant-numeric:tabular-nums}
+.fund-detail-view .line-tabs{display:flex;flex-wrap:nowrap;gap:4px;overflow-x:auto;margin:0 0 12px;padding:0 0 6px}
+.fund-detail-view .line-tabs .tab{
+  flex:0 0 auto;white-space:nowrap;font-size:12px;min-height:34px;padding:7px 11px
+}
+.fund-detail-view .tab-body{padding:0;min-width:0}
+.fund-detail-view .tab-body>[role="tabpanel"][hidden]{display:none}
+.fund-detail-view .tab-body>[role="tabpanel"]{min-width:0}
+.fund-detail-milestones{margin-bottom:12px}
+.fund-detail-milestone{
+  display:inline-flex;align-items:center;gap:5px;padding:6px 9px;
+  border:1px solid #e0e8e2;border-radius:7px;color:#66796b;font-size:12px
+}
+.fund-detail-milestone.is-done{color:#176537;background:#f0f8f1;border-color:#cce4d0}
+.fund-detail-section{border:1px solid #e2eae4;border-radius:10px;padding:12px;margin-bottom:12px;min-width:0}
+.fund-detail-section>.kv{margin-bottom:0}
+.fund-detail-section .kv dt,.fund-detail-section .kv dd{padding-top:7px;padding-bottom:7px;font-size:12.5px}
+.fund-detail-empty{padding:18px;border:1px dashed #dae5db;border-radius:9px;color:#677a6c}
+.fund-detail-actions{margin-top:12px}
+@media(max-width:600px){
+  .fund-detail-header{padding:11px}
+  .fund-detail-total{align-items:flex-start}
+  .fund-approval-workspace .data-table .row-icons{flex-wrap:wrap}
+}
+
+/* Read-only cash expense breakdown: a compact list rather than a large table. */
+.fund-expense-summary .fund-expense-line{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:16px;padding:10px 2px;border-bottom:1px solid #e7eee9;
+}
+.fund-expense-summary .fund-expense-name{min-width:0;overflow-wrap:anywhere;color:#33483b}
+.fund-expense-summary .fund-expense-amount{flex:0 0 auto;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;color:#253e30}
+.fund-expense-summary .fund-expense-total{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-top:12px;padding:12px 14px;background:#eff8f1;
+  border:1px solid #cfe6d4;border-radius:8px;color:#185c35;
+}
+.fund-expense-summary .fund-expense-total strong{font-size:16px;white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:480px){
+ .fund-expense-summary .fund-expense-line{gap:8px;padding:9px 0;font-size:12px}
+ .fund-expense-summary .fund-expense-total{padding:10px;font-size:12px}
+}
+
+/* Fund Approvals list: compact row density, one-line review actions and no
+   redundant pager when all matching records fit on the first page. */
+.fund-approval-compact-table .record-workspace-panel .table-wrap{
+  overflow-x:auto;
+}
+.fund-approval-compact-table .record-workspace-panel .data-table{
+  width:100%;
+  table-layout:auto;
+}
+.fund-approval-compact-table .record-workspace-panel .data-table th{
+  padding:10px 12px;
+  white-space:nowrap;
+  font-weight:650;
+}
+.fund-approval-compact-table .record-workspace-panel .data-table td{
+  padding:11px 12px;
+  line-height:1.4;
+}
+.fund-approval-compact-table .record-workspace-panel .data-table td.actions-col{
+  width:218px;
+  min-width:218px;
+  white-space:nowrap;
+}
+.fund-approval-compact-table .record-workspace-panel .row-actions,
+.fund-approval-compact-table .record-workspace-panel .row-icons{
+  display:inline-flex;
+  flex-flow:row nowrap;
+  justify-content:flex-start;
+  align-items:center;
+  gap:6px;
+  width:auto;
+  min-width:0;
+  max-width:none;
+}
+.fund-approval-compact-table .record-workspace-panel .row-icons .btn{
+  flex:0 0 auto;
+  min-height:32px;
+  padding:6px 10px;
+  white-space:nowrap;
+}
+.fund-approval-compact-table .record-workspace-panel .cell-sub{
+  margin-top:2px;
+  font-size:11.5px;
+}
+.fund-approval-compact-table.fund-single-page .record-workspace-panel [data-tpager]{
+  display:none;
+}
+@media(max-width:850px){
+  .fund-approval-compact-table .record-workspace-panel .data-table{
+    min-width:880px;
+  }
+}
+
+/* Keep fund decision controls beside View Trip, on a single compact action row. */
+.fund-detail-toolbar{row-gap:8px}
+.fund-detail-review-actions{display:inline-flex;flex-wrap:nowrap;gap:8px;align-items:center;margin-left:auto;justify-content:flex-end}
+.fund-detail-review-actions .btn{white-space:nowrap;min-height:34px;padding:6px 13px}
+.fund-detail-review-label{white-space:nowrap;color:#66776c}
+@media(max-width:600px){
+  .fund-detail-review-actions{width:100%;margin-left:0;justify-content:flex-end;padding-top:7px;border-top:1px solid #e5eee8}
+  .fund-detail-review-label{margin-right:auto}
+}
+
+/* Operations Head approvals: six useful columns fit the workspace without
+   reserving the old 218px multi-action width for a single Review/View button. */
+.fund-head-table .record-workspace-panel .data-table{
+  width:100%;
+  min-width:0;
+  table-layout:auto;
+}
+.fund-head-table .record-workspace-panel .data-table th,
+.fund-head-table .record-workspace-panel .data-table td{
+  padding:10px 11px;
+  vertical-align:middle;
+}
+.fund-head-table .record-workspace-panel .data-table td.actions-col{
+  width:104px;
+  min-width:104px;
+  text-align:center;
+}
+.fund-head-table .record-workspace-panel .data-table .row-icons,
+.fund-head-table .record-workspace-panel .data-table .row-actions{
+  justify-content:center;
+  min-width:0;
+  width:100%;
+  margin:0;
+}
+.fund-head-table .record-workspace-panel .data-table .row-icons .btn{
+  min-width:76px;
+  white-space:nowrap;
+}
+.fund-head-table .record-workspace-panel .data-table .cell-sub{
+  white-space:normal;
+  line-height:1.3;
+}
+.fund-head-table .record-workspace-panel .data-table td.money-col{
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.fund-head-table .record-workspace-panel .table-wrap{
+  max-width:100%;
+  overflow-x:auto;
+}
+@media(max-width:760px){
+ .fund-head-table .record-workspace-panel .data-table{min-width:690px}
+}
+
+/* Finance release list: compact, review-first rows; full expenses belong in Details. */
+.fund-finance-table .record-workspace-panel .data-table{
+  width:100%;
+  min-width:0;
+  table-layout:auto;
+}
+.fund-finance-table .record-workspace-panel .data-table th,
+.fund-finance-table .record-workspace-panel .data-table td{
+  padding:10px 12px;
+  vertical-align:middle;
+}
+.fund-finance-table .record-workspace-panel .data-table td.actions-col{
+  width:110px;
+  min-width:110px;
+  white-space:nowrap;
+  text-align:center;
+}
+.fund-finance-table .record-workspace-panel .data-table .row-icons,
+.fund-finance-table .record-workspace-panel .data-table .row-actions{
+  width:100%;
+  min-width:0;
+  margin:0;
+  justify-content:center;
+}
+.fund-finance-table .record-workspace-panel .data-table .row-icons .btn{
+  min-width:76px;
+  white-space:nowrap;
+}
+.fund-finance-table .record-workspace-panel .data-table td.money-col{
+  text-align:right;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+@media(max-width:760px){
+  .fund-finance-table .record-workspace-panel .data-table{min-width:690px}
+}

@@ -54,27 +54,15 @@ final class DispatcherScope {
         ))";
         return [" AND ($driver OR $helper)",[...$types,...$types,...$types]];
     }
-    /**
-     * Attendance-only scope. Unpaired personnel may report for duty using an
-     * explicitly configured group, but trip assignment keeps personnelSql().
+    /** Attendance follows verified truck links, never a manually selected group.
+     * Drivers use authorized trucks; Helpers use the exclusive regular truck.
+     * Personnel without a truck association are not yet eligible for a Dispatcher roster.
      */
     public static function attendanceGroupReady(PDO $p): bool {
         return (bool)one($p, "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='personnel' AND COLUMN_NAME='attendance_group'");
     }
     public static function attendancePersonnelSql(array $u, string $alias = 'pe', ?PDO $p = null): array {
-        [$scope, $args] = self::personnelSql($u, $alias);
-        if (!self::attendanceGroupReady($p ?? db())) return [$scope, $args];
-        $roles = array_values(array_unique(array_map('dispatcherRoleFor', self::types($u))));
-        $marks = implode(',', array_fill(0, count($roles), '?'));
-        $hasActiveLink = "({$alias}.person_type='Driver' AND EXISTS (
-            SELECT 1 FROM driver_truck_authorizations da JOIN vehicles av ON av.id=da.vehicle_id
-            WHERE da.driver_id={$alias}.id AND av.active=1
-        )) OR ({$alias}.person_type='Helper' AND EXISTS (
-            SELECT 1 FROM vehicles sv WHERE sv.active=1 AND sv.assigned_helper_id={$alias}.id
-        ))";
-        $linkedScope = substr($scope, 5); // strip the leading " AND " from personnelSql()
-        return [" AND (($linkedScope) OR ({$alias}.attendance_group IN ($marks)
-            AND NOT ($hasActiveLink)))", [...$args, ...$roles]];
+        return self::personnelSql($u, $alias);
     }
     public static function attendancePerson(PDO $p, array $u, int $id, bool $lock = false): array {
         [$scope, $args] = self::attendancePersonnelSql($u, 'pe', $p);

@@ -589,13 +589,23 @@ const DispatcherUI = {
   },
   async openFund(id,d) {
     let f;try{f=(await App.api('Funds.details',{fund_id:id})).fund;}catch(ex){return UI.toast(ex.message,'error');}
-    const po=f.diesel_po;
+    const po=f.diesel_po,poRecord=f.diesel_po_record;
     const poPanel=po?this.panel('Diesel Purchase Order',
-      UI.kv([['P.O. Number',UI.e(po.po_number)],['Date',UI.e(po.po_date)],['Vehicle',UI.e(po.vehicle)],
+      UI.kv([['P.O. Number',UI.e(po.po_number)],['Workflow Status',poRecord?this.status(poRecord.status):'Legacy PO — read-only'],['Date',UI.e(po.po_date)],['Vehicle',UI.e(po.vehicle)],
         ['Plate Number',UI.e(po.plate_number)],['PO Total',UI.money(po.total_amount)]])
       +UI.table([['Liters','liters'],['Amount per Liter','unit_price','money'],['Total','total','money']],po.lines||[],{plain:true})):'';
     const el=UI.drawer(UI.esc(f.fund_ref),this.panel('Trip Fund Request',UI.kv([['Trip',UI.e(f.trip_ref)],['Requested By',UI.e(f.requested_by_name)],['Request Date',this.datetime(f.created_at)],['Requested Amount',UI.money(f.amount)],['Status',this.fundStatus(f.status)],['Approved By',UI.e(f.approved_by_name)],['Finance Release',f.status==='Released'?'Released':f.status==='Ready for Release'?'Awaiting Finance release':'Not released'],['Remarks',UI.e(f.notes)],f.rejected_reason?['Reason for Revision',UI.e(f.rejected_reason)]:null]))+this.panel('Expense Breakdown',UI.table([['Category','category_name'],['Amount','amount','money']],f.lines,{plain:true}))+poPanel+'<div class="ds-form-footer"><button class="btn btn-outline-success" data-ds-trip="'+(+f.trip_id)+'">View Related Trip</button>'+((f.status==='Rejected'&&['Pre-Assigned','Ready for Dispatch'].includes(f.trip_status)&&f.dispatcher_role===App.me.user.role)?'<button class="btn btn-primary" data-revise-fund>Revise Request</button>':'')+'</div>',{subtitle:UI.esc(f.trip_ref)});
     this.bindTrips(el);el.querySelector('[data-revise-fund]')?.addEventListener('click',()=>this.fundForm({id:f.trip_id,trip_ref:f.trip_ref},d.categories,f));
+    if(['Draft','Rejected'].includes(poRecord?.status)){
+      const button=document.createElement('button');button.type='button';
+      button.className='btn btn-sm btn-outline-primary mt-2';button.textContent='Edit Diesel PO';
+      el.querySelector('.offcanvas-body')?.append(button);
+      button.addEventListener('click',()=>UI.formModal('Revise Diesel PO',[
+        {name:'liters',label:'Number of Liters',type:'number',required:true,col:12,value:po?.lines?.[0]?.liters||''}
+      ],'Funds.diesel_revise',{extra:{po_id:poRecord.id},
+        intro:'Resubmit the Diesel PO for Operations Head review. Cash funds are not changed.',
+        after:()=>this.openFund(id,d)}));
+    }
   },
   async openDiesel(t,d) {
     let docs=d.dieselDocuments.filter(doc=>+doc.trip_id===+t.id);
@@ -606,6 +616,14 @@ const DispatcherUI = {
   },
   incidents(ctx) {
     ctx.setTitle('Incidents','Review incident records and monitor corrective maintenance coordination.');
+    // Incident reporting is available here as well as inside an active trip.
+    // The shared form selects only trips assigned to the signed-in Dispatcher.
+    const reportButton=document.createElement('button');
+    reportButton.type='button';
+    reportButton.className='btn btn-sm btn-primary';
+    reportButton.innerHTML='<i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Report Incident / Breakdown';
+    reportButton.addEventListener('click',()=>this.reportIncident());
+    // Place the action in the existing record heading above Search / Filter / Sort.
     const rows=ctx.data.incidents;
     const kpis=Array.isArray(rows)
       ?'<div class="small text-muted mb-2">Incidents: <b>'+UI.num(rows.length)+'</b>'
@@ -616,15 +634,59 @@ const DispatcherUI = {
     ctx.el.innerHTML=kpis+this.filters(ctx,fields,{...opts,placeholder:'Search incident, trip, truck, or location…'})+'<div data-incidents></div>';
     if(!Array.isArray(rows)){ctx.el.insertAdjacentHTML('beforeend','<p role="alert">Incident records unavailable.</p>');return;}
     const q=ctx.query,filter=q.incident,filtered=rows.filter(i=>(!filter||(filter==='open'?i.status!=='Resolved':i.status===filter))&&(!q.incident_type||i.incident_type===q.incident_type)&&(!q.job_status||i.job_status===q.job_status)&&this.contains(i,['incident_ref','trip_ref','plate_number','problem','location'],q.search));const table=ctx.el.querySelector('[data-incidents]');table.innerHTML=UI.table([['Incident / Trip','incident_ref',(v,i)=>`<b>${UI.esc(v)}</b><div>${UI.esc(i.trip_ref)}</div>`],['Truck','plate_number'],['Problem','problem'],['Incident Status','status',v=>this.status(v)],['Maintenance Status','job_status',v=>v?this.status(v):'Awaiting assessment']],filtered,{showAllColumns:true,actions:()=>UI.btn('view','View'),onAction:(a,i)=>this.openIncident(i),empty:'No incident reports match.'});this.activateRecords(table);this.bindFilters(ctx,fields,opts);this.standardRecords(ctx,table,{title:'Incident Records',searchFields:['incident_ref','trip_ref','plate_number','problem','location']});
+    // Use the existing record header rather than creating a second full-width
+    // action row (which introduced unnecessary vertical whitespace).
+    const heading=ctx.el.querySelector('.dispatcher-standard-workspace .record-workspace-heading');
+    if(heading){
+      heading.classList.add('d-flex','align-items-center','justify-content-between','flex-wrap','gap-2');
+      heading.append(reportButton);
+    }
   },
   openIncident(i) {
     const el=UI.drawer(UI.esc(i.incident_ref),this.panel('Incident Information',UI.kv([['Trip',UI.e(i.trip_ref)],['Truck',UI.e(i.plate_number)],['Incident Type',UI.e(i.incident_type)],['Problem',UI.e(i.problem)],['Description',UI.e(i.details)],['Location',UI.e(i.location)],['Reported',this.datetime(i.incident_at)],['Severity',UI.e(i.severity||'Not assessed')],['Incident Status',UI.badge(i.status)],['Corrective Maintenance',UI.e(i.job_ref)],['Maintenance Status',UI.e(i.job_status)],['Recommendation',UI.e(i.recommendation)]]))+'<p class="small text-muted">Maintenance personnel record findings, repairs, costs, completion, and clearance. Dispatchers resume or reschedule only through the existing trip controls.</p><button class="btn btn-primary" data-ds-trip="'+(+i.trip_id)+'">View Linked Trip</button>',{subtitle:UI.esc(i.plate_number)});this.bindTrips(el);
   },
   async reportIncident() {
-    let d;try{d=await this.ensureTrips();}catch(ex){return UI.toast(ex.message,'error');}
-    const eligible=d.active.filter(t=>Number(t.responsible_dispatcher_id)===Number(App.me.user.id)&&['Dispatched','In Transit'].includes(t.status)&&t.vehicle_id);
+    let d;
+    try {d=await this.ensureTrips();} catch(ex) {return UI.toast(ex.message,'error');}
+    const eligible=(d.active||[]).filter(t=>Number(t.responsible_dispatcher_id)===Number(App.me.user.id)
+      &&['Dispatched','In Transit'].includes(t.status)&&t.vehicle_id);
     if(!eligible.length)return UI.toast('No dispatched or in-transit trip is eligible for an incident report.','warn');
-    const modal=UI.modal('Submit Incident Report',UI.fields([{name:'trip_id',label:'Associated Trip / Vehicle',type:'select',required:true,col:12,options:eligible.map(t=>[t.id,t.trip_ref+' · '+t.plate_number])}]),async values=>{const r=await App.api('Trips.details',{trip_id:values.trip_id});if(r.trip.dispatcher_role!==App.me.user.role||!['Dispatched','In Transit'].includes(r.trip.status))throw new Error('This trip is no longer eligible for incident reporting.');modal.addEventListener('hidden.bs.modal',()=>TripUI.incident(r.trip),{once:true});},{submit:'Continue',confirmBeforeSubmit:false});
+    // One modal, using the exact incident report fields used from Trip Details.
+    // trip_id is a regular form field, passed through to Trips.incident.
+    const modal=UI.formModalFiles('Submit Incident Report',[
+      {name:'trip_id',label:'Associated Trip / Vehicle',type:'select',required:true,col:12,
+        options:eligible.map(t=>[t.id,t.trip_ref+' · '+t.plate_number])},
+      {name:'incident_type',label:'Incident type',type:'select',
+        options:UI.list(['Breakdown','Flat Tire','Accident','Cargo Damage','Other']),required:true,col:6},
+      {name:'location',label:'Location of the incident',required:true,col:6},
+      {name:'persons_involved',label:'Persons involved',col:6},
+      {name:'problem',label:'Reported problem or damage',required:true,col:6},
+      {name:'reason',label:'Reason / cause (if known)',col:6},
+      {name:'details',label:'Incident details',type:'textarea',rows:4,required:true,col:12},
+      {name:'photos',label:'Photos (optional)',type:'file',multiple:true,col:6,attrs:'accept="image/*"'},
+      {name:'attachments',label:'Police report / other documents (optional)',type:'file',multiple:true,col:6,attrs:'accept="application/pdf,image/*"'}
+    ],'Trips.incident',{
+      intro:'Select the assigned trip and describe the incident. The date and time are automatically recorded by the server in Philippine time when submitted. The trip is placed On Hold and Maintenance is notified.',
+      submit:'Submit Incident Report',
+      after:()=>App.route()
+    });
+    // Populate the crew names from the selected trip; no separate selection modal.
+    if(modal){
+      const tripField=modal.querySelector('[name="trip_id"]');
+      const peopleField=modal.querySelector('[name="persons_involved"]');
+      const updateCrew=()=>{
+        const t=eligible.find(t=>String(t.id)===String(tripField?.value));
+        if(peopleField)peopleField.value=t?[t.driver_name,t.driver2_name,t.helper_name].filter(Boolean).join(', '):'';
+      };
+      tripField?.addEventListener('change',updateCrew);
+      updateCrew();
+      if(typeof this.groupModal==='function')this.groupModal(modal,[
+        ['01 — Associated Trip',['trip_id']],
+        ['02 — Incident Information',['incident_type','location','persons_involved','problem','reason'],
+          '<div class="small text-muted border rounded-3 px-3 py-2 mb-3"><i class="bi bi-clock-history me-2" aria-hidden="true"></i><strong>Report date &amp; time:</strong> Recorded automatically on submission (Philippine time). No manual date entry required.</div>'],
+        ['03 — Description and Evidence',['details','photos','attachments']]
+      ]);
+    }
   },
 
   truckRecords(ctx, availability=false) {
@@ -907,6 +969,32 @@ const DispatcherUI = {
     const columns=personnel?detailColumns.slice(0,4):[detailColumns[0],detailColumns[1],detailColumns[4]];
     const box=ctx.el.querySelector('[data-master-records]');box.innerHTML=UI.table(columns,filtered,{showAllColumns:true,actions:()=>UI.btn('view','View'),onAction:async(a,r)=>{try{const result=await App.api(personnel?'Fleet.crew_details':'Fleet.truck_details',{id:r.id}),record=result[personnel?'person':'truck'];if(!record)throw new Error('Record unavailable.');UI.drawer(UI.esc(personnel?record.full_name:record.plate_number),UI.kv(detailColumns.map(([label,key,fmt])=>[label,UI.fmt(fmt,record[key],record)])),{subtitle:'Operational reference'});}catch(ex){UI.toast(ex.message,'error');}},empty:'No matching records found.'});this.activateRecords(box);this.bindFilters(ctx,fields,opts);this.resourceTabs(ctx,false);if(personnel)this.standardRecords(ctx,box,{title:'Driver Records',tabs:'.ds-resource-tabs',searchFields:['full_name','person_type','regular_truck','trip_ref']});
   },
+  /** A time-only control keeps the attendance day behind the scenes.
+   * Day starts at 06:00 Manila time; 00:00–05:59 belongs to the previous duty day.
+   * The server still validates the full timestamp and its allowed backdating window.
+   */
+  attendanceTimestamp(time) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || '')))
+      throw new Error('Choose a valid attendance time.');
+    const now = UI.nowManila();
+    const dayStart = new Date(now.slice(0, 10) + 'T00:00:00Z');
+    if (+now.slice(11, 13) < 6) dayStart.setUTCDate(dayStart.getUTCDate() - 1);
+    if (+time.slice(0, 2) < 6) dayStart.setUTCDate(dayStart.getUTCDate() + 1);
+    return dayStart.toISOString().slice(0, 10) + 'T' + time;
+  },
+  reviewStaleAttendance(ctx, person) {
+    const stale=person.stale_session;
+    if(!stale?.can_review)return UI.toast('This attendance session is not eligible for correction. Coordinate with the previous Dispatcher or Operations Head.','warn');
+    const now=UI.nowManila();
+    UI.formModal('Review Stale Attendance — '+UI.esc(person.full_name),[
+      {name:'time_out_at',label:'Actual Time Out (Philippine Date and Time)',type:'datetime',required:true,col:12,value:now,attrs:'max="'+now+'"'},
+      {name:'reason',label:'Reason for correction',type:'textarea',required:true,col:12,placeholder:'Explain the verified duty end and why this correction is needed.'}
+    ],'Attendance.reconcile_stale',{
+      extra:{personnel_id:person.id,session_id:stale.id},
+      intro:'Previous open Time In: '+UI.esc(stale.group)+' · '+UI.esc(this.datetime(stale.time_in))+'. Enter the verified actual Time Out, not an estimated time. This change is audited and blocked while an active trip holds the person.',
+      submit:'Confirm Attendance Correction',after:()=>ctx.reload()
+    });
+  },
   attendanceKeys: new Map(),
   attendanceBusy: new Set(),
   openAttendanceTimeIn(ctx, person) {
@@ -916,8 +1004,7 @@ const DispatcherUI = {
     const now=UI.nowManila();
     const selected=UI.fields([{
       name:'time_in_at',label:'Actual Time In (Philippine Time)',
-      type:'datetime',required:true,col:12,value:now,
-      attrs:'max="'+now+'"'
+      type:'time',required:true,col:12,value:now.slice(11,16)
     }]);
     UI.modal('Record Time In — '+UI.esc(person.full_name),
       '<p class="small text-muted mb-2">Select the actual time this person arrived. The current time is prefilled; adjust it before confirming. Choose a time within the current attendance day (starting at 6:00 AM). Backdating is limited to 24 hours.</p>'
@@ -929,7 +1016,7 @@ const DispatcherUI = {
         this.attendanceKeys.set(identity,key);
         try{
           const result=await App.api('Attendance.time_in',{
-            personnel_id:person.id,request_key:key,time_in_at:values.time_in_at
+            personnel_id:person.id,request_key:key,time_in_at:this.attendanceTimestamp(values.time_in_at)
           });
           this.attendanceKeys.delete(identity);
           UI.result(result);
@@ -946,7 +1033,7 @@ const DispatcherUI = {
     const inMode=operation==='time_in',now=UI.nowManila();
     const fields=inMode?UI.fields([{
       name:'time_in_at',label:'Actual Time In (Philippine Time)',
-      type:'datetime',required:true,col:12,value:now,attrs:'max="'+now+'"'
+      type:'time',required:true,col:12,value:now.slice(11,16)
     }]):'';
     const names=rows.map(r=>'<li>'+UI.esc(r.full_name)+'</li>').join('');
     const key=UI.uuid();
@@ -957,7 +1044,7 @@ const DispatcherUI = {
       async values=>{
         const payload={operation,request_key:key,
           items:rows.map(r=>({personnel_id:r.id,...(!inMode?{session_id:r.session?.id}:{})}))};
-        if(inMode)payload.time_in_at=values.time_in_at;
+        if(inMode)payload.time_in_at=this.attendanceTimestamp(values.time_in_at);
         const result=await App.api('Attendance.batch',payload);
         UI.result(result);
         await ctx.reload();
@@ -984,7 +1071,10 @@ const DispatcherUI = {
     const filtered=crewRows.filter(r=>(!q.attendance_status||r.attendance_status===q.attendance_status)&&this.contains(r,['full_name','person_type'],q.search)),box=ctx.el.querySelector('[data-attendance-records]');
     box.innerHTML=UI.table([['Name','full_name',(v,r)=>'<div class="ds-attendance-person-row">'+checkbox(r)+'<div class="ds-attendance-person"><strong>'+UI.esc(v)+'</strong>'+(+r.has_truck_link?'':'<small class="d-block text-muted">Attendance only · no truck link</small>')+'<button type="button" class="ds-attendance-history" data-attendance-history="'+(+r.id)+'" aria-label="View attendance history for '+UI.esc(v)+'"><i class="bi bi-clock-history" aria-hidden="true"></i> History</button></div></div>'],['Role','person_type',v=>'<span class="ds-attendance-role">'+UI.esc(v)+'</span>'],['Time In','session',session=>session?.time_in?'<span class="ds-attendance-time">'+UI.esc(this.datetime(session.time_in))+'</span>':'<span class="ds-attendance-empty">Not recorded</span>'],['Time Out','session',session=>session?.time_out?'<span class="ds-attendance-time">'+UI.esc(this.datetime(session.time_out))+'</span>':'<span class="ds-attendance-empty">—</span>'],['Status','attendance_status',v=>`<span class="ds-attendance-status ${v==='Timed In'?'is-in':v==='Timed Out'?'is-out':'is-pending'}"><span class="ds-attendance-dot" aria-hidden="true"></span>${UI.esc(v)}</span>`]],filtered,{showAllColumns:true,actions:r=>r.action==='Completed'
       ?'<span class="ds-attendance-completed" title="'+UI.esc(r.action_reason||'Attendance cycle completed')+'"><i class="bi bi-check-circle" aria-hidden="true"></i> Completed</span>'
+      :r.stale_session?.can_review
+      ?'<button type="button" class="btn btn-sm btn-outline-warning" data-act="review_stale" title="'+UI.esc(r.action_reason||'')+'">Review Stale Session</button>'
       :`<button type="button" class="btn btn-sm ${r.action==='Time Out'?'ds-attendance-action-out':'ds-attendance-action-in'}" data-act="record" title="${UI.esc(r.action_reason||'')}" ${!d.schema_ready||r.can_record===false?'disabled':''}>${UI.esc(r.action)}</button>`,onAction:async(a,r,button)=>{
+      if(a==='review_stale')return this.reviewStaleAttendance(ctx,r);
       if(r.action==='Time In')return this.openAttendanceTimeIn(ctx,r);
       const operation='time_out',identity=[App.me.user.id,r.id,operation,r.session?.id||0].join(':');if(this.attendanceBusy.has(identity))return;
       this.attendanceBusy.add(identity);const key=this.attendanceKeys.get(identity)||UI.uuid();this.attendanceKeys.set(identity,key);button.disabled=true;button.textContent='Recording…';
@@ -1196,48 +1286,301 @@ const DispatcherUI = {
     this.tripPills(el,t,r,actions,{inspection,arrival,fund});
   },
   tripPills(el,t,r,actions,{inspection,arrival,fund}) {
-    const body=el.querySelector('.offcanvas-body'),parts=new Map([...body.querySelectorAll('.ds-detail')].map(d=>[d.querySelector('summary').textContent,d.querySelector('.ds-detail-body')])),readiness=body.querySelector('.ds-trip-overview-readiness'),prefix='ds-trip-'+UI.uuid();
-    const preparing=['Pre-Assigned','Ready for Dispatch','For Reschedule'].includes(t.status),inspectionDone=inspection?.completed_at&&+inspection.vehicle_id===+t.vehicle_id&&+inspection.has_not_ok===0;
-    const outstandingIncident=r.incidents.some(i=>i.status!=='Resolved');
-    const operationSections=preparing?['Pre-Dispatch Checklist','Dispatch & Progress','Incidents & Maintenance']:['Dispatch & Progress','Pre-Dispatch Checklist','Incidents & Maintenance'];
-    // Four workflow-based tabs; retain the original content and action nodes.
-    const defs=[
-      ['Overview',['Trip Overview','Delivery & Shipment','Truck & Personnel','Activity Timeline'],''],
-      ['Funds & Documents',['Funds & Fuel','Documents','Pricing'],preparing&&fund?.status!=='Released'&&+t.attempt_number===1?'attention':''],
-      ['Trip Operations',operationSections,outstandingIncident?'attention':inspectionDone?'complete':preparing?'attention':''],
-      ['Completion & Arrival',['Completion & Arrival'],t.completed_at&&arrival?.completed_at&&+arrival.vehicle_id===+t.vehicle_id&&+arrival.has_not_ok===0&&!+t.awaiting_arrival?'complete':+t.awaiting_arrival?'attention':'']
-    ];
-    const nav=document.createElement('div');nav.className='ds-trip-tabs';nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Trip details sections');
-    const panels=defs.map(([name,keys,state],index)=>{const panel=document.createElement('section');panel.className='ds-trip-pane';panel.id=prefix+'-pane-'+index;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',prefix+'-tab-'+index);panel.tabIndex=0;panel.hidden=index!==0;
-      keys.forEach((key,position)=>{
-        const content=parts.get(key);if(!content)return;
-        if(keys.length===1){panel.append(content);return;}
-        if(position===0){
-          const section=document.createElement('section');section.className='ds-trip-primary-section';
-          const heading=document.createElement('h3');heading.className='ds-trip-part-title';heading.textContent=key;
-          section.append(heading,content);panel.append(section);
-        }else{
-          const group=document.createElement('details');group.className='ds-trip-subsection';
-          const summary=document.createElement('summary');summary.textContent=key;
-          group.append(summary,content);panel.append(group);
-        }
-      });if(index===0&&readiness)panel.prepend(readiness);
-      const button=document.createElement('button');button.type='button';button.className='ds-trip-tab';button.id=prefix+'-tab-'+index;button.setAttribute('role','tab');button.setAttribute('aria-controls',panel.id);button.setAttribute('aria-selected',String(index===0));button.tabIndex=index===0?0:-1;button.innerHTML=(state?`<i class="bi ${state==='complete'?'bi-check-circle-fill':'bi-exclamation-triangle-fill'} ds-pill-${state}" aria-hidden="true"></i> `:'')+UI.esc(name);if(state)button.setAttribute('aria-label',name+(state==='complete'?' — recorded completion verified':' — needs attention'));nav.append(button);return panel;
+    // Four flat, compact tabs. Existing action nodes retain their listeners.
+    const body=el.querySelector('.offcanvas-body');
+    const parts=new Map([...body.querySelectorAll('.ds-detail')].map(d=>[
+      d.querySelector('summary')?.textContent.trim(),d.querySelector('.ds-detail-body')
+    ]));
+    const buttons=[...body.querySelectorAll('[data-tact]')];
+    const fundStatus=fund?.status||(+t.attempt_number>1?'Optional for redispatch':'Not requested');
+    const released=fund?.status==='Released'||(+t.attempt_number>1&&!fund);
+    const inspected=!!inspection?.completed_at&&+inspection.vehicle_id===+t.vehicle_id&&+inspection.has_not_ok===0;
+    const page=document.createElement('div');page.className='ds-trip-compact-tabs';
+    const next=document.createElement('div');
+    next.className='d-flex flex-wrap align-items-center justify-content-between gap-2 rounded-3 border bg-light px-3 py-2 mb-3';
+    const note=(()=> {
+      if(t.status==='Awaiting Resources')return 'Assign truck and crew';
+      if(t.status==='Pre-Assigned'&&+t.attempt_number===1&&!fund)return 'Request Trip Funds';
+      if(fund?.status==='Rejected')return 'Revise Trip Funds';
+      if(fund?.status==='Pending Approval')return 'Awaiting Operations Head approval';
+      if(fund?.status==='Ready for Release')return 'Awaiting Finance cash release';
+      if(t.status==='Pre-Assigned'&&!released)return 'Awaiting Cash Fund Release';
+      if(t.status==='Pre-Assigned'&&!inspected)return 'Pre-dispatch Checklist';
+      if(t.status==='Ready for Dispatch')return 'Confirm Dispatch';
+      if(['Dispatched','In Transit'].includes(t.status))return 'Complete Trip';
+      if(t.status==='Completed'&&+t.awaiting_arrival)return 'Arrival Checklist';
+      return this.next(t);
+    })();
+    next.innerHTML='<span class="small"><span class="text-muted">Next step</span> <strong>'+UI.esc(note)+'</strong></span>';
+    page.append(next);
+    const nav=document.createElement('nav');nav.className='d-flex flex-wrap gap-2 border-bottom pb-2 mb-3';
+    nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Trip detail tabs');
+    const panels={};
+    const prefix='trip-compact-'+UI.uuid();
+    const names=[['overview','Overview'],['funds','Funds'],['operations','Operations'],['records','Records']];
+    names.forEach(([key,label],i)=>{
+      const button=document.createElement('button');button.type='button';
+      button.className='btn btn-sm '+(i===0?'btn-success':'btn-outline-success');
+      button.setAttribute('role','tab');button.id=prefix+'-tab-'+key;
+      button.setAttribute('aria-controls',prefix+'-panel-'+key);
+      button.setAttribute('aria-selected',String(i===0));button.textContent=label;
+      nav.append(button);
+      const panel=document.createElement('section');panel.id=prefix+'-panel-'+key;
+      panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+      panel.hidden=i!==0;panel.className='ds-trip-tab-panel pb-3';panels[key]=panel;
     });
-    if(actions)actions.querySelectorAll('[data-tact]').forEach(button=>{
-      const act=button.dataset.tact;
-      // Completion belongs to the final tab, not the active dispatch stage.
-      const index=['fund','dieselpo','printfund'].includes(act)?1
-        :['checklist','dispatch','update','resume','reschedule','incident'].includes(act)?2
-        :['complete','arrival'].includes(act)?3:0;
-      panels[index].prepend(button);
+    page.append(nav,...names.map(([key])=>panels[key]));
+    const info=(label,value)=>'<div class="col-sm-6"><small class="text-muted d-block">'+UI.esc(label)
+      +'</small><span class="small fw-semibold">'+UI.esc(value||'—')+'</span></div>';
+    panels.overview.innerHTML='<div class="row g-2 mb-3">'
+      +info('Route',(t.pickup_point||'—')+' → '+(t.delivery_point||'—'))
+      +info('Schedule',this.datetime(t.scheduled_at))
+      +info('Truck',t.plate_number||'Not assigned')
+      +info(t.truck_type==='Car Carrier'?'Crew':'Driver / Helper',
+        [t.driver_name,t.driver2_name,t.helper_name].filter(Boolean).join(' · ')||'Not assigned')
+      +'</div><div class="d-flex flex-wrap gap-2 small">'
+      +'<span class="border rounded px-2 py-1">Fund: <b>'+UI.esc(fundStatus)+'</b></span>'
+      +'<span class="border rounded px-2 py-1">Checklist: <b>'+(inspected?'Completed':released?'Pending':'Locked')+'</b></span>'
+      +'<span class="border rounded px-2 py-1">Dispatch: <b>'+(t.dispatched_at?'Dispatched':'Pending')+'</b></span></div>';
+    const block=(panel,title,key)=>{
+      const node=parts.get(key);if(!node)return;
+      const section=document.createElement('section');section.className='mb-3';
+      const heading=document.createElement('h3');heading.className='fs-6 fw-semibold mb-2';
+      heading.textContent=title;section.append(heading,node);panel.append(section);
+      // Avoid ordinary data hidden behind another dropdown inside a tab.
+      node.querySelectorAll('details').forEach(d=>{
+        if(!d.classList.contains('ds-trip-ops-timeline')&&!d.classList.contains('ds-trip-fund-metadata'))d.open=true;
+      });
+    };
+    block(panels.funds,'Cash Fund','Funds & Fuel');
+    block(panels.funds,'Fuel Pricing','Pricing');
+    // Operations is a concise control panel, not the full historical timeline.
+    const dispatched=!!t.dispatched_at||['Dispatched','In Transit','Completed'].includes(t.status);
+    const completed=t.status==='Completed';
+    const eligibleChecklist=released&&t.time_gates?.checklist_allowed_now!==false;
+    const stage=(label,done,current)=>'<div class="col-3"><div class="border rounded-3 px-2 py-2 text-center h-100">'
+      +'<i class="bi '+(done?'bi-check-circle-fill text-success':current?'bi-clock-history text-warning':'bi-lock text-muted')+'" aria-hidden="true"></i>'
+      +'<div class="small fw-semibold mt-1">'+UI.esc(label)+'</div></div></div>';
+    const stageRow=document.createElement('section');stageRow.className='mb-3';
+    stageRow.innerHTML='<h3 class="fs-6 fw-semibold mb-2">Trip Progress</h3><div class="row g-2">'
+      +stage('Assigned',!!(t.vehicle_id&&t.driver_id),false)
+      +stage('Funds',released,!released)
+      +stage('Checklist',inspected,released&&!inspected)
+      +stage('Dispatch',dispatched,inspected&&!dispatched)+'</div>';
+    panels.operations.append(stageRow);
+    const checklistStatus=inspected?'Completed':!released?'Locked — awaiting Finance cash release':
+      !eligibleChecklist?'Waiting for inspection window':'Pending inspection';
+    const checklistSection=document.createElement('section');checklistSection.className='mb-3';
+    checklistSection.innerHTML='<div class="d-flex align-items-center justify-content-between gap-2 mb-1">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Pre-Dispatch Checklist</h3>'
+      +'<span class="badge-s '+(inspected?'green':released?'amber':'')+'">'+UI.esc(checklistStatus)+'</span></div>'
+      +'<p class="small text-muted mb-2">'+UI.esc(inspected?'Inspection already recorded for this trip attempt.':
+        !released?'Finance must release the cash fund before inspection is available.':
+        !eligibleChecklist?'Checklist will unlock during the permitted time window.':
+        'Inspection may begin when the assigned truck and crew are ready.')+'</p>';
+    // Keep the actionable checklist control alongside its status. The compact drawer
+    // previously moved this button away from the checklist, making a released trip
+    // look stuck at Pre-Dispatch Preparation.
+    const responsibleDispatcher=UI.isDispatcher()
+      && Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id);
+    if(t.status==='Pre-Assigned'&&!inspected&&responsibleDispatcher){
+      const original=actions?.querySelector('[data-tact="checklist"]');
+      const checklistAction=original||document.createElement('button');
+      checklistAction.type='button';
+      checklistAction.className='btn btn-sm '+(eligibleChecklist?'btn-primary':'btn-outline-secondary');
+      checklistAction.dataset.tact='checklist';
+      checklistAction.innerHTML='<i class="bi bi-ui-checks" aria-hidden="true"></i> Start Pre-Dispatch Checklist';
+      checklistAction.disabled=!eligibleChecklist;
+      if(!original)checklistAction.onclick=()=>TripUI.checklist(t);
+      checklistAction.title=!released?'Finance must release the cash fund first.'
+        :!eligibleChecklist?'Inspection window has not opened.':'Open the pre-dispatch inspection.';
+      checklistSection.append(checklistAction);
+    }
+    // Keep recorded inspection findings, without a redundant empty "Not done yet" panel.
+    if(inspection){const source=parts.get('Pre-Dispatch Checklist');if(source)checklistSection.append(source);}
+    panels.operations.append(checklistSection);
+    const gate=document.createElement('section');gate.className='row g-2 mb-3';
+    const timeCell=(label,time)=>'<div class="col-sm-6"><div class="border rounded-3 p-2 h-100">'
+      +'<small class="text-muted d-block">'+label+'</small><strong class="small">'+UI.esc(time?this.datetime(time):'Not scheduled')+'</strong></div></div>';
+    gate.innerHTML=timeCell('Checklist opens',t.time_gates?.checklist_opens_at)
+      +timeCell('Dispatch opens',t.time_gates?.dispatch_opens_at);
+    panels.operations.append(gate);
+    const dispatchSection=document.createElement('section');dispatchSection.className='mb-3';
+    dispatchSection.innerHTML='<div class="d-flex flex-wrap justify-content-between gap-2">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Dispatch</h3>'
+      +'<span class="small">'+UI.esc(dispatched?'Departed '+this.datetime(t.dispatched_at):
+        inspected?'Awaiting dispatch confirmation':'Not ready')+'</span></div>';
+    // The compact details layout must retain Confirm Dispatch at the Dispatch stage.
+    // Prefer the original button (and its existing handler) from TripUI.open, but
+    // create the same action if an older layout omitted the original element.
+    if(t.status==='Ready for Dispatch'&&responsibleDispatcher){
+      const blockers=Array.isArray(t.dispatch_blockers)?t.dispatch_blockers:[];
+      const original=actions?.querySelector('[data-tact="dispatch"]');
+      const confirm=original||document.createElement('button');
+      confirm.type='button';
+      confirm.dataset.tact='dispatch';
+      confirm.className='btn btn-sm '+(blockers.length?'btn-outline-secondary':'btn-success');
+      confirm.innerHTML='<i class="bi bi-send" aria-hidden="true"></i> '
+        +(+t.attempt_number>1?'Confirm Redispatch':'Confirm Dispatch');
+      confirm.disabled=blockers.length>0;
+      if(blockers.length)confirm.title=blockers.join(' ');
+      if(!original)confirm.onclick=()=>UI.confirmAction(
+        (+t.attempt_number>1?'Confirm Redispatch ':'Confirm Dispatch ')+UI.esc(t.trip_ref),
+        'Confirm only when the truck is actually leaving. The billing draft is generated now.',
+        'Trips.dispatch',{trip_id:t.id},{submit:'Confirm'});
+      dispatchSection.append(confirm);
+      if(blockers.length){
+        const info=document.createElement('p');
+        info.className='small text-muted mt-2 mb-0';
+        info.textContent='Dispatch is blocked: '+blockers.join(' ');
+        dispatchSection.append(info);
+      }
+    }
+    panels.operations.append(dispatchSection);
+    // Incident and breakdown reporting is an operational in-trip action, not
+    // merely a historical record. Move the original authorized action into
+    // the visible Operations panel while retaining its existing submit handler.
+    if(['Dispatched','In Transit'].includes(t.status)&&responsibleDispatcher){
+      const report=parts.get('Incidents & Maintenance')?.querySelector('[data-tact="incident"]')
+        ||actions?.querySelector('[data-tact="incident"]');
+      if(report){
+        const section=document.createElement('section');
+        section.className='mb-3';
+        section.innerHTML='<div class="d-flex justify-content-between align-items-center gap-2 mb-2">'
+          +'<h3 class="fs-6 fw-semibold mb-0">Incident / Breakdown Reporting</h3></div>'
+          +'<p class="small text-muted mb-2">Report a breakdown, flat tire, accident, cargo damage, or other incident during this trip. The trip will be placed On Hold for Maintenance assessment.</p>';
+        report.textContent='Report Incident / Breakdown';
+        report.classList.add('btn-outline-danger');
+        section.append(report);
+        panels.operations.append(section);
+      }
+    }
+    const completionSection=document.createElement('section');completionSection.className='mb-2';
+    completionSection.innerHTML='<div class="d-flex flex-wrap justify-content-between gap-2 mb-2">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Completion & Arrival</h3>'
+      +'<span class="badge-s '+(completed?'green':'')+'">'+UI.esc(completed?
+        (+t.awaiting_arrival?'Arrival inspection pending':'Completed'):'Not started')+'</span></div>';
+    if(completed){const details=parts.get('Completion & Arrival');if(details)completionSection.append(details);}
+    else completionSection.insertAdjacentHTML('beforeend','<p class="small text-muted mb-0">Available after dispatch and delivery.</p>');
+    panels.operations.append(completionSection);
+    // Documents: compact at-a-glance requirement rows instead of the large
+    // shared readiness checklist. Keep actual attachments and their handlers.
+    const documents=parts.get('Documents');
+    if(documents){
+      const existing=documents.querySelector('.ui-document-checklist');
+      if(existing){
+        const checklist=document.createElement('section');
+        checklist.className='border rounded-3 p-2 mb-3';
+        const required=['Waybill','Acknowledgement Receipt','Delivery Receipt'];
+        const optional=['Diesel PO','Supplier SOA'];
+        const has=category=>(r.documents||[]).some(doc=>doc.category===category);
+        const done=required.filter(has).length;
+        checklist.innerHTML='<div class="d-flex justify-content-between align-items-center gap-2 px-1 mb-2">'
+          +'<strong class="small">Document Readiness</strong><span class="badge-s '+(done===required.length?'green':'amber')+'">'
+          +done+' / '+required.length+' required attached</span></div>'
+          +'<div class="row g-2">'+[...required,...optional].map(category=>{
+            const present=has(category),mandatory=required.includes(category);
+            return '<div class="col-sm-6"><div class="d-flex align-items-center justify-content-between gap-2 border rounded px-2 py-2 h-100">'
+              +'<span class="small">'+UI.esc(category)+(mandatory?' <small class="text-muted">Required</small>':' <small class="text-muted">Optional</small>')+'</span>'
+              +'<span class="small '+(present?'text-success':mandatory?'text-danger':'text-muted')+'">'
+              +(present?'Attached':mandatory?'Missing':'Not attached')+'</span></div></div>';
+          }).join('')+'</div>';
+        existing.replaceWith(checklist);
+      }
+      block(panels.records,'Documents','Documents');
+    }
+    block(panels.records,'Shipment Details','Delivery & Shipment');
+    // Avoid repeating Overview at full length in Records: keep detailed trip
+    // metadata and map available as a single optional disclosure.
+    const extra=document.createElement('details');
+    extra.className='border rounded-3 mb-3';
+    const extraLabel=document.createElement('summary');
+    extraLabel.className='p-2 small fw-semibold';
+    extraLabel.textContent='More Trip Details & Route Map';
+    const extraBody=document.createElement('div');extraBody.className='border-top p-2';
+    const addExtra=(title,node)=>{
+      if(!node)return;
+      const heading=document.createElement('h3');heading.className='fs-6 fw-semibold mt-2 mb-2';
+      heading.textContent=title;extraBody.append(heading,node);
+    };
+    addExtra('Trip Information & Route',parts.get('Trip Overview'));
+    addExtra('Truck & Personnel',parts.get('Truck & Personnel'));
+    extra.append(extraLabel,extraBody);panels.records.append(extra);
+    // Refresh Leaflet after the route preview expands; it was initialized hidden.
+    extra.addEventListener('toggle',()=>{
+      if(extra.open)requestAnimationFrame(()=>UI.refreshRouteMap?.(extra));
     });
-    if(t.status==='Awaiting Resources'||(t.status==='For Reschedule'&&(!t.vehicle_id||t.truck_status!=='Assigned'))){const assign=document.createElement('button');assign.type='button';assign.className='btn btn-primary';assign.dataset.assignResources=t.id;assign.textContent='Assign Resources';assign.onclick=()=>this.assignResources(t.id);panels[0].prepend(assign);}
-    body.replaceChildren(nav,...panels);body.querySelectorAll('.wf-steps').forEach(node=>node.remove());
-    const footer=document.createElement('div');footer.className='ds-drawer-footer';const close=document.createElement('button');close.type='button';close.className='btn btn-outline-secondary';close.textContent='Close Details';close.onclick=()=>UI.closeDrawer();footer.append(close);el.append(footer);
-    const primary=panels.map(panel=>{const button=panel.querySelector('[data-assign-resources],button.btn-primary:not([disabled]),button.btn-success:not([disabled])');if(!button)return null;const marker=document.createComment('contextual trip action');button.before(marker);return {button,marker};});let selected=-1;
-    const select=index=>{if(selected>=0&&primary[selected])primary[selected].marker.after(primary[selected].button);selected=index;panels.forEach((panel,i)=>{panel.hidden=i!==index;const tab=nav.children[i];tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});if(primary[index])footer.append(primary[index].button);};
-    [...nav.children].forEach((button,index)=>{button.onclick=()=>select(index);button.onkeydown=event=>{let next;if(event.key==='ArrowRight')next=(index+1)%panels.length;else if(event.key==='ArrowLeft')next=(index+panels.length-1)%panels.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=panels.length-1;else return;event.preventDefault();select(next);nav.children[next].focus();nav.children[next].scrollIntoView({block:'nearest',inline:'nearest'});};});select(0);
+    block(panels.records,'Incidents & Maintenance','Incidents & Maintenance');
+    block(panels.records,'Recorded Updates','Updates and delays');
+    // History stays collapsed, to prioritize current documents and shipment data.
+    const activity=parts.get('Activity Timeline');
+    if(activity){
+      const disclosure=document.createElement('details');disclosure.className='border rounded-3 mb-3';
+      const label=document.createElement('summary');label.className='p-2 small fw-semibold';
+      label.textContent='Full Activity History';
+      const inner=document.createElement('div');inner.className='border-top p-2';
+      inner.append(activity);disclosure.append(label,inner);panels.records.append(disclosure);
+    }
+    // Full operational timeline belongs in Records only, initially collapsed.
+    const dispatchArchive=parts.get('Dispatch & Progress');
+    const timeline=dispatchArchive?.querySelector('.ds-trip-ops-timeline');
+    if(timeline){
+      timeline.open=false;
+      const archive=document.createElement('section');archive.className='mb-3';
+      const title=document.createElement('h3');title.className='fs-6 fw-semibold mb-2';
+      title.textContent='Full Trip Timeline';archive.append(title,timeline);panels.records.append(archive);
+    }
+    const dispatchHistory=dispatchArchive?.querySelectorAll('.ds-trip-ops-extra')||[];
+    dispatchHistory.forEach(detail=>{
+      if(detail===timeline)return;
+      detail.open=false;
+      const archive=document.createElement('section');archive.className='mb-2';archive.append(detail);panels.records.append(archive);
+    });
+    const targets={fund:'funds',printfund:'funds',dieselpo:'funds',checklist:'operations',dispatch:'operations',
+      complete:'operations',arrival:'operations',resume:'operations',reschedule:'operations',
+      incident:'records',incident_extra:'records',edit:'records',cancel:'records',update:'records'};
+    buttons.forEach(button=>{
+      // The checklist button already sits inside the Pre-Dispatch Checklist section.
+      // Do not relocate it to the generic Operations action bar.
+      if(['checklist','dispatch','incident'].includes(button.dataset.tact)
+        &&panels.operations.contains(button))return;
+      const key=targets[button.dataset.tact]||'overview';
+      let actions=panels[key].querySelector('.ds-trip-tab-actions');
+      if(!actions){actions=document.createElement('div');actions.className='ds-trip-tab-actions d-flex flex-wrap gap-2 mb-3';panels[key].prepend(actions);}
+      actions.append(button);
+    });
+    const needsAssignment=t.status==='Awaiting Resources'||(t.status==='For Reschedule'&&(!t.vehicle_id||t.truck_status!=='Assigned'));
+    if(needsAssignment){
+      const assign=document.createElement('button');assign.type='button';assign.className='btn btn-sm btn-primary mb-2';
+      assign.textContent='Assign Resources';assign.onclick=()=>this.assignResources(t.id);
+      panels.overview.prepend(assign);
+    }
+    const setTab=key=>{
+      names.forEach(([name],i)=>{
+        const active=key===name,button=nav.children[i];
+        panels[name].hidden=!active;button.setAttribute('aria-selected',String(active));
+        button.className='btn btn-sm '+(active?'btn-success':'btn-outline-success');
+        button.tabIndex=active?0:-1;
+      });
+      if(key==='records'){
+        // Hidden Leaflet tiles require a resize after the Records tab is shown.
+        requestAnimationFrame(()=>UI.refreshRouteMap?.(panels.records));
+      }
+    };
+    [...nav.children].forEach((button,i)=>{
+      button.onclick=()=>setTab(names[i][0]);
+      button.onkeydown=e=>{
+        const offset=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;
+        if(!offset)return;e.preventDefault();
+        const idx=(i+offset+names.length)%names.length;setTab(names[idx][0]);nav.children[idx].focus();
+      };
+    });
+    body.replaceChildren(page);
+    el.querySelectorAll('.ds-drawer-footer').forEach(footer=>footer.remove());
+    const footer=document.createElement('div');footer.className='ds-drawer-footer';
+    const close=document.createElement('button');close.type='button';close.className='btn btn-outline-secondary';
+    close.textContent='Close Details';close.onclick=()=>UI.closeDrawer();
+    footer.append(close);el.append(footer);
   },
 };
 
@@ -1290,5 +1633,6 @@ const DispatcherUI = {
   }
   const open=TripUI.open;TripUI.open=async function(id){if(DispatcherUI.is())try{await DispatcherUI.ensureTrips();}catch(ex){return UI.toast(ex.message,'error');}return open.call(this,id);};
   const drawer=UI.drawer;UI.drawer=(...args)=>{const previous=document.querySelector('.app-drawer');previous?.classList.remove('ds-trip-drawer');previous?.querySelector('.ds-drawer-footer')?.remove();return drawer(...args);};
-  const incident=TripUI.incident;TripUI.incident=function(t){if(!DispatcherUI.is())return incident.call(this,t);if(Number(t.responsible_dispatcher_id)!==Number(App.me.user.id)||!['Dispatched','In Transit'].includes(t.status))return UI.toast('This trip is not eligible for an incident report.','error');incident.call(this,t);const modal=[...document.querySelectorAll('.modal')].at(-1);if(modal){modal.querySelector('.modal-title').textContent='Submit Incident Report · '+t.trip_ref;DispatcherUI.groupModal(modal,[['01 — Associated Trip',[],`<p class="small"><b>Associated Trip:</b> ${UI.esc(t.trip_ref)} · <b>Vehicle:</b> ${UI.esc(t.plate_number)}</p>`],['02 — Incident Information',['incident_type','incident_at','location','persons_involved','problem','reason']],['03 — Incident Description and Evidence',['details','photos','attachments']]]);const date=modal.querySelector('[name=incident_at]');if(date)date.value=UI.nowManila();}};
+  const incident=TripUI.incident;TripUI.incident=function(t){if(!DispatcherUI.is())return incident.call(this,t);if(Number(t.responsible_dispatcher_id)!==Number(App.me.user.id)||!['Dispatched','In Transit'].includes(t.status))return UI.toast('This trip is not eligible for an incident report.','error');incident.call(this,t);const modal=[...document.querySelectorAll('.modal')].at(-1);if(modal){modal.querySelector('.modal-title').textContent='Submit Incident Report · '+t.trip_ref;DispatcherUI.groupModal(modal,[['01 — Associated Trip',[],`<p class="small"><b>Associated Trip:</b> ${UI.esc(t.trip_ref)} · <b>Vehicle:</b> ${UI.esc(t.plate_number)}</p>`],['02 — Incident Information',['incident_type','location','persons_involved','problem','reason'],
+        '<div class="small text-muted border rounded-3 px-3 py-2 mb-3"><i class="bi bi-clock-history me-2" aria-hidden="true"></i><strong>Report date &amp; time:</strong> Recorded automatically on submission (Philippine time).</div>'],['03 — Incident Description and Evidence',['details','photos','attachments']]]);}};
 })();

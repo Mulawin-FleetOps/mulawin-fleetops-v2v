@@ -12,6 +12,8 @@
     "2026-11-19_04_incident_clarifications.sql": "ef8bb63da78d704dc6940e434cbd4cedb1304c60fea43e7135a306c79cf52503",
     "2026-11-19_24_personnel_attendance_group.sql": "a6eb04942d2437d398a0ba03515d7f8d7e121c1159a78c63260fc73b21228f60",
     "2026-11-19_25_fleet_form_drafts.sql": "8bddd1cb22f2e2e3f2108fb7496af21d817c3eab591b846598de30e4e20531df",
-    "2026-11-20_01_part_regular_supplier.sql": "6c61589d256e305d7a92e27a2c3756fd7e5f96240506eddb31c89ff7102ffd7c"
+    "2026-11-20_01_part_regular_supplier.sql": "6c61589d256e305d7a92e27a2c3756fd7e5f96240506eddb31c89ff7102ffd7c",
+    "2026-11-20_02_trip_shipment_details.sql": "cba9369e37d851f7428fca45d7e2780b651c2bf49f80f2bcbffdb1d95b71bcf2",
+    "2026-11-20_03_diesel_po_soa_workflow.sql": "2ac65e2777a44adb22d5a39f5170e815e0ea083a46e5a61248a59e4fd458c872"
   }
 }

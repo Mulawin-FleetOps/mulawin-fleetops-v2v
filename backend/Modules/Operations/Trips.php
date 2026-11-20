@@ -524,11 +524,32 @@ final class Trips {
             'container_size' => optField($d, 'container_size', 20),
             'seal_number' => optField($d, 'seal_number', 60),
             'shipment_number' => optField($d, 'shipment_number', 60),
+            'cargo_description' => optField($d, 'cargo_description', 300),
+            'cargo_quantity' => intField($d, 'cargo_quantity', 1, false, 100000),
+            'cargo_unit' => optField($d, 'cargo_unit', 30),
+            'vehicle_details' => optField($d, 'vehicle_details', 300),
+            'estimated_weight_kg' => numberField($d, 'estimated_weight_kg', false, 999999),
             'distance_km' => numberField($d, 'distance_km', $needsKm, self::MAX_DISTANCE_KM),
         ] + self::coordinates($d);
         must($row['pickup_point'] !== $row['delivery_point'], 'Pickup point and delivery point must be different.');
         if ($needsKm) must($row['distance_km'] > 0, 'Enter the billable distance in km (pickup point to delivery point).');
         return $row;
+    }
+
+    /** Validate new Operations Head plans only. Historical trip edits are unchanged. */
+    private static function requirePlannedShipment(array $delivery, ?string $truckType): void {
+        must($delivery['consignee'] !== null, 'Enter the consignee / receiving party for this trip.');
+        if ($truckType === 'Car Carrier') {
+            must($delivery['units_planned'] !== null, 'Enter the number of vehicles for this Car Carrier trip.');
+        } elseif ($truckType === 'Container') {
+            must(in_array($delivery['container_size'], ['20ft','40ft','40ft HC'], true),
+                'Choose a valid container size (20ft, 40ft or 40ft HC) for this Container trip.');
+        } elseif ($truckType === 'Wing Van') {
+            must($delivery['cargo_description'] !== null, 'Enter a cargo description for this Wing Van trip.');
+            must($delivery['cargo_quantity'] !== null, 'Enter a cargo quantity for this Wing Van trip.');
+            must(in_array($delivery['cargo_unit'], ['Boxes','Pallets','Pieces','Crates','Sacks','Other'], true),
+                'Choose a unit of measure for this Wing Van trip.');
+        }
     }
 
     // ---------- road distance (Checklist #5 Phase 3) ----------
@@ -621,6 +642,7 @@ final class Trips {
         if(!$isOps)must($type!==null,'Choose an authorized truck type.');
         if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.', 403);
         $row['truck_type'] = $type;
+        if ($isOps) self::requirePlannedShipment($row, $type);
         if($isOps){
             $row += DispatcherPlanning::assignment($type,$d['dispatcher_assignment']??null);
             must(!empty($d['client_route_id']),'Choose an approved client route for every trip entry.');
@@ -683,6 +705,37 @@ final class Trips {
      *   Returns one result per row, in the order sent (row = the screen's row number when given as row_no).
      */
     public const BATCH_MAX_ROWS = 20;
+    /**
+     * Check additive trip-planning schema before writing any batch row.
+     * Older local databases can lack fields introduced after extension.sql.
+     * Keep the full DB exception in server logs; show only safe schema names to users.
+     */
+    private static function batchCreationSchemaIssue(PDO $p): ?string {
+        $required = [
+            'trips' => ['request_key', 'consignee', 'booking_reference', 'units_planned',
+                'cargo_description', 'cargo_quantity', 'cargo_unit', 'vehicle_details',
+                'estimated_weight_kg', 'dispatcher_role', 'dispatcher_shift',
+                'distance_source', 'route_option', 'distance_computed_km', 'distance_provider',
+                'distance_computed_at', 'distance_override_reason', 'client_route_id'],
+            'trip_responsibilities' => ['trip_id', 'initial_dispatcher_id', 'current_dispatcher_id', 'assigned_by'],
+            'trip_routes' => ['trip_id', 'geometry'],
+        ];
+        $rows = many($p, "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('trips','trip_responsibilities','trip_routes')");
+        $actual = [];
+        foreach ($rows as $column) $actual[$column['TABLE_NAME']][$column['COLUMN_NAME']] = true;
+        $missing = [];
+        foreach ($required as $table => $columns) {
+            foreach ($columns as $column) {
+                if (empty($actual[$table][$column])) $missing[] = $table . '.' . $column;
+            }
+        }
+        if (!$missing) return null;
+        return 'Trip planning database setup is incomplete. Missing fields: ' .
+            implode(', ', array_slice($missing, 0, 8)) .
+            (count($missing) > 8 ? ' (and ' . (count($missing) - 8) . ' more)' : '') .
+            '. Apply the existing project database migrations before creating trips.';
+    }
     private static function createBatch(array $u, array $d): array {
         must(self::canCreate($u), 'Only the Operations Head can create trips in Trip Management.', 403);
         $rows = $d['rows'] ?? null;
@@ -690,6 +743,8 @@ final class Trips {
         must(count($rows) <= self::BATCH_MAX_ROWS, 'A batch can have at most ' . self::BATCH_MAX_ROWS . ' trips. Split it into smaller batches.');
         $isOps = hasRole($u, 'operations_head');
         $p = db();
+        $schemaIssue = self::batchCreationSchemaIssue($p);
+        must($schemaIssue === null, $schemaIssue ?? '', 409);
         $errors = []; $seenKeys = []; $sched = []; $label = [];
         foreach ($rows as $i => $row) {
             // Row number shown to the user: the screen's own row number on a retry of some rows only.
@@ -708,6 +763,7 @@ final class Trips {
                 $f = self::deliveryFields($row, false);
                 $client = idField($row, 'client_id');
                 $type = choiceField($row, 'truck_type', TRUCK_TYPES, $isOps);
+                if ($isOps) self::requirePlannedShipment($f, $type);
                 if($isOps){$planning=DispatcherPlanning::assignment($type,$row['dispatcher_assignment']??null);$planning['truck_type']=$type;core('DispatcherTurnover');DispatcherTurnover::planningAccount($p,$planning,idField($row,'responsible_dispatcher_id'),false);}
                 if(!$isOps)must($type!==null,'Choose an authorized truck type.');
                 if (!$isOps && $type) must(dispatcherRoleFor($type) === $u['role'], 'This truck type is handled by the other dispatcher team.', 403);
@@ -935,13 +991,26 @@ final class Trips {
         throw new BusinessRuleException('Independent Truck/Driver overrides are retired. Use Dispatcher manual fixed-pair assignment.', 409);
     }
 
+    /** Cash must be released before first-attempt inspection. Redispatch keeps its existing
+     * optional-new-fund policy, but a submitted redispatch fund must also be Released. */
+    private static function mustHaveReleasedChecklistFund(PDO $p, array $trip): void {
+        $fund = one($p, 'SELECT status FROM fund_requests WHERE trip_id=? AND attempt_number=?', [(int)$trip['id'], (int)$trip['attempt_number']]);
+        if (!$fund) {
+            must((int)$trip['attempt_number'] > 1,
+                'Finance must release the cash fund before you can open or submit the pre-dispatch checklist.', 409);
+            return;
+        }
+        must($fund['status'] === 'Released',
+            'Finance must release the cash fund before you can open or submit the pre-dispatch checklist (current status: '.$fund['status'].').', 409);
+    }
+
     private static function checklistStart(array $u, array $d): array {
         $id = idField($d, 'trip_id');
         $kind = choiceField($d, 'kind', ['Pre-Dispatch', 'Arrival']);
         return transaction(function (PDO $p) use ($u, $id, $kind) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
-            if ($kind === 'Pre-Dispatch') { self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist'); self::mustBeChecklistWindow($t); }
+            if ($kind === 'Pre-Dispatch') { self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist'); self::mustBeChecklistWindow($t); self::mustHaveReleasedChecklistFund($p, $t); }
             else must($t['status'] === 'Completed' && FleetState::awaitingArrival($p, $id), 'The arrival checklist is not pending for this trip.', 409);
             $p->prepare('INSERT IGNORE INTO checklist_starts (trip_id, attempt_number, kind, started_by) VALUES (?,?,?,?)')
               ->execute([$id, $t['attempt_number'], $kind, $u['id']]);
@@ -1003,6 +1072,7 @@ final class Trips {
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['Pre-Assigned'], 'do the pre-dispatch checklist');
             self::mustBeChecklistWindow($t);
+            self::mustHaveReleasedChecklistFund($p, $t);
             $v = one($p, 'SELECT status, plate_number FROM vehicles WHERE id=?', [$t['vehicle_id']]);
             must($v && $v['status'] === 'Assigned', 'The assigned truck is ' . ($v['status'] ?? 'missing') . '.', 409);
             $started = self::mustRespectTimer($p, $t, 'Pre-Dispatch');
@@ -1133,18 +1203,20 @@ final class Trips {
     private static function incident(array $u, array $d): array {
         $id = idField($d, 'trip_id');
         $row = ['incident_type' => choiceField($d, 'incident_type', self::INCIDENT_TYPES),
-                'incident_at' => dateTimeField($d, 'incident_at'),
                 'location' => field($d, 'location', 200),
                 'persons_involved' => optField($d, 'persons_involved', 255),
                 'reason' => optField($d, 'reason', 255),
                 'problem' => field($d, 'problem', 255),
                 'details' => field($d, 'details', 2000)];
-        must(strtotime($row['incident_at']) <= time() + 300, 'The incident date and time cannot be in the future.');
         return transaction(function (PDO $p) use ($u, $id, $row) {
             $t = self::lockTrip($p, $id);
             self::mustBeTripDispatcher($u, $t);
             self::mustBeStatus($t, ['Dispatched', 'In Transit'], 'report an incident');
-            must(strtotime($row['incident_at']) >= strtotime((string)$t['dispatched_at']) - 60, 'The incident time is before the dispatch time.');
+            // Record the report at submission on the server (bootstrap uses Asia/Manila).
+            // Do not accept a caller-supplied incident timestamp.
+            $row['incident_at'] = date('Y-m-d H:i:s');
+            must(strtotime($row['incident_at']) >= strtotime((string)$t['dispatched_at']) - 60,
+                'The trip must already be dispatched before an incident is reported.');
             $iid = insert($p, 'incidents', ['incident_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'trip_id' => $id, 'vehicle_id' => $t['vehicle_id'],
                 'attempt_number' => $t['attempt_number'], 'status' => 'Reported', 'reported_by' => $u['id']] + $row);
             $iref = refNumber('INC', $iid);

@@ -1472,15 +1472,63 @@ App.page('parts_requests', {
 App.page('purchase_orders', {
   title: 'Purchase Orders',
   subtitle: 'Follow approvals, fuel orders and received deliveries.',
-  openDiesel(t, d) {
-    let docs = (d.dieselDocuments || []).filter(doc => +doc.trip_id === +t.id);
-    const el = UI.drawer('Diesel PO Documents', `<section class="ds-assignment-plan">
-      <div class="ds-assignment-plan-title"><i class="bi bi-fuel-pump" aria-hidden="true"></i><strong>Linked Trip Information</strong></div>
-      ${UI.kv([['Trip Ref', UI.e(t.trip_ref)], ['Truck Plate', UI.e(t.plate_number)], ['Truck Type', UI.e(t.truck_type)], ['Trip Status', UI.badge(t.status)]])}
-      </section>
-      ${UI.h('Attached Diesel PO Files')}${UI.docs(docs, 'No Diesel PO document attached for this trip.')}
-      <p class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>These are Diesel PO documents attached to the authorized trip. Review files and operational trip status above.</p>`,
-      { subtitle: UI.esc(t.trip_ref) + ' · Diesel PO' });
+  openDiesel(po, d) {
+    // Finance stores the Supplier SOA photo on the PO; it remains visible in History.
+    const snapshot=(()=>{
+      try {return typeof po.diesel_po_json==='string'?JSON.parse(po.diesel_po_json):po.diesel_po_json||{};}
+      catch (_) {return {};}
+    })();
+    const lines=Array.isArray(snapshot.lines)?snapshot.lines:[];
+    const total=Number(snapshot.total_amount ?? lines.reduce((n,l)=>n+Number(l.liters||0)*Number(l.unit_price||0),0));
+    const docs=(d.dieselDocuments||[]).filter(doc=>+doc.trip_id===+po.trip_id);
+    const soaDocs=docs.filter(doc=>doc.category==='Supplier SOA');
+    const poDocs=docs.filter(doc=>doc.category==='Diesel PO');
+    const completed=po.trip_status==='Completed';
+    const canAttach=UI.role('finance')&&completed&&po.status==='Awaiting SOA'&&!soaDocs.length;
+    const fields=[
+      ['P.O. Number',UI.e(po.po_number)],
+      ['Date Created',UI.datetime(po.created_at)],
+      ['Status',UI.badge(po.status)],
+      ['Trip',UI.e(po.trip_ref)],
+      ['Vehicle',UI.e(snapshot.vehicle||po.truck_type)],
+      ['Plate Number',UI.e(snapshot.plate_number||po.plate_number)],
+      ['Liters',UI.e(lines.map(l=>l.liters).join(', '))],
+      ['Price per Liter',UI.e(lines.map(l=>UI.money(l.unit_price)).join(', '))],
+      ['Total',UI.money(total)],
+      ['Approved By',UI.e(po.approved_by_name)],
+      ['Approved At',UI.datetime(po.approved_at)],
+      ['Supplier SOA',UI.e(['SOA Received','Verified'].includes(po.status)?'Filed in Finance History':
+        soaDocs.length?'Photo attached':'Awaiting Finance upload after trip')],
+      ['Filed By',UI.e(po.received_by_name)],
+      ['Filed At',UI.datetime(po.received_at)],
+      po.decision_reason?['Decision Notes',UI.e(po.decision_reason)]:null,
+      po.verification_notes?['SOA Verification',UI.e(po.verification_notes)]:null
+    ];
+    const html='<div class="fund-detail-section">'+UI.kv(fields)+'</div>'
+      +'<section class="fund-detail-section"><div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-2">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Supplier SOA Attachment</h3>'
+      +(canAttach?'<button type="button" class="btn btn-sm btn-success" data-soa-upload><i class="bi bi-camera"></i> Attach SOA Photo</button>':'')
+      +'</div>'
+      +(soaDocs.length?UI.docs(soaDocs):'<p class="small text-muted mb-0">No Supplier SOA photo attached.</p>')
+      +(!completed?'<p class="small text-muted mt-2 mb-0">An SOA may be uploaded after the trip is Completed.</p>':
+        ['SOA Received','Verified'].includes(po.status)?'<p class="small text-success mt-2 mb-0">Supplier SOA filed by Finance. This PO is in History; no payment is implied.</p>':'')
+      +'</section>'
+      +'<section class="fund-detail-section"><h3 class="fs-6 fw-semibold">Other PO Documents</h3>'
+      +UI.docs(poDocs,'No Diesel PO document attached.')+'</section>';
+    const el=UI.drawer('Diesel PO '+UI.esc(po.po_number),html,
+      {subtitle:UI.esc(po.trip_ref)+' · '+UI.esc(po.status)});
+    el.querySelector('[data-soa-upload]')?.addEventListener('click',()=>{
+      UI.formModalFiles('Attach Supplier SOA — Diesel PO '+UI.esc(po.po_number),[
+        {name:'supplier_soa',label:'Supplier SOA photo or PDF',type:'file',
+          required:true,multiple:false,col:12,
+          attrs:'accept="image/jpeg,image/png,image/webp,application/pdf"',
+          help:'Upload the Supplier SOA photo/PDF after the trip. The PO will move directly to Finance History.'}
+      ],'Purchasing.diesel_soa_attach',{
+        extra:{po_id:po.id},
+        intro:'This finalizes the Diesel PO in Finance History with the SOA photo. No cash release or PO payment is recorded.',
+        after:()=>App.go('purchase_orders',{type:'fuel',po_status:'history'})
+      });
+    });
   },
   render(ctx) {
     ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-purchase-orders');
@@ -1507,44 +1555,55 @@ App.page('purchase_orders', {
     </div>` : '';
 
     if (poType === 'fuel') {
-      const fuelTrips = d.fuelTrips || [];
-      const filter = q.doc_filter || 'all';
-      const rows = fuelTrips.filter(t => {
-        if (filter === 'attached') return +t.diesel_po_docs > 0;
-        if (filter === 'missing') return !+t.diesel_po_docs;
-        return true;
-      }).filter(t => !q.search || (t.trip_ref + ' ' + (t.plate_number || '') + ' ' + (t.truck_type || '')).toLowerCase().includes(q.search.toLowerCase()));
-
-      const attachedCount = fuelTrips.filter(t => +t.diesel_po_docs > 0).length;
-      const missingCount = fuelTrips.filter(t => !+t.diesel_po_docs).length;
-
-      ctx.el.innerHTML = `${typeSwitcher}
-        ${UI.statusTabs('purchase_orders', q, 'doc_filter', [
-          ['all', 'All Fuel Trips', fuelTrips.length],
-          ['attached', 'Document Attached', attachedCount],
-          ['missing', 'Pending / No Document', missingCount]
-        ], filter)}
-        ${UI.generalFilters(ctx, [{ name: 'search', label: 'Search', type: 'text', placeholder: 'Search trip or plate…' }])}`;
-
-      const box = document.createElement('div'); ctx.el.append(box);
-      const target = PurRef.recordBox(box, 'Fuel & Diesel Purchase Orders', 'Trip diesel documents and authorization records', rows.length);
-      target.innerHTML = UI.table([
-        ['Trip', 'trip_ref', (v, t) => `<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(t.truck_type || '—')}</div>`],
-        ['Truck', 'plate_number', (v) => v ? `<b>${UI.esc(v)}</b>` : '<span class="text-muted">Unassigned</span>'],
-        ['Trip Status', 'status', (v) => UI.badge(v)],
-        ['Diesel PO Document', 'diesel_po_docs', (v) => +v > 0
-          ? `<span class="badge-s green"><i class="bi bi-file-earmark-check me-1"></i>Attached (${v})</span>`
-          : '<span class="badge-s gray"><i class="bi bi-file-earmark-x me-1"></i>No document</span>']
-      ], rows, {
-        title: 'Fuel PO Records (' + rows.length + ')',
-        showAllColumns: true,
-        directActions: true,
-        actions: () => UI.btn('details', 'View Documents', 'primary', 'bi-eye'),
-        onAction: (a, t) => App.pages.purchase_orders.openDiesel(t, d),
-        rowClick: (t) => App.pages.purchase_orders.openDiesel(t, d),
-        empty: 'No fuel trips match the selected criteria.'
+      // Read from diesel_purchase_orders, not the old trip-document-only list.
+      const orders=(d.dieselOrders||[]).map(po=>{
+        let snapshot={};
+        try {snapshot=typeof po.diesel_po_json==='string'?JSON.parse(po.diesel_po_json):po.diesel_po_json||{};}
+        catch (_) {snapshot={};}
+        const lines=Array.isArray(snapshot.lines)?snapshot.lines:[];
+        const total=Number(snapshot.total_amount??lines.reduce((n,line)=>n+Number(line.liters||0)*Number(line.unit_price||0),0));
+        return {...po,po_total:total,liters:lines.reduce((n,line)=>n+Number(line.liters||0),0)};
       });
-      PurRef.inlineFilters(box, ctx.el);
+      const filter=['all','draft','awaiting','received','history'].includes(q.po_status)?q.po_status:'all';
+      const statusFilter={
+        all:()=>true,
+        draft:o=>o.status==='Draft',
+        awaiting:o=>o.status==='Awaiting SOA',
+        history:o=>['Verified','Rejected','Discrepancy','SOA Received'].includes(o.status)
+      };
+      const search=String(q.search||'').toLowerCase().trim();
+      const matches=orders.filter(o=>statusFilter[filter](o))
+        .filter(o=>!search||[o.po_number,o.trip_ref,o.plate_number,o.truck_type,o.fund_ref]
+          .some(value=>String(value||'').toLowerCase().includes(search)));
+      const statuses=[
+        ['all','All Diesel POs',orders.length],
+        ['draft','Draft',orders.filter(statusFilter.draft).length],
+        ['awaiting','Awaiting SOA',orders.filter(statusFilter.awaiting).length],
+        ['history','History',orders.filter(statusFilter.history).length]
+      ];
+      ctx.el.innerHTML=typeSwitcher
+        +UI.statusTabs('purchase_orders',q,'po_status',statuses,filter)
+        +UI.generalFilters(ctx,[{name:'search',label:'Search',type:'text',placeholder:'Search PO number, trip or plate…'}]);
+      const box=document.createElement('div');ctx.el.append(box);
+      const target=PurRef.recordBox(box,'Diesel Purchase Orders',
+        'Independent trip fuel orders and Supplier SOA tracking',matches.length);
+      target.innerHTML=UI.table([
+        ['Diesel PO','po_number',(v,o)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.date(o.created_at)+'</div>'],
+        ['Trip','trip_ref',(v,o)=>'<b>'+UI.esc(v)+'</b><div class="cell-sub">'+UI.esc(o.plate_number||'—')+'</div>'],
+        ['Liters','liters','num'],
+        ['Total','po_total','money'],
+        ['Status','status','badge'],
+        ['Supplier SOA','soa_documents',(v,o)=>['SOA Received','Verified'].includes(o.status)
+          ?'<span class="badge-s green">Filed</span>'
+          :+v>0?'<span class="badge-s blue">Photo attached</span>':'Awaiting upload']
+      ],matches,{
+        showAllColumns:true,directActions:true,
+        actions:()=>UI.btn('details','View','outline-success','bi-eye'),
+        onAction:(action,po)=>App.pages.purchase_orders.openDiesel(po,d),
+        rowClick:po=>App.pages.purchase_orders.openDiesel(po,d),
+        empty:'No Diesel Purchase Orders match the selected criteria.'
+      });
+      PurRef.inlineFilters(box,ctx.el);
       return;
     }
 

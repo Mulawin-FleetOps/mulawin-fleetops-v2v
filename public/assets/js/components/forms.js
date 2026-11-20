@@ -27,17 +27,21 @@ const FormComponents = Object.freeze({
     const groups = [
       ['General Shipment Information','Booking, consignee and delivery instructions','bi-clipboard-check',
         ['booking_reference','consignee','delivery_details']],
-      ['Car Carrier Details','Cargo units','bi-car-front',['units_planned']],
+      ['Car Carrier Details','Planned vehicles and details','bi-car-front',['units_planned','vehicle_details']],
       ['Container Details','Container and seal identification','bi-box-seam',
         ['container_number','container_size','seal_number']],
-      ['Wing Van / Other Shipment Details','Shipment reference','bi-truck',
-        ['shipment_number']]
+      ['Wing Van / Other Shipment Details','Goods, quantity and weight','bi-truck',
+        ['cargo_description','cargo_quantity','cargo_unit','estimated_weight_kg','shipment_number']]
     ];
     const preferred=truckType==='Car Carrier'?1:truckType==='Container'?2:3;
     if(options.compact){
       // Review & Create already provides a per-trip disclosure. Avoid nested
       // accordions: display the shared relevant inputs in one compact grid.
-      const visibleNames=[...groups[0][3],...groups[preferred][3]];
+      const visibleNames=truckType==='Container'
+        ? ['consignee','container_size','booking_reference','container_number','seal_number','delivery_details']
+        : truckType==='Car Carrier'
+        ? ['consignee','units_planned','booking_reference','vehicle_details','delivery_details']
+        : ['consignee','cargo_description','cargo_quantity','cargo_unit','booking_reference','estimated_weight_kg','shipment_number','delivery_details'];
       const visible=visibleNames.map(name=>fields.find(field=>field.name===name)).filter(Boolean);
       const hidden=fields.filter(field=>!visibleNames.includes(field.name));
       const typeTitle=truckType==='Car Carrier'?'Car Carrier':truckType==='Container'?'Container':'Wing Van';

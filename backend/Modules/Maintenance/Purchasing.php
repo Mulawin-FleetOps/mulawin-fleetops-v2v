@@ -31,6 +31,7 @@ declare(strict_types=1);
 core('Notify');
 core('Files');
 core('Settings');
+core('DieselPo');
 
 final class Purchasing {
     /**
@@ -99,9 +100,27 @@ final class Purchasing {
                     WHERE (t.status NOT IN ('Pending Review','Rejected','Cancelled')
                         OR EXISTS (SELECT 1 FROM documents pd WHERE pd.entity_type='trip' AND pd.entity_id=t.id AND pd.category='Diesel PO'))
                     ORDER BY t.id DESC LIMIT 500") : [],
+                // Independent fuel POs belong on the Fuel / Diesel PO page, not in
+                // Finance cash fund releases. Never mix these rows with parts POs.
+                // Missing additive migration is handled by DieselPo::ready().
+                'dieselOrders' => fn() => hasRole($u, 'finance', 'admin', 'audit') && DieselPo::ready($p)
+                    ? many($p, "SELECT po.*, f.fund_ref, f.diesel_po_json, t.trip_ref, t.truck_type,
+                          t.status AS trip_status, v.plate_number,
+                          au.full_name AS approved_by_name, ru.full_name AS received_by_name,
+                          vu.full_name AS verified_by_name,
+                          (SELECT COUNT(*) FROM documents sd
+                            WHERE sd.entity_type='trip' AND sd.entity_id=po.trip_id AND sd.category='Supplier SOA') AS soa_documents
+                        FROM diesel_purchase_orders po
+                        JOIN fund_requests f ON f.id=po.fund_request_id
+                        JOIN trips t ON t.id=po.trip_id
+                        LEFT JOIN vehicles v ON v.id=t.vehicle_id
+                        LEFT JOIN users au ON au.id=po.approved_by
+                        LEFT JOIN users ru ON ru.id=po.received_by
+                        LEFT JOIN users vu ON vu.id=po.verified_by
+                        ORDER BY po.id DESC LIMIT 500") : [],
                 'dieselDocuments' => fn() => hasRole($u, 'finance', 'admin', 'audit') ? many($p, "SELECT d.id,d.category,d.original_filename,d.mime_type,d.created_at,us.full_name AS uploader,t.id AS trip_id,t.trip_ref
                     FROM documents d JOIN trips t ON d.entity_type='trip' AND d.entity_id=t.id JOIN users us ON us.id=d.uploaded_by
-                    WHERE d.category='Diesel PO' ORDER BY d.id DESC LIMIT 1000") : [],
+                    WHERE d.category IN ('Diesel PO','Supplier SOA') ORDER BY d.id DESC LIMIT 1000") : [],
             ]),
             'inventory' => readSections(['parts' => $partsFull,
                 'regularSupplierReady' => fn() => $stock && self::regularSupplierReady($p),
@@ -258,6 +277,7 @@ final class Purchasing {
             'po_create' => self::poCreate($u, $d),
             'po_decide' => self::poDecide($u, $d),
             'po_receive' => self::poReceive($u, $d),
+            'diesel_soa_attach' => self::dieselSoaAttach($u, $d),
             'warranty_confirm' => self::warrantyConfirm($u, $d),
             'po_close' => self::poClose($u, $d),
             'po_details' => self::poDetails($u, $d),
@@ -271,6 +291,34 @@ final class Purchasing {
             'my_requests' => self::myRequests($u),
             default => throw new BusinessRuleException('Unknown action.', 404),
         };
+    }
+
+    /** Finance files the Supplier SOA after trip completion.
+     * SOA Received is archived in Finance History (not "Verified" or "Paid").
+     */
+    private static function dieselSoaAttach(array $u, array $d): array {
+        requireRole($u, 'finance');
+        $id = idField($d, 'po_id');
+        return transaction(function(PDO $p) use ($u, $id) {
+            must(DieselPo::ready($p), 'Diesel PO workflow is unavailable.', 409);
+            $po = one($p, "SELECT po.id,po.po_number,po.trip_id,po.status,t.status AS trip_status
+                FROM diesel_purchase_orders po
+                JOIN trips t ON t.id=po.trip_id
+                WHERE po.id=? FOR UPDATE", [$id]);
+            must((bool)$po, 'Diesel PO not found.', 404);
+            must($po['trip_status']==='Completed', 'Supplier SOA may be filed only after trip completion.', 409);
+            must($po['status']==='Awaiting SOA', 'Only approved Diesel POs awaiting an SOA can be filed.', 409);
+            must(Files::count($p,'trip',(int)$po['trip_id'],'Supplier SOA')===0,
+                'A Supplier SOA already exists for this trip. Review it before filing another.', 409);
+            Files::store($p,$u,'supplier_soa','trip',(int)$po['trip_id'],'Supplier SOA',true,'Supplier SOA');
+            run($p, "UPDATE diesel_purchase_orders SET status='SOA Received',
+                    received_by=?, received_at=NOW(), receipt_notes=? WHERE id=?",
+                [$u['id'],'Supplier SOA photo filed by Finance after trip completion.',$id]);
+            auditWithChanges($p,$u['id'],'Diesel PO','po '.$id,'supplier SOA filed and archived',
+                $po['po_number'].' recorded with Supplier SOA in Finance History.',
+                ['Status'=>$po['status']],['Status'=>'SOA Received','Supplier SOA'=>'Attached']);
+            return ['message'=>'Supplier SOA attached. Diesel PO '.$po['po_number'].' is now in Finance History. No payment was recorded.'];
+        });
     }
 
     /** Records a stock change and keeps quantity_on_hand >= 0 (checked again by the database). */
