@@ -106,7 +106,7 @@ final class DieselPo {
             must($po['status']==='Draft','Only Draft Diesel POs can be reviewed.',409);
             must(!in_array($po['trip_status'],['Cancelled','Rejected','Missed'],true),'This trip is closed.',409);
             if ($decision === 'approve') {
-                $budget=one($p, "SELECT * FROM budgets WHERE category='Fuel Operations' AND status='Active'
+                $budget=one($p, "SELECT * FROM budgets WHERE category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Fuel Operations' END) AND status='Active'
                     AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
                 must((bool)$budget, 'No active Fuel Operations budget covers today. Finance must allocate a Fuel Operations budget before Diesel PO approval.', 409);
                 $snapshot=json_decode((string)$po['diesel_po_json'],true);
