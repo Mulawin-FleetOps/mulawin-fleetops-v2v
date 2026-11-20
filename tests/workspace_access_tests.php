@@ -53,6 +53,12 @@ ok(Access::moduleOf('finance_overview') === 'Finance' && Access::moduleOf('finan
 section('B3. Billing and Audit workspaces (BILLING_WORKSPACE_V1, AUDIT_WORKSPACE_V1)');
 $bnav = array_column(Access::navFor($U('billing')), 'label', 'id');
 ok(array_slice(array_values($bnav), 0, 5) === ['Overview', 'Billing & Invoices', 'Collections', 'Receivables', 'Billing Reports'], 'Billing menu: Overview, Billing & Invoices, Collections, Receivables, Billing Reports', json_encode(array_values($bnav)));
+ok(!Access::canOpen($U('billing'), 'approvals') && !in_array('approvals', array_keys($bnav), true),
+    'Billing has no general Approvals page or direct access; Admin retains adjustment decisions');
+ok(Access::canOpen($U('admin'), 'approvals'),
+    'Admin retains general approval inbox for authorized decisions');
+ok(Access::canOpen($U('billing'), 'billing'),
+    'Billing keeps invoice workflow and pending-adjustment visibility');
 $anav = array_column(Access::navFor($U('audit')), 'label', 'id');
 ok(array_slice(array_values($anav), 0, 4) === ['Overview', 'Audit Logs', 'Transaction History', 'Audit Reports'], 'Audit menu: Overview, Audit Logs, Transaction History, Audit Reports', json_encode(array_values($anav)));
 foreach (array_keys(ROLE_LABELS) as $r) {
