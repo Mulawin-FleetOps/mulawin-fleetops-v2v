@@ -1160,3 +1160,65 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
   overflow-wrap:anywhere;
 }
 .offcanvas .mp-history-document-list i {color:#738d79}
+
+
+/* PURCHASING_DASHBOARD_PAGINATION_V1
+   Replace nested scrolling in purchasing dashboard panels with a small pager. */
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-list {
+  max-height:none !important;
+  height:auto !important;
+  overflow:visible !important;
+  overscroll-behavior:auto;
+  scrollbar-width:auto;
+  padding:0;
+  margin:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-list > [hidden] {
+  display:none !important;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-pager {
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  min-width:0;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:10px 13px;
+  border-top:1px solid #e5eee8;
+  color:#6c8475;
+  font-size:11.5px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-controls {
+  display:inline-flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-controls button {
+  border:1px solid #d6e4da;
+  border-radius:7px;
+  min-height:30px;
+  padding:6px 9px;
+  background:#fff;
+  color:#176b3d;
+  font:inherit;
+  font-weight:600;
+  cursor:pointer;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-controls button:hover:not(:disabled) {
+  border-color:#9ac7aa;
+  background:#f2f8f4;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-controls button:disabled {
+  opacity:.43;
+  cursor:not-allowed;
+}
+#pageContent .purchasing-dashboard-ref .purchasing-dashboard-page-controls [data-dash-current] {
+  font-weight:600;
+  white-space:nowrap;
+}
