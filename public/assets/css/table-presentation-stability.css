@@ -942,3 +942,61 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 @media(max-width:600px) {
   .modal .mp-request-details-overview{grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* MOTORPOOL_REPAIR_PARTS_COSTS_V1
+   Compact read-only Repair Details / Parts & Costs drawer, no deferred tables. */
+.offcanvas .mp-repair-parts-costs {display:flex;flex-direction:column;gap:14px;padding-top:4px}
+.offcanvas .mp-repair-cost-summary {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
+.offcanvas .mp-repair-cost-summary > div {
+  display:flex;flex-direction:column;gap:5px;padding:12px;
+  border:1px solid #dce8df;border-radius:9px;background:#f8fbf9;min-width:0;
+}
+.offcanvas .mp-repair-cost-summary small {color:#708476;font-size:11px}
+.offcanvas .mp-repair-cost-summary strong {color:#214b31;font-size:16px;overflow-wrap:anywhere}
+.offcanvas .mp-repair-cost-summary > .mp-repair-cost-total {
+  grid-column:1/-1;border-color:#caa650;background:#fffdf7;
+}
+.offcanvas .mp-repair-cost-summary > .mp-repair-cost-total strong {font-size:20px}
+.offcanvas .mp-repair-cost-section {border:1px solid #dce8df;border-radius:10px;overflow:hidden;background:#fff}
+.offcanvas .mp-repair-cost-section-head {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:9px;padding:12px;border-bottom:1px solid #e4ece6;
+}
+.offcanvas .mp-repair-cost-section-head > strong {font-size:12.5px;color:#274b35}
+.offcanvas .mp-repair-cost-section-head .btn {
+  border-radius:7px;font-weight:650;font-size:11.5px;padding:7px 10px;white-space:normal;
+}
+.offcanvas .mp-repair-cost-empty {
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  text-align:center;padding:23px 17px;color:#6e8174;font-size:12px;
+}
+.offcanvas .mp-repair-cost-empty i {font-size:19px;color:#7fa88b}
+.offcanvas .mp-repair-cost-empty strong {color:#365b43;font-size:12.5px}
+.offcanvas .mp-repair-cost-empty span {max-width:320px;line-height:1.5}
+.offcanvas .mp-repair-cost-notice {
+  display:flex;align-items:flex-start;gap:8px;padding:10px 12px;
+  background:#fff8e8;color:#87600c;font-size:12px;border-bottom:1px solid #eadcbc;
+}
+.offcanvas .mp-repair-parts-list,.offcanvas .mp-repair-other-costs {display:flex;flex-direction:column}
+.offcanvas .mp-repair-part-entry,.offcanvas .mp-repair-other-entry {padding:12px;border-bottom:1px solid #e7eee8}
+.offcanvas .mp-repair-part-entry:last-child,.offcanvas .mp-repair-other-entry:last-child {border-bottom:0}
+.offcanvas .mp-repair-part-main {display:flex;flex-direction:column;gap:3px}
+.offcanvas .mp-repair-part-main strong {font-size:12.5px;color:#294a35}
+.offcanvas .mp-repair-part-main small,.offcanvas .mp-repair-other-entry small {
+  font-size:11.5px;color:#708476;line-height:1.5;
+}
+.offcanvas .mp-repair-part-counts {display:flex;flex-wrap:wrap;gap:7px 13px;margin-top:10px;font-size:11.5px;color:#647b6b}
+.offcanvas .mp-repair-part-counts b {color:#214b31}
+.offcanvas .mp-repair-part-price {
+  display:flex;justify-content:space-between;gap:9px;
+  border-top:1px dashed #e4ece6;margin-top:9px;padding-top:8px;
+  font-size:11.5px;color:#6d8272;
+}
+.offcanvas .mp-repair-part-price b {color:#294a35}
+.offcanvas .mp-repair-other-entry {display:flex;justify-content:space-between;gap:12px}
+.offcanvas .mp-repair-other-entry > div {display:flex;flex-direction:column;gap:4px;min-width:0}
+.offcanvas .mp-repair-other-entry strong {font-size:12.5px;color:#294a35}
+.offcanvas .mp-repair-other-entry > b {font-size:12.5px;white-space:nowrap;color:#294a35}
