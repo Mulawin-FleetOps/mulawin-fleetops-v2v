@@ -1221,14 +1221,33 @@ App.page('maintenance_overview', {
       + '</div>' + (fs && fs.assigned ? `<p class="small text-muted mt-1 mb-2">${UI.num(fs.assigned)} more truck(s) are reserved for an upcoming trip.</p>` : '');
     const att = Array.isArray(d.attention) ? d.attention : [];
     const lim = (d.limits && d.limits.attention) || 25;
+    // Record queues get independent pages, not nested scrollbars.
+    // Preserve server list limits and the existing click-to-open handlers.
+    const queueSize = 4;
+    const queuePager = (entries, kind, className) => {
+      if (!entries.length) return '';
+      const pages = Math.max(1, Math.ceil(entries.length / queueSize));
+      return `<div class="mp-dashboard-paged" data-mp-dashboard-paged="${kind}">
+        <ul class="${className} mp-dashboard-page-list">${entries.map((html, index) =>
+          html.replace('<li ', `<li data-mp-page-index="${index}" `)).join('')}</ul>
+        <div class="mp-dashboard-page-footer no-print">
+          <span data-mp-page-range>Showing 1–${Math.min(queueSize,entries.length)} of ${entries.length}</span>
+          <span class="mp-dashboard-page-controls">
+            <button type="button" data-mp-page-prev disabled>Previous</button>
+            <span data-mp-page-label>Page 1 of ${pages}</span>
+            <button type="button" data-mp-page-next ${pages === 1 ? 'disabled' : ''}>Next</button>
+          </span>
+        </div>
+      </div>`;
+    };
     const todoBody = failed.attention ? '<div class="mo-empty text-danger">The list could not be loaded. Reload the page.</div>'
-      : att.length ? `<ul class="mo-list mo-scroll">${att.slice(0, lim).map(r => MaintOverview.attentionItem(r, can)).join('')}</ul>`
+      : att.length ? queuePager(att.slice(0, lim).map(r => MaintOverview.attentionItem(r, can)), 'attention', 'mo-list')
         + (att.length > lim ? `<div class="mo-more">Showing the ${lim} records waiting the longest. <a href="#maintenance">Open Repairs</a> for the rest.</div>` : '')
       : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> Nothing needs your action right now.</div>';
     const stale = Array.isArray(d.stale) ? d.stale : [];
-    const staleBody = stale.length ? `<ul class="ws-trucks mo-scroll">${stale.map(t => `<li class="clickable" data-open-job="${+t.job_id}" role="button" tabindex="0">
+    const staleBody = stale.length ? queuePager(stale.map(t => `<li class="clickable" data-open-job="${+t.job_id}" role="button" tabindex="0">
         <div><b>${UI.esc(t.plate_number)}</b> <span class="text-muted">${UI.esc(t.job_ref)}</span><div class="cell-sub">${UI.esc(t.mechanic || 'No mechanic yet')}</div></div>
-        <div class="text-end"><span class="${+t.days >= 7 ? 'text-danger fw-semibold' : ''}">${UI.num(+t.days)} days</span><div>${UI.badge(t.status)}</div></div></li>`).join('')}</ul>`
+        <div class="text-end"><span class="${+t.days >= 7 ? 'text-danger fw-semibold' : ''}">${UI.num(+t.days)} days</span><div>${UI.badge(t.status)}</div></div></li>`), 'long-running', 'ws-trucks')
       : '<div class="mo-empty"><i class="bi bi-check2-circle"></i> No repair has been open for 3 days or more.</div>';
     const crewBody = !crew ? '' : crew.active ? UI.wsList([
         UI.wsEntry('mechanic_attendance?duty=in', '<b>Available</b>', 'Timed in, no current repair', `<span class="badge-s green">${UI.num(crew.available)}</span>`),
@@ -1262,6 +1281,26 @@ App.page('maintenance_overview', {
         </div>
       </div></div>`;
 
+    ctx.el.querySelectorAll('[data-mp-dashboard-paged]').forEach(pager => {
+      const entries = [...pager.querySelectorAll(':scope > .mp-dashboard-page-list > [data-mp-page-index]')];
+      const pages = Math.max(1, Math.ceil(entries.length / queueSize));
+      let page = 1;
+      const prev = pager.querySelector('[data-mp-page-prev]');
+      const next = pager.querySelector('[data-mp-page-next]');
+      const draw = () => {
+        entries.forEach((entry,index) => {
+          entry.hidden = index < (page - 1) * queueSize || index >= page * queueSize;
+        });
+        pager.querySelector('[data-mp-page-range]').textContent =
+          'Showing ' + ((page - 1) * queueSize + 1) + '–' + Math.min(page * queueSize,entries.length) + ' of ' + entries.length;
+        pager.querySelector('[data-mp-page-label]').textContent = 'Page ' + page + ' of ' + pages;
+        prev.disabled = page === 1;
+        next.disabled = page === pages;
+      };
+      prev.addEventListener('click', () => { if (page > 1) { page--; draw(); } });
+      next.addEventListener('click', () => { if (page < pages) { page++; draw(); } });
+      draw();
+    });
     const root = ctx.el.querySelector('.maint-overview');
     UI.bindGo(root.querySelector('.head-trip-kpis'));   // MOTORPOOL_UI_V2: KPI cards open their filtered lists
     root.querySelector('[data-qa="report"]')?.addEventListener('click', () => MaintUI.report());
