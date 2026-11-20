@@ -563,8 +563,34 @@ const AnalyticsAutoSync = {
       const chartId = 'ax-chart-' + chartJobs.length;
       if (rows.length && hasSeries) chartJobs.push(() => HM.chart(ctx.el.querySelector('#' + chartId), type, rows, datasets, opts || {}));
       else chartJobs.push(() => null);
-      const body = rows.length && hasSeries ? HM.canvas(chartId, title, 225) : HM.empty('No recorded values in the selected period.');
-      charts.push('<div class="ax-chart-card">' + UI.wsPanel(title, 'bi-bar-chart-line', body + ((opts || {}).note ? '<div class="ax-caption">' + escape(opts.note) + '</div>' : ''), {}) + '</div>');
+      const amounts = type === 'doughnut' ? ((datasets || [])[0]?.data || []).map(v => Math.max(0, Number(v) || 0)) : [];
+      const validIndices = amounts.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0);
+      const totalValue = amounts.reduce((a, b) => a + b, 0);
+      const single = type === 'doughnut' && validIndices.length === 1;
+      // A full-circle doughnut with one nonzero category obscures the actual
+      // comparison. Use a clear horizontal bar when only one category exists.
+      if (rows.length && hasSeries && single) {
+        chartJobs[chartJobs.length - 1] = () => HM.chart(ctx.el.querySelector('#' + chartId), 'hbar',
+          [rows[validIndices[0]]], [{label:'Recorded value',data:[amounts[validIndices[0]]],color:colors[0]}],opts || {});
+      }
+      const body = rows.length && hasSeries ? HM.canvas(chartId, title, single ? 155 : 225) : HM.empty('No recorded values in the selected period.');
+      let explanation = (opts || {}).note || '';
+      if (type === 'doughnut' && hasSeries) {
+        const ranked = validIndices.map(i => ({label:String(rows[i]),amount:amounts[i]})).sort((a,b)=>b.amount-a.amount);
+        const totalText = (opts || {}).money ? UI.money(totalValue) : UI.num(totalValue);
+        const leading = ranked.slice(0, 4).map(item => escape(item.label) + ': ' +
+          ((item.amount / totalValue) * 100).toFixed(1) + '% (' +
+          ((opts || {}).money ? UI.money(item.amount) : UI.num(item.amount)) + ')').join(' · ');
+        explanation = (single
+          ? 'Only one category has a positive recorded value, so a comparison bar is shown instead of a 100% ring. '
+          : 'The chart shows each recorded category as a share of the total. ')
+          + 'Recorded total: ' + totalText + '. ' + leading +
+          (ranked.length > 4 ? ' · Other categories are available in the chart legend.' : '') +
+          (explanation ? ' ' + escape(explanation) : '');
+      } else if (explanation) explanation = escape(explanation);
+      const guide = explanation ? '<p class="ax-chart-explain"><strong>Why this chart?</strong> ' + explanation + '</p>' : '';
+      charts.push('<div class="ax-chart-card">' + UI.wsPanel(title, 'bi-bar-chart-line',
+        '<div class="ax-chart-inner">' + body + guide + '</div>', {}) + '</div>');
     };
     let supporting = '', note = '';
     const basic = (label, n, hint, format) => kpis.push({label, value: n, hint: hint || '', format: format || ''});
@@ -666,7 +692,7 @@ const AnalyticsAutoSync = {
         const costs = (r.cost||{}), cat = [{label:'Parts used',value:Number(costs.parts||0)}]
           .concat((costs.types||[]).map(x=>({label:x.type,value:Number(x.total)}))).filter(x=>x.value>0);
         plot('Maintenance expense composition','doughnut',cat.map(x=>x.label),
-          [{label:'Cost',data:cat.map(x=>x.value),colors:colors}],{money:true});
+          [{label:'Cost',data:cat.map(x=>x.value),colors:colors}],{money:true,note:'Parts used reflects recorded parts costs; other expense types appear only when recorded for the selected dates.'});
         const down = (((fleet.tables||[]).find(x=>x.title==='Highest downtime')||{}).rows||[]).slice(0,10);
         plot('Recorded downtime by truck', 'hbar', down.map(x=>x.name),
           [{label:'Days',data:down.map(x=>Number(x.downtime_days)),color:colors[3]}]);
@@ -697,7 +723,7 @@ const AnalyticsAutoSync = {
         plot('Client collections by week','line',(d.weeks||[]).map(x=>x.label),
           [{label:'Collections',data:(d.weeks||[]).map(x=>Number(x.amount)),color:colors[0]}],{money:true});
         plot('Operating expense distribution','doughnut',(d.expenses||[]).map(x=>x.label),
-          [{label:'Expenses',data:(d.expenses||[]).map(x=>Number(x.value)),colors:colors}],{money:true});
+          [{label:'Expenses',data:(d.expenses||[]).map(x=>Number(x.value)),colors:colors}],{money:true,note:'Expenses are grouped by their recorded expense category for the selected dates; unrecorded categories cannot be inferred.'});
         supporting = recordTable(money,'Billing by client',12);
         note = '5.1.3 · Billed, collected and expense amounts are separate accounting measures; they are not automatically net profit.';
       }
@@ -726,7 +752,7 @@ const AnalyticsAutoSync = {
           [{label:'Stock in',data:(purchase.flow||{}).in||[],color:colors[0]},
            {label:'Stock out',data:(purchase.flow||{}).out||[],color:colors[2]}],{money:true});
         plot('Inventory value by category · now','doughnut',inventory.map(x=>x.label),
-          [{label:'Value',data:inventory.map(x=>Number(x.value)),colors:colors}],{money:true});
+          [{label:'Value',data:inventory.map(x=>Number(x.value)),colors:colors}],{money:true,note:'Current active inventory value is quantity on hand multiplied by recorded unit cost, grouped by Part Type. Unlike movement charts, this is a current snapshot, not a period total.'});
         plot('Movement value by type','bar',types.map(x=>x.type),
           [{label:'Value',data:types.map(x=>Number(x.value)),color:colors[1]}],{money:true});
         supporting = reportTable('Stock movements per part · quantities keep their own units',
@@ -772,6 +798,10 @@ const AnalyticsAutoSync = {
       + '.ax-kpi span{font-size:11px;color:#63776b;}.ax-kpi strong{font-size:23px;font-weight:750;line-height:1.25;color:#203d2c;overflow-wrap:anywhere;}'
       + '.ax-kpi small{font-size:10px;color:#849489;}.ax-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px;}'
       + '.ax-chart-card{min-width:0;}.ax-chart-card .ws-panel{height:100%;}.ax-caption{font-size:11px;color:#738377;margin:9px 0 0;}'
+      + '.ax-chart-inner{display:grid;gap:12px;min-width:0;padding:2px 0 4px;}'
+      + '.ax-chart-inner .mr-chart{width:100%;max-width:100%;min-width:0;overflow:hidden;}'
+      + '.ax-chart-explain{margin:0;padding:10px 12px;background:#f7faf8;border:1px solid #e4ece6;border-radius:8px;color:#5d7164;font-size:11px;line-height:1.6;overflow-wrap:anywhere;}'
+      + '.ax-chart-explain strong{color:#285840;font-weight:750;}'
       + '.ax-table-wrap{padding:16px;background:#fff;border:1px solid #e1e9e3;border-radius:12px;margin-top:12px;overflow:auto;}'
       + '.ax-table-wrap h3{font-size:14px;font-weight:700;color:#284634;margin:0 0 12px;}'
       + '.ax-table-wrap table{font-size:12px;}.ax-report-nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:22px;font-size:12px;color:#728078;}'
