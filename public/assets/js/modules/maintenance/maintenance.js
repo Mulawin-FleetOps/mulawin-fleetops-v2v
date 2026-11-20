@@ -707,7 +707,7 @@ const MaintUI = {
     const incidentField = (label, value, wide = false) =>
       `<div class="mp-incident-detail-field${wide?' mp-incident-detail-wide':''}"><small>${label}</small><div>${value==null||value===''?'—':value}</div></div>`;
     const incidentOverview = i && remoteIncident ? `
-      ${UI.h('Incident & truck')}
+      ${UI.h('Incident & truck', act ? '<button type="button" class="btn btn-link btn-sm p-0" data-a="printinc"><i class="bi bi-printer" aria-hidden="true"></i> Incident report form</button>' : '')}
       <div class="mp-incident-detail-grid">
         ${incidentField('Truck',truckLine,true)}
         ${incidentField('Trip',UI.esc(j.trip_ref||'—'))}
