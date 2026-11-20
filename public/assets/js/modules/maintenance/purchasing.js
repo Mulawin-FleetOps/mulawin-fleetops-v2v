@@ -1736,6 +1736,7 @@ App.page('stock_movements', {
 // Data: Analytics -> Purchasing::analytics (SQL over recorded transactions; rules in Purchasing::partRules / flowRules).
 // Nothing on this page writes.
 const PurReport = {
+  whyChart: message => '<div class="report-chart-why"><strong><i class="bi bi-info-circle" aria-hidden="true"></i> Why this chart?</strong><p>' + UI.esc(message) + '</p></div>',
   charts: [],
   sug(items, empty) {
     return items && items.length ? `<ul class="ws-sug">${items.map(x => `<li>${UI.esc(x.text)}${x.go && UI.canGo(x.go) ? ` <button type="button" class="btn btn-link btn-sm" data-go="${UI.esc(x.go)}">${UI.esc(x.label || 'Open')}</button>` : ''}</li>`).join('')}</ul>`
@@ -1802,10 +1803,10 @@ App.page('purchasing_reports', {
 
     ctx.el.innerHTML = `${UI.wsPeriod('purchasing_reports', per)}${UI.kpiTiles(tiles, 'ws-kpi4')}
       <div class="ws-grid2 ws-report-row">
-        ${UI.wsPanel('Stock in vs stock out', 'bi-graph-up', chartBody, { cls: 'ws-l1', tipHtml: PurReport.sug(flowTips, 'No delivery, shortage or stock difference needs follow-up.') })}
-        ${UI.wsPanel('Most used parts', 'bi-trophy', rank, { cls: 'ws-r1', tipHtml: PurReport.sug(d.partTips, 'No part is low on stock right now.'), foot: 'Units released to repairs in the period.' })}
+        ${UI.wsPanel('Stock in vs stock out', 'bi-graph-up', chartBody + PurReport.whyChart('This compares the recorded PHP value of stock received from purchase orders and stock issued to parts requests. Each point is calculated from actual movement quantities and recorded unit costs.'), { cls: 'ws-l1', tipHtml: PurReport.sug(flowTips, 'No delivery, shortage or stock difference needs follow-up.') })}
+        ${UI.wsPanel('Most used parts', 'bi-trophy', rank + PurReport.whyChart('These parts are ranked by units released to repairs in the chosen period, not by purchase price. Quantities belong to each part and should not be mixed across different units.'), { cls: 'ws-r1', tipHtml: PurReport.sug(d.partTips, 'No part is low on stock right now.'), foot: 'Units released to repairs in the period.' })}
       </div>
-      ${UI.wsPanel('Orders & stock summary', 'bi-clipboard-data', summary, { go: 'purchase_orders?tab=all', goLabel: 'Open records',
+      ${UI.wsPanel('Orders & stock summary', 'bi-clipboard-data', summary + PurReport.whyChart('Shows distinct purchase-order approval, delivery, payment and shortage measures. These represent different transaction stages and must not be added together.'), { go: 'purchase_orders?tab=all', goLabel: 'Open records',
         foot: 'Approvals, receipts and payments describe the same orders at different stages; they are not added together.' })}`;
     UI.bindTips(ctx.el); UI.bindPeriod(ctx.el);
 
