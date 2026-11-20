@@ -2682,7 +2682,7 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
 }
 .po-progress-heading strong {font-size:17px;color:#175a34}
 .po-progress-steps {
-  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
   gap:10px;list-style:none;padding:0;margin:0;
 }
 .po-progress-step {
