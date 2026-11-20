@@ -42,8 +42,8 @@ const FinUI = {
   setBudget(d) {
     UI.formModal('Submit General Budget for approval', [
       { name: 'amount', label: 'General Budget Amount', type: 'money', required: true, col: 12 },
-      { name: 'period_start', label: 'Effective start date', type: 'date', value: UI.today(), required: true, col: 6 },
-      { name: 'period_end', label: 'Effective end date', type: 'date', required: true, col: 6 },
+      { name: 'period_start', label: 'Effective start date (today)', type: 'date', value: UI.today(), required: true, col: 6, attrs: 'readonly', help: 'Automatically set to today (Philippine time).' },
+      { name: 'period_end', label: 'Effective end date', type: 'date', value: UI.today(), required: true, col: 6, attrs: 'min="' + UI.today() + '"', help: 'Today or a later date only.' },
       { name: 'remarks', label: 'Remarks (optional)', col: 12 }
     ], 'Finance.budget_set', {
       intro: 'One overall General Budget for company operations. Admin must approve before it becomes Active. Existing approved commitments and allocations remain unchanged while this request is pending.'
