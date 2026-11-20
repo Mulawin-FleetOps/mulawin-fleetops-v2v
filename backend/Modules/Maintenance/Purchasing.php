@@ -61,7 +61,8 @@ final class Purchasing {
         $reservationSql = self::reservationsReady($p)
             ? '(SELECT COALESCE(SUM(l.reserved_qty),0) FROM part_request_lines l WHERE l.part_id=pt.id)'
             : '0';
-        $partsFull = fn() => many($p, "SELECT pt.*, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
+        $preferredSupplierSelect = self::regularSupplierReady($p) ? 'pt.regular_supplier_name' : 'NULL AS regular_supplier_name';
+        $partsFull = fn() => many($p, "SELECT pt.*, $preferredSupplierSelect, ROUND(pt.quantity_on_hand*pt.unit_cost,2) AS stock_value,
                     $reservationSql AS reserved_qty,
                     GREATEST(0,pt.quantity_on_hand-$reservationSql) AS available_qty,
                     (pt.reorder_level>0 AND pt.quantity_on_hand<=$reservationSql+pt.reorder_level) AS low_stock,
@@ -75,6 +76,7 @@ final class Purchasing {
                 'parts' => fn() => $stock ? $partsFull() : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
+                'regularSupplierReady' => $stock && self::regularSupplierReady($p),
                 'budget' => $budget,
             ]),
             'purchase_orders' => readSections([
@@ -89,6 +91,7 @@ final class Purchasing {
                     WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY r.id DESC LIMIT 200") : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
+                'regularSupplierReady' => $stock && self::regularSupplierReady($p),
                 'budget' => $budget,
                 'fuelTrips' => fn() => hasRole($u, 'finance', 'admin', 'audit') ? many($p, "SELECT t.id, t.trip_ref, t.truck_type, t.status, t.dispatcher_role, v.plate_number,
                     (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Diesel PO') AS diesel_po_docs
@@ -338,6 +341,13 @@ final class Purchasing {
             : "NULL AS part_type, NULL AS brand";
     }
 
+    /** Optional per-part preference; older databases remain readable. */
+    private static function regularSupplierReady(PDO $p): bool {
+        return (int)(one($p, "SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='parts'
+              AND COLUMN_NAME='regular_supplier_name'")['n'] ?? 0) === 1;
+    }
+
     private static function partSave(array $u, array $d): array {
         requireRole($u, 'purchasing');
         $id = optId($d, 'id');
@@ -348,6 +358,7 @@ final class Purchasing {
         // These values distinguish variants sharing the same Part Type. Do not backfill legacy guesses.
         $type = optField($d, 'part_type', 100);
         $brand = optField($d, 'brand', 100);
+        $supplier = optField($d, 'regular_supplier_name', 150);
         must($id || $type !== null, 'Enter a Part Type for every new part.'); 
         // Do not blank historical free-text warranty notes when the new form edits duration only.
         if (array_key_exists('warranty_info', $d)) $row['warranty_info'] = optField($d, 'warranty_info', 150);
@@ -357,10 +368,15 @@ final class Purchasing {
         must($id || (int)(intField($d, 'opening_qty', 0, false) ?? 0) === 0,
             'A new part starts with 0 on hand. Receive it on a purchase order, or record a stock count for the Admin to review.', 403);
         $opening = 0;
-        return transaction(function (PDO $p) use ($u, $id, $row, $opening, $type, $brand) {
+        return transaction(function (PDO $p) use ($u, $id, $row, $opening, $type, $brand, $supplier) {
             must(self::partIdentityReady($p), 'Apply the Part Type and Brand database migration before saving catalog changes.', 503);
             if ($type !== null) $row['part_type'] = $type;
             $row['brand'] = $brand;
+            if (self::regularSupplierReady($p)) {
+                $row['regular_supplier_name'] = $supplier ? strtoupper(preg_replace('/\\s+/', ' ', trim($supplier))) : null;
+            } else {
+                must($supplier === null, 'Apply the Regular Supplier database migration before selecting a regular supplier.', 503);
+            }
             // Exclude incomplete historical records from duplicate checks until classified.
             if ($type !== null) {
                 $duplicate = one($p, "SELECT id FROM parts WHERE id<>?
