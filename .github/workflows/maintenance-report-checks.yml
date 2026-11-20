@@ -11,6 +11,8 @@ on:
       - 'tests/descriptive_vehicle_status_chart.test.cjs'
       - 'public/assets/js/modules/administration/oversight.js'
       - 'public/assets/js/modules/accounting/finance.js'
+      - 'public/assets/js/core.js'
+      - 'tests/payment_method_fields.test.cjs'
       - 'backend/Modules/Administration/Oversight.php'
       - '.github/workflows/maintenance-report-checks.yml'
   workflow_dispatch:
@@ -33,10 +35,13 @@ jobs:
           php -l backend/Modules/Administration/Oversight.php
           node --check public/assets/js/modules/administration/oversight.js
           node --check public/assets/js/modules/accounting/finance.js
+          node --check public/assets/js/core.js
           php -l tests/maintenance_overview_tests.php
           node --check public/assets/js/modules/maintenance/maintenance.js
       - name: Check three vehicle types and trip status reporting contract
         run: node tests/descriptive_vehicle_status_chart.test.cjs
+      - name: Check conditional payment method fields
+        run: node tests/payment_method_fields.test.cjs
       - name: Check automatic server reporting date contract
         run: |
           php -r '$s=file_get_contents("backend/Modules/Maintenance/Maintenance.php"); $start=strpos($s,"private static function report("); $end=strpos($s,"private static function ",$start+10); $section=substr($s,$start,$end-$start); if(!str_contains($section,"\$date = date(") || str_contains($section,"dateField(\$d, '\''reported_on'\'')")) exit(1);'
