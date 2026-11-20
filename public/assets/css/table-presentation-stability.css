@@ -1334,3 +1334,60 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
   text-align:center;
   white-space:nowrap;
 }
+
+
+/* MOTORPOOL_MECHANIC_STOCK_MOVEMENT_SPACING_V2
+   Mirror the compact, column-aligned Stock Movement grid on Mechanic Records.
+   Scoped to the masterlist: do not change Attendance or other tables. */
+#pageContent .mp-mechanic-records-table .ref-tablebox .table-wrap {
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table {
+  width:100%;
+  min-width:980px;
+  table-layout:fixed;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td) {
+  box-sizing:border-box;
+  padding:11px 10px !important;
+  vertical-align:middle;
+  text-align:left;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(1){width:16% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(2){width:18% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(3){width:14% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(4){width:11% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(5){width:19% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(6){width:9% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(7){width:13% !important}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td).actions-col {
+  min-width:0 !important;
+  max-width:none !important;
+  padding:11px 12px 11px 10px !important;
+  text-align:right !important;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td.actions-col :is(.row-actions,.row-icons) {
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-end !important;
+  flex-wrap:nowrap !important;
+  width:100%;
+  margin:0;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td.actions-col .row-icons > .btn {
+  flex:0 0 auto;
+  width:auto !important;
+  min-width:90px;
+  min-height:35px;
+  padding:7px 11px;
+  margin:0;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table :is(th,td):nth-child(6) {
+  text-align:center;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td:nth-child(2),
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td:nth-child(5) {
+  overflow-wrap:anywhere;
+}
