@@ -44,7 +44,7 @@ final class Access {
             'stock_movements' => 'Records', 'purchasing_reports' => 'Records',
             'billing' => 'Records', 'finance' => 'Records', 'finance_budgets' => 'Records',
             'billing_collections' => 'Records', 'billing_receivables' => 'Records',
-            'audit_overview' => 'Audit', 'audit_logs' => 'Audit', 'audit_history' => 'Audit', 'audit_reports' => 'Audit',
+            'audit_overview' => 'Audit', 'audit_logs' => 'Audit', 'audit_history' => 'Audit',
             'reports' => 'Records',
         ],
     ];
@@ -66,7 +66,7 @@ final class Access {
     private const NAV_ORDER = [
         'finance' => ['finance_overview', 'approvals', 'purchase_orders', 'funds', 'finance', 'finance_budgets', 'purchasing_reports'],
         'billing' => ['billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'reports'],
-        'audit' => ['audit_overview', 'audit_logs', 'audit_history', 'audit_reports'],
+        'audit' => ['audit_overview', 'audit_logs', 'audit_history'],
     ];
 
     public static function pages(): array {
@@ -171,7 +171,6 @@ final class Access {
             'audit_overview' => ['Audit Overview', 'bi-speedometer2', 'Audit', 'Admin', 'administration/audit', ['audit']],
             'audit_logs'  => ['Audit Logs', 'bi-journal-text', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
             'audit_history' => ['Transaction History', 'bi-clock-history', 'Audit', 'Admin', 'administration/audit', ['admin', 'audit']],
-            'audit_reports' => ['Audit Reports', 'bi-clipboard-data', 'Audit', 'Admin', 'administration/audit', ['admin']],
             'admin'       => ['User Management', 'bi-people', 'Records', 'Admin', 'administration/admin', ['admin']],
             // HEAD_MANAGEMENT_V1: Head Management (Admin) workspace. Read-only oversight pages (Oversight module); approval
             // decisions use the existing Purchasing / Billing actions, which check the Admin role and the request state.
@@ -268,7 +267,7 @@ final class Access {
     }
 
     private static function reportPage(string $page): bool {
-        return in_array($page, ['reports','operations_reports','financial_reports','billing_reports','maintenance_reports','purchasing_reports','audit_reports',
+        return in_array($page, ['reports','operations_reports','financial_reports','billing_reports','maintenance_reports','purchasing_reports',
             'admin_reports','admin_analytics','admin_descriptive_analytics','admin_diagnostic_analytics'], true);
     }
 
