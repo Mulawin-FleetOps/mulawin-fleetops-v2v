@@ -2927,3 +2927,106 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   .purchasing-part-detail .part-detail-stock {gap:4px}
   .purchasing-part-detail .part-detail-stat {padding:8px}
 }
+
+/* MOTORPOOL_HISTORY_DETAILS_COMPACT_V1 — only the read-only Maintenance History drawer.
+   Override the generic 440/490px drawer; present overview facts in compact columns. */
+body.ref-body .offcanvas.app-drawer:has(.mp-history-detail-readonly) {
+  --bs-offcanvas-width: min(720px, 100vw);
+  width: min(720px, 100vw);
+  max-width: 100vw;
+}
+body.ref-body .offcanvas.app-drawer:has(.mp-history-detail-readonly) .offcanvas-header {
+  padding: 15px 22px;
+  background: #fff;
+  border-bottom: 1px solid #e1eae3;
+}
+body.ref-body .offcanvas.app-drawer:has(.mp-history-detail-readonly) .offcanvas-body {
+  padding: 16px 22px 28px;
+  background: #f8faf8;
+}
+.mp-history-detail-readonly {
+  min-width: 0;
+  color: #284334;
+}
+.mp-history-detail-readonly .mp-history-detail-summary {
+  padding: 13px 16px;
+  border: 1px solid #cfdfd2;
+  border-radius: 10px;
+  background: #eff7f1;
+}
+.mp-history-detail-readonly .mp-history-readonly-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #65816d;
+  font-size: 11px;
+}
+.mp-history-detail-readonly .mp-history-detail-summary strong {
+  font-size: 16px;
+  color: #20583c;
+}
+.mp-history-detail-readonly .drawer-h {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .3px;
+  color: #285d40;
+}
+.mp-history-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 9px;
+  min-width: 0;
+}
+.mp-history-field {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e1eae3;
+  border-radius: 8px;
+  background: #fff;
+}
+.mp-history-field-wide { grid-column: 1 / -1; }
+.mp-history-field-label {
+  margin-bottom: 4px;
+  color: #718579;
+  font-size: 11px;
+  font-weight: 500;
+}
+.mp-history-field-value {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  color: #254134;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.45;
+}
+.mp-history-detail-readonly .mp-history-cost-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 14px;
+}
+.mp-history-detail-readonly .mp-history-cost-summary > span {
+  flex: 1 1 160px;
+  padding: 10px 12px;
+  border: 1px solid #e0eae3;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+}
+.mp-history-detail-readonly .mp-history-detail-subheading {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.mp-history-detail-readonly .table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.mp-history-detail-readonly .data-table th,
+.mp-history-detail-readonly .data-table td { padding: 9px 10px; font-size: 12px; }
+@media (max-width: 560px) {
+  body.ref-body .offcanvas.app-drawer:has(.mp-history-detail-readonly) .offcanvas-header { padding: 12px 15px; }
+  body.ref-body .offcanvas.app-drawer:has(.mp-history-detail-readonly) .offcanvas-body { padding: 12px 14px 22px; }
+  .mp-history-fields { grid-template-columns: 1fr; gap: 7px; }
+  .mp-history-field-wide { grid-column: auto; }
+}
