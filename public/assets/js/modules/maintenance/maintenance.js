@@ -527,11 +527,63 @@ const MaintUI = {
       } });
     return wrap;
   },
-  /** Fulfilment progress of one parts request: requested vs released units and current availability. */
+  /** Read-only Motorpool request details: render the actual lines directly in the
+   * modal (UI.table's deferred table mount is not initialized in this context).
+   * Never expose Purchasing costs, linked POs, or supplier information here. */
   async openRequest(rq) {
-    let r; try { r = await App.api('Purchasing.request_details', { request_id: rq.id }); } catch (e) { return UI.toast(e.message, 'error'); }
-    UI.modal('Parts request ' + UI.esc(r.request.request_ref), `<p class="small text-muted">Truck ${UI.esc(r.request.plate_number)}${r.request.job_ref ? ' · repair ' + UI.esc(r.request.job_ref) : ''} · ${UI.esc(r.request.purpose)}<br>Status: ${UI.badge(r.request.status)}${r.request.notes ? ' · ' + UI.esc(r.request.notes) : ''}</p>
-      ${UI.table([['Part', 'part_number'], ['Description', 'description'], ['Requested', 'quantity', 'num'], ['Reserved', 'reserved_qty', 'num'], ['Released', 'released_qty', 'num'], ['Availability now', 'availability', 'badge']], r.lines, { plain: true })}`, null, { submit: '', size: 'modal-lg' });
+    const seq = App.navSeq;
+    let r; try { r = await App.api('Purchasing.request_details', { request_id: rq.id }); }
+    catch (e) { return UI.toast(e.message, 'error'); }
+    if (seq !== App.navSeq) return;
+    const request = r.request || {};
+    const lines = Array.isArray(r.lines) ? r.lines : [];
+    const total = field => lines.reduce((sum, line) => sum + (+line[field] || 0), 0);
+    const requested = total('quantity'), released = total('released_qty'), reserved = total('reserved_qty');
+    const remaining = Math.max(0, requested - released);
+    const progress = requested ? Math.min(100, Math.round(released / requested * 100)) : 0;
+    const next = typeof MpParts !== 'undefined' ? MpParts.nextStep({ ...rq, status: request.status }) : '';
+    const table = lines.length
+      ? `<div class="table-wrap mp-request-details-table"><table class="data-table">
+          <thead><tr><th>Part ID / Item</th><th class="text-end">Requested</th><th class="text-end">Reserved</th><th class="text-end">Released</th><th class="text-end">Remaining</th><th>Availability</th></tr></thead>
+          <tbody>${lines.map(line => {
+            const qty = +line.quantity || 0, out = Math.max(0, qty - (+line.released_qty || 0));
+            const desc = [line.part_type, line.description, line.brand].filter(Boolean).join(' · ');
+            return `<tr>
+              <td><strong>${UI.esc(line.part_number || '—')}</strong><div class="cell-sub">${UI.esc(desc || 'No description')}</div></td>
+              <td class="text-end">${UI.num(qty)} ${UI.esc(line.unit || '')}</td>
+              <td class="text-end">${UI.num(line.reserved_qty || 0)}</td>
+              <td class="text-end">${UI.num(line.released_qty || 0)}</td>
+              <td class="text-end">${UI.num(out)}</td>
+              <td>${UI.badge(line.availability || 'Not available')}</td>
+            </tr>`;
+          }).join('')}</tbody></table></div>`
+      : '<p class="text-muted small mb-0">No parts were recorded for this request.</p>';
+    const html = `<div class="mp-request-details">
+        <div class="mp-request-details-overview">
+          <div><span class="mp-request-detail-label">Truck</span><strong>${UI.esc(request.plate_number || '—')}${request.truck_number ? ' · #'+UI.esc(request.truck_number) : ''}</strong></div>
+          <div><span class="mp-request-detail-label">Linked repair</span><strong>${UI.esc(request.job_ref || 'Not linked')}</strong></div>
+          <div><span class="mp-request-detail-label">Status</span>${UI.badge(request.status || 'Unknown')}</div>
+          <div><span class="mp-request-detail-label">Requested on</span><strong>${request.created_at ? UI.datetime(request.created_at) : '—'}</strong></div>
+        </div>
+        <div class="mp-request-progress">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>Release progress</strong><span>${UI.num(released)} of ${UI.num(requested)} units released</span>
+          </div>
+          <div class="mp-request-progress-track" role="progressbar" aria-label="Parts released" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>
+          <div class="mp-request-progress-counts">
+            <span>Reserved: <b>${UI.num(reserved)}</b></span>
+            <span>Still needed: <b>${UI.num(remaining)}</b></span>
+          </div>
+        </div>
+        ${UI.h('Requested parts')}${table}
+        ${UI.h('Request information')}
+        ${UI.kv([['Purpose', UI.e(request.purpose)], ['Requested by', UI.e(request.requested_by_name)],
+          ['Processed by', UI.e(request.processed_by_name)],
+          ['Processed on', request.processed_at ? UI.datetime(request.processed_at) : 'Not processed yet'],
+          ['Notes', UI.e(request.notes)]])}
+        ${next ? `<div class="mp-request-next"><strong>Next step</strong><p class="mb-0">${UI.esc(next)}</p></div>` : ''}
+      </div>`;
+    UI.modal('Parts request ' + UI.esc(request.request_ref || rq.request_ref || ''), html, null, { submit:'', size:'modal-xl' });
   },
   /** Opens the repair record; autoAct = key of a drawer action to start at once (row shortcut, same form and checks). */
   async open(id, autoAct) {
