@@ -836,6 +836,7 @@ final class Purchasing {
             $got = [];
             foreach ((array)($d['receive'] ?? []) as $x) if (is_array($x) && !empty($x['line_id'])) $got[(int)$x['line_id']] = (int)($x['qty'] ?? 0);
             $total = 0;
+            $receivedValue = 0.0;
             foreach (many($p, 'SELECT l.*, pt.part_number FROM purchase_order_lines l JOIN parts pt ON pt.id=l.part_id WHERE l.purchase_order_id=? FOR UPDATE', [$id]) as $l) {
                 $q = $got[(int)$l['id']] ?? 0;
                 if ($q <= 0) continue;
@@ -856,9 +857,24 @@ final class Purchasing {
                     [], ['Status' => $coverage['warranty_status'], 'Received quantity' => $q,
                         'Warranty start' => $coverage['warranty_start'], 'Warranty expires' => $coverage['warranty_expires']]);
                 $total += $q;
+                $receivedValue += $q * (float)$l['unit_price'];
             }
             must(!$warrantyInputs, 'Warranty entries must match the items received on this PO.');
             must($total > 0, 'Enter the quantities actually received.');
+            // On physical receipt, move the delivered value from committed to spent
+            // Purchasing budget. This is a budget ledger movement, NOT cash payment.
+            // Partial receipts only move their actual delivered cost; remaining
+            // undelivered lines retain their reservation. Finance later disburses
+            // the cash without consuming this budget a second time.
+            $receiptSpend = round($receivedValue, 2);
+            if ($o['budget_id'] && $receiptSpend > 0) {
+                must(round((float)$o['reserved_amount'], 2) >= $receiptSpend,
+                    'PO budget reservation is less than the value received. Ask Finance to reconcile the PO before recording receipt.', 409);
+                run($p, 'UPDATE budgets SET reserved_amount=reserved_amount-?, spent_amount=spent_amount+? WHERE id=?',
+                    [$receiptSpend, $receiptSpend, $o['budget_id']]);
+                run($p, 'UPDATE purchase_orders SET reserved_amount=reserved_amount-? WHERE id=?',
+                    [$receiptSpend, $id]);
+            }
             Files::store($p, $u, 'receipt', 'purchase', $id, 'Delivery Receipt / Supplier Invoice');
             $left = (int)one($p, 'SELECT COALESCE(SUM(quantity-received_qty),0) AS n FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['n'];
             $status = $left === 0 ? 'Received' : 'Partially Received';
@@ -867,7 +883,8 @@ final class Purchasing {
             auditWithChanges($p, $u['id'], 'Purchasing', 'po ' . $id, 'parts received', $o['po_ref'] . ': ' . $total . ' unit(s), ' . $status,
                 ['PO status' => $o['status'], 'Units received in this action' => 0], ['PO status' => $status, 'Units received in this action' => $total]);
             Notify::roles($p, ['finance'], 'Parts received', $o['po_ref'] . ' is ' . $status . '. Check the supplier invoice before payment.', 'finance');
-            return ['message' => "Received $total unit(s). PO is $status; inventory updated."];
+            return ['message' => "Received $total unit(s). PO is $status; inventory updated. PHP " .
+                number_format($receiptSpend, 2) . " moved from reserved to spent Purchasing budget. Finance payment remains pending."];
         });
     }
 
