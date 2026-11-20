@@ -511,17 +511,26 @@ const MaintUI = {
           .map(part => `<option value="${+part.id}">${UI.esc(part.description)}</option>`).join('');
         select.value = own;
       });
-      addPartButton.disabled = catalog.length > 0 && new Set(selected).size >= catalog.length;
-      addPartButton.title = addPartButton.disabled ? 'All available parts are already selected.' : '';
+      addPartButton.disabled = catalog.length > 0 && selects.length >= catalog.length;
+      addPartButton.title = addPartButton.disabled ? 'All available parts already have a row.' : '';
     };
     addPartButton.onclick=()=>{
       if(!catalog.length)return UI.toast('Parts catalog is unavailable. Use the existing Parts Requests screen.', 'warning');
       const used = new Set([...partsHolder.querySelectorAll('[data-part-id]')].map(el => el.value).filter(Boolean));
-      if (used.size >= catalog.length) return UI.toast('All available parts are already selected.', 'warning');
+      if (partsHolder.querySelectorAll('[data-part-id]').length >= catalog.length)
+        return UI.toast('All available parts already have a row.', 'warning');
       const line=document.createElement('div');line.className='d-flex align-items-end gap-2 mb-2';
       line.setAttribute('data-final-part-row','');
       line.innerHTML=`<div class="flex-grow-1"><label class="form-label">Part</label><select class="form-select" data-part-id><option value="">Choose part</option></select></div><div style="max-width:110px"><label class="form-label">Qty</label><input class="form-control" type="number" min="1" step="1" value="1" data-part-qty></div><button type="button" class="btn btn-outline-danger">Remove</button>`;
-      line.querySelector('[data-part-id]').addEventListener('change', refreshPartChoices);
+      line.querySelector('[data-part-id]').addEventListener('change', event => {
+        const selectedPart = event.target.value;
+        if (selectedPart && [...partsHolder.querySelectorAll('[data-part-id]')]
+          .some(other => other !== event.target && other.value === selectedPart)) {
+          event.target.value = '';
+          UI.toast('This part is already selected. Change its quantity instead.', 'warning');
+        }
+        refreshPartChoices();
+      });
       line.querySelector('button').onclick=()=>{line.remove();refreshPartChoices();};
       partsHolder.appendChild(line);
       refreshPartChoices();
