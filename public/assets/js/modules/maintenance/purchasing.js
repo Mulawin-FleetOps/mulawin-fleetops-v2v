@@ -1397,7 +1397,7 @@ App.page('purchasing_overview', {
         </div>
         <div class="purchasing-content-column">
           ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',pagedList(incoming,'No deliveries to receive.','receiving'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
-          ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',pagedList(alerts,'No low-stock items or outstanding shortages.','stock-alerts'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
+          ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle','<div class="purchasing-stock-alerts">'+pagedList(alerts,'No low-stock items or outstanding shortages.','stock-alerts')+'</div>',{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
         </div>
         ${UI.wsPanel('PO Approval Dependencies','bi-diagram-3',pagedList(poDependencies,'No external approvals pending.','dependencies'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
       </div></div>`;
