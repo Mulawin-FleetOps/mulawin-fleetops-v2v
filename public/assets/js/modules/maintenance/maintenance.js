@@ -753,9 +753,25 @@ const MaintUI = {
       if (a === 'helpers') return MaintUI.addHelpers(j, r.helpers, reopen);
       const mech = MaintUI.mechanicOptions(j.mechanic_id);
       if (a === 'assess') UI.formModal('Incident assessment · ' + UI.esc(i.incident_ref), [
-          { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12, options: [['Minor', 'Potential on-site resolution; trip stays On Hold pending clearance'], ['Major', 'Not Fit to Continue; reschedule the trip'], ['Needs More Information', 'Request missing details from Dispatcher; keep trip On Hold']] },
-          { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12 }],
-        'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>Dispatcher incident report (read-only)</b><div class="mt-2"><b>Problem:</b> ${UI.esc(i.problem)}<br><b>Location:</b> ${UI.esc(i.location)}<br><b>Reported:</b> ${UI.datetime(i.incident_at)}<br><b>Original details:</b> ${UI.e(i.details)}</div>${(r.incidentClarifications || []).length ? '<div class="mt-2"><b>Dispatcher updates</b>'+r.incidentClarifications.map(c=>'<div class="small border-bottom py-2">'+UI.esc(c.actor)+' · '+UI.datetime(c.created_at)+'<div>'+UI.esc(c.details)+'</div></div>').join('')+'</div>' : ''}<div class="mt-2 small text-muted">Assess based on available reports; no mechanic or physical inspection is required now. If the report is insufficient, choose Needs More Information (trip remains On Hold). A Major classification moves the trip to For Reschedule. Assign a mechanic separately when inspection or repair can begin.</div>`, after: reopen });
+          { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12,
+            options: [['Minor', 'Potential on-site resolution; trip stays On Hold pending clearance'],
+              ['Major', 'Not Fit to Continue; reschedule the trip'],
+              ['Needs More Information', 'Request missing details from Dispatcher; keep trip On Hold']] },
+          { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12,
+            placeholder: 'Describe the assessment and recommended next action.' }],
+        'Maintenance.assess', { extra: { job_id: j.id },
+          intro: `<section class="mp-incident-assessment" aria-label="Original Dispatcher incident report">
+            <div class="mp-incident-assessment-heading"><strong>Dispatcher incident report</strong><span>Read-only</span></div>
+            <div class="mp-incident-report-grid">
+              <div class="mp-incident-report-field"><small>Problem</small><strong>${UI.esc(i.problem)}</strong></div>
+              <div class="mp-incident-report-field"><small>Location</small><strong>${UI.esc(i.location)}</strong></div>
+              <div class="mp-incident-report-field"><small>Reported</small><strong>${UI.datetime(i.incident_at)}</strong></div>
+              <div class="mp-incident-report-field mp-incident-report-wide"><small>Original details</small><div>${UI.e(i.details)}</div></div>
+            </div>
+            ${(r.incidentClarifications || []).length ? `<details class="mp-incident-updates"><summary>Dispatcher updates (${r.incidentClarifications.length})</summary>${r.incidentClarifications.map(c => `<div class="mp-incident-update"><small>${UI.esc(c.actor)} · ${UI.datetime(c.created_at)}</small><div>${UI.esc(c.details)}</div></div>`).join('')}</details>` : ''}
+            <p class="mp-incident-assessment-guidance">Assess from the Dispatcher report; physical inspection is not required at this stage. Choose <b>Needs More Information</b> to keep the trip On Hold, or <b>Major</b> if the truck is not fit to continue and the trip needs rescheduling.</p>
+          </section>`,
+          after: reopen });
       if (a === 'mech') return MaintUI.assignMechanic(j, reopen);
       if (a === 'inspect') UI.formModalFiles('Inspection findings for ' + UI.esc(j.job_ref), [
           { name: 'findings', label: 'Inspection findings', type: 'textarea', required: true, col: 12, placeholder: 'What the mechanic found when checking the truck' },
