@@ -482,7 +482,10 @@ const OpsHead = {
     const crewAssigned = !!(t.vehicle_id && t.driver_id && (t.truck_type === 'Car Carrier' ? t.driver2_id : t.helper_id));
     const kv = UI.kv;
     const text = UI.e;
-    const next = TripUI.next(t);
+    const next = t.status === 'On Hold - Incident Reported' &&
+      t.incident_status === 'Repaired - Cleared to Continue'
+      ? 'Motorpool cleared the onsite repair. The responsible Dispatcher must select Resume Trip; Operations Head monitors the continuation.'
+      : TripUI.next(t);
     // A single at-a-glance area replaces repeated Overview, Readiness and Status panels.
     const summaryCard = (label, value, note, icon) => '<div class="oh-trip-quick-card">'
       + '<span class="oh-trip-quick-label"><i class="bi ' + icon + '" aria-hidden="true"></i> ' + label + '</span>'
