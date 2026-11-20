@@ -9,6 +9,7 @@ on:
       - 'backend/Modules/Maintenance/Purchasing.php'
       - 'backend/Modules/General/Analytics.php'
       - 'tests/descriptive_vehicle_status_chart.test.cjs'
+      - 'public/assets/js/modules/administration/oversight.js'
       - '.github/workflows/maintenance-report-checks.yml'
   workflow_dispatch:
 permissions:
@@ -27,6 +28,7 @@ jobs:
           php -l backend/Modules/Maintenance/Maintenance.php
           php -l backend/Modules/Maintenance/Purchasing.php
           php -l backend/Modules/General/Analytics.php
+          node --check public/assets/js/modules/administration/oversight.js
           php -l tests/maintenance_overview_tests.php
           node --check public/assets/js/modules/maintenance/maintenance.js
       - name: Check three vehicle types and trip status reporting contract
