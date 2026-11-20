@@ -296,6 +296,9 @@ const PurUI = {
         const type = form.querySelector('[name="po_purchase_type"]:checked')?.value;
         const reqId = form.querySelector('[name="part_request_id"]').value;
         if (type === 'motorpool' && !reqId) throw new Error('Select a Motorpool parts request first.');
+        if (type === 'motorpool' && form.dataset.poRequestNoShortage === '1') {
+          throw new Error('All requested parts are already reserved or accounted for. Release them from Parts Requests instead of making another PO.');
+        }
         const lines = PurUI.readLines(w, true);
         const payload = { ...values, part_request_id: type === 'motorpool' ? reqId : '', lines };
         if (!payload.supplier_name?.trim()) throw new Error('Enter or confirm the supplier name.');
@@ -321,6 +324,7 @@ const PurUI = {
         const currentMode = () => form.querySelector('[name="po_purchase_type"]:checked')?.value;
         const refreshLoadButton = () => {
           load.disabled = currentMode() !== 'motorpool' || !requestSelect.value || hasShortage !== true;
+          form.dataset.poRequestNoShortage = currentMode() === 'motorpool' && hasShortage === false ? '1' : '0';
         };
         let autoPurpose = prefill.purpose || (linked ? '' : 'Inventory restocking');
         let sequence = 0;
