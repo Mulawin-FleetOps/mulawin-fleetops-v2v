@@ -101,6 +101,8 @@ final class Mechanics {
             'availability' => self::availability($u, $d),
             'time_in' => self::timeIn($u, $d),
             'time_out' => self::timeOut($u, $d),
+            'bulk_time_in' => self::bulkAttendance($u, $d, true),
+            'bulk_time_out' => self::bulkAttendance($u, $d, false),
             'set_active' => self::setActive($u, $d),
             'details' => self::details($u, $d),
             default => throw new BusinessRuleException('Unknown action.', 404),
@@ -203,6 +205,45 @@ final class Mechanics {
                 ['Availability' => $m['availability'], 'Time in' => $s['time_in']], ['Availability' => 'Unavailable', 'Time out' => $s['time_out']]);
             return ['message' => $m['full_name'] . ' timed out at ' . date('g:i A', strtotime((string)$s['time_out'])) . '. Status: Unavailable.', 'time_in' => $s['time_in'], 'time_out' => $s['time_out'], 'availability' => 'Unavailable'];
         });
+    }
+
+    /**
+     * Bulk attendance from the Motorpool board. Run the existing audited
+     * per-mechanic actions, which lock the mechanic and enforce active-repair,
+     * open-session and role rules. A rejected mechanic does not block the rest.
+     * Never accept an unbounded or implicit "all" mutation.
+     */
+    private static function bulkAttendance(array $u, array $d, bool $in): array {
+        requireRole($u, ...self::EDIT);
+        $ids = $d['ids'] ?? null;
+        must(is_array($ids) && count($ids) > 0 && count($ids) <= 500, 'Choose between 1 and 500 mechanics.', 422);
+        $seen = [];
+        foreach ($ids as $value) {
+            must((is_int($value) || (is_string($value) && ctype_digit($value))) && (int)$value > 0,
+                'Invalid mechanic ID.', 422);
+            must(!isset($seen[(int)$value]), 'Duplicate mechanic ID.', 422);
+            $seen[(int)$value] = true;
+        }
+        $successful = 0;
+        $skipped = [];
+        foreach (array_keys($seen) as $id) {
+            try {
+                if ($in) self::timeIn($u, ['id' => $id]);
+                else self::timeOut($u, ['id' => $id]);
+                $successful++;
+            } catch (BusinessRuleException $e) {
+                // Keep existing protections (already timed in/out, active repair,
+                // inactive mechanic) and show a concise per-record summary.
+                $skipped[] = $e->getMessage();
+            }
+        }
+        $verb = $in ? 'timed in' : 'timed out';
+        return [
+            'message' => $successful . ' mechanic(s) ' . $verb . '. ' . count($skipped) . ' skipped.',
+            'successful' => $successful,
+            'skipped' => count($skipped),
+            'errors' => $skipped,
+        ];
     }
 
     private static function setActive(array $u, array $d): array {
