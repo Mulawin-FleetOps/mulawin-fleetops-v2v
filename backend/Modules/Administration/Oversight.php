@@ -599,10 +599,34 @@ final class Oversight {
             $payDue = ['Overdue' => 0.0, 'Due within 7 days' => 0.0, 'Due later' => 0.0, 'PO payables (no due date recorded)' => 0.0];
             foreach ($fin['payables'] ?? [] as $x) { $dd = (int)$x['days_overdue']; $payDue[$dd > 0 ? 'Overdue' : ($dd >= -7 ? 'Due within 7 days' : 'Due later')] += (float)$x['balance']; }
             foreach ($fin['poPayables'] ?? [] as $o) $payDue['PO payables (no due date recorded)'] += max(0, (float)$o['received_value'] - (float)$o['paid_amount']);
+            // Current outstanding payables are a snapshot (not historical period
+            // expenses). Keep recorded payable categories; received, unpaid PO
+            // amounts have no expense category and are therefore labeled as such.
+            $payableCategories = [];
+            foreach ($fin['payables'] ?? [] as $payable) {
+                $balance = max(0, round((float)$payable['balance'], 2));
+                if ($balance <= 0) continue;
+                $category = trim((string)($payable['category'] ?? ''));
+                $category = $category !== '' ? $category : 'Other payables (uncategorized)';
+                $payableCategories[$category] = ($payableCategories[$category] ?? 0) + $balance;
+            }
+            $unclassifiedPoPayables = 0.0;
+            foreach ($fin['poPayables'] ?? [] as $po) {
+                $unclassifiedPoPayables += max(0, round((float)$po['received_value'] - (float)$po['paid_amount'], 2));
+            }
+            if ($unclassifiedPoPayables > 0) {
+                $payableCategories['Purchase orders (uncategorized)'] = ($payableCategories['Purchase orders (uncategorized)'] ?? 0) + $unclassifiedPoPayables;
+            }
+            arsort($payableCategories, SORT_NUMERIC);
+            $payableByCategory = [];
+            foreach ($payableCategories as $category => $balance) {
+                $payableByCategory[] = ['label' => $category, 'value' => round($balance, 2)];
+            }
             $mix = many($p, 'SELECT category AS label, COUNT(*) AS n, ROUND(SUM(amount),2) AS value FROM expenses WHERE incurred_on BETWEEN ? AND ? GROUP BY category ORDER BY value DESC', $per);
             $data += ['expenses' => $mix, 'weeks' => $weeks, 'monthlyBudget' => $fin['monthlyBudget'] ?? [], 'weekly' => $fin['weekly'],
                 'aging' => array_map(fn($k, $v) => ['label' => $k, 'value' => round($v, 2)], array_keys($aging), $aging),
                 'payDue' => array_map(fn($k, $v) => ['label' => $k, 'value' => round($v, 2)], array_keys($payDue), $payDue),
+                'payableByCategory' => $payableByCategory,
                 'suggestions' => ['main' => array_merge($fin['suggestions']['receivables'] ?? [], $fin['suggestions']['payables'] ?? [])]];
         }
         return $data;
