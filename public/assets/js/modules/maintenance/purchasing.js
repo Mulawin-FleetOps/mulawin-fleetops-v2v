@@ -791,37 +791,107 @@ PurUI.showWorkflow = async (kind, id) => {
         null,{size:'modal-lg'});
     } else {
       const po = data.po, lines = data.lines || [];
-      const total = lines.reduce((sum,line) => sum + (+line.quantity || 0), 0);
-      const received = lines.reduce((sum,line) => sum + (+line.received_qty || 0), 0);
-      const rejected = String(po.status).startsWith('Rejected');
+      const total = lines.reduce((sum, line) => sum + (+line.quantity || 0), 0);
+      const received = lines.reduce((sum, line) => sum + (+line.received_qty || 0), 0);
+      const outstanding = Math.max(0, total - received);
+      const rejected = /^Rejected/.test(po.status || '');
       const closed = po.status === 'Closed';
+      const finished = po.status === 'Received';
       const approved = ['Approved','Partially Received','Received','Closed'].includes(po.status);
       const ordered = !!po.ordered_at;
       const legacy = !po.order_confirmation_required;
+      const can = PurUI.data?.can || {};
+      const canApprove = po.status === 'Pending Approval'
+        && ((po.approver_role === 'finance' && can.approveSmall)
+          || (po.approver_role === 'admin' && can.approveBig));
+      const canOrder = can.stock && po.status === 'Approved' && !legacy && !ordered;
+      const canReceive = can.stock && ['Approved','Partially Received'].includes(po.status)
+        && (legacy || ordered);
+      let action = null;
+      if (canApprove) action = { key:'approve', label:'Approve PO' };
+      else if (canOrder) action = { key:'order', label:'Confirm Order Placed' };
+      else if (canReceive) action = { key:'receive', label:received > 0 ? 'Receive Remaining Parts' : 'Receive Parts' };
       const stages = [
-        PurUI.progressStage('Purchasing submitted PO', 'complete', po.created_at),
-        PurUI.progressStage('Finance / Admin approval', rejected ? 'exception' : approved ? 'complete' : 'current',
-          po.decided_at, rejected ? 'Rejected: '+(po.decision_notes || 'Decision recorded') :
-          (approved ? 'Approved by '+(po.approver_role === 'finance' ? 'Finance' : 'Admin') : 'Awaiting approval by '+(po.approver_role === 'finance' ? 'Finance' : 'Admin'))),
-        PurUI.progressStage('Supplier order confirmed', ordered ? 'complete' : rejected ? 'exception' : legacy ? 'pending' : approved ? 'current' : 'pending',
-          po.ordered_at, ordered ? 'Confirmed by Purchasing' :
-          legacy ? 'Legacy PO — supplier order date not recorded' : 'Purchasing must confirm actual supplier order'),
-        PurUI.progressStage('Physical delivery recorded', received >= total && total > 0 ? 'complete' :
-          received > 0 ? 'current' : rejected || closed ? 'exception' : 'pending', null,
-          UI.num(received)+' of '+UI.num(total)+' units recorded as physically received'),
-        PurUI.progressStage('PO receiving finished', po.status === 'Received' ? 'complete' : closed ? 'exception' : 'pending', null,
-          po.status === 'Received' ? 'All ordered units received' :
-          closed ? 'PO closed; any undelivered balance was closed' : 'Receiving not yet complete')
+        {
+          label:'Create PO', state:'complete', at:po.created_at,
+          note:'Purchasing submitted the purchase order'
+        },
+        {
+          label:'Approve PO',
+          state:rejected?'exception':approved?'complete':po.status==='Pending Approval'?'current':'pending',
+          at:po.decided_at,
+          note:rejected ? 'Rejected: '+(po.decision_notes || 'Decision recorded')
+            : approved ? 'Approved by '+(po.approver_role === 'finance' ? 'Finance' : 'Admin')
+            : 'Waiting for '+(po.approver_role === 'finance' ? 'Finance' : 'Admin')+' approval'
+        },
+        {
+          label:'Place Order',
+          state:rejected?'skipped':ordered||legacy&&approved?'complete':approved?'current':'pending',
+          at:po.ordered_at,
+          note:ordered?'Purchasing confirmed the supplier order'
+            :legacy&&approved?'Legacy PO — separate order confirmation was not required'
+            :rejected?'Not applicable to rejected PO':'Purchasing confirms after actually ordering from the supplier'
+        },
+        {
+          label:'Receive Parts',
+          state:finished?'complete':rejected||closed?'skipped'
+            :received>0||approved&&(legacy||ordered)?'current':'pending',
+          note:finished?'All '+UI.num(total)+' ordered units physically received'
+            :closed?UI.num(received)+' received; undelivered balance closed'
+            :rejected?'Not applicable to rejected PO'
+            :UI.num(received)+' of '+UI.num(total)+' units physically received'
+        }
       ];
-      UI.modal('Workflow progress · '+UI.esc(po.po_ref),
-        UI.workflow(stages,{status:po.status === 'Approved' && ordered ? 'Ordered' : po.status, label:'Purchase order workflow progress'}) +
-        UI.h('Actual quantities') + UI.kv([
-          ['Ordered quantity',UI.num(total)],['Received quantity',UI.num(received)],
-          ['Awaiting delivery',UI.num(Math.max(0,total-received))],
-          ['Linked Motorpool request', po.request_ref ? UI.esc(po.request_ref) : 'None — independent PO']
-        ]) +
-        (data.history && data.history.length ? UI.h('Recorded activity') + PurUI.timeline(data.history) : ''),
-        null,{size:'modal-lg'});
+      const stageLabels = { complete:'Completed', current:'Current step', pending:'Upcoming',
+        exception:'Rejected', skipped:'Not applicable' };
+      const stageIcons = { complete:'bi-check-lg', current:'bi-arrow-right',
+        pending:'bi-circle', exception:'bi-exclamation-lg', skipped:'bi-dash' };
+      const stageHTML = '<ol class="po-progress-steps" aria-label="Purchase order stages">' +
+        stages.map((stage,index)=>'<li class="po-progress-step is-'+stage.state+'">'
+          +'<span class="po-progress-step-index" aria-hidden="true">'
+            +(stage.state==='pending'?String(index+1):'<i class="bi '+stageIcons[stage.state]+'"></i>')+'</span>'
+          +'<div class="po-progress-step-content"><strong>'+UI.esc(stage.label)+'</strong>'
+          +'<span class="po-progress-step-state">'+stageLabels[stage.state]+'</span>'
+          +(stage.at?'<small>'+UI.datetime(stage.at)+'</small>':'')
+          +'<p>'+UI.esc(stage.note)+'</p></div></li>').join('')+'</ol>';
+      const next = PurUI.poNext(po);
+      const nextText = rejected ? 'This PO was rejected. Create a new Purchase Order if parts are still needed.'
+        : closed ? 'This PO is closed. The undelivered balance will not be received.'
+        : finished ? 'All ordered parts have been received.'
+        : next[0] ? 'Waiting for '+next[1]+': '+next[2] : next[2];
+      const nextHTML = '<section class="po-progress-next" aria-label="Next action">'
+        +'<div><small>'+ (action?'NEXT ACTION':'CURRENT PROGRESS') +'</small>'
+        +'<p>'+UI.esc(nextText)+'</p></div>'
+        +(action?'<button type="button" class="btn btn-primary btn-sm" data-po-progress-action="'
+          +action.key+'">'+UI.esc(action.label)+'</button>':'')+'</section>';
+      const linkedHTML = po.request_ref
+        ? '<div class="po-progress-linked"><i class="bi bi-box-seam" aria-hidden="true"></i><span>'
+          +'Linked to Motorpool request <b>'+UI.esc(po.request_ref)+'</b>. Received stock must still be released through Parts Requests.'
+          +'</span></div>' : '';
+      const html = '<div class="po-progress-view">'
+        +'<div class="po-progress-heading"><div><small>PURCHASE ORDER</small>'
+          +'<strong>'+UI.esc(po.po_ref)+'</strong></div>'+UI.badge(po.status==='Approved'&&ordered?'Ordered':po.status)+'</div>'
+        +stageHTML+nextHTML
+        +'<section class="po-progress-quantities"><h6>Actual Quantities</h6>'
+          +'<div class="po-progress-quantity-grid">'
+          +'<div><small>Ordered</small><b>'+UI.num(total)+'</b></div>'
+          +'<div><small>Received</small><b>'+UI.num(received)+'</b></div>'
+          +'<div><small>Awaiting delivery</small><b>'+UI.num(outstanding)+'</b></div>'
+          +'</div></section>'+linkedHTML
+        +(data.history?.length?'<details class="po-progress-audit"><summary>View recorded activity ('+data.history.length+')</summary>'
+          +PurUI.timeline(data.history)+'</details>':'')+'</div>';
+      const modal = UI.modal('Purchase Order Progress',html,null,{size:'modal-xl'});
+      const button = modal.querySelector('[data-po-progress-action]');
+      if (button) button.addEventListener('click', () => {
+        button.disabled = true;
+        const selected = action.key;
+        modal.addEventListener('hidden.bs.modal', () => {
+          const row = { ...po, received_value:lines.reduce((sum,line) =>
+            sum + (+line.received_qty || 0)*(+line.unit_price || 0),0) };
+          PurUI.kit(PurUI.data || {}, can).poAct(selected, row);
+        }, { once:true });
+        bootstrap.Modal.getInstance(modal)?.hide();
+      });
     }
   } catch(err) { UI.toast(err.message || 'Unable to load recorded workflow progress.', 'error'); }
 };
