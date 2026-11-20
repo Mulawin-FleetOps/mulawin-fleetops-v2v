@@ -515,10 +515,9 @@ const PurUI = {
         <td><b>${UI.esc(l.part_number)}</b><div class="small text-muted">${PurUI.partLabel(l)}</div></td>
         <td class="num">${UI.num(l.quantity)}</td><td class="num">${UI.num(l.received_qty)}</td>
         <td><input class="form-control form-control-sm" type="number" min="0" max="${left}" step="1" value="${left}" data-rcv="${l.id}" ${left && ready ? '' : 'disabled'}></td>
-        <td><select class="form-select form-select-sm" data-wstatus="${l.id}" ${left && ready ? '' : 'disabled'}>
-          <option value="Not Yet Confirmed" selected>Not Yet Confirmed</option>
+        <td><select class="form-select form-select-sm" data-wstatus="${l.id}" required ${left && ready ? '' : 'disabled'}>
+          <option value="" selected disabled>Select warranty status</option>
           <option value="With Warranty">With Warranty</option>
-          <option value="Pending Installation">Pending Installation</option>
           <option value="No Warranty">No Warranty</option>
         </select></td>
       </tr>
@@ -536,7 +535,7 @@ const PurUI = {
       </div></td></tr>`;
     }).join('');
     UI.modal('Receive parts for ' + UI.esc(o.po_ref), `<div class="purchasing-receive-form">
-      <p class="purchasing-receive-intro">Record what was actually delivered. Confirm the warranty from supplier documents; if it is not yet known, select Not Yet Confirmed.</p>
+      <p class="purchasing-receive-intro">Record what was actually delivered. Select With Warranty or No Warranty based on the supplier documents.</p>
       <div class="purchasing-receive-section">Delivered items</div>
       ${ready ? '' : '<div class="alert alert-warning">Warranty confirmation migration is required before new receiving can be saved.</div>'}
       <div class="table-wrap purchasing-receive-table"><table class="data-table">
@@ -569,21 +568,19 @@ const PurUI = {
             const details = wrap.querySelector('[data-wdetails="' + id + '"]');
             const qty = wrap.querySelector('[data-rcv="' + id + '"]');
             const covered = status.value === 'With Warranty' && +qty.value > 0;
-            const pending = status.value === 'Pending Installation' && +qty.value > 0;
-            const show = covered || pending;
+            const show = covered;
             details.hidden = !show;
             const basis = wrap.querySelector('[data-wbasis="' + id + '"]');
             const startInput = wrap.querySelector('[data-wstart="' + id + '"]');
             const monthsInput = wrap.querySelector('[data-wmonths="' + id + '"]');
             const basisCell = basis.closest('label'), startCell = startInput.closest('label');
-            basisCell.hidden = pending; startCell.hidden = pending;
+            basisCell.hidden = !covered; startCell.hidden = !covered;
             basis.disabled = !covered; basis.required = covered;
             startInput.disabled = !covered; startInput.required = covered;
-            monthsInput.disabled = !show; monthsInput.required = show;
+            monthsInput.disabled = !covered; monthsInput.required = covered;
             const start = startInput.value;
             const months = +wrap.querySelector('[data-wmonths="' + id + '"]').value;
             wrap.querySelector('[data-wexpires="' + id + '"]').textContent =
-              pending ? 'Pending installation date' :
               covered && start && months >= 1 && months <= 120 ? PurUI.warrantyExpiry(start,months) : '—';
           };
           r.lines.forEach(l => {
@@ -1007,8 +1004,7 @@ PurUI.confirmWarranty = (batch, onSaved) => {
     UI.fields([
       { name:'status', label:'Warranty Status', type:'select', required:true, col:12,
         value:batch.warranty_status,
-        options:[['Not Yet Confirmed','Not Yet Confirmed'],['With Warranty','With Warranty'],
-          ['Pending Installation','Pending Installation'],['No Warranty','No Warranty']] },
+        options:[['With Warranty','With Warranty'],['No Warranty','No Warranty']] },
       { name:'start_basis', label:'Start date basis', type:'select', col:12, value:batch.start_basis || '',
         options:[['','Choose basis'],['Delivery','Delivery date'],['Purchase','Purchase date'],
           ['Invoice','Invoice date'],['Installation','Installation date'],['Other','Other documented date']] },
@@ -1024,10 +1020,9 @@ PurUI.confirmWarranty = (batch, onSaved) => {
       const status = wrap.querySelector('[name="status"]');
       const update = () => {
         const covered = status.value === 'With Warranty';
-        const pending = status.value === 'Pending Installation';
         for (const name of ['start_basis','start','months']) {
           const inp=wrap.querySelector('[name="'+name+'"]');
-          const visible = name === 'months' ? (covered || pending) : covered;
+          const visible = covered;
           inp.disabled=!visible; inp.required=visible;
           const column=inp.closest('[class*="col-"]');
           if(column) column.hidden=!visible;
