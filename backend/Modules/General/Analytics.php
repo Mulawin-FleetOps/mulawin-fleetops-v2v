@@ -345,7 +345,37 @@ final class Analytics {
         $byTruck = $by('t.vehicle_id', 'v.plate_number', 'LEFT JOIN vehicles v ON v.id=t.vehicle_id');
         $byClient = $by('t.client_id', 'c.company_name', 'JOIN clients c ON c.id=t.client_id');
         $byDisp = $by('t.dispatcher_id', 'ds.full_name', 'LEFT JOIN users ds ON ds.id=t.dispatcher_id');
-        $byType = many($p, "SELECT t.truck_type AS name, COUNT(*) AS trips FROM trips t WHERE DATE(t.scheduled_at) BETWEEN ? AND ? AND t.truck_type IS NOT NULL $w GROUP BY t.truck_type", array_merge([$from, $to], $a));
+        // Group each trip once, by its recorded vehicle type and CURRENT status.
+        // Include all three types even when one has zero trips in the selected period.
+        // A second attempt remains the same trip and must not be double-counted.
+        $vehicleStatusRows = many($p, "SELECT t.truck_type AS vehicle_type, t.status AS trip_status, COUNT(*) AS trips
+            FROM trips t WHERE DATE(t.scheduled_at) BETWEEN ? AND ? AND t.truck_type IS NOT NULL $w
+            GROUP BY t.truck_type, t.status", array_merge([$from, $to], $a));
+        $vehicleTypes = ['Wing Van', 'Car Carrier', 'Container'];
+        $vehicleStatusCategories = [
+            'Completed' => ['Completed'],
+            'Ongoing' => ['Dispatched', 'In Transit'],
+            'For Reschedule' => ['For Reschedule'],
+            'Cancelled' => ['Cancelled'],
+            'On Hold' => ['On Hold - Incident Reported']
+        ];
+        $vehicleStatusCounts = array_fill_keys($vehicleTypes, array_fill_keys(array_merge(array_keys($vehicleStatusCategories), ['Other']), 0));
+        foreach ($vehicleStatusRows as $row) {
+            $type = (string)$row['vehicle_type'];
+            if (!array_key_exists($type, $vehicleStatusCounts)) continue;
+            $category = 'Other';
+            foreach ($vehicleStatusCategories as $name => $statuses) {
+                if (in_array($row['trip_status'], $statuses, true)) { $category = $name; break; }
+            }
+            $vehicleStatusCounts[$type][$category] += (int)$row['trips'];
+        }
+        $vehicleStatusDatasets = [];
+        foreach (array_merge(array_keys($vehicleStatusCategories), ['Other']) as $category) {
+            $vehicleStatusDatasets[] = [
+                'label' => $category,
+                'data' => array_map(static fn($type) => $vehicleStatusCounts[$type][$category], $vehicleTypes)
+            ];
+        }
         $records = many($p, "SELECT t.trip_ref, t.status, t.truck_type, c.company_name AS client, v.plate_number, d.full_name AS driver_name, t.pickup_point, t.delivery_point,
                 t.scheduled_at, t.dispatched_at, t.completed_at, t.units_delivered, t.waybill_number, t.attempt_number
             FROM trips t JOIN clients c ON c.id=t.client_id LEFT JOIN vehicles v ON v.id=t.vehicle_id LEFT JOIN personnel d ON d.id=t.driver_id
@@ -362,7 +392,9 @@ final class Analytics {
             'title' => 'Trips', 'cards' => $cards,
             'charts' => [
                 ['type' => 'bar', 'horizontal' => true, 'title' => 'Trips per client', 'labels' => array_column($top($byClient), 'name'), 'datasets' => [['label' => 'Trips', 'data' => array_map('intval', array_column($top($byClient), 'trips'))]], 'how' => 'Trips scheduled in the period, top 12 clients.'],
-                ['type' => 'doughnut', 'title' => 'Trips by truck type', 'labels' => array_column($byType, 'name'), 'datasets' => [['label' => 'Trips', 'data' => array_map('intval', array_column($byType, 'trips'))]]],
+                ['type' => 'bar', 'title' => 'Trips by Vehicle Type and Status',
+                 'labels' => $vehicleTypes, 'stacked' => true, 'datasets' => $vehicleStatusDatasets,
+                 'how' => 'Counts distinct trip records scheduled in the selected period by Wing Van, Car Carrier, and Container. Completed, Ongoing (Dispatched/In Transit), For Reschedule, Cancelled, On Hold, and Other are mutually exclusive current statuses. A redispatch remains one trip, not a new trip.'],
                 ['type' => 'bar', 'horizontal' => true, 'title' => 'Delays and incidents per truck', 'labels' => array_column($top($byTruck), 'name'), 'stacked' => true,
                  'datasets' => [['label' => 'Delays', 'data' => array_map('intval', array_column($top($byTruck), 'delays'))], ['label' => 'Incidents', 'data' => array_map('intval', array_column($top($byTruck), 'incidents'))]],
                  'how' => 'Shows which trucks have recurring issues.'],
