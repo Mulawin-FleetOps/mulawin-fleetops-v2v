@@ -104,6 +104,8 @@ final class Purchasing {
                     WHERE d.category='Diesel PO' ORDER BY d.id DESC LIMIT 1000") : [],
             ]),
             'inventory' => readSections(['parts' => $partsFull,
+                'regularSupplierReady' => $stock && self::regularSupplierReady($p),
+                'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 // STOCK_COUNT_RECONCILIATION_V1: counts waiting for review first, then the latest reviewed ones.
                 'counts' => fn() => self::countsReady($p) ? many($p, self::COUNT_SQL . " ORDER BY c.status='Submitted' DESC, c.id DESC LIMIT 300") : []]),
             'stock_movements' => readSections([
