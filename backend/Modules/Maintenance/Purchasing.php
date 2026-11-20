@@ -264,7 +264,6 @@ final class Purchasing {
             'request_details' => self::requestDetails($u, $d),
             'part_history' => self::partHistory($u, $d),
             // STOCK_COUNT_RECONCILIATION_V1 (needs migration 2026-11-12_13): count -> Admin review -> one traceable adjustment.
-            'count_submit' => self::countSubmit($u, $d),
             'count_review' => self::countReview($u, $d),
             'count_details' => self::countDetails($u, $d),
             'request_catalog' => self::requestCatalog($u),
