@@ -277,8 +277,8 @@ const PurUI = {
     const html = '<div class="po-simple-form">' +
       '<section class="po-simple-section"><h6>1. What is this purchase for?</h6>' + sourceOptions +
         '<div data-po-request-section ' + (linked ? '' : 'hidden') + '>' + requestField +
-          '<p class="po-simple-hint" data-po-request-hint>Select a request to load its unreserved missing parts.</p>' +
-          '<button type="button" class="btn btn-outline-primary btn-sm" data-po-load-request ' + (linked?'':'disabled') + '>Load Missing Parts</button>' +
+          '<p class="po-simple-hint" data-po-request-hint>Select a Motorpool request to check which parts still need to be purchased.</p>' +
+          '<button type="button" class="btn btn-outline-primary btn-sm" data-po-load-request ' + (linked?'':'disabled') + '>Auto-Fill Parts to Purchase</button>' +
         '</div></section>' +
       '<section class="po-simple-section"><h6>2. Items to Purchase</h6>' +
         PurUI.lineEditor(true, prefill.lines || []) + '</section>' +
@@ -315,6 +315,13 @@ const PurUI = {
         const requestHint = form.querySelector('[data-po-request-hint]');
         const load = form.querySelector('[data-po-load-request]');
         const purpose = form.querySelector('[name="purpose"]');
+        // Availability must come from the request details, not its status label.
+        // null=not checked, true=has unreserved shortage, false=fully accounted for.
+        let hasShortage = null;
+        const currentMode = () => form.querySelector('[name="po_purchase_type"]:checked')?.value;
+        const refreshLoadButton = () => {
+          load.disabled = currentMode() !== 'motorpool' || !requestSelect.value || hasShortage !== true;
+        };
         let autoPurpose = prefill.purpose || (linked ? '' : 'Inventory restocking');
         let sequence = 0;
         const setPurpose = text => {
@@ -325,7 +332,7 @@ const PurUI = {
           const mode = form.querySelector('[name="po_purchase_type"]:checked')?.value;
           requestSection.hidden = mode !== 'motorpool';
           requestSelect.disabled = mode !== 'motorpool';
-          load.disabled = mode !== 'motorpool' || !requestSelect.value;
+          refreshLoadButton();
           if (mode === 'restock') {
             setPurpose('Inventory restocking');
           } else if (requestSelect.value) {
@@ -338,7 +345,7 @@ const PurUI = {
           if (!id || form.querySelector('[name="po_purchase_type"]:checked')?.value !== 'motorpool') return;
           const current = ++sequence;
           load.disabled = true;
-          requestHint.textContent = 'Checking outstanding items…';
+          requestHint.textContent = 'Checking which requested parts still need to be purchased…';
           try {
             const result = await App.api('Purchasing.request_details', { request_id: id });
             if (current !== sequence || requestSelect.value !== id || !w.isConnected) return;
@@ -347,16 +354,21 @@ const PurUI = {
               quantity: Math.max(0, (+line.quantity || 0) - (+line.released_qty || 0) - (+line.reserved_qty || 0)),
               unit_price: (d.parts || []).find(p => +p.id === +line.part_id)?.unit_cost ?? 0
             })).filter(line => line.part_id && line.quantity > 0);
+            hasShortage = shortages.length > 0;
+            refreshLoadButton();
             if (!shortages.length) {
-              requestHint.textContent = 'No unreserved shortage remains for this request. Reserved stock should be released, not purchased again.';
+              const stillReserved = (result.lines || []).some(line => (+line.reserved_qty || 0) > 0);
+              requestHint.textContent = stillReserved
+                ? 'All requested parts are already reserved. Release the reserved parts from Parts Requests instead; no new PO is needed for this request.'
+                : 'No parts still need purchasing for this request. Check Parts Requests for the next step.';
               return;
             }
             const linesHost = w.querySelector('[data-lines]');
             const hasEntered = [...linesHost.querySelectorAll('.pl-row')].some(row =>
               row.querySelector('[data-part]').value || row.querySelector('[data-qty]').value);
             if (hasEntered && !force) {
-              requestHint.textContent = 'This request needs ' + shortages.length +
-                ' part type(s). Existing items are kept. Select "Load Missing Parts" to replace them.';
+              requestHint.textContent = 'This request has ' + shortages.length +
+                ' part type(s) still to purchase. Existing items are kept. Select "Auto-Fill Parts to Purchase" to replace them.';
               return;
             }
             const newEditor = document.createElement('div');
@@ -367,26 +379,36 @@ const PurUI = {
             requestHint.textContent = 'Loaded ' + shortages.length +
               ' missing part type(s). Review quantity, unit price and supplier before submitting.';
           } catch (error) {
-            if (current === sequence) requestHint.textContent = 'Unable to load request items: ' + error.message;
+            if (current === sequence) {
+              hasShortage = null;
+              requestHint.textContent = 'Unable to check missing parts: ' + error.message;
+            }
           } finally {
-            if (current === sequence) load.disabled = !requestSelect.value;
+            if (current === sequence) refreshLoadButton();
           }
         };
         form.querySelectorAll('[name="po_purchase_type"]').forEach(input =>
-          input.addEventListener('change', () => { ++sequence; setSource(); }));
+          input.addEventListener('change', () => {
+            ++sequence;
+            hasShortage = null;
+            setSource();
+            if (currentMode() === 'motorpool' && requestSelect.value) loadRequested();
+          }));
         requestSelect.addEventListener('change', () => {
           ++sequence;
+          hasShortage = null;
           setSource();
           requestHint.textContent = requestSelect.value ?
-            'Checking unreserved missing parts…' : 'Choose a Motorpool parts request.';
+            'Checking which parts need purchasing…' : 'Choose a Motorpool parts request.';
           if (requestSelect.value) loadRequested();
         });
         load.addEventListener('click', () => loadRequested(true));
         // The Buy Missing Parts shortcut already provides precise prefilled lines.
         // Do not fetch or overwrite them when the modal opens.
         if (linked) requestHint.textContent =
-          'Linked from Parts Requests. Missing items are already filled; review before submitting.';
+          'Linked from Parts Requests. Existing items are kept; checking whether any unreserved shortage remains.';
         setSource();
+        if (linked && requestSelect.value) loadRequested();
       } });
   },
   async processRequest(rq) {
