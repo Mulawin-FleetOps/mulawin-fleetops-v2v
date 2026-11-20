@@ -210,8 +210,10 @@ const MaintUI = {
     const comps = (d.components || []).filter(c => !(r.excludedComponents || []).includes(+c.id));
     let catalog = [];
     try { catalog = (await App.api('Purchasing.request_catalog')).parts || []; } catch (_) {}
-    const choose = arr => arr.map(x => `<option value="${+x.id}">${UI.esc(x.full_name)} · ${UI.esc(x.specialization || 'No verified skills')}</option>`).join('');
-    const mechanicOptions = `<option value="">Choose lead mechanic…</option>` + choose(choices);
+    const leadOptions = choices.map(m => `<label class="mp-mechanic-checklist-item" data-mechanic-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLowerCase())}">
+      <input type="radio" name="final_lead_mechanic" data-final-lead value="${+m.id}" ${+m.id === +j.mechanic_id ? 'checked' : ''} required>
+      <span class="mp-mechanic-checklist-copy"><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)}${m.specialization ? ' · '+UI.esc(m.specialization) : ''}</small></span>
+    </label>`).join('');
     const allMechs = (d.mechanics || []).filter(m => m.availability === 'Available' || assigned.includes(+m.id));
     const summary = j.source === 'Incident' ? `<div class="alert alert-light border small"><b>Incident-related repair:</b> Original Dispatcher incident details stay read-only in Repair Details. Classification: ${UI.esc(j.severity || 'Not assessed')}.</div>` : '';
     const html = `<div class="small text-muted mb-3">Complete the repair setup in this one form. The final submission locks the mechanic team. Inspection and repair completion remain separate.</div>
@@ -222,7 +224,13 @@ const MaintUI = {
       <div class="row g-2 mb-2">${comps.map(c=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2 h-100"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}" ${(r.selectedComponents || []).includes(+c.id)?'checked':''}><span><b>${UI.esc(c.label)}</b><small class="d-block text-muted">${c.section_key==='trailer'?'Trailer':'Tractor Head'}</small></span></label></div>`).join('')}</div>
       <div class="small mb-3" data-specialization-suggest>Choose components to see suggested specializations.</div>
       <div class="purchasing-receive-section">Lead and assisting mechanics</div>
-      <label class="form-label mt-2">Lead mechanic *</label><select class="form-select mb-2" data-final-lead>${mechanicOptions}</select>
+      <label class="form-label mt-2" for="mp-final-lead-search">Lead mechanic *</label>
+      <input id="mp-final-lead-search" class="form-control mb-2" type="search" autocomplete="off" placeholder="Search name, mechanic ID or specialization…" data-final-lead-search>
+      <div class="mp-mechanic-checklist mb-2" role="radiogroup" aria-label="Choose lead mechanic">
+        ${leadOptions || '<div class="small text-muted p-2">No available mechanic to assign.</div>'}
+        <p class="small text-muted mb-0 p-2" data-final-lead-empty hidden>No mechanics match your search.</p>
+      </div>
+      <div class="small text-muted mb-2" data-final-lead-selected>Choose one lead mechanic above.</div>
       <label class="form-label">Assisting mechanics (optional)</label><div class="row g-2 mb-2">${allMechs.map(m=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span>${UI.esc(m.full_name)}<small class="d-block text-muted">${UI.esc(m.specialization || '')}</small></span></label></div>`).join('')}</div>
       <div class="small mb-3" data-team-preview></div>
       <div class="purchasing-receive-section">Parts requirement</div>
@@ -230,7 +238,7 @@ const MaintUI = {
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
       <div data-parts-input hidden><div data-final-lines></div><button type="button" class="btn btn-outline-primary btn-sm" data-final-add-part>Add part</button></div>`;
     const dialog = UI.modal('Finalize Repair Assignment · ' + UI.esc(j.job_ref),html,async (_values,form)=>{
-      const lead = +form.querySelector('[data-final-lead]').value;
+      const lead = +(form.querySelector('[data-final-lead]:checked')?.value || 0);
       const helpers = [...form.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper);
       const components = [...form.querySelectorAll('[data-component]:checked')].map(x=>+x.dataset.component);
       const parts_requirement = form.querySelector('[data-final-parts]').value;
@@ -245,20 +253,35 @@ const MaintUI = {
       const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,parts_requirement,parts_lines});
       UI.result(response); if(after) after(); else App.route();
     },{submit:'Finalize Repair Assignment',size:'modal-xl'});
-    dialog.querySelector('[data-final-lead]').value=j.mechanic_id||'';
+
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
       const names=[...new Set(picked.flatMap(x=>x.dataset.suggestions.split(',').map(y=>y.trim()).filter(Boolean)))];
       const target=dialog.querySelector('[data-specialization-suggest]');
       target.textContent=names.length?'Suggested skills: '+names.join(' · ')+' (Motorpool must confirm coverage)':'No specialization mapping; review actual diagnosis and mechanic qualifications.';
-      const lead=+dialog.querySelector('[data-final-lead]').value;
+      const lead=+(dialog.querySelector('[data-final-lead]:checked')?.value || 0);
       dialog.querySelectorAll('[data-final-helper]').forEach(x=>{x.disabled=+x.dataset.finalHelper===lead;if(x.disabled)x.checked=false});
       const team=[lead,...[...dialog.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper)];
       const covered=[...new Set((d.mechanicSkills||[]).filter(x=>team.includes(+x.mechanic_id)).map(x=>x.name))];
       dialog.querySelector('[data-team-preview]').textContent='Selected team: '+team.map(id=>(d.mechanics||[]).find(m=>+m.id===id)?.full_name).filter(Boolean).join(' · ')+' | Verified skill coverage: '+(covered.join(', ')||'None recorded');
       dialog.querySelector('[data-parts-input]').hidden=dialog.querySelector('[data-final-parts]').value!=='Parts Required';
     };
-    dialog.querySelectorAll('[data-component],[data-final-helper],[data-final-lead],[data-final-parts]').forEach(x=>x.addEventListener('change',update));
+    const leadSearch=dialog.querySelector('[data-final-lead-search]');
+    const leadRows=[...dialog.querySelectorAll('.mp-mechanic-checklist-item')];
+    const leadEmpty=dialog.querySelector('[data-final-lead-empty]');
+    const refreshLeadChoices=()=>{
+      const term=leadSearch.value.trim().toLocaleLowerCase();
+      let visible=0;
+      leadRows.forEach(row=>{row.hidden=!row.dataset.mechanicText.includes(term);if(!row.hidden)visible++});
+      leadEmpty.hidden=!leadRows.length||visible>0;
+      const selected=dialog.querySelector('[data-final-lead]:checked');
+      dialog.querySelector('[data-final-lead-selected]').textContent=selected
+        ? 'Selected lead: '+(selected.closest('label')?.querySelector('strong')?.textContent||'Mechanic')
+        : 'Choose one lead mechanic above.';
+    };
+    leadSearch.addEventListener('input',refreshLeadChoices);
+    dialog.querySelectorAll('[data-component],[data-final-helper],[data-final-lead],[data-final-parts]').forEach(x=>x.addEventListener('change',()=>{update();refreshLeadChoices()}));
+    refreshLeadChoices();
     dialog.querySelector('[data-final-add-part]').onclick=()=>{
       if(!catalog.length)return UI.toast('Parts catalog is unavailable. Use the existing Parts Requests screen.', 'warning');
       const holder=dialog.querySelector('[data-final-lines]');
