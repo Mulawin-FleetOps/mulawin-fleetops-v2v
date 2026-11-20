@@ -27,7 +27,7 @@ const TripUI = {
   isDelayed(t) { return ['Pending Review', 'Awaiting Resources', 'Pre-Assigned', 'Ready for Dispatch'].includes(t.status) && new Date(String(t.scheduled_at).replace(' ', 'T')) < new Date(); },
   flags(t) {
     const f = [];
-    if (TripUI.isDelayed(t)) f.push(UI.badge('Delayed'));
+    if (TripUI.isDelayed(t)) f.push(`<span class="badge-s amber">${t.status === 'Pending Review' ? 'Review Overdue' : 'Dispatch Overdue'}</span>`);
     if (+t.delay_count) f.push(`<span class="badge-s amber">${+t.delay_count} delay update(s)</span>`);
     if (t.incident_status && t.incident_status !== 'Resolved') f.push(`<span class="badge-s red">Incident: ${UI.esc(t.incident_status)}</span>`);
     if (+t.attempt_number > 1) f.push(`<span class="badge-s blue">Attempt #${+t.attempt_number}</span>`);
@@ -136,6 +136,12 @@ const TripUI = {
       { name: 'container_size', label: 'Container size', col: 3, value: t.container_size, placeholder: '1X20 / X40' },
       { name: 'seal_number', label: 'Seal no.', col: 3, value: t.seal_number },
       { name: 'shipment_number', label: 'Shipment no.', col: 3, value: t.shipment_number },
+      { name: 'cargo_description', label: 'Cargo Description', type: 'textarea', col: 12, value: t.cargo_description },
+      { name: 'cargo_quantity', label: 'Cargo Quantity', type: 'number', col: 6, min: 1, value: t.cargo_quantity },
+      { name: 'cargo_unit', label: 'Unit of Measure', type: 'select', col: 6, value: t.cargo_unit,
+        options: ['Boxes','Pallets','Pieces','Crates','Sacks','Other'].map(v=>[v,v]) },
+      { name: 'vehicle_details', label: 'Vehicle Details', type: 'textarea', col: 12, value: t.vehicle_details },
+      { name: 'estimated_weight_kg', label: 'Estimated Cargo Weight (kg)', type: 'number', col: 6, min: 0, step: '0.01', value: t.estimated_weight_kg },
       { type: 'html', html: '<div data-rate-warning class="col-12" role="status"></div>' },
     ];
   },
@@ -178,7 +184,8 @@ const TripUI = {
       UI.modal('Edit trip ' + UI.esc(t.trip_ref), (()=>{
         const all=TripUI.deliveryFields(t,{needsKm:true}).filter(f=>f.name!=='truck_type');
         const cargoNames=['booking_reference','consignee','delivery_details','units_planned',
-          'container_number','container_size','seal_number','shipment_number'];
+          'container_number','container_size','seal_number','shipment_number',
+          'cargo_description','cargo_quantity','cargo_unit','vehicle_details','estimated_weight_kg'];
         return TripUI.datalists()
           +UI.fields(all.filter(field=>!cargoNames.includes(field.name)))
           +FormComponents.cargoGroups(all.filter(field=>cargoNames.includes(field.name)),t.truck_type);
@@ -326,10 +333,8 @@ const TripUI = {
     modal.classList.add('trip-completion-modal');
   },
   incident(t) {
-    const x = new Date(); x.setMinutes(x.getMinutes() - x.getTimezoneOffset());
     UI.formModalFiles('Incident report ' + UI.esc(t.trip_ref), [
       { name: 'incident_type', label: 'Incident type', type: 'select', options: UI.list(TripUI.data.incidentTypes), required: true, col: 6 },
-      { name: 'incident_at', label: 'Incident date and time', type: 'datetime', value: x.toISOString().slice(0, 16), required: true, col: 6 },
       { name: 'location', label: 'Location of the incident', required: true, col: 6 },
       { name: 'persons_involved', label: 'Persons involved', col: 6, value: [t.driver_name, t.driver2_name, t.helper_name].filter(Boolean).join(', ') },
       { name: 'problem', label: 'Reported problem or damage', required: true, col: 6 },
@@ -337,7 +342,7 @@ const TripUI = {
       { name: 'details', label: 'Incident details', type: 'textarea', rows: 4, required: true, col: 12 },
       { name: 'photos', label: 'Photos (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="image/*"' },
       { name: 'attachments', label: 'Police report / other documents (optional)', type: 'file', multiple: true, col: 6, attrs: 'accept="application/pdf,image/*"' }],
-      'Trips.incident', { extra: { trip_id: t.id }, intro: 'The driver called in the breakdown. This puts the trip On Hold and sends the report to Maintenance.', submit: 'Submit incident report',
+      'Trips.incident', { extra: { trip_id: t.id }, intro: '<strong>Report date and time:</strong> Automatically recorded when you submit (Philippine time). The report places this trip On Hold and sends it to Maintenance.', submit: 'Submit incident report',
         after: () => { TripUI.open(t.id); App.route(); } });
   },
   /** " (17 min)" — how long the checklist took, from opening to submission. */
@@ -401,8 +406,13 @@ const TripUI = {
       // CHECKLIST_38_40_TRIP_TIME_GATES_V1: the server refuses early actions too; the button only mirrors it.
       if (t.status === 'Pre-Assigned') {
         const early = gates.checklist_allowed_now === false;
-        acts.push(btn('checklist', 'Pre-dispatch checklist', early ? 'secondary' : 'primary', 'bi-ui-checks', early));
-        if (early) why = 'Pre-dispatch checklist opens ' + UI.datetime(gates.checklist_opens_at) + ' (Philippine time).';
+        const fundMissing = +t.attempt_number === 1 && t.fund_status !== 'Released';
+        const fundPending = +t.attempt_number > 1 && !!t.fund_status && t.fund_status !== 'Released';
+        const blocked = early || fundMissing || fundPending;
+        acts.push(btn('checklist', 'Pre-dispatch checklist', blocked ? 'secondary' : 'primary', 'bi-ui-checks', blocked));
+        if (fundMissing || fundPending) why = 'Pre-dispatch checklist is available only after Finance releases the cash fund'
+          + (t.fund_status ? ' (current status: ' + UI.esc(t.fund_status) + ').' : '.');
+        else if (early) why = 'Pre-dispatch checklist opens ' + UI.datetime(gates.checklist_opens_at) + ' (Philippine time).';
       }
       if (['Pre-Assigned', 'Ready for Dispatch'].includes(t.status)) {
         const blocked = t.dispatch_blockers.length > 0;
@@ -470,6 +480,10 @@ const TripUI = {
         ['Truck type', UI.e(t.truck_type)], ['Truck', t.plate_number ? `<b>${UI.esc(t.plate_number)}</b>${t.truck_number ? ' #' + UI.esc(t.truck_number) : ''} ${UI.badge(t.truck_status)}` : '—'],
         ...crew.map(([l, v]) => [l, UI.e(v) + (v ? attBadge(l) : '')]), t.helper_substitution_reason ? ['Helper replacement reason', UI.esc(t.helper_substitution_reason)] : null, missingRow, attRow, ['Dispatcher team', UI.e(UI.label(t.dispatcher_role))], ...(t.dispatcher_shift ? [['Planning dispatcher shift', UI.e(t.dispatcher_shift)]] : []), ['Dispatched by', UI.e(t.dispatcher_name)],
         ['Delivery details', UI.e(t.delivery_details)], ['Booking / nomination', UI.e(t.booking_reference)],
+        ['Consignee', UI.e(t.consignee)],['Cargo Description', UI.e(t.cargo_description)],
+        ['Cargo Quantity', t.cargo_quantity ? UI.e(t.cargo_quantity)+' '+UI.e(t.cargo_unit||'') : '—'],
+        ['Vehicle Details', UI.e(t.vehicle_details)],
+        ['Estimated Cargo Weight', t.estimated_weight_kg ? UI.e(t.estimated_weight_kg)+' kg' : '—'],
         t.truck_type === 'Car Carrier' ? ['Units', UI.e(t.units_planned) + (t.units_delivered ? ' planned · ' + t.units_delivered + ' delivered' : '')] : ['Container / seal / shipment', [t.container_number, t.container_size, t.seal_number, t.shipment_number].filter(Boolean).map(UI.esc).join(' · ') || '—'],
         ['Created', UI.e(t.created_by_name) + ' (' + UI.esc(t.intake_source) + ') · ' + UI.datetime(t.created_at)], t.cancel_reason ? ['Closure reason', UI.esc(t.cancel_reason)] : null])}
       <div class="route-map" data-routemap></div>

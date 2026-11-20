@@ -89,6 +89,11 @@ $row = function(array $o=[]) use($cid,$at,$testRoutes,$wvd,$ccd):array {
         'scheduled_at'=>$at(180),'distance_km'=>'25.50'];
     $data=$o+$defaults;
     $type=$data['truck_type'];$client=(int)$data['client_id'];
+    // Test fixtures now include valid shipment details by default.
+    $data+=['consignee'=>'TEST RECEIVING PARTY','cargo_description'=>'TEST GOODS',
+        'cargo_quantity'=>'2','cargo_unit'=>'Boxes'];
+    if($type==='Car Carrier')$data+=['units_planned'=>'2'];
+    if($type==='Container')$data+=['container_size'=>'40ft'];
     $data+=['client_route_id'=>$testRoutes[$client][$type]??null,
         'dispatcher_assignment'=>$type==='Car Carrier'?'car_carrier_dispatcher:Day':'container_wingvan_dispatcher:Day',
         'responsible_dispatcher_id'=>$type==='Car Carrier'?$ccd['id']:$wvd['id']];
@@ -231,6 +236,13 @@ fails(fn() => Trips::action($ops, 'create_batch', ['rows' => 'abc']), 'rows as t
 fails(fn() => Trips::action($ops, 'create_batch', ['rows' => ['a' => $row()]]), 'rows as an object refused', 400);
 fails(fn() => $batch($ops, array_map(fn() => $row(), range(1, 21))), '21 rows refused (max 20)', 400, 'at most 20');
 fails(fn() => $batch($ops, ['text']), 'a row that is not an entry refused', 400, 'Row 1: Invalid trip entry');
+
+// Invalid per-type shipment values must be rejected by the server even without browser validation.
+fails(fn() => $batch($ops, [$row(['consignee'=>''])]), 'receiving party required', 400, 'consignee');
+fails(fn() => $batch($ops, [$row(['truck_type'=>'Car Carrier','units_planned'=>''])]), 'Car Carrier vehicle count required', 400, 'number of vehicles');
+fails(fn() => $batch($ops, [$row(['cargo_description'=>''])]), 'Wing Van cargo description required', 400, 'cargo description');
+fails(fn() => $batch($ops, [$row(['cargo_quantity'=>''])]), 'Wing Van cargo quantity required', 400, 'cargo quantity');
+fails(fn() => $batch($ops, [$row(['cargo_unit'=>''])]), 'Wing Van cargo unit required', 400, 'unit of measure');
 
 // ---------------------------------------------------------------------
 section('F. Dispatcher batch is retired; only Operations Head creates trips');

@@ -17,6 +17,7 @@ const OpsHead = {
   panel(title, html, action = '') { return `<section class="oh-panel"><div class="oh-panel-head"><h2>${UI.operationsLabel(title)}</h2>${action}</div><div class="oh-panel-body">${html}</div></section>`; },
   metrics(items) { return `<div class="oh-metrics">${items.map(([label, count, href]) => `<${href ? 'a' : 'div'} class="oh-metric" ${href ? `href="${UI.esc(href)}"` : ''}><span>${UI.esc(UI.operationsLabel(label))}</span><strong>${count == null ? 'Unavailable' : UI.num(count)}</strong>${href ? '<i class="bi bi-arrow-up-right" aria-hidden="true"></i>' : ''}</${href ? 'a' : 'div'}>`).join('')}</div>`; },
   badge(status) { const color=/Rejected|Missed|On Hold|Under Repair/.test(status||'')?'red':UI.badgeColor(status);return status?`<span class="badge-s ${color}">${UI.esc(status)}</span>`:UI.badge(status); },
+  dispatchOverdue(t) { return TripUI.isDelayed(t) && t.status !== 'Pending Review' && !t.dispatched_at; },
   bindTrips(el) { el.querySelectorAll('[data-oh-trip]').forEach(b => b.onclick = () => TripUI.open(b.dataset.ohTrip)); },
   search(el, draw, label = 'Search records', fields = []) {
     el.innerHTML = `<form class="oh-record-search" role="search"><div class="oh-record-toolbar"><label class="oh-search"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" name="search" type="search" aria-label="${UI.esc(label)}" placeholder="${UI.esc(label)}"></label><button type="submit" class="btn btn-primary">Search</button><button type="button" class="btn btn-outline-success" data-record-filters aria-expanded="false">Filters</button></div><div class="oh-record-filter-panel" hidden>${UI.fields(fields.length?fields:[{name:'match',label:'Search within records',placeholder:'Type a matching value'}])}<div class="oh-filter-actions"><button type="button" class="btn btn-primary" data-record-apply>Apply Filters</button><button type="button" class="btn btn-outline-secondary" data-record-clear>Clear Filters</button></div></div></form><div data-list></div>`;
@@ -131,7 +132,7 @@ const OpsHead = {
         const separator=formatted.lastIndexOf(', ');
         return '<div class="fleet-trip-dispatch"><strong>' + UI.esc(separator>=0 ? formatted.slice(0,separator) : formatted) + '</strong>' + (separator>=0 ? '<span><i class="bi bi-clock" aria-hidden="true"></i> ' + UI.esc(formatted.slice(separator+2)) + '</span>' : '') + '</div>';
       }],
-      ['Status','status',(value,t) => '<div class="fleet-trip-status">' + OpsHead.badge(value) + (+t.pending_archival ? '<div class="badge-s amber">Pending archival</div>' : '') + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '') + '</div>'],
+      ['Status','status',(value,t) => '<div class="fleet-trip-status">' + OpsHead.badge(value) + (OpsHead.dispatchOverdue(t) ? '<div class="badge-s amber" title="Scheduled departure has passed; actual dispatch is not recorded.">Dispatch Overdue</div>' : '') + (+t.pending_archival ? '<div class="badge-s amber">Pending archival</div>' : '') + (+t.awaiting_arrival ? '<div class="badge-s amber">Arrival Pending</div>' : '') + '</div>'],
     ];
     const table = UI.table(columns,rows,{
       tools:toolbar,
@@ -504,18 +505,18 @@ const OpsHead = {
       + UI.esc(next) + '</p></div></div></section>'
       + '<div class="oh-trip-groups" data-trip-sections></div>';
     const content = body.querySelector('[data-trip-sections]');
-    const append = (title, description, icon, open = false) => {
-      const details = document.createElement('details');
-      details.className = 'oh-detail-section oh-trip-group';
-      details.open = open;
-      const summary = document.createElement('summary');
-      summary.innerHTML = '<i class="bi ' + icon + '" aria-hidden="true"></i><span class="oh-trip-group-title">'
-        + UI.esc(title) + '<small>' + UI.esc(description) + '</small></span>'
-        + '<i class="bi bi-chevron-down oh-trip-group-chevron" aria-hidden="true"></i>';
-      details.append(summary);
-      const inner = document.createElement('div');inner.className = 'oh-detail-body';
-      details.append(inner);content.append(details);
-      return {details,inner};
+    const append = (title, description, icon) => {
+      // A visible section, rather than a closed dropdown: one continuous Trip Details page.
+      const section=document.createElement('section');
+      section.className='oh-trip-group oh-trip-visible-section border rounded-3 mb-3';
+      const heading=document.createElement('header');
+      heading.className='d-flex gap-2 align-items-center border-bottom px-3 py-2';
+      heading.innerHTML='<i class="bi '+icon+'" aria-hidden="true"></i><div><h3 class="fs-6 fw-semibold mb-0">'
+        +UI.esc(title)+'</h3><small class="text-muted">'+UI.esc(description)+'</small></div>';
+      section.append(heading);
+      const inner=document.createElement('div');inner.className='oh-detail-body p-3';
+      section.append(inner);content.append(section);
+      return {details:section,inner};
     };
     const addBlock = (parent, title, value) => {
       if(!value)return;
@@ -543,11 +544,13 @@ const OpsHead = {
     const savedMap = sections.get('Trip')?.querySelector?.('[data-routemap]');
     if(savedMap){
       tripSummary.inner.append(savedMap);
-      tripSummary.details.addEventListener('toggle',()=>window.dispatchEvent(new Event('resize')));
+      // The map stays visible on the scrollable page; no dropdown toggle is needed.
     }
     addBlock(tripSummary.inner,'Shipment & Delivery',kv([
       ['Instructions',text(t.delivery_details)],['Booking Reference',text(t.booking_reference)],
-      ['Consignee',text(t.consignee)],
+      ['Consignee',text(t.consignee)],['Cargo Description',text(t.cargo_description)],
+      ['Cargo Quantity',t.cargo_quantity?text(t.cargo_quantity)+' '+text(t.cargo_unit||''):null],
+      ['Vehicle Details',text(t.vehicle_details)],['Estimated Cargo Weight',t.estimated_weight_kg?text(t.estimated_weight_kg)+' kg':null],
       ...(t.truck_type==='Car Carrier'?[['Cargo Units',text(t.units_planned)]]:[['Shipment Number',text(t.shipment_number)]]),
       ...(t.truck_type==='Container'?[['Container Number',text(t.container_number)],
         ['Container Size',text(t.container_size)],['Seal Number',text(t.seal_number)]]:[])
@@ -592,15 +595,127 @@ const OpsHead = {
     addBlock(support.inner,'Incidents & Repairs',incidentContent);
     if(incidentContent!==null)support.details.dataset.incidentSection='';
     addBlock(support.inner,'Documents',sections.get('Documents'));
-    addBlock(support.inner,'Activity Timeline',sections.get('History'));
-    if (originalActions) body.prepend(originalActions);
-    // Move one existing authorized action to a fixed footer; moving preserves its listener.
-    const primary = originalActions?.querySelector('button:not([disabled])');
-    el.querySelector('.oh-drawer-footer')?.remove();
-    const footer = document.createElement('div'); footer.className = 'oh-drawer-footer';
-    if (primary) { primary.className = 'btn btn-primary'; footer.append(primary); }
-    else { const close = document.createElement('button'); close.className = 'btn btn-outline-secondary'; close.textContent = 'Close'; close.onclick = () => UI.closeDrawer(); footer.append(close); }
-    el.append(footer);
+    const history=sections.get('History');
+    if(history){
+      const archive=document.createElement('details');archive.className='oh-trip-subsection';
+      const label=document.createElement('summary');label.textContent='View full trip activity history';
+      archive.append(label,history);support.inner.append(archive);
+    }
+    // Four compact tabs; all existing action elements and listeners are preserved.
+    const tabs=document.createElement('div');tabs.className='oh-trip-compact-tabs';
+    const nextInfo=document.createElement('div');nextInfo.className='rounded border bg-light px-3 py-2 mb-3 small';
+    nextInfo.innerHTML='<span class="text-muted">Next step</span> <strong>'+UI.esc(next)+'</strong>';tabs.append(nextInfo);
+    const nav=document.createElement('nav');nav.className='d-flex flex-wrap gap-2 border-bottom pb-2 mb-3';
+    nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Trip detail tabs');
+    const definitions=[['overview','Overview'],['funds','Funds'],['operations','Operations'],['records','Records']];
+    const unique='oh-tabs-'+UI.uuid(),panels={};
+    definitions.forEach(([key,label],i)=>{
+      const button=document.createElement('button');button.type='button';
+      button.className='btn btn-sm '+(i===0?'btn-success':'btn-outline-success');
+      button.id=unique+'-'+key;button.setAttribute('role','tab');
+      button.setAttribute('aria-controls',unique+'-panel-'+key);
+      button.setAttribute('aria-selected',String(i===0));button.textContent=label;nav.append(button);
+      const panel=document.createElement('section');panel.id=unique+'-panel-'+key;
+      panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+      panel.className='oh-trip-tab-panel pb-3';panel.hidden=i!==0;panels[key]=panel;
+    });
+    tabs.append(nav,...definitions.map(([key])=>panels[key]));
+    const transfer=(where,from,titles)=>{
+      [...from.querySelectorAll(':scope > .oh-trip-subsection')].forEach(part=>{
+        if(titles.includes(part.querySelector('h4')?.textContent))where.append(part);
+      });
+    };
+    panels.overview.innerHTML='<div class="row g-2 mb-3">'
+      +[['Client',t.client],['Schedule',this.datetime(t.scheduled_at)],
+        ['Truck',t.plate_number||'Not assigned'],
+        ['Crew',[t.driver_name,t.driver2_name,t.helper_name].filter(Boolean).join(' · ')||'Not assigned']]
+        .map(([label,value])=>'<div class="col-sm-6"><small class="text-muted d-block">'+UI.esc(label)
+          +'</small><strong class="small">'+UI.esc(value)+'</strong></div>').join('')+'</div>';
+    const indicators=document.createElement('div');indicators.className='d-flex flex-wrap gap-2 mb-3 small';
+    indicators.innerHTML='<span class="border rounded px-2 py-1">Fund: <b>'+UI.esc(fund?.status||'Not requested')+'</b></span>'
+      +'<span class="border rounded px-2 py-1">Checklist: <b>'+(prepared?'Completed':'Pending')+'</b></span>'
+      +'<span class="border rounded px-2 py-1">Dispatch: <b>'+(t.dispatched_at?'Dispatched':'Pending')+'</b></span>';
+    panels.overview.append(indicators);
+    transfer(panels.overview,tripSummary.inner,['Trip Information','Route & Schedule']);
+    if(savedMap)panels.overview.append(savedMap);
+    transfer(panels.funds,readiness.inner,['Readiness Checks','Trip Funds & Fuel','Estimated Fuel Cost']);
+    [...readiness.inner.children].filter(node=>node.matches?.('button')).forEach(node=>panels.funds.append(node));
+    // Compact operations panel: current checks and time gates, not the full timeline.
+    const cashReady=fund?.status==='Released'||(+t.attempt_number>1&&!fund);
+    const departed=!!t.dispatched_at||['Dispatched','In Transit','Completed'].includes(t.status);
+    const finished=t.status==='Completed';
+    const progress=document.createElement('section');progress.className='mb-3';
+    const chip=(label,done,current)=>'<div class="col-3"><div class="border rounded-3 px-2 py-2 text-center h-100">'
+      +'<i class="bi '+(done?'bi-check-circle-fill text-success':current?'bi-clock-history text-warning':'bi-lock text-muted')+'" aria-hidden="true"></i>'
+      +'<div class="small fw-semibold mt-1">'+UI.esc(label)+'</div></div></div>';
+    progress.innerHTML='<h3 class="fs-6 fw-semibold mb-2">Trip Progress</h3><div class="row g-2">'
+      +chip('Assigned',crewAssigned,false)+chip('Funds',cashReady,!cashReady)
+      +chip('Checklist',prepared,cashReady&&!prepared)+chip('Dispatch',departed,prepared&&!departed)+'</div>';
+    panels.operations.append(progress);
+    const inspectionPanel=document.createElement('section');inspectionPanel.className='mb-3';
+    const inspectionStatus=prepared?'Completed':!cashReady?'Locked — awaiting Finance':
+      t.time_gates?.checklist_allowed_now===false?'Waiting for inspection window':'Pending';
+    inspectionPanel.innerHTML='<div class="d-flex justify-content-between align-items-center gap-2">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Pre-Dispatch Checklist</h3>'
+      +'<span class="badge-s '+(prepared?'green':cashReady?'amber':'')+'">'+UI.esc(inspectionStatus)+'</span></div>'
+      +'<p class="small text-muted mt-2">'+UI.esc(prepared?'Inspection recorded for the current attempt.':
+        !cashReady?'Cash fund release is required before checklist submission.':
+        'Available only within the permitted checklist time window.')+'</p>';
+    panels.operations.append(inspectionPanel);
+    if(ins)transfer(panels.operations,readiness.inner,['Pre-Dispatch Checklist']);
+    const timing=document.createElement('div');timing.className='row g-2 mb-3';
+    const timingCell=(label,value)=>'<div class="col-sm-6"><div class="border rounded p-2">'
+      +'<small class="text-muted d-block">'+label+'</small><strong class="small">'+UI.esc(value?this.datetime(value):'Not scheduled')+'</strong></div></div>';
+    timing.innerHTML=timingCell('Checklist opens',t.time_gates?.checklist_opens_at)
+      +timingCell('Dispatch opens',t.time_gates?.dispatch_opens_at);panels.operations.append(timing);
+    const departure=document.createElement('section');departure.className='d-flex justify-content-between gap-2 mb-3';
+    departure.innerHTML='<h3 class="fs-6 fw-semibold mb-0">Dispatch</h3><span class="small">'
+      +UI.esc(departed?'Departed '+this.datetime(t.dispatched_at):prepared?'Awaiting confirmation':'Not ready')+'</span>';
+    panels.operations.append(departure);
+    const completed=document.createElement('section');completed.className='mb-2';
+    completed.innerHTML='<div class="d-flex justify-content-between gap-2 mb-2">'
+      +'<h3 class="fs-6 fw-semibold mb-0">Completion & Arrival</h3><span class="badge-s '+(finished?'green':'')+'">'
+      +UI.esc(finished?(+t.awaiting_arrival?'Arrival inspection pending':'Completed'):'Not started')+'</span></div>';
+    panels.operations.append(completed);
+    if(finished)transfer(panels.operations,dispatch.inner,['Completion','Arrival Inspection']);
+    else completed.insertAdjacentHTML('beforeend','<p class="small text-muted">Relevant after dispatch and delivery.</p>');
+    // Historical dispatch updates belong in Records, alongside documents and audit.
+    transfer(panels.records,dispatch.inner,['Updates & Delays']);
+    transfer(panels.records,tripSummary.inner,['Shipment & Delivery']);
+    transfer(panels.records,assignment.inner,['Assigned Resources']);
+    transfer(panels.records,support.inner,['Incidents & Repairs','Documents']);
+    if(history)panels.records.append(history);
+    if(originalActions)[...originalActions.querySelectorAll('[data-tact]')].forEach(button=>{
+      const action=button.dataset.tact;
+      const key=action==='edit'?'overview':['fund','printfund','dieselpo'].includes(action)?'funds':
+        ['checklist','dispatch','complete','arrival','resume','reschedule'].includes(action)?'operations':'records';
+      let row=panels[key].querySelector('.oh-trip-tab-actions');
+      if(!row){row=document.createElement('div');row.className='oh-trip-tab-actions d-flex flex-wrap gap-2 mb-2';panels[key].prepend(row);}
+      row.append(button);
+    });
+    tabs.querySelectorAll('details').forEach(detail=>{if(detail!==history)detail.open=true;});
+    const select=key=>{
+      definitions.forEach(([name],index)=>{
+        const active=key===name,button=nav.children[index];
+        panels[name].hidden=!active;button.setAttribute('aria-selected',String(active));
+        button.className='btn btn-sm '+(active?'btn-success':'btn-outline-success');
+        button.tabIndex=active?0:-1;
+      });
+      if(key==='overview')requestAnimationFrame(()=>UI.refreshRouteMap?.(panels.overview));
+    };
+    [...nav.children].forEach((button,i)=>{
+      button.onclick=()=>select(definitions[i][0]);
+      button.onkeydown=e=>{
+        const delta=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;
+        if(!delta)return;e.preventDefault();const index=(i+delta+definitions.length)%definitions.length;
+        select(definitions[index][0]);nav.children[index].focus();
+      };
+    });
+    body.replaceChildren(tabs);
+    el.querySelectorAll('.oh-drawer-footer').forEach(footer=>footer.remove());
+    const footer=document.createElement('div');footer.className='oh-drawer-footer';
+    const close=document.createElement('button');close.type='button';close.className='btn btn-outline-secondary';
+    close.textContent='Close Details';close.onclick=()=>UI.closeDrawer();footer.append(close);el.append(footer);
   },
 
   crew(ctx) {
@@ -1143,7 +1258,8 @@ const OpsHead = {
         drafts = batch().flatMap(e => Array.from({ length: +e.data.quantity }, (_, index) => {
           const old = drafts.find(x => x.entry === e.id && x.index === index);
           const supported = ['booking_reference','consignee','delivery_details','units_planned',
-            'shipment_number','container_number','container_size','seal_number'];
+            'shipment_number','container_number','container_size','seal_number',
+            'cargo_description','cargo_quantity','cargo_unit','vehicle_details','estimated_weight_kg'];
           const overrides = Object.fromEntries(Object.entries(old?.overrides || {}).filter(([name]) => supported.includes(name)));
           return { key: old?.key || UI.uuid(), entry: e.id, index, overrides, data: { ...e.data, quantity: undefined,
             pickup_point: e.route.origin_label, delivery_point: e.route.destination_label, distance_km: e.route.distance_km,
@@ -1154,7 +1270,10 @@ const OpsHead = {
     };
     const renderReview = () => {
       document.querySelector('.oh-trip-planner-modal')?.classList.add('oh-trip-review-mode');
-      ctx.el.innerHTML = `<div class="oh-planner">${stages(2)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><form data-review-form><div class="oh-review-head"><h2>Review &amp; Create</h2><b>${drafts.length} Individual Trips</b></div><section class="oh-review-summary" aria-label="Trip summary"><div class="oh-review-summary-heading"><i class="bi bi-clipboard-check" aria-hidden="true"></i><strong>Trip Summary</strong><span>${batch().length} route${batch().length===1?'':'s'} · ${drafts.length} planned trip${drafts.length===1?'':'s'}</span></div>${batch().map(e=>`<div class="oh-review-summary-route"><div class="oh-review-route-main"><strong>${UI.esc(clientName(e.data.client_id))}</strong><span>${UI.esc(e.route?.origin_label||'')} → ${UI.esc(e.route?.destination_label||'')}</span></div><div class="oh-review-route-facts"><span><i class="bi bi-truck" aria-hidden="true"></i>${UI.esc(e.data.truck_type)}</span><span><i class="bi bi-stack" aria-hidden="true"></i>${+e.data.quantity} truck${+e.data.quantity===1?'':'s'}</span><span><i class="bi bi-calendar-event" aria-hidden="true"></i>${this.datetime(e.data.scheduled_at)}</span><span><i class="bi bi-person-badge" aria-hidden="true"></i>${UI.esc(dispatcherName(e.data))} · ${UI.esc(accountName(e.data))}</span></div>${e.data.delivery_details?'<p class="oh-review-route-instructions"><i class="bi bi-file-text" aria-hidden="true"></i>'+UI.esc(e.data.delivery_details)+'</p>':''}</div>`).join('')}</section><section class="oh-review-trip-list" aria-label="Individual trip details"><div class="oh-review-trip-list-head"><div><h3>Individual Trip Details</h3><p>Optional booking and cargo details for each planned truck.</p></div><span>${drafts.length} trips</span></div><div data-review-entries></div></section><p class="oh-review-submit-note" data-submission-note role="status">The dispatcher assigns the actual trucks and drivers after creation. Review the details, then select Create Trips.</p><div class="oh-form-footer oh-trip-planner-actions"><button type="button" class="btn btn-outline-secondary" data-back ${attempted ? 'disabled' : ''}>Back to Planning</button>${attempted && !uncertain ? '<button type="button" class="btn btn-outline-secondary" data-start-another>Start Another Plan</button>' : ''}<button type="submit" class="btn btn-primary" data-confirm>Create Trips</button></div></form></div>`;
+      ctx.el.innerHTML = `<div class="oh-planner">${stages(2)}<div class="alert alert-danger" data-plan-error role="alert" hidden></div><form data-review-form><div class="oh-review-head"><h2>Review &amp; Create</h2><b>${drafts.length} Individual Trips</b></div><section class="oh-review-summary" aria-label="Trip summary"><div class="oh-review-summary-heading"><i class="bi bi-clipboard-check" aria-hidden="true"></i><strong>Trip Summary</strong><span>${batch().length} route${batch().length===1?'':'s'} · ${drafts.length} planned trip${drafts.length===1?'':'s'}</span></div>${batch().map(e=>`<div class="oh-review-summary-route"><div class="oh-review-route-main"><strong>${UI.esc(clientName(e.data.client_id))}</strong><span>${UI.esc(e.route?.origin_label||'')} → ${UI.esc(e.route?.destination_label||'')}</span></div><div class="oh-review-route-facts"><span><i class="bi bi-truck" aria-hidden="true"></i>${UI.esc(e.data.truck_type)}</span><span><i class="bi bi-stack" aria-hidden="true"></i>${+e.data.quantity} truck${+e.data.quantity===1?'':'s'}</span><span><i class="bi bi-calendar-event" aria-hidden="true"></i>${this.datetime(e.data.scheduled_at)}</span><span><i class="bi bi-person-badge" aria-hidden="true"></i>${UI.esc(dispatcherName(e.data))} · ${UI.esc(accountName(e.data))}</span></div>${e.data.delivery_details?'<p class="oh-review-route-instructions"><i class="bi bi-file-text" aria-hidden="true"></i>'+UI.esc(e.data.delivery_details)+'</p>':''}</div>`).join('')}</section><section class="oh-review-trip-list" aria-label="Individual trip details"><div class="oh-review-trip-list-head"><div><h3>Individual Trip Details</h3><p>Complete required shipment details for each planned truck. Other details can be added when available.</p></div><span>${drafts.length} trips</span></div><div data-review-entries></div></section><p class="oh-review-submit-note" data-submission-note role="status">The dispatcher assigns the actual trucks and drivers after creation. Review the details, then select Create Trips.</p><div class="oh-form-footer oh-trip-planner-actions"><button type="button" class="btn btn-outline-secondary" data-back ${attempted ? 'disabled' : ''}>Back to Planning</button>${attempted && !uncertain ? '<button type="button" class="btn btn-outline-secondary" data-start-another>Start Another Plan</button>' : ''}<button type="submit" class="btn btn-primary" data-confirm>Create Trips</button></div></form></div>`;
+      // Native HTML validation cannot focus required fields inside closed <details>.
+      // The review submit handler opens the correct Trip disclosure and reports the field.
+      ctx.el.querySelector('[data-review-form]').noValidate = true;
       const list = ctx.el.querySelector('[data-review-entries]');
       batch().forEach((e, i) => {
         const section = document.createElement('section'); section.className = 'oh-review-route-group';
@@ -1162,27 +1281,39 @@ const OpsHead = {
         list.append(section);
         drafts.filter(x => x.entry === e.id).forEach(x => {
           const row = document.createElement('details'); row.className = 'oh-draft oh-review-trip-row'; row.open = !!x.result && !x.result.trip_id;
-          // Use the same cargo groups as Edit Trip; every optional field can be
-          // expanded regardless of truck type without clearing existing data.
+          // Use the shared cargo layout while enforcing the selected truck type's planning fields.
           const specs=[
-            ['booking_reference','Booking Reference',150],
-            ['consignee','Consignee / Brand',120],
-            ['delivery_details','Delivery Instructions',500],
-            ['units_planned','Cargo Units',100],
-            ['container_number','Container Number',60],
-            ['container_size','Container Size',20],
-            ['seal_number','Seal Number',60],
-            ['shipment_number','Shipment Number',60]
+            ['booking_reference','Booking Reference',150,'text'],
+            ['consignee','Consignee / Receiving Party',120,'text'],
+            ['delivery_details','Delivery Instructions',500,'textarea'],
+            ['units_planned','Number of Vehicles',100,'number'],
+            ['vehicle_details','Vehicle Details (models / descriptions)',300,'textarea'],
+            ['container_number','Container Number',60,'text'],
+            ['container_size','Container Size',20,'select'],
+            ['seal_number','Seal Number',60,'text'],
+            ['shipment_number','Delivery / Shipment Reference',60,'text'],
+            ['cargo_description','Cargo Description',300,'textarea'],
+            ['cargo_quantity','Cargo Quantity',100000,'number'],
+            ['cargo_unit','Unit of Measure',30,'select'],
+            ['estimated_weight_kg','Estimated Cargo Weight (kg)',999999,'number']
           ];
-          const cargoFields=specs.map(([name,label,max])=>({
-            name,label,col:name==='delivery_details'?12:6,
-            type:name==='delivery_details'?'textarea':name==='units_planned'?'number':'text',
-            rows:name==='delivery_details'?2:undefined,
-            min:name==='units_planned'?1:undefined,
-            attrs:name==='units_planned'?'max="100" step="1"':`maxlength="${max}"`,
-            value:Object.hasOwn(x.overrides,name)?x.overrides[name]:(x.data[name]||'')
+          const isContainer=e.data.truck_type==='Container';
+          const required=['consignee',...(e.data.truck_type==='Car Carrier'?['units_planned']:
+            isContainer?['container_size']:['cargo_description','cargo_quantity','cargo_unit'])];
+          const cargoFields=specs.map(([name,label,max,type])=>({
+            name,label,col:type==='textarea'?12:6,type,
+            required:required.includes(name),
+            rows:type==='textarea'?2:undefined,
+            min:type==='number'?1:undefined,
+            step:name==='estimated_weight_kg'?'0.01':undefined,
+            options:name==='container_size'?[['20ft','20ft'],['40ft','40ft'],['40ft HC','40ft HC']]:
+              name==='cargo_unit'?['Boxes','Pallets','Pieces','Crates','Sacks','Other'].map(v=>[v,v]):undefined,
+            placeholder:name==='consignee'?'Enter receiving party':name==='container_size'?'Choose container size':
+              name==='cargo_description'?'Describe the cargo':name==='cargo_quantity'?'Enter total quantity':undefined,
+            attrs:type==='number'? `max="${max}"`:type==='select'?'':`maxlength="${max}"`,
+            value:Object.hasOwn(x.overrides,name)?x.overrides[name]:(x.data[name]??'')
           }));
-          row.innerHTML = `<summary><span class="oh-review-trip-identity"><i class="bi bi-truck" aria-hidden="true"></i><strong>Trip ${drafts.indexOf(x) + 1}</strong></span><span class="oh-review-trip-status" data-row-result>${x.result ? UI.esc(x.result.result) + ' · ' + UI.esc(x.result.trip_ref || x.result.message || '') : (Object.values(x.overrides || {}).some(Boolean) ? 'Details added' : 'Optional details')}</span><i class="bi bi-chevron-down oh-review-trip-chevron" aria-hidden="true"></i></summary><div class="oh-review-trip-fields">${FormComponents.cargoGroups(cargoFields,e.data.truck_type,{compact:true})}${x.result?.trip_id ? `<button type="button" class="btn btn-link" data-oh-trip="${+x.result.trip_id}">View ${UI.esc(x.result.trip_ref)} · ${UI.esc(x.result.trip_status)}</button>` : ''}</div>`;
+          row.innerHTML = `<summary><span class="oh-review-trip-identity"><i class="bi bi-truck" aria-hidden="true"></i><strong>Trip ${drafts.indexOf(x) + 1}</strong></span><span class="oh-review-trip-status" data-row-result>${x.result ? UI.esc(x.result.result) + ' · ' + UI.esc(x.result.trip_ref || x.result.message || '') : (Object.values(x.overrides || {}).some(Boolean) ? 'Details added' : 'Required details')}</span><i class="bi bi-chevron-down oh-review-trip-chevron" aria-hidden="true"></i></summary><div class="oh-review-trip-fields">${FormComponents.cargoGroups(cargoFields,e.data.truck_type,{compact:true})}${x.result?.trip_id ? `<button type="button" class="btn btn-link" data-oh-trip="${+x.result.trip_id}">View ${UI.esc(x.result.trip_ref)} · ${UI.esc(x.result.trip_status)}</button>` : ''}</div>`;
           section.querySelector('[data-drafts]').append(row);
           row.querySelectorAll('[name]').forEach(input => { const old = input.id; input.id = `${x.key}-${input.name}`; row.querySelectorAll('label').forEach(l => { if (l.htmlFor === old) l.htmlFor = input.id; }); input.disabled = !!x.result?.trip_id || uncertain; input.oninput = () => x.overrides[input.name] = input.value; });
         });
@@ -1200,6 +1331,15 @@ const OpsHead = {
       ctx.el.querySelector('form').onsubmit = async event => {
         event.preventDefault(); if (busy || confirm.disabled) return;
         const pending = drafts.filter(x => !x.result?.trip_id);
+        // Expand and focus the first invalid trip before any API submission.
+        const invalidTrip=[...ctx.el.querySelectorAll('.oh-review-trip-row')].find(row =>
+          [...row.querySelectorAll('[required]')].some(field=>!field.disabled&&!field.checkValidity()));
+        if(invalidTrip){
+          invalidTrip.open=true;
+          const field=[...invalidTrip.querySelectorAll('[required]')].find(el=>!el.disabled&&!el.checkValidity());
+          field?.focus();field?.reportValidity();
+          return error('Complete all required shipment fields for each trip before creating trips.');
+        }
         busy = true; ctx.el.dataset.planBusy = 'true'; attempted = true; confirm.disabled = true; confirm.textContent = 'Creating Trips…';
         uncertain = true; remember();
         ctx.el.querySelectorAll('input,button').forEach(input => input.disabled = true);

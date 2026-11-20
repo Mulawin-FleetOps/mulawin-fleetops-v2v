@@ -147,13 +147,20 @@ fails(fn() => Trips::action($wvd, 'checklist_start', ['trip_id' => $id, 'kind' =
 try { Trips::action($wvd, 'checklist_start', ['trip_id' => $id, 'kind' => 'Pre-Dispatch']); }
 catch (BusinessRuleException $e) { ok(str_contains($e->getMessage(), 'Philippine time') && str_contains($e->getMessage(), '2 hour(s) before'), 'message gives the opening time, the scheduled time and the window', $e->getMessage()); }
 run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [$at(119), $id]);
+fails(fn() => Trips::action($wvd, 'checklist_start', ['trip_id' => $id, 'kind' => 'Pre-Dispatch']),
+    'checklist cannot start before cash fund release', 409, 'Finance must release the cash fund');
+fails(fn() => Trips::action($wvd, 'checklist', ['trip_id' => $id, 'items' => $items, 'meta' => []]),
+    'direct checklist submission is blocked before cash release', 409, 'Finance must release the cash fund');
+$fundReleased($id);
 $r = $checklist($id);
 ok($T($id)['status'] === 'Ready for Dispatch', 'scheduled in 1 h 59 min: checklist opened and submitted -> Ready for Dispatch', json_encode($r));
 $id2 = $newTrip(90);
+$fundReleased($id2);
 Trips::action($wvd, 'checklist_start', ['trip_id' => $id2, 'kind' => 'Pre-Dispatch']);
 run($p, 'UPDATE trips SET scheduled_at=? WHERE id=?', [$at(300), $id2]);   // Operations Head moved the trip later
 fails(fn() => Trips::action($wvd, 'checklist', ['trip_id' => $id2, 'items' => $items, 'meta' => []]), 'checklist opened in the window, schedule moved later -> submit refused (re-checked on submit)', 409, 'Too early');
 $id3 = $newTrip(-30);
+$fundReleased($id3);
 $checklist($id3);
 ok($T($id3)['status'] === 'Ready for Dispatch', 'schedule already passed: checklist still allowed');
 
@@ -185,9 +192,9 @@ $setting('checklist_lead_hours', 0);
 $id = $newTrip(30);
 fails(fn() => Trips::action($wvd, 'checklist_start', ['trip_id' => $id, 'kind' => 'Pre-Dispatch']), 'checklist window 0: 30 min early refused', 409, 'at the time before');
 $setting('checklist_lead_hours', 1.5);
+$fundReleased($id);
 $checklist($id);
 ok($T($id)['status'] === 'Ready for Dispatch', 'checklist window 1.5 hours: 30 min early allowed');
-$fundReleased($id);
 $setting('dispatch_early_minutes', 0);
 fails(fn() => Trips::action($wvd, 'dispatch', ['trip_id' => $id]), 'dispatch allowance 0: 30 min early refused', 409);
 $setting('dispatch_early_minutes', 60);

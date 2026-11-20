@@ -31,9 +31,11 @@ const BillUI = {
       { name: 'amount', label: 'Amount (PHP)', type: 'money', required: true, col: 4, value: x ? Math.abs(+x.amount).toFixed(2) : '' },
       { name: 'direction', label: 'Rate adjustment', type: 'select', options: [['Increase', 'Increase (add to the total)'], ['Decrease', 'Decrease / discount (less from the total)']], value: x && +x.amount < 0 ? 'Decrease' : 'Increase', placeholder: false, col: 6, attrs: adj ? '' : 'disabled' }];
   },
-  async open(id) {
-    let r; try { r = await App.api('Billing.details', { billing_id: id }); } catch (e) { return UI.toast(e.message, 'error'); }
-    const b = r.billing, t = r.trip, c = r.client, act = BillUI.data.can.act;
+  async open(id, poId = null) {
+    let r; try { r = await App.api('Billing.details', { billing_id: id, ...(poId?{po_id:poId}:{}) }); } catch (e) { return UI.toast(e.message, 'error'); }
+    const b = r.billing, t = r.trip, c = r.client, act = BillUI.data.can.act, dieselPo = r.diesel_po_record;
+    let dieselSnapshot=null;
+    try{dieselSnapshot=typeof dieselPo?.diesel_po_json==='string'?JSON.parse(dieselPo.diesel_po_json):dieselPo?.diesel_po_json||null;}catch(_){dieselSnapshot=null;}
     const docOk = (cat) => r.documents.some(x => x.category === cat);
     const acts = [], decide = BillUI.data.can.decide, me = BillUI.data.can.me;
     const pending = r.requests.filter(x => x.status === 'Pending Approval');
@@ -73,7 +75,7 @@ const BillUI = {
     const el = UI.drawer('Billing · ' + UI.esc(t.trip_ref), html, { subtitle: UI.esc(c.company_name) });
     UI.drawerSections(el,[['summary','Summary',['Trip details','Client profile','Invoice']],['charges','Transaction Breakdown',['Billing breakdown','Charge and adjustment requests']],['payments','Payments',['Payments']],['documents','Supporting Documents',['Supporting documents']]],{key:'billing-details'});
     el.querySelectorAll('[data-ar]').forEach(x => x.onclick = () => BillUI.printAR(r.collections.find(co => String(co.id) === x.dataset.ar), b, c));
-    const reopen = () => { BillUI.open(id); App.route(); };
+    const reopen = () => { BillUI.open(id, poId); App.route(); };
     const line = (cid) => r.charges.find(c => String(c.id) === String(cid));
     el.querySelectorAll('[data-rmc]').forEach(x => x.onclick = () => UI.confirmAction('Request removal', `Ask the Admin to remove <b>${UI.esc(line(x.dataset.rmc).description)} ${BillUI.sign(line(x.dataset.rmc).amount)}</b>? The line stays in the total until the Admin approves.`, 'Billing.charge_remove', { charge_id: x.dataset.rmc },
       { danger: true, submit: 'Send removal request', fields: [{ name: 'reason', label: 'Reason', required: true, col: 12 }], after: reopen }));
@@ -287,7 +289,7 @@ const HeadBillingPage = {
     ];
     const defaultTab=d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : 'ongoing';
     if(head)RecordComponents.executiveTabs(box,['for','invoices','paid','approvals','collections','ar','ongoing'].map(key=>billingTabs.find(tab=>tab[0]===key)).filter(Boolean),defaultTab,'Billing & Collection Records',{showAllTabs:true,clientFilter:true});
-    else UI.tabs(box,billingTabs,d.can.decide && d.adjustments.length ? 'approvals' : d.can.act && by(['For Billing']).length ? 'for' : null);
+    else UI.tabs(box,billingTabs,defaultTab);
   },
 };
 

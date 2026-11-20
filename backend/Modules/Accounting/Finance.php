@@ -20,6 +20,7 @@ declare(strict_types=1);
 core('Notify');
 core('Files');
 core('Money');
+core('DieselPo');
 
 final class Finance {
     public const EXPENSE_CATEGORIES = ['Fuel', 'RFID / Toll', 'Trip Allowance', 'Maintenance', 'Parts', 'Office', 'Utilities', 'Salaries', 'Other'];
@@ -55,11 +56,11 @@ final class Finance {
         // Admin's Financial Overview renders payables AND budget/expense/cashflow
         // tabs on the same page. Finance personnel use the narrower task pages.
         $keys = $page === 'finance' && hasRole($u, 'admin')
-            ? ['poPayables', 'payables', 'disbursements', 'suppliers', 'trucks',
+            ? ['poPayables', 'fuelCommitments', 'fuelBudget', 'payables', 'disbursements', 'suppliers', 'trucks',
                'expenses', 'budgets', 'cashflow', 'expenseMix']
             : ($page === 'finance_budgets'
-                ? ['expenses', 'budgets', 'cashflow', 'trucks', 'expenseMix']
-                : ['poPayables', 'payables', 'disbursements', 'suppliers', 'trucks']);
+                ? ['expenses', 'budgets', 'tripFunds', 'tripOperationsBudget', 'fuelBudget', 'fuelCommitments', 'cashflow', 'trucks', 'expenseMix']
+                : ['poPayables', 'fuelCommitments', 'fuelBudget', 'payables', 'disbursements', 'suppliers', 'trucks']);
         $data = readSections(array_intersect_key($sections, array_flip($keys)));
         $data['period'] = ['from' => $from, 'to' => $to];
         $data['categories'] = self::EXPENSE_CATEGORIES;
@@ -71,6 +72,18 @@ final class Finance {
     /** All Finance read sections (lazy). Pages pick the ones they show. */
     private static function sections(PDO $p, string $from, string $to): array {
         return [
+            'fuelCommitments' => fn() => DieselPo::ready($p) ? many($p, "SELECT po.id, po.po_number, po.status, po.trip_id, t.trip_ref,
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(f.diesel_po_json,'$.total_amount')) AS DECIMAL(14,2)) AS amount,
+                    po.approved_at, po.verified_at,
+                    (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=po.trip_id AND d.category='Supplier SOA') AS soa_documents
+                FROM diesel_purchase_orders po JOIN fund_requests f ON f.id=po.fund_request_id
+                JOIN trips t ON t.id=po.trip_id
+                WHERE po.status IN ('Awaiting SOA','SOA Received','Verified','Discrepancy')
+                ORDER BY po.id DESC") : [],
+            'fuelBudget' => fn() => one($p, "SELECT id,amount,reserved_amount,spent_amount,period_start,period_end,
+                    amount-reserved_amount-spent_amount AS available,
+                    (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period
+                    FROM budgets WHERE category='Fuel Operations' AND status='Active' ORDER BY id DESC LIMIT 1") ?? [],
             'poPayables' => fn() => many($p, "SELECT o.id, o.po_ref, o.status, o.payment_status, o.total_amount, o.paid_amount, o.supplier_invoice_no, COALESCE(o.supplier_name, s.name) AS supplier, du.full_name AS approved_by_name,
                     (SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) AS received_value
                 FROM purchase_orders o LEFT JOIN suppliers s ON s.id=o.supplier_id LEFT JOIN users du ON du.id=o.decided_by
@@ -84,6 +97,10 @@ final class Finance {
                         WHEN 'payable' THEN (SELECT payable_ref FROM payables WHERE id=d.source_id) END AS source_ref
                 FROM disbursements d JOIN users u ON u.id=d.recorded_by
                 WHERE d.released_on BETWEEN ? AND ? ORDER BY d.released_on DESC, d.id DESC", [$from, $to]),
+            'tripFunds' => fn() => many($p, "SELECT f.id, f.fund_ref, f.amount, f.status, f.liquidation_status, f.created_at, f.released_at, t.trip_ref, t.scheduled_at, u.full_name AS requested_by_name
+                FROM fund_requests f JOIN trips t ON t.id=f.trip_id JOIN users u ON u.id=f.requested_by
+                ORDER BY f.id DESC LIMIT 500"),
+            'tripOperationsBudget' => fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, period_start, period_end, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Trip Operations' ORDER BY id DESC LIMIT 1") ?? [],
             'budgets' => fn() => many($p, "SELECT b.id, b.period_start, b.period_end, b.amount, b.reserved_amount, b.spent_amount, b.status, (b.amount-b.reserved_amount-b.spent_amount) AS available, u.full_name AS set_by_name FROM budgets b JOIN users u ON u.id=b.set_by ORDER BY b.status, b.id DESC"),
             'cashflow' => fn() => many($p, "SELECT m, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out FROM (
                     SELECT DATE_FORMAT(payment_date,'%Y-%m') AS m, amount AS cash_in, 0 AS cash_out FROM collections WHERE payment_date>=DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
@@ -258,9 +275,40 @@ final class Finance {
     private static function budgetSet(array $u, array $d): array {
         requireRole($u, 'finance');
         $amount = moneyField($d, 'amount');
+        $category = choiceField($d, 'category', ['Purchasing', 'Trip Operations', 'Fuel Operations']);
         $start = dateField($d, 'period_start'); $end = dateField($d, 'period_end');
         must($end >= $start, 'The end date is before the start date.');
-        return transaction(function (PDO $p) use ($u, $amount, $start, $end) {
+        return transaction(function (PDO $p) use ($u, $amount, $start, $end, $category) {
+            if ($category === 'Fuel Operations') {
+                // Existing approved Diesel POs, including those approved before
+                // this budget feature, are commitments. Preserve them on replacement.
+                must(DieselPo::ready($p), 'Diesel PO workflow is not installed.', 409);
+                $old = many($p, "SELECT id FROM budgets WHERE status='Active' AND category='Fuel Operations' FOR UPDATE");
+                $open = one($p, "SELECT COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(f.diesel_po_json,'$.total_amount')) AS DECIMAL(14,2))),0) AS total
+                    FROM diesel_purchase_orders po JOIN fund_requests f ON f.id=po.fund_request_id
+                    WHERE po.status IN ('Awaiting SOA','SOA Received','Verified','Discrepancy')");
+                $carry = round((float)$open['total'], 2);
+                must((float)$amount >= $carry, 'The Fuel Operations budget must cover PHP ' . number_format($carry, 2) . ' in approved Diesel PO commitments.');
+                run($p, "UPDATE budgets SET status='Closed',reserved_amount=0 WHERE category='Fuel Operations' AND status='Active'");
+                $id = insert($p, 'budgets', ['category'=>'Fuel Operations', 'amount'=>$amount, 'reserved_amount'=>$carry,
+                    'period_start'=>$start, 'period_end'=>$end, 'status'=>'Active','set_by'=>$u['id']]);
+                audit($p,$u['id'],'Finance','budget '.$id,'fuel operations budget set',
+                    'PHP '.number_format((float)$amount,2).' including PHP '.number_format($carry,2).' existing approved Diesel POs.');
+                return ['message'=>'Fuel Operations budget set. PHP '.number_format($carry,2).' reserved for approved Diesel POs.'];
+            }
+            if ($category === 'Trip Operations') {
+                $previous = many($p, "SELECT id, amount, reserved_amount, spent_amount FROM budgets WHERE status='Active' AND category='Trip Operations' FOR UPDATE");
+                // The outstanding approved fund requests are the source of truth for cash reservations.
+                $ready = one($p, "SELECT COALESCE(SUM(amount),0) AS total FROM fund_requests WHERE status='Ready for Release'");
+                $carry = round((float)$ready['total'], 2);
+                must((float)$amount >= $carry, 'The new Trip Operations budget must cover PHP ' . number_format($carry, 2) . ' in approved funds awaiting release.');
+                run($p, "UPDATE budgets SET reserved_amount=0, status='Closed' WHERE status='Active' AND category='Trip Operations'");
+                $id = insert($p, 'budgets', ['category'=>'Trip Operations', 'amount'=>$amount, 'reserved_amount'=>$carry,
+                    'period_start'=>$start, 'period_end'=>$end, 'status'=>'Active', 'set_by'=>$u['id']]);
+                audit($p, $u['id'], 'Finance', 'budget ' . $id, 'trip operations budget set',
+                    'PHP ' . number_format((float)$amount,2) . '; approved fund commitments PHP ' . number_format($carry,2));
+                return ['message'=>'Trip Operations budget set. PHP ' . number_format($carry,2) . ' reserved for approved trip funds.'];
+            }
             // ACCOUNTING_INTEGRITY_G8: open commitments move to the new budget, so later payments draw on an Active budget and
             // reserved + spent stay consistent. The old budget keeps its spent amount (history) and loses only what moved.
             $old = many($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' FOR UPDATE");

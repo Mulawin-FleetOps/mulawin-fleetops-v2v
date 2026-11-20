@@ -53,11 +53,6 @@ final class DispatcherAttendance {
             must((bool)array_filter($rows,fn($v)=>in_array($v['truck_type'],$types,true)),
                 'Personnel is outside this Dispatcher account.',403);
         }
-        if (!$groups && in_array($person['attendance_group'] ?? null, ['car_carrier_dispatcher', 'container_wingvan_dispatcher'], true)) {
-            must(in_array($person['attendance_group'], array_map('dispatcherRoleFor', $types), true),
-                'Personnel attendance group is outside this Dispatcher account.', 403);
-            return $person['attendance_group'];
-        }
         must(count($groups)===1,'Select an authorized operational group before recording attendance.',409);
         return $groups[0];
     }
@@ -88,8 +83,15 @@ final class DispatcherAttendance {
             try { $groupRole=self::personnelGroup($p,$u,(int)$r['id']); }
             catch (BusinessRuleException $e) { $groupRole=null; }
             $s=($ready&&$groupRole)?one($p,'SELECT id,time_in,time_out,duty_date,duty_shift FROM dispatcher_attendance_sessions WHERE personnel_id=? AND dispatcher_role=? ORDER BY id DESC LIMIT 1',[$r['id'],$groupRole]):null;
-            $foreignOpen=$ready&&$groupRole&&(bool)one($p,'SELECT 1 FROM dispatcher_attendance_sessions WHERE personnel_id=? AND dispatcher_role<>? AND time_out IS NULL',[$r['id'],$groupRole]);
             $r['assigned']=(bool)$r['assigned']||(bool)FleetState::personTrip($p,(int)$r['id']);
+            $foreignSession=$ready&&$groupRole?one($p,'SELECT id,dispatcher_role,time_in,duty_date FROM dispatcher_attendance_sessions WHERE personnel_id=? AND dispatcher_role<>? AND time_out IS NULL ORDER BY time_in ASC LIMIT 1',[$r['id'],$groupRole]):null;
+            $foreignOpen=(bool)$foreignSession;
+            $r['stale_session']=$foreignSession ? [
+                'id'=>(int)$foreignSession['id'],
+                'group'=>$foreignSession['dispatcher_role']==='car_carrier_dispatcher'?'Car Carrier':'Container / Wing Van',
+                'time_in'=>$foreignSession['time_in'],
+                'can_review'=>!$r['assigned'] && strtotime((string)$foreignSession['time_in']) <= time()-86400,
+            ] : null;
             // Keep an open session visible across midnight. A closed session from
             // an earlier duty date belongs in History, not today's action row.
             $closedToday=$s&&$s['time_out']&&$s['duty_date']===$attendanceDate;
@@ -101,8 +103,10 @@ final class DispatcherAttendance {
             $r['action_reason']=$r['action']==='Completed'
                 ?'Time In and Time Out are already recorded for this attendance date.'
                 :($r['can_record']?'':($r['action']==='Time Out'?'Personnel are held by an active trip or returning vehicle.':'Admin attendance conflict must be corrected before Time In.'));
-            if($groupRole===null){$r['action_reason']='Assign an authorized attendance group in the Driver / Helper masterlist before recording Time In.';}
-            if($foreignOpen){$r['can_record']=false;$r['attendance_status']='Attendance review required';$r['action_reason']='An open attendance session requires authorized coordination before recording attendance in this group.';}
+            if($groupRole===null){$r['action_reason']='Authorize a truck in the Driver / Helper masterlist before recording Time In.';}
+            if($foreignOpen){$r['can_record']=false;$r['attendance_status']='Attendance review required';$r['action_reason']=$r['stale_session']['can_review']
+                ? 'A previous Time In in another group is over 24 hours old. Review and record the actual Time Out before starting a new session.'
+                : 'An open attendance session in another group requires coordination. Sessions can be reviewed after 24 hours only if there is no active trip.';}
         }unset($r);
         return ['rows'=>$rows,'shift'=>$shift,'attendance_date'=>$attendanceDate,
             'reset_time'=>'06:00','schema_ready'=>$ready];
@@ -117,6 +121,41 @@ final class DispatcherAttendance {
      * Bulk checklist uses exactly the same validation and authorization as an
      * individual Time In / Time Out. Either all rows succeed, or none do.
      */
+    /**
+     * Authorized dispatcher reconciliation of a stale, foreign-group Time In.
+     * Explicit recorded Time Out only; never silently close, overwrite, or delete a session.
+     */
+    public static function reconcileStale(array $u, array $d): array {
+        DispatcherScope::types($u);
+        $id=idField($d,'personnel_id');
+        $sessionId=idField($d,'session_id');
+        $reason=field($d,'reason',255);
+        must(mb_strlen(trim($reason))>=10,'Enter a reason of at least 10 characters for the attendance correction.');
+        $when=field($d,'time_out_at',16);
+        must((bool)preg_match('/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/D',$when),'Enter the actual Time Out date and time.');
+        $ended=DateTimeImmutable::createFromFormat('!Y-m-d\\TH:i',$when,new DateTimeZone('Asia/Manila'));
+        must($ended!==false&&$ended->format('Y-m-d\\TH:i')===$when,'Enter a valid Time Out date and time.');
+        return transaction(function(PDO $p)use($u,$id,$sessionId,$reason,$ended) {
+            DispatcherScope::attendancePerson($p,$u,$id,true);
+            $scope=self::personnelGroup($p,$u,$id);
+            $session=one($p,'SELECT * FROM dispatcher_attendance_sessions WHERE id=? AND personnel_id=? FOR UPDATE',[$sessionId,$id]);
+            must((bool)$session && $session['time_out']===null,'The attendance session has already changed. Refresh the roster.',409);
+            must($session['dispatcher_role']!==$scope,'Use the normal Time Out action for a session in your current group.',409);
+            $started=new DateTimeImmutable((string)$session['time_in'],new DateTimeZone('Asia/Manila'));
+            $now=new DateTimeImmutable('now',new DateTimeZone('Asia/Manila'));
+            must($started <= $now->modify('-24 hours'),'Only sessions that have been open for at least 24 hours can be reconciled.',409);
+            must($ended >= $started && $ended <= $now,'Time Out must be after the recorded Time In and cannot be in the future.',409);
+            core('FleetState');
+            must(!FleetState::personTrip($p,$id,null,true),'Cannot correct attendance while personnel are held by an active trip or returning vehicle.',409);
+            $row=one($p,'SELECT id FROM dispatcher_attendance_sessions WHERE personnel_id=? AND time_out IS NULL FOR UPDATE',[$id]);
+            must($row && (int)$row['id']===$sessionId,'Another open session exists. Refresh the attendance roster.',409);
+            run($p,'UPDATE dispatcher_attendance_sessions SET time_out=?,timed_out_by=? WHERE id=? AND time_out IS NULL',
+                [$ended->format('Y-m-d H:i:s'),$u['id'],$sessionId]);
+            audit($p,$u['id'],'Attendance','personnel '.$id,'stale cross-group attendance reconciled',
+                'Session #'.$sessionId.'; previous group '.$session['dispatcher_role'].'; recorded end '.$ended->format('Y-m-d H:i:s').'; reason: '.$reason);
+            return ['message'=>'Stale Time In session closed with the recorded actual Time Out. The dispatcher attendance roster can now be refreshed.'];
+        });
+    }
     public static function batch(array $u,array $d): array {
         DispatcherScope::types($u);
         $action=choiceField($d,'operation',['time_in','time_out']);

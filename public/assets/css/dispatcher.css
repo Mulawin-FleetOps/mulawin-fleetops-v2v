@@ -1128,3 +1128,25 @@ body:has(.ds-trip-drawer.show) > .modal.show {
     font-size: 12px;
   }
 }
+
+/* Compact Leaflet preview in Trip Details > Records > Route Map. */
+.dispatcher-role .ds-trip-drawer .ds-trip-tab-panel [data-routemap] {
+  display: block;
+  width: 100%;
+  height: 230px;
+  min-height: 230px;
+  max-height: 230px;
+  margin: 10px 0 0;
+  border: 1px solid #dce7df;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #edf3f0;
+}
+.dispatcher-role .ds-trip-drawer .ds-trip-tab-panel [data-routemap].d-none { display: none; }
+@media (max-width: 767px) {
+  .dispatcher-role .ds-trip-drawer .ds-trip-tab-panel [data-routemap] {
+    height: 190px;
+    min-height: 190px;
+    max-height: 190px;
+  }
+}

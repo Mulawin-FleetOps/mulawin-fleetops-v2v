@@ -2440,20 +2440,24 @@ UI.fundForm = (opts) => {
   const body = `${opts.intro ? `<p class="small text-muted">${opts.intro}</p>` : ''}
     <h6>Fund categories (preset amounts)</h6>${cats}
     <h6 class="mt-3">Other expense categories (optional)</h6>${rows}
-    ${opts.optionalDieselPo ? `<div class="fund-diesel-attachment" data-fund-diesel-attachment>
-      <label class="d-flex gap-2 align-items-center mb-2"><input type="checkbox" data-po-enabled ${opts.dieselPo?'checked':''}><strong>Include Diesel Purchase Order</strong> <small>(Optional)</small></label>
-      <div data-po-fields ${opts.dieselPo?'':'hidden'}>
-        <div class="row g-2 mb-2">
-          <div class="col-md-6"><label class="form-label">P.O. Number</label><input class="form-control form-control-sm" name="po_number" maxlength="60" value="${UI.esc(opts.dieselPo?.po_number||'')}"></div>
-          <div class="col-md-6"><label class="form-label">Date</label><input class="form-control form-control-sm" type="date" name="po_date" value="${UI.esc(opts.dieselPo?.po_date||'')}"></div>
-          <div class="col-md-6"><label class="form-label">Vehicle</label><input class="form-control form-control-sm" name="po_vehicle" maxlength="100" value="${UI.esc(opts.dieselPo?.vehicle||opts.dieselPoVehicle||'')}"></div>
-          <div class="col-md-6"><label class="form-label">Plate Number</label><input class="form-control form-control-sm" name="po_plate" maxlength="40" value="${UI.esc(opts.dieselPo?.plate_number||opts.dieselPoPlate||'')}"></div>
-        </div>
-        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>No. of Liters</th><th>Amount per Liter</th><th>Total</th><th></th></tr></thead><tbody data-po-lines></tbody></table></div>
-        <div class="d-flex justify-content-between align-items-center"><button class="btn btn-sm btn-outline-success" type="button" data-po-add>Add Another Line</button><strong data-po-total>₱0.00</strong></div>
-        <p class="form-help mt-2">This optional purchase order does not change the cash fund total.</p>
-      </div>
-    </div>` : ''}
+    ${opts.optionalDieselPo ? '<div class="fund-diesel-attachment" data-fund-diesel-attachment>'
+      + '<label class="d-flex gap-2 align-items-center mb-2"><input type="checkbox" data-po-enabled '+(opts.dieselPo?'checked':'')+'><strong>Include Diesel Purchase Order</strong> <small>(Optional)</small></label>'
+      + '<div data-po-fields '+(opts.dieselPo?'':'hidden')+'>'
+      + '<div class="rounded-3 border bg-light p-3 mb-3">'
+      + '<div class="row g-3">'
+      + '<div class="col-6"><div class="small text-muted">P.O. Number</div><div class="fw-semibold" data-po-reference>'+UI.esc(opts.dieselPo?.po_number||'Generated on submission')+'</div></div>'
+      + '<div class="col-6"><div class="small text-muted">Date Created</div><div class="fw-semibold">'+UI.esc(opts.dieselPo?.po_date||UI.nowManila().slice(0,10))+'</div></div>'
+      + '<div class="col-6"><div class="small text-muted">Vehicle</div><div class="fw-semibold">'+UI.esc(opts.dieselPo?.vehicle||opts.dieselPoVehicle||'Not assigned')+'</div></div>'
+      + '<div class="col-6"><div class="small text-muted">Plate Number</div><div class="fw-semibold">'+UI.esc(opts.dieselPo?.plate_number||opts.dieselPoPlate||'Not assigned')+'</div></div>'
+      + '</div></div>'
+      + '<div class="row g-3 align-items-end">'
+      + '<div class="col-md-6"><label class="form-label fw-semibold" for="fund-po-liters">Number of Liters <span class="text-danger" aria-hidden="true">*</span></label><input id="fund-po-liters" type="number" min="0.001" max="999999.999" step="0.001" class="form-control form-control-sm" data-po-liters aria-label="Number of liters" placeholder="Enter liters"></div>'
+      + '<div class="col-md-6"><div class="form-label fw-semibold">Configured Diesel Price</div><div class="rounded border bg-light px-3 py-2 fw-semibold" data-po-rate-display role="status" aria-live="polite">Loading price…</div><input type="hidden" data-po-rate></div>'
+      + '</div>'
+      + '<div class="d-flex justify-content-between align-items-center border-top mt-3 pt-3 gap-3"><strong>Estimated Diesel PO Total</strong><strong class="fs-5 text-nowrap" data-po-total aria-live="polite">₱0.00</strong></div>'
+      + '<p class="form-help mt-2 mb-1" data-po-status>Diesel price is provided by Fuel &amp; Operating Costs. PO details are assigned on submission.</p>'
+      + '<p class="form-help mb-0">This optional purchase order does not change the cash fund total.</p>'
+      + '</div></div>' : ''}
     <div class="mt-2"><label class="form-label small">Notes</label><input class="form-control form-control-sm" name="notes" maxlength="255" value="${UI.esc(opts.notes || '')}"></div>
     <div class="fs-6 mt-3 text-end">Total requested fund: <b id="fundTotal">₱0.00</b></div>`;
   UI.modal(opts.title, body, async (d, form) => {
@@ -2476,14 +2480,17 @@ UI.fundForm = (opts) => {
     if (!categories.length && !extraLines.length) throw new Error('Choose at least one fund category.');
     let dieselPo=null;
     if(opts.optionalDieselPo&&form.querySelector('[data-po-enabled]')?.checked){
-      const value=name=>form.querySelector('[name='+name+']')?.value.trim()||'';
-      const lines=[...form.querySelectorAll('[data-po-line]')].map(row=>({
-        liters:row.querySelector('[data-po-liters]').value.trim(),
-        unit_price:row.querySelector('[data-po-rate]').value.trim()
-      })).filter(line=>line.liters||line.unit_price);
-      if(!value('po_number')||!value('po_date')||!value('po_vehicle')||!value('po_plate'))throw new Error('Complete the P.O. number, date, vehicle and plate number.');
-      if(!lines.length||lines.some(line=>!/^\d{1,6}(?:\.\d{1,3})?$/.test(line.liters)||+line.liters<=0||!/^\d{1,7}(?:\.\d{1,2})?$/.test(line.unit_price)||+line.unit_price<=0))throw new Error('Enter positive liters and price per liter for every PO line.');
-      dieselPo={po_number:value('po_number'),po_date:value('po_date'),vehicle:value('po_vehicle'),plate_number:value('po_plate'),lines};
+      const po=form.querySelector('[data-fund-diesel-attachment]');
+      if(po.dataset.poLegacyMultiple==='1'){
+        // Preserve historical multi-line POs unchanged during fund revisions.
+        dieselPo={preserve_existing_lines:true};
+      }else{
+        const liters=po.querySelector('[data-po-liters]').value.trim();
+        const priceSettingId=po.dataset.poPriceId||'';
+        if(!/^\d{1,6}(?:\.\d{1,3})?$/.test(liters)||Number(liters)<=0)throw new Error('Enter a positive number of liters (up to three decimal places).');
+        if(!opts.dieselPo && !priceSettingId)throw new Error('An active diesel price is required. Check Fuel Configuration and reopen this form.');
+        dieselPo={liters,price_setting_id:priceSettingId};
+      }
     }
     const r = await App.api(opts.action, { ...opts.payload, categories, ...(opts.editablePresets ? { preset_amounts: presetAmounts } : {}), extra: extraLines, notes: d.notes || '', ...(dieselPo ? { diesel_po: dieselPo } : {}) });
     UI.result(r); if (opts.after) opts.after(r); else App.route();
@@ -2504,28 +2511,52 @@ UI.fundForm = (opts) => {
     w.addEventListener('input', total); w.addEventListener('change', total); total();
     const po=w.querySelector('[data-fund-diesel-attachment]');
     if(po){
-      const enabled=po.querySelector('[data-po-enabled]'),fields=po.querySelector('[data-po-fields]'),tbody=po.querySelector('[data-po-lines]');
+      const enabled=po.querySelector('[data-po-enabled]'),fields=po.querySelector('[data-po-fields]');
+      const litersInput=po.querySelector('[data-po-liters]'),rateInput=po.querySelector('[data-po-rate]');
+      const status=po.querySelector('[data-po-status]');
+      const priceDisplay=po.querySelector('[data-po-rate-display]');
+      const showPrice=()=>{priceDisplay.textContent=Number(rateInput.value)>0?UI.money(Number(rateInput.value))+' / liter':(rateInput.value||'Price unavailable');};
+      const savedLines=Array.isArray(opts.dieselPo?.lines)?opts.dieselPo.lines:[];
+      const legacy=savedLines.length>1;
       const update=()=>{
-        let sum=0;tbody.querySelectorAll('[data-po-line]').forEach(row=>{
-          const liters=+row.querySelector('[data-po-liters]').value||0,rate=+row.querySelector('[data-po-rate]').value||0;
-          const amount=Math.round(liters*rate*100)/100;
-          row.querySelector('[data-po-subtotal]').textContent=UI.money(amount);sum+=amount;
-        });po.querySelector('[data-po-total]').textContent=UI.money(sum);
+        const amount=Math.round((Number(litersInput.value)||0)*(Number(rateInput.value)||0)*100)/100;
+        po.querySelector('[data-po-total]').textContent=UI.money(amount);
       };
-      const addLine=(line={})=>{
-        if(tbody.children.length>=12)return;
-        const row=document.createElement('tr');row.dataset.poLine='1';
-        row.innerHTML='<td><input type="number" min="0.001" step="0.001" class="form-control form-control-sm" data-po-liters aria-label="Liters"></td>'
-          +'<td><input type="number" min="0.01" step="0.01" class="form-control form-control-sm" data-po-rate aria-label="Price per liter"></td>'
-          +'<td class="text-nowrap" data-po-subtotal>₱0.00</td><td><button class="btn btn-sm btn-outline-danger" type="button" data-po-remove>Remove</button></td>';
-        row.querySelector('[data-po-liters]').value=line.liters||'';
-        row.querySelector('[data-po-rate]').value=line.unit_price||'';tbody.append(row);update();
-      };
-      const saved=opts.dieselPo?.lines;(Array.isArray(saved)&&saved.length?saved:[{}]).forEach(addLine);
+      if(legacy){
+        po.dataset.poLegacyMultiple='1';
+        litersInput.value=String(savedLines.reduce((sum,line)=>sum+(Number(line.liters)||0),0));
+        litersInput.readOnly=true;
+        rateInput.value='Historical multi-line order';
+        showPrice();
+        status.textContent='Existing multi-line Diesel PO will be preserved unchanged during this fund revision.';
+        po.querySelector('[data-po-total]').textContent=UI.money(opts.dieselPo.total_amount);
+      }else{
+        litersInput.value=savedLines[0]?.liters||'';
+        if(opts.dieselPo){
+          rateInput.value=savedLines[0]?.unit_price||'';
+          showPrice();
+          status.textContent='Original Diesel PO price and number are preserved for this revision.';
+          update();
+        }else{
+          App.api('Funds.diesel_price',{}).then(price=>{
+            if(!po.isConnected)return;
+            rateInput.value=price.unit_price;
+            showPrice();
+            po.dataset.poPriceId=String(price.price_setting_id);
+            status.textContent='Price automatically loaded from Fuel & Operating Costs (effective '+price.effective_date+').';
+            update();
+          }).catch(error=>{
+            if(!po.isConnected)return;
+            status.textContent='Fuel price unavailable: '+error.message;
+            rateInput.value='';
+            showPrice();
+            po.dataset.poPriceId='';
+            update();
+          });
+        }
+        litersInput.addEventListener('input',update);
+      }
       enabled.addEventListener('change',()=>{fields.hidden=!enabled.checked;});
-      po.querySelector('[data-po-add]').addEventListener('click',()=>addLine());
-      po.addEventListener('click',event=>{const btn=event.target.closest('[data-po-remove]');if(btn&&tbody.children.length>1){btn.closest('tr').remove();update();}});
-      po.addEventListener('input',update);update();
     }
   } });
 };
