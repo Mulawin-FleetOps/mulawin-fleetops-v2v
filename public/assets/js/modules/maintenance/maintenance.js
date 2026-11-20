@@ -754,9 +754,8 @@ const MaintUI = {
       const mech = MaintUI.mechanicOptions(j.mechanic_id);
       if (a === 'assess') UI.formModal('Incident assessment · ' + UI.esc(i.incident_ref), [
           { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12,
-            options: [['Minor', 'Potential on-site resolution; trip stays On Hold pending clearance'],
-              ['Major', 'Not Fit to Continue; reschedule the trip'],
-              ['Needs More Information', 'Request missing details from Dispatcher; keep trip On Hold']] },
+            options: [['Minor', 'Minor'], ['Major', 'Major'],
+              ['Needs More Information', 'Needs More Information']] },
           { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12,
             placeholder: 'Describe the assessment and recommended next action.' }],
         'Maintenance.assess', { extra: { job_id: j.id },
