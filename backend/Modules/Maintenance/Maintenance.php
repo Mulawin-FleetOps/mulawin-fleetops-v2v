@@ -558,11 +558,14 @@ final class Maintenance {
                 must(!$missing,'Mechanic team lacks: '.implode(', ',$missing),409);
             }
             if ($parts === 'No Parts Needed') must(!one($p,"SELECT id FROM part_requests WHERE maintenance_job_id=? AND status<>'Cancelled' LIMIT 1",[$jobId]),'Existing parts requests must be resolved; cannot claim No Parts Needed.',409);
+            // The linked parts request requires an active repair. Advance garage reports
+            // inside this same transaction (all changes roll back if parts creation fails).
+            $targetStatus = $j['source']==='On-Premise' && $j['status']==='Reported' ? 'Under Repair' : $j['status'];
+            if ($targetStatus !== $j['status']) run($p,'UPDATE maintenance_jobs SET status=? WHERE id=?',[$targetStatus,$jobId]);
             if($lines) {
                 Actions::load('Purchasing');
                 Purchasing::createForRepair($p,$u,(int)$j['vehicle_id'],$jobId,cut((string)$j['problem'],255),$lines);
             }
-            $targetStatus = $j['source']==='On-Premise' && $j['status']==='Reported' ? 'Under Repair' : $j['status'];
             run($p,'UPDATE maintenance_jobs SET status=?, started_by=COALESCE(started_by,?), started_at=COALESCE(started_at,NOW()), assignment_finalized_at=NOW(), assignment_finalized_by=?, parts_requirement=? WHERE id=?',
                 [$targetStatus,$u['id'],$u['id'],$parts,$jobId]);
             self::event($p,$jobId,$j['status'],$targetStatus,$u['id'],
