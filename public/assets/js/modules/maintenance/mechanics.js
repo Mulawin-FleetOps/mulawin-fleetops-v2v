@@ -122,6 +122,35 @@ const MechAtt = {
     const m = Math.max(0, +min || 0), h = Math.floor(m / 60), r = m % 60;
     return h ? `${h}h ${String(r).padStart(2, '0')}m` : `${r}m`;
   },
+  async bulk(board, mode, button) {
+    const timeIn = mode === 'in';
+    // Apply to the entire selected duty group, not just the 10 visible rows.
+    const candidates = board.filter(m => timeIn ? !m.open_time_in : !!m.open_time_in);
+    if (!candidates.length) return UI.toast('No eligible mechanics in this group.', 'info');
+    const label = timeIn ? 'Mark All Timed In' : 'Mark All Timed Out';
+    const note = timeIn
+      ? 'This starts a Time In session for all currently not timed-in mechanics.'
+      : 'This ends open attendance sessions. Mechanics assigned to active repairs cannot be timed out and will be skipped.';
+    if (!await UI.confirmProceed(label,
+      `${note} Process ${candidates.length} mechanic(s) across all pages?`, label)) return;
+    if (button) button.disabled = true;
+    try {
+      const result = await App.api(timeIn ? 'Mechanics.bulk_time_in' : 'Mechanics.bulk_time_out',
+        {ids:candidates.map(m => m.id)});
+      UI.toast(result.message || 'Attendance updated.');
+      if ((result.skipped || 0) > 0) {
+        const details = (result.errors || []).map(message => `<li>${UI.esc(message)}</li>`).join('');
+        UI.modal('Bulk attendance results',
+          `<p>${UI.esc(result.message || '')}</p><p class="small text-muted">Skipped mechanics keep their previous attendance status.</p><ul class="small">${details}</ul>`,
+          null, {size:'modal-lg'});
+      }
+    } catch (error) {
+      UI.toast(error.message || 'Bulk attendance failed.', 'error');
+    } finally {
+      if (button) button.disabled = false;
+      App.route();
+    }
+  },
 };
 
 App.page('mechanic_attendance', {
@@ -177,6 +206,20 @@ App.page('mechanic_attendance', {
         rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
     if (typeof RecordComponents !== 'undefined') RecordComponents.maintenanceWorkspace(ctx.el, {box:'.mp-mechanic-attendance-table'});
+    if (can.edit) {
+      const heading = box.querySelector('.mp-records-heading, .record-workspace-heading');
+      if (heading) {
+        const actions = document.createElement('div');
+        actions.className = 'mp-attendance-bulk-actions no-print';
+        const inCount = board.filter(m => !m.open_time_in).length;
+        const outCount = on.length;
+        actions.innerHTML = `<button type="button" class="btn btn-sm btn-outline-primary" data-att-bulk="in" ${inCount ? '' : 'disabled'}>Mark All Timed In (${inCount})</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-att-bulk="out" ${outCount ? '' : 'disabled'}>Mark All Timed Out (${outCount})</button>`;
+        heading.append(actions);
+        actions.querySelectorAll('[data-att-bulk]').forEach(button =>
+          button.addEventListener('click', () => MechAtt.bulk(board, button.dataset.attBulk, button)));
+      }
+    }
 
     } else {
     const label = range.from === range.to ? UI.date(range.from) : `${UI.date(range.from)} – ${UI.date(range.to)}`;
