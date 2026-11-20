@@ -39,6 +39,8 @@ $p = db();
 ok($p->query('SELECT DATABASE()')->fetchColumn() === $DB, 'db() is the disposable test database');
 test_import($p, test_sql('database/schema.sql'));
 test_import($p, test_sql('database/extension.sql'));
+$p->exec("CREATE TABLE IF NOT EXISTS schema_migrations (id VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+test_import($p, test_sql('database/migrations/2026-11-21_01_general_budget_approvals.sql'));
 $staff = ['admin' => ['tvillanueva', 'Teresita Villanueva'], 'motorpool' => ['ebautista', 'Ernesto Bautista'], 'purchasing' => ['msantos', 'Maricel Santos'],
     'finance' => ['laquino', 'Lourdes Aquino'], 'audit' => ['amendoza', 'Arnel Mendoza'], 'billing' => ['jramos', 'Jocelyn Ramos']];
 $users = [];
@@ -48,6 +50,14 @@ foreach ($staff as $role => [$uname, $full]) {
 }
 $pur = $users['purchasing']; $fin = $users['finance'];
 foreach (['Purchasing', 'Finance', 'Analytics'] as $m) Actions::load($m);
+$submitBudget = function(float $amount) use ($fin,$p): int {
+    Finance::action($fin,'budget_set',['amount'=>$amount,'period_start'=>date('Y-m-01'),'period_end'=>date('Y-m-t')]);
+    return (int)one($p,'SELECT MAX(id) AS id FROM general_budget_requests')['id'];
+};
+$setBudget = function(float $amount) use ($submitBudget,$users): void {
+    $id=$submitBudget($amount);
+    Finance::action($users['admin'],'budget_decide',['request_id'=>$id,'decision'=>'approve']);
+};
 $tmpDir = sys_get_temp_dir() . '/fleet_pf_' . bin2hex(random_bytes(4)); mkdir($tmpDir);
 $pdf = function (string $name) use ($tmpDir): array {
     $path = $tmpDir . '/' . bin2hex(random_bytes(6)); $bytes = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"; file_put_contents($path, $bytes);
@@ -57,7 +67,7 @@ $part = fn(string $no, string $desc, float $cost) => (int)one($p, 'SELECT id FRO
     [Purchasing::action($pur, 'part_save', ['part_number' => $no, 'description' => $desc, 'category' => 'Brakes', 'unit' => 'pc', 'unit_cost' => $cost, 'reorder_level' => 2]) ? $no : $no])['id'];
 $P1 = $part('BRK-PAD-F-FVR', 'Front brake pad set, Isuzu FVR', 3250);
 $P2 = $part('RAD-HOSE-U-H500', 'Upper radiator hose, Hino 500', 1450);
-$budget = fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, status FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1");
+$budget = fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, status FROM budgets WHERE status='Active' AND category='General' ORDER BY id DESC LIMIT 1");
 $invariant = function (string $when) use ($p, $budget): void {
     foreach (many($p, 'SELECT * FROM budgets') as $b) {
         $res = (float)one($p, 'SELECT COALESCE(SUM(reserved_amount),0) AS v FROM purchase_orders WHERE budget_id=?', [$b['id']])['v'];
@@ -79,7 +89,7 @@ $payNotice = fn(int $id) => one($p, "SELECT state FROM notifications WHERE dedup
 
 // ---------------------------------------------------------------------
 section('A. Full PO path and budget invariant');
-Finance::action($fin, 'budget_set', ['amount' => 100000, 'period_start' => date('Y-m-01'), 'period_end' => date('Y-m-t')]);
+$setBudget(100000);
 $b1 = (int)$budget()['id'];
 $A = $po([['part_id' => $P1, 'quantity' => 2, 'unit_price' => 3250], ['part_id' => $P2, 'quantity' => 2, 'unit_price' => 1450]]);   // 9,400 <= threshold: Finance
 ok($row($A)['approver_role'] === 'finance' && $row($A)['status'] === 'Pending Approval', 'PO routed to Finance (PHP 9,400 <= limit)');
@@ -136,9 +146,12 @@ Purchasing::action($fin, 'po_decide', ['po_id' => $D, 'decision' => 'approve']);
 $ld = $lines($D);
 Purchasing::action($pur, 'po_receive', ['po_id' => $D, 'receive' => [['line_id' => $ld[0]['id'], 'qty' => 1]]]);
 ok((float)$budget()['reserved_amount'] === 6500.0, 'open PO reserves 6,500 on the first budget');
-fails(fn() => Finance::action($fin, 'budget_set', ['amount' => 5000, 'period_start' => date('Y-m-01'), 'period_end' => date('Y-m-t')]), 'a new budget smaller than the reserve carried over is refused', 400, 'still reserved');
+$smallId=$submitBudget(5000);
+fails(fn() => Finance::action($users['admin'],'budget_decide',['request_id'=>$smallId,'decision'=>'approve']),
+    'Admin cannot approve a General Budget below outstanding commitments',409,'below outstanding');
+Finance::action($users['admin'],'budget_decide',['request_id'=>$smallId,'decision'=>'reject','reason'=>'Insufficient allocation']);
 ok((int)$budget()['id'] === $b1, 'refusal changed nothing (first budget still Active)');
-Finance::action($fin, 'budget_set', ['amount' => 50000, 'period_start' => date('Y-m-01'), 'period_end' => date('Y-m-t')]);
+$setBudget(50000);
 $b2 = $budget(); $old = one($p, 'SELECT * FROM budgets WHERE id=?', [$b1]);
 ok((int)$b2['id'] !== $b1 && $old['status'] === 'Closed', 'new budget Active, first budget Closed');
 ok((int)$row($D)['budget_id'] === (int)$b2['id'] && (float)$b2['reserved_amount'] === 6500.0 && (float)$old['reserved_amount'] === 0.0, 'PO moved to the new budget with its 6,500 reserve; old reserve 0');
@@ -147,8 +160,8 @@ $pay($D, 3250, 'SI-4004');
 $b2 = $budget();
 ok((float)$b2['spent_amount'] === 3250.0 && (float)$b2['reserved_amount'] === 3250.0, 'payment after renewal draws on the new Active budget');
 $invariant('after renewal and payment');
-$au = one($p, "SELECT details FROM audit_events WHERE action='purchasing budget set' ORDER BY id DESC LIMIT 1")['details'];
-ok(str_contains($au, '1 open PO(s) moved') && str_contains($au, $row($D)['po_ref']), 'audit names the moved PO', $au);
+$au = one($p, "SELECT details FROM audit_events WHERE action='general budget approved' ORDER BY id DESC LIMIT 1")['details'];
+ok(str_contains($au, 'carried forward'), 'Admin decision audit records the carried commitments', $au);
 
 // ---------------------------------------------------------------------
 section('D2. Closed PO retains received-but-unpaid reserve on renewal');
@@ -159,7 +172,7 @@ Purchasing::action($pur,'po_receive',['po_id'=>$closed,'receive'=>[['line_id'=>$
 Purchasing::action($pur,'po_close',['po_id'=>$closed,'reason'=>'Remaining delivery cancelled']);
 ok((float)$row($closed)['reserved_amount']===3250.0,'Closed PO retains reserve for received items');
 $beforeRenewal = $budget();
-Finance::action($fin,'budget_set',['amount'=>100000,'period_start'=>date('Y-m-01'),'period_end'=>date('Y-m-t')]);
+$setBudget(100000);
 $renewed = $budget();
 ok((int)$row($closed)['budget_id']===(int)$renewed['id'],'Closed unpaid PO moves to renewed budget');
 ok((float)$renewed['reserved_amount']===(float)$beforeRenewal['reserved_amount'],'Renewal preserves all outstanding reserves');
