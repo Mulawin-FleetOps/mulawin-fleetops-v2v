@@ -417,9 +417,9 @@ final class Maintenance {
         requireRole($u, ...self::ACT);
         $vid = idField($d, 'vehicle_id');
         $problem = field($d, 'problem', 500);
-        // Garage intake captures the findings once; the next action assigns the whole mechanic team.
-        $findings = field($d, 'findings', 2000);
-        $diagnosis = field($d, 'diagnosis', 2000);
+        // Garage intake captures the findings once; older API callers may still provide them later.
+        $findings = optField($d, 'findings', 2000);
+        $diagnosis = optField($d, 'diagnosis', 2000);
         // The Report Truck Problem form does not ask for a date. The server is
         // authoritative, so never require or trust a client-supplied reported_on.
         $date = date('Y-m-d');
