@@ -1007,7 +1007,7 @@ App.page('mp_parts_requests', {
     const cancel = (r) => UI.confirmAction('Cancel ' + UI.esc(r.request_ref), 'The request will not be processed by Purchasing.',
       'Purchasing.request_cancel', { request_id: r.id }, { danger: true, submit: 'Cancel request' });
     const opt = { directActions: true, showAllColumns: true, limit: 10, groupBy: 'status', groupLabel: 'Request status',
-      actions: (r) => (r.status === 'Requested' && can.act ? UI.ibtn('cancel', 'Cancel request', 'bi-x-lg', 'outline-danger') : '') + UI.ibtn('view', 'Details', 'bi-eye'),
+      actions: (r) => (r.status === 'Requested' && can.act ? UI.ibtn('cancel', 'Cancel request', 'bi-x-lg', 'outline-danger') : '') + UI.btn('view', 'Details', 'outline-primary'),
       onAction: (a, r) => (a === 'cancel' ? cancel(r) : MaintUI.openRequest(r)),
       rowClick: (r) => MaintUI.openRequest(r),
     };
