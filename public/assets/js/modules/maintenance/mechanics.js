@@ -139,7 +139,7 @@ App.page('mechanic_attendance', {
       <div><strong><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Mechanic duty board</strong><div class="small text-muted">${UI.num(on.length)} timed in · ${UI.num(board.length - on.length)} not timed in. A mechanic with an active repair cannot Time Out.</div></div>
       </div></div>`;
     const tab = q.tab === 'sessions' ? 'sessions' : 'attendance';
-    const attendanceKpis = `<div class="mp-action-stages mp-reference-stages mb-3">
+    const attendanceKpis = `<div class="mp-action-stages mp-reference-stages mp-attendance-kpis mb-3">
       <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Timed In</b><small>Currently on duty</small></span><strong class="mp-action-stage-count">${on.length}</strong></div>
       <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Not Timed In</b><small>Not currently on duty</small></span><strong class="mp-action-stage-count">${board.length-on.length}</strong></div>
       <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Total Mechanics</b><small>Active duty board</small></span><strong class="mp-action-stage-count">${board.length}</strong></div>
