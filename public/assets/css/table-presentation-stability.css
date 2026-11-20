@@ -707,3 +707,38 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
     min-width:690px !important;
   }
 }
+
+
+/* INVENTORY_PREVIEW_TOOLBAR_V1
+   In the compact parts list, Clear filters lives inside Filter and the
+   native searchable field can be cleared directly. Remove redundant Reset.
+   Keep the existing real select and its change handler for sorting. */
+#pageContent .purchasing-inventory-parts-view .record-workspace-search > .ref-reset,
+#pageContent .purchasing-inventory-parts-view .record-workspace-search > [data-treset] {
+  display:none;
+}
+#pageContent .purchasing-inventory-parts-view .record-workspace-search .purchasing-po-sort > span {
+  display:none;
+}
+#pageContent .purchasing-inventory-parts-view .record-workspace-search .purchasing-po-sort {
+  min-height:37px;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  border:1px solid #c5dfcd;
+  border-radius:8px;
+  background:#fff;
+  padding:0 9px;
+  color:#176b3d;
+  font-weight:650;
+}
+#pageContent .purchasing-inventory-parts-view .record-workspace-search .purchasing-po-sort select {
+  border:0;
+  background:transparent;
+  min-width:88px;
+  max-width:180px;
+  color:inherit;
+  font-size:12px;
+  font-weight:650;
+  box-shadow:none;
+}
