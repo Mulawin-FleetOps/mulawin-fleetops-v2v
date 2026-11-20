@@ -1285,3 +1285,14 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
   font-weight:600;
   white-space:nowrap;
 }
+
+
+/* PURCHASING_DASHBOARD_ONLY_WHEN_NEEDED_V1
+   PO Status is a fixed overview, not a paginated queue. Short queues have
+   no pager; all dashboard lists expand normally without nested scrollbars. */
+#pageContent .purchasing-dashboard-ref .purchasing-ref-panels .panel-body .mo-list.mo-scroll {
+  max-height:none !important;
+  height:auto !important;
+  overflow-y:visible !important;
+  overflow-x:visible !important;
+}
