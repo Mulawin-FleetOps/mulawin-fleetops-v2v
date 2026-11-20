@@ -563,3 +563,27 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
   outline:2px solid #9f7a27;
   outline-offset:2px;
 }
+
+
+/* MOTORPOOL_KPI_GOLD_BORDER_HARD_FIX_V2
+   Repair, parts, mechanics and attendance cards share .mp-action-stages.
+   Do not depend on :has(#pageBody > .mp-wireframe-marker): the live page
+   wrapper can differ by route. Explicitly win against legacy gray borders. */
+#pageContent .mp-action-stages > .mp-action-stage,
+#pageBody .mp-action-stages > .mp-action-stage {
+  border: 1.5px solid #caa650 !important;
+  border-color: #caa650 !important;
+  border-radius: 11px;
+  background-color: #fff;
+  box-shadow: 0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent .mp-action-stages > button.mp-action-stage:hover,
+#pageBody .mp-action-stages > button.mp-action-stage:hover {
+  border-color: #ad862b !important;
+  background-color: #fffdf4;
+}
+#pageContent .mp-action-stages > button.mp-action-stage:focus-visible,
+#pageBody .mp-action-stages > button.mp-action-stage:focus-visible {
+  outline: 2px solid #997329;
+  outline-offset: 2px;
+}
