@@ -182,7 +182,7 @@ final class Analytics {
                          'rows' => many($p, 'SELECT part_number, description, quantity_on_hand, reorder_level FROM parts WHERE active=1 AND reorder_level>0 AND quantity_on_hand<=reorder_level ORDER BY quantity_on_hand'), 'empty' => 'No low-stock items.'];
         } elseif ($r === 'finance') {
             // ACCOUNTING_INTEGRITY_G7: same date rule as PO approval (Purchasing::poDecide); an expired budget is not "available".
-            $b = one($p, "SELECT amount-reserved_amount-spent_amount AS available, reserved_amount FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1");
+            $b = one($p, "SELECT amount-reserved_amount-spent_amount AS available, reserved_amount FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1");
             $cards = [
                 ['label' => 'Funds ready for release', 'value' => self::n($p, "SELECT COALESCE(SUM(amount),0) AS n FROM fund_requests WHERE status='Ready for Release'"), 'format' => 'money', 'icon' => 'bi-cash-coin', 'page' => 'funds'],
                 ['label' => 'PO payables (received, unpaid)', 'value' => self::n($p, "SELECT COALESCE(SUM((SELECT COALESCE(SUM(l.received_qty*l.unit_price),0) FROM purchase_order_lines l WHERE l.purchase_order_id=o.id) - o.paid_amount),0) AS n FROM purchase_orders o WHERE o.payment_status IN ('Pending Payment','Partially Paid')"), 'format' => 'money', 'icon' => 'bi-receipt', 'page' => 'finance'],
