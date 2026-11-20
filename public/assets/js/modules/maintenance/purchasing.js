@@ -215,7 +215,7 @@ const PurUI = {
       label: 'Select Motorpool Request', type: 'select', col: 12,
       value: prefill.part_request_id || '', options: requestOptions }]);
     const supplierFields = PurUI.supplierFields();
-    const supplierMain = UI.fields([supplierFields[0]]);
+    const supplierMain = UI.fields([{ ...supplierFields[0], col: 12 }]);
     const supplierOptional = UI.fields(supplierFields.slice(1));
     const budgetMessage = d.budget && d.budget.id && +d.budget.in_period
       ? 'Purchasing budget available now: <b>' + UI.money(d.budget.available) + '</b> (checked again at approval).'
@@ -246,6 +246,7 @@ const PurUI = {
         if (type === 'motorpool' && !reqId) throw new Error('Select a Motorpool parts request first.');
         const lines = PurUI.readLines(w, true);
         const payload = { ...values, part_request_id: type === 'motorpool' ? reqId : '', lines };
+        if (!payload.supplier_name?.trim()) throw new Error('Enter or confirm the supplier name.');
         delete payload.po_purchase_type;
         const r = await App.api('Purchasing.po_create', payload);
         UI.result(r);
