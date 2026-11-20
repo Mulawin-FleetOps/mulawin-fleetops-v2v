@@ -632,6 +632,35 @@ const MaintUI = {
       || acts.find(([a]) => a === 'clearance');
     const supportActions = acts.filter(a => a !== mainAction);
     const actionButton = ([a, l, c, ic]) => `<button type="button" class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}" aria-hidden="true"></i> ` : ''}${UI.esc(l)}</button>`;
+    // Repair-specific status history: compact readable cards, without changing
+    // chronological event order or hiding same-status audit events.
+    const statusHistory = (r.events || []).length
+      ? `<ol class="mp-repair-status-timeline" aria-label="Repair status history">
+          ${r.events.map((event, idx) => {
+            const from = event.from_status || 'Not recorded';
+            const to = event.to_status || event.event_type || 'Recorded activity';
+            const changed = !!event.to_status && event.from_status !== event.to_status;
+            const note = event.details || event.notes || event.note || '';
+            const actor = event.actor || 'Actor not recorded';
+            return `<li class="mp-repair-history-event">
+              <div class="mp-repair-history-marker" aria-hidden="true"><span></span></div>
+              <div class="mp-repair-history-card">
+                <div class="mp-repair-history-top">
+                  <span class="mp-repair-history-status">${UI.esc(to)}</span>
+                  <span class="mp-repair-history-time">${event.created_at ? UI.datetime(event.created_at) : 'Time not recorded'}</span>
+                </div>
+                ${changed ? `<div class="mp-repair-history-change">${UI.esc(from)} <span aria-hidden="true">→</span> ${UI.esc(event.to_status)}</div>` : ''}
+                ${note ? `<p class="mp-repair-history-note">${UI.esc(note)}</p>` : ''}
+                <div class="mp-repair-history-meta">
+                  <span><i class="bi bi-person" aria-hidden="true"></i> ${UI.esc(actor)}</span>
+                  ${event.mechanic ? `<span><i class="bi bi-wrench" aria-hidden="true"></i> Mechanic: ${UI.esc(event.mechanic)}</span>` : ''}
+                  ${event.reference ? `<span>${UI.esc(event.reference)}</span>` : ''}
+                </div>
+              </div>
+            </li>`;
+          }).join('')}
+        </ol>`
+      : '<div class="mp-repair-history-empty">No status events have been recorded for this repair.</div>';
     const html = `<div class="mp-repair-overview-summary">
         <div class="mp-repair-overview-top"><span class="small text-muted">Current status</span>${UI.badge(j.verified_at ? 'Returned to service' : j.status)}</div>
         <div class="mp-repair-next"><strong>Next step</strong><span>${UI.esc(MaintUI.nextStep(j))}</span></div>
@@ -697,7 +726,7 @@ const MaintUI = {
         </div>
       </div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
-      ${UI.h('Status history')}${UI.activity(r.events)}
+      ${UI.h('Status history')}${statusHistory}
       ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
     const el = UI.drawer(UI.esc(j.job_ref) + ' · ' + UI.esc(j.plate_number), html, { subtitle: 'Corrective maintenance · ' + UI.esc(j.verified_at ? 'Returned to service' : j.status) });
     UI.drawerSections(el,[['overview','Overview',['Problem','Trip incident']],['repair','Inspection & Repairs',['Mechanics and repair']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]],{key:'maintenance-details'});
