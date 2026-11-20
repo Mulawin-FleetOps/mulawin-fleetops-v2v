@@ -3673,3 +3673,40 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .purchasing-table-stock-movements .purchasing-movement-po-btn:focus-visible {
   background:#edf7f0; color:#19683a; border-color:#78b88d;
 }
+
+
+/* Purchasing: compact Parts Request workflow progress modal */
+.pur-request-workflow-modal .modal-body { padding:18px 20px; }
+.pur-request-workflow { display:grid; gap:17px; color:#294036; }
+.pur-request-summary { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; color:#74867b; font-size:12px; }
+.pur-request-stage-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.pur-request-stage { display:flex; gap:10px; padding:12px; min-width:0; background:#f8faf8; border:1px solid #e0e8e2; border-radius:9px; }
+.pur-request-stage-icon { flex:0 0 20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; color:#728177; background:#e9eee9; }
+.pur-request-stage.complete .pur-request-stage-icon { color:#187843; background:#e1f1e7; }
+.pur-request-stage.exception .pur-request-stage-icon { color:#b14a28; background:#ffeadf; }
+.pur-request-stage-content { display:grid; align-content:start; gap:4px; min-width:0; }
+.pur-request-stage-step { color:#7a8a80; font-size:10px; text-transform:uppercase; letter-spacing:.05em; font-weight:650; }
+.pur-request-stage-content strong { color:#294036; font-size:13px; font-weight:650; line-height:1.4; }
+.pur-request-stage-content small, .pur-request-stage-content p { margin:0; color:#76877d; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
+.pur-request-section { border:1px solid #e0e8e2; border-radius:9px; overflow:hidden; background:#fff; }
+.pur-request-section h3 { font-size:12px; letter-spacing:.045em; text-transform:uppercase; font-weight:750; color:#526b5c; margin:0; padding:10px 13px; background:#f7f9f7; border-bottom:1px solid #e0e8e2; }
+.pur-request-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); padding:12px; gap:9px; }
+.pur-request-metric { display:grid; gap:3px; border-right:1px solid #e6ece7; padding:3px 7px; min-width:0; }
+.pur-request-metric:last-child { border-right:0; }
+.pur-request-metric small { color:#73857b; font-size:11px; line-height:1.35; }
+.pur-request-metric b { font-size:19px; line-height:1.3; color:#254e38; font-variant-numeric:tabular-nums; }
+.pur-request-section > .purchasing-workflow-links, .pur-request-section > p { margin:12px 13px !important; }
+.pur-request-facts { padding:4px 13px; }
+.pur-request-fact { display:grid; grid-template-columns:minmax(120px,38%) minmax(0,1fr); gap:10px; align-items:start; padding:10px 0; border-bottom:1px solid #edf0ed; font-size:12px; }
+.pur-request-fact:last-child { border-bottom:0; }
+.pur-request-fact span { color:#73857b; }
+.pur-request-fact strong { color:#294036; font-weight:600; overflow-wrap:anywhere; }
+.pur-request-activity { border:1px solid #e0e8e2; border-radius:9px; padding:12px 13px; }
+.pur-request-activity summary { cursor:pointer; font-size:12px; font-weight:650; color:#376f4e; }
+@media(max-width:600px) {
+ .pur-request-workflow-modal .modal-body { padding:12px; }
+ .pur-request-stage-grid { grid-template-columns:minmax(0,1fr); }
+ .pur-request-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .pur-request-metric:nth-child(2) { border-right:0; }
+ .pur-request-fact { grid-template-columns:minmax(0,1fr); gap:3px; }
+}
