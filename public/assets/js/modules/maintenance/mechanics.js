@@ -102,7 +102,7 @@ App.page('mechanics', {
       ['Current assignment', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck)} · ${UI.esc(m.job_status)}</div>` : '<span class="text-muted">—</span>'],
       ['Completed repairs', 'completed_jobs', 'num']], rows,
       { showAllColumns: true, directActions: true, limit: 10, groupBy: 'availability',
-        actions: () => UI.ibtn('view', 'Open mechanic', 'bi-eye'),
+        actions: () => UI.btn('view', 'Details', 'outline-primary'),
         onAction: (a, m) => MechUI.open(m.id), rowClick: (m) => MechUI.open(m.id),
         empty: d.mechanics.length ? 'No mechanic in this list.' : 'No mechanics yet. Add the mechanics who repair the trucks.' });
     if (typeof RecordComponents !== 'undefined') RecordComponents.maintenanceWorkspace(ctx.el, {tools:ctx.tools});
