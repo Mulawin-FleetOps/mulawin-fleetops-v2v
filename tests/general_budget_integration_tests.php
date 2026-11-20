@@ -36,6 +36,20 @@ try {
         return (int)one($p,'SELECT MAX(id) AS id FROM general_budget_requests')['id'];
     };
     $active=fn()=>one($p,"SELECT * FROM budgets WHERE category='General' AND status='Active' ORDER BY id DESC LIMIT 1");
+    foreach ([
+        ['period_start'=>date('Y-m-d',strtotime('-1 day')),'period_end'=>$later,'case'=>'past start'],
+        ['period_start'=>date('Y-m-d',strtotime('+1 day')),'period_end'=>$later,'case'=>'future start'],
+        ['period_start'=>$today,'period_end'=>date('Y-m-d',strtotime('-1 day')),'case'=>'past end'],
+    ] as $invalid) {
+        try {
+            Finance::action($finance,'budget_set',[
+                'amount'=>10000,'period_start'=>$invalid['period_start'],'period_end'=>$invalid['period_end']
+            ]);
+            throw new RuntimeException('Accepted invalid '.$invalid['case'].' date');
+        } catch(BusinessRuleException $e) {
+            checkBudget($e->httpStatus===422,'General Budget rejects '.$invalid['case'].' date');
+        }
+    }
     $first=$submit(10000);
     checkBudget(!$active(),'Finance submission does not activate unapproved budget');
     checkBudget(one($p,'SELECT status FROM general_budget_requests WHERE id=?',[$first])['status']==='Pending Approval','Request remains Pending Approval');
