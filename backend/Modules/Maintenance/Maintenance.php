@@ -270,6 +270,7 @@ final class Maintenance {
         return match ($action) {
             'report' => self::report($u, $d),
             'assign_mechanic' => self::assignMechanic($u, $d),
+            'garage_arrival' => self::garageArrival($u, $d),
             'helpers_add' => self::helpersAdd($u, $d),
             'helper_remove' => self::helperRemove($u, $d),
             'assess' => self::assess($u, $d),
@@ -581,6 +582,24 @@ final class Maintenance {
         });
     }
 
+    /** Confirm physical recovery of an incident truck before starting its existing repair record. */
+    private static function garageArrival(array $u, array $d): array {
+        requireRole($u, ...self::ACT);
+        $id = idField($d, 'job_id');
+        $notes = field($d, 'notes', 500);
+        return transaction(function (PDO $p) use ($u, $id, $notes) {
+            $j = self::lockJob($p, $id);
+            must($j['source'] === 'Incident' && $j['severity'] === 'Major' && $j['status'] === 'Under Inspection',
+                'Garage arrival is for an assessed Major incident awaiting garage repair.', 409);
+            must(!$j['mechanic_id'], 'A mechanic is already assigned to this repair.', 409);
+            must(!one($p, "SELECT id FROM maintenance_events WHERE maintenance_job_id=? AND details LIKE 'Garage arrival confirmed:%' LIMIT 1", [$id]),
+                'Garage arrival is already confirmed.', 409);
+            self::event($p, $id, $j['status'], $j['status'], $u['id'], 'Garage arrival confirmed: ' . $notes);
+            audit($p, $u['id'], 'Maintenance', 'job ' . $id, 'incident truck recovered to garage', $j['job_ref'] . ': ' . cut($notes, 200));
+            return ['message' => 'Garage arrival confirmed. Continue with mechanic assignment using the incident-linked repair record.'];
+        });
+    }
+
     /** Assign (or change) the mechanic. Reported -> Under Inspection. */
     private static function assignMechanic(array $u, array $d): array {
         requireRole($u, ...self::ACT);
@@ -590,6 +609,10 @@ final class Maintenance {
             $j = self::lockJob($p, $id);
             must(in_array($j['status'], self::ACTIVE, true), 'This record is ' . $j['status'] . '.', 409);
             must(!($j['source'] === 'Incident' && $j['status'] === 'Reported'), 'Assess the incident first (Minor or Major) before assigning a mechanic.', 409);
+            if ($j['source'] === 'Incident' && $j['severity'] === 'Major' && !$j['mechanic_id']) {
+                must((bool)one($p, "SELECT id FROM maintenance_events WHERE maintenance_job_id=? AND details LIKE 'Garage arrival confirmed:%' LIMIT 1", [$id]),
+                    'Confirm the incident truck has arrived at the garage before assigning a mechanic.', 409);
+            }
             must(!self::catalogReady($p) || !$j['assignment_finalized_at'], 'Finalized mechanic assignment is locked.', 409);
             if ((int)$j['mechanic_id'] === $mechanicId) return ['message' => 'This mechanic is already assigned.'];
             if ($j['mechanic_id']) must($reason !== null, 'Give the reason for changing the mechanic.');
@@ -982,7 +1005,7 @@ final class Maintenance {
     private static function details(array $u, array $d): array {
         must(Access::canOpen($u, 'maintenance'), 'Not allowed.', 403);
         $id = idField($d, 'job_id'); $p = db();
-        $j = one($p, 'SELECT m.*, v.plate_number, v.truck_number, v.truck_type, v.status AS truck_status, t.trip_ref, mc.full_name AS mechanic, mc.mechanic_code, mc.contact_number AS mechanic_contact,
+        $j = one($p, 'SELECT m.*, v.plate_number, v.truck_number, v.truck_type, v.status AS truck_status, t.trip_ref, t.status AS trip_status, mc.full_name AS mechanic, mc.mechanic_code, mc.contact_number AS mechanic_contact,
                 su.full_name AS started_by_name, cu.full_name AS completed_by_name, vu.full_name AS verified_by_name, ru.full_name AS reported_by_name
             FROM maintenance_jobs m JOIN vehicles v ON v.id=m.vehicle_id LEFT JOIN trips t ON t.id=m.trip_id LEFT JOIN mechanics mc ON mc.id=m.mechanic_id
             LEFT JOIN users su ON su.id=m.started_by LEFT JOIN users cu ON cu.id=m.completed_by LEFT JOIN users vu ON vu.id=m.verified_by LEFT JOIN users ru ON ru.id=m.created_by WHERE m.id=?', [$id]);
@@ -1019,6 +1042,7 @@ final class Maintenance {
                 WHERE r.maintenance_job_id=? AND r.status <> 'Cancelled'", [$id])['n'] ?? 0),
             'incidentClarifications' => $inc && one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'") ? many($p,'SELECT c.id,c.details,c.created_at,u.full_name AS actor FROM incident_clarifications c JOIN users u ON u.id=c.actor_id WHERE c.incident_id=? ORDER BY c.id',[(int)$inc['id']]) : [],
             'incident' => $inc, 'arrival' => $arrival, 'preDispatch' => $preDispatch, 'preDispatchFindings' => $preDispatchFindings, 'documents' => $docs,
+            'garageArrivalConfirmed' => (bool)one($p, "SELECT id FROM maintenance_events WHERE maintenance_job_id=? AND details LIKE 'Garage arrival confirmed:%' LIMIT 1", [$id]),
             'selectedComponents' => self::catalogReady($p) ? array_map('intval',array_column(many($p,'SELECT component_id FROM maintenance_job_components WHERE maintenance_job_id=?',[$id]),'component_id')) : [],
             'excludedComponents' => self::catalogReady($p) ? array_map('intval',array_column(many($p,'SELECT component_id FROM motorpool_vehicle_component_exclusions WHERE vehicle_id=?',[(int)$j['vehicle_id']]),'component_id')) : [],
             // JOB_HELPER_MECHANICS_V1: assisting mechanics, active and past (who assigned / released them and why).
