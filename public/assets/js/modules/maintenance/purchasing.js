@@ -988,28 +988,74 @@ PurUI.openPO = async (o, k) => {
 
 /** Part drawer: stock figures, 90-day usage and the last 50 movements with their PO / request references. */
 PurUI.openPart = async (pt, k) => {
-  const seq = App.navSeq; const x = await App.api('Purchasing.part_history', { part_id: pt.id }); const p = x.part;
-  if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
-  const html = `${UI.kv([['Part ID', UI.esc(p.part_number)], ['Part Type', UI.e(p.part_type) || 'Not classified'], ['Part Name / Specification', UI.esc(p.description)], ['Brand', UI.e(p.brand)], ['Regular Supplier', UI.e(p.regular_supplier_name) || 'Not set'], ['On hand', `<b>${UI.num(p.quantity_on_hand)} ${UI.esc(p.unit)}</b>` + (+p.low_stock ? ' <span class="badge-s red">Low stock</span>' : '')], ['Reserved', UI.num(p.reserved_qty || 0) + ' ' + UI.esc(p.unit)], ['Available', UI.num(p.available_qty ?? p.quantity_on_hand) + ' ' + UI.esc(p.unit)],
-      ['Reorder level', UI.num(p.reorder_level)], ['Unit cost', UI.money(p.unit_cost)], ['Stock value', UI.money(p.stock_value)], ['Issued, last 90 days', UI.num(x.usage.issued_90d) + ' ' + UI.esc(p.unit) + ' in ' + UI.num(x.usage.issues_90d) + ' release(s)'],
-
-      p.warranty_info ? ['Historical warranty note', UI.esc(p.warranty_info)] : null])}
-    ${UI.h('Warranty receipt batches')}
-    ${UI.table([['PO','po_ref'],['Quantity','received_qty','num'],['Warranty Status','warranty_status'],
-      ['Start','warranty_start','date'],['Expires','warranty_expires','date'],
-      ...(App.me?.user?.role === 'purchasing' ? [['Edit','id',v => '<button type="button" class="btn btn-sm btn-outline-secondary" data-warranty-batch="'+UI.esc(v)+'">Update</button>']] : [])],
-      x.warrantyBatches || [], { plain:true, empty:'No warranty receipt records yet.' })}
-    ${UI.h('Stock movements (latest 50)')}${UI.table([['Date and time', 'created_at', 'datetime'], ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => (v > 0 ? '+' : '') + UI.num(v)], ['Reference', 'reference', (v, m) => UI.e(v || m.reason)], ['Truck', 'plate_number'], ['By', 'actor']], x.movements, { plain: true, limit: 10, empty: 'No stock movement recorded.' })}
-    <div class="d-flex flex-wrap gap-2 mt-3">${k.partActs(pt, true)}</div>`;
-  const el = UI.drawer(UI.esc(p.description), html, { subtitle: 'Part ID · ' + UI.esc(p.part_number) });
+  const seq = App.navSeq;
+  const x = await App.api('Purchasing.part_history', { part_id: pt.id });
+  const p = x.part;
+  if (seq !== App.navSeq) return;
+  const unit = UI.esc(p.unit || 'pc');
+  const asText = value => value == null || String(value).trim() === '' ? '—' : UI.esc(value);
+  const detail = (label, value) =>
+    '<div class="part-detail-field"><span>' + UI.esc(label) + '</span><strong>' + value + '</strong></div>';
+  const stock = (label, value, kind = '') =>
+    '<div class="part-detail-stat ' + kind + '"><span>' + UI.esc(label) +
+    '</span><strong>' + UI.num(value) + '</strong><small>' + unit + '</small></div>';
+  const counts = [
+    stock('On hand', p.quantity_on_hand),
+    stock('Reserved', p.reserved_qty || 0),
+    stock('Available', p.available_qty ?? p.quantity_on_hand, 'part-detail-available')
+  ].join('');
+  const receiptBatches = x.warrantyBatches || [];
+  const movements = x.movements || [];
+  const html = '<div class="purchasing-part-detail">' +
+    '<div class="part-detail-heading"><div><small>PART RECORD</small><h3>' + asText(p.part_number) +
+    '</h3><p>' + asText(p.description) + '</p></div>' +
+    (+p.low_stock ? '<span class="badge-s amber">Low Stock</span>'
+      : (+p.active ? '<span class="badge-s green">Active</span>' : '<span class="badge-s gray">Inactive</span>')) +
+    '</div>' +
+    '<section class="part-detail-section"><h4>Part information</h4><div class="part-detail-grid">' +
+      detail('Part Type', asText(p.part_type)) +
+      detail('Brand', asText(p.brand)) +
+      detail('Regular Supplier', asText(p.regular_supplier_name)) +
+      detail('Unit of Measure', unit) +
+    '</div></section>' +
+    '<section class="part-detail-section"><h4>Stock availability</h4>' +
+      '<div class="part-detail-stock">' + counts + '</div>' +
+      '<div class="part-detail-grid">' +
+        detail('Reorder level', UI.num(p.reorder_level) + ' ' + unit) +
+        detail('Reference unit cost', UI.money(p.unit_cost)) +
+        detail('Stock value', UI.money(p.stock_value)) +
+        detail('Issued in last 90 days', UI.num(x.usage?.issued_90d || 0) + ' ' + unit +
+          ' across ' + UI.num(x.usage?.issues_90d || 0) + ' release(s)') +
+      '</div></section>' +
+    (p.warranty_info ? '<div class="part-detail-legacy-note"><strong>Historical warranty note</strong>' +
+      '<p>' + UI.esc(p.warranty_info) + '</p></div>' : '') +
+    '<details class="part-detail-disclosure" ' + (receiptBatches.length ? 'open' : '') + '><summary>' +
+      'Warranty receipts <span class="part-detail-count">' + UI.num(receiptBatches.length) + '</span></summary><div class="part-detail-table">' +
+      UI.table([['PO','po_ref'],['Quantity','received_qty','num'],['Warranty Status','warranty_status'],
+        ['Start','warranty_start','date'],['Expires','warranty_expires','date'],
+        ...(App.me?.user?.role === 'purchasing' ? [['Edit','id',v =>
+          '<button type="button" class="btn btn-sm btn-outline-secondary" data-warranty-batch="' +
+            UI.esc(v) + '">Update</button>']] : [])],
+        receiptBatches, { plain:true, empty:'No warranty receipts recorded yet.' }) +
+      '</div></details>' +
+    '<details class="part-detail-disclosure"><summary>Stock movements <span class="part-detail-count">' +
+      UI.num(movements.length) + '</span></summary><div class="part-detail-table">' +
+      UI.table([['Date and time','created_at','datetime'],['Type','movement_type','badge'],
+        ['Qty','quantity_delta',v => (v > 0 ? '+' : '') + UI.num(v)],
+        ['Reference','reference',(v,m) => UI.e(v || m.reason)],
+        ['Truck','plate_number'],['By','actor']],
+        movements,{ plain:true, limit:10, empty:'No stock movements recorded.' }) +
+      '</div></details>' +
+    '<div class="part-detail-actions">' + k.partActs(pt,true) + '</div>' +
+    '</div>';
+  const el = UI.drawer(UI.esc(p.description), html, { subtitle:'Part ID · ' + UI.esc(p.part_number) });
   const root = el || document.querySelector('.offcanvas.app-drawer');
-  PurUI.bindDrawerActions(root.querySelector('.d-flex.flex-wrap.gap-2.mt-3'), pt, k.partAct);
+  PurUI.bindDrawerActions(root.querySelector('.part-detail-actions'), pt, k.partAct);
   root.querySelectorAll('[data-warranty-batch]').forEach(btn => btn.addEventListener('click', () => {
-    const batch = (x.warrantyBatches || []).find(b => String(b.id) === btn.dataset.warrantyBatch);
+    const batch = receiptBatches.find(b => String(b.id) === btn.dataset.warrantyBatch);
     if (batch) PurUI.confirmWarranty({ ...batch, part_number:p.part_number }, () => PurUI.openPart(pt, k));
   }));
 };
-
 /** Opens the record named by ?open=<id> once (links from the Overview, notifications and other drawers). */
 PurUI.openFromQuery = (ctx, rows, fn) => { const o = UI.takeQuery(ctx, 'open').open; if (!o) return; const r = rows.find(x => String(x.id) === String(o)); if (r) fn(r); else UI.toast('That record is not in this list.', 'warn'); };
 /** Short attention-list panel used by the Purchasing Overview (same look as the Maintenance Overview lists). */
@@ -1442,7 +1488,6 @@ App.page('inventory', {
     const inventoryCards = PurRef.cards([
       {label:'Active Parts',value:active.length,note:'Active catalog entries',icon:'bi-box-seam',go:'inventory?stock=active'},
       {label:'Low Stock',value:low.filter(p => +(p.available_qty ?? p.quantity_on_hand) > 0).length,note:'Available quantity at or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
-      {label:'Stock Counts Awaiting Review',value:d.countsReady?pending.length:'—',note:'Submitted physical counts for Admin review',icon:'bi-clipboard-check',go:d.countsReady?'inventory?view=counts':undefined},
       {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On-hand stock × recorded unit cost',icon:'bi-cash-coin'}
     ]);
     const view = q.view === 'counts' ? 'counts' : 'parts';
