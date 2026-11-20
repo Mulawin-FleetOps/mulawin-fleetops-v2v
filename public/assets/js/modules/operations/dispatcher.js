@@ -95,11 +95,23 @@ const DispatcherUI = {
     });
     body.querySelectorAll(':scope > .row').forEach(row=>{if(!row.children.length)row.remove();});
   },
-  bindTrips(el) { el.querySelectorAll('[data-ds-trip]').forEach(b=>b.onclick=()=>b.dataset.dsAction==='assign'?this.assignResources(b.dataset.dsTrip):TripUI.open(b.dataset.dsTrip)); },
+  bindTrips(el) { el.querySelectorAll('[data-ds-trip]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.dsAction==='assign') return this.assignResources(b.dataset.dsTrip);
+    if(b.dataset.dsAction==='resume') return this.confirmResumeTrip(b.dataset.dsTrip);
+    return TripUI.open(b.dataset.dsTrip);
+  }); },
+  confirmResumeTrip(id) {
+    // This UI is only a shortcut; Trips.resume checks the current incident,
+    // original truck/attempt, recorded Motorpool clearance and assigned Dispatcher.
+    UI.confirmAction('Resume trip after Motorpool clearance',
+      'Motorpool recorded Fit to Continue after the onsite repair. Confirm that the original truck is safe and actually continuing delivery. The SAME trip returns to In Transit (no new attempt).',
+      'Trips.resume',{trip_id:id},{submit:'Resume trip',after:()=>{UI.closeDrawer();App.route();}});
+  },
   tripAction(t) {
     if(t.status==='Awaiting Resources'||(t.status==='For Reschedule'&&(!t.vehicle_id||t.truck_status!=='Assigned')))return ['Assign','assign'];
     if(['Pre-Assigned','Ready for Dispatch'].includes(t.status))return ['Manage','manage'];
-    if(t.status==='On Hold - Incident Reported'&&t.incident_status==='Repaired - Cleared to Continue')return ['Manage','manage'];
+    if(t.status==='On Hold - Incident Reported'&&t.incident_status==='Repaired - Cleared to Continue'
+      &&Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id))return ['Resume Trip','resume'];
     if(t.status==='For Reschedule'&&(!t.vehicle_id||t.truck_status==='Assigned'))return ['Manage','manage'];
     return ['View','view'];
   },
@@ -1312,6 +1324,14 @@ const DispatcherUI = {
       return this.next(t);
     })();
     next.innerHTML='<span class="small"><span class="text-muted">Next step</span> <strong>'+UI.esc(note)+'</strong></span>';
+    // The Resume button must be visible at the top of the drawer, not hidden
+    // inside Operations. Move the already-bound action; never create another.
+    const resumeAction=buttons.find(button=>button.dataset.tact==='resume'&&!button.disabled);
+    if(t.status==='On Hold - Incident Reported' && t.incident_status==='Repaired - Cleared to Continue' && resumeAction){
+      resumeAction.textContent='Resume Trip';
+      resumeAction.className='btn btn-sm btn-success';
+      next.append(resumeAction);
+    }
     page.append(next);
     const nav=document.createElement('nav');nav.className='d-flex flex-wrap gap-2 border-bottom pb-2 mb-3';
     nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Trip detail tabs');
@@ -1383,6 +1403,14 @@ const DispatcherUI = {
     // look stuck at Pre-Dispatch Preparation.
     const responsibleDispatcher=UI.isDispatcher()
       && Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id);
+    if(t.status==='On Hold - Incident Reported' && t.incident_status==='Repaired - Cleared to Continue'){
+      const message=document.createElement('p');
+      message.className='small mb-2 '+(responsibleDispatcher?'text-success':'text-muted');
+      message.textContent=responsibleDispatcher
+        ? 'Motorpool cleared the onsite repair. Use Resume Trip at the top to continue this same delivery. Complete Trip becomes available after resuming.'
+        : 'Motorpool cleared this trip. Only its responsible Dispatcher can resume it; Operations Head can monitor the status.';
+      panels.operations.prepend(message);
+    }
     if(t.status==='Pre-Assigned'&&!inspected&&responsibleDispatcher){
       const original=actions?.querySelector('[data-tact="checklist"]');
       const checklistAction=original||document.createElement('button');
@@ -1542,6 +1570,7 @@ const DispatcherUI = {
     buttons.forEach(button=>{
       // The checklist button already sits inside the Pre-Dispatch Checklist section.
       // Do not relocate it to the generic Operations action bar.
+      if(button===resumeAction)return; // already prominently placed in Next step
       if(['checklist','dispatch','incident'].includes(button.dataset.tact)
         &&panels.operations.contains(button))return;
       const key=targets[button.dataset.tact]||'overview';
