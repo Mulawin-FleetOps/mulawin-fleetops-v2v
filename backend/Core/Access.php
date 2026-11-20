@@ -221,9 +221,7 @@ final class Access {
                 'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
-                'approvals' => ['History', 'Management Control'],
-                // Decision history is the Head Management sidebar entry. Actual pending
-                // approvals remain accessible through the executive dashboard.
+                'admin_approvals' => ['Approvals', 'Management Control'],
                 'reports_center' => ['Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
@@ -232,7 +230,7 @@ final class Access {
             foreach ($structure as $id => [$label, $section]) {
                 [$oldLabel, $icon, $oldSection, $module, $js, $roles] = $pages[$id];
                 if (in_array('admin', $roles, true))
-                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$id === 'approvals' ? 'bi-clock-history' : $icon,'section'=>$section,'js'=>$js];
+                    $out[] = ['id'=>$id,'label'=>$label,'icon'=>$icon,'section'=>$section,'js'=>$js];
             }
             return $out;
         }
