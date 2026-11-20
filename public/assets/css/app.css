@@ -3735,3 +3735,34 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .pur-request-detail-grid { grid-template-columns:minmax(0,1fr); gap:11px; }
   .pur-request-part-counts { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+
+/* Purchasing dashboard: Stock Alerts row layout */
+.purchasing-stock-alerts .mo-list { margin:0; padding:0; }
+.purchasing-stock-alerts .mo-item {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; min-width:0; padding:12px 14px;
+}
+.purchasing-stock-alerts .mo-item-main { min-width:0; flex:1 1 auto; }
+.purchasing-stock-alerts .mo-item-top {
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px;
+  font-size:13px; line-height:1.45; min-width:0;
+}
+.purchasing-stock-alerts .mo-item-top b { font-weight:700; color:#273e32; }
+.purchasing-stock-alerts .mo-item-top .mo-ref {
+  font-size:12px; color:#63796d; overflow-wrap:anywhere;
+}
+.purchasing-stock-alerts .mo-item-issue {
+  font-size:12px; line-height:1.45; color:#78897f;
+  margin-top:4px; white-space:normal; overflow-wrap:anywhere;
+}
+.purchasing-stock-alerts .mo-item-side { flex:0 0 auto; align-items:flex-end; }
+.purchasing-stock-alerts .mo-item-side .badge-s {
+  display:inline-flex; align-items:center; font-size:11px;
+  white-space:nowrap; padding:4px 9px;
+}
+.purchasing-stock-alerts .mo-item:last-child { border-bottom:0; }
+@media(max-width:520px) {
+  .purchasing-stock-alerts .mo-item { align-items:flex-start; gap:8px; }
+  .purchasing-stock-alerts .mo-item-side { margin-top:2px; }
+}
