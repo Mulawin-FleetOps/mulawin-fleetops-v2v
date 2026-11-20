@@ -24,12 +24,27 @@ const FinUI = {
       { name: 'or_doc', label: 'Receipt (optional)', type: 'file', col: 12 }], 'Finance.payable_pay', { extra: { payable_id: p.id }, submit: 'Record payment',
       intro: `${UI.esc(p.payee)} · balance ${UI.money(p.balance)} of ${UI.money(p.amount)}${p.due_on ? ' · due ' + UI.date(p.due_on) : ''}.` });
   },
+  // A payable is a bill owed, not a truck assignment. Keep the daily
+  // entry fields visible and move nonessential documentation below.
+  payableFields(d) {
+    return [
+      { name: 'payee', label: 'Who needs to be paid?', required: true, col: 12 },
+      { name: 'category', label: 'Payable category', type: 'select', options: UI.list(d.categories), required: true, col: 6 },
+      { name: 'amount', label: 'Amount to pay', type: 'money', required: true, col: 6 },
+      { name: 'description', label: 'What is this payable for?', required: true, col: 12, placeholder: 'e.g. Electricity bill' },
+      { name: 'additional', type: 'html', col: 12, html:
+        '<details class="border rounded-3 p-3 mt-2"><summary class="fw-semibold small" style="cursor:pointer">Additional details (optional)</summary>' +
+        '<div class="mt-3">' + UI.fields([
+          { name: 'due_on', label: 'Due date (optional)', type: 'date', col: 6 },
+          { name: 'bill', label: 'Attach bill / invoice (optional)', type: 'file', col: 12 }
+        ]) + '</div></details>' }
+    ];
+  },
   addPayable(d) {
-    UI.formModalFiles('Add payable', [
-      { name: 'payee', label: 'Payee name', required: true, col: 12 },
-      { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 }, { name: 'vehicle_id', label: 'Truck (optional)', type: 'select', options: UI.opts(d.trucks, v => v.plate_number), col: 6 },
-      { name: 'description', label: 'Description', required: true, col: 12 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 }, { name: 'due_on', label: 'Due date', type: 'date', col: 6 },
-      { name: 'bill', label: 'Bill / invoice file (optional)', type: 'file', col: 12 }], 'Finance.payable_add', { intro: 'Bills that do not come from a purchase order (utilities, outside services, …).' });
+    UI.formModalFiles('Add payable', this.payableFields(d), 'Finance.payable_add', {
+      submit: 'Save payable',
+      intro: 'Record a bill that is not from a purchase order. You can add its due date and attachment under Additional details.'
+    });
   },
   // Keep the expense form small: four essential fields, with optional
   // documentation behind a disclosure. Vehicle assignment is not needed.
@@ -189,11 +204,7 @@ const HeadFinancePage = {
             onAction: (a, p) => UI.formModalFiles('Pay ' + UI.esc(p.payable_ref), [{ name: 'amount', label: 'Amount', type: 'money', value: p.balance, required: true, col: 12 }, ...UI.payFields(d.methods),
               { name: 'or_doc', label: 'Receipt (optional)', type: 'file', col: 12 }], 'Finance.payable_pay', { extra: { payable_id: p.id } }),
             tools: act ? '<button class="btn btn-sm btn-primary" data-addap><i class="bi bi-plus"></i> Add payable</button>' : '' });
-        setTimeout(() => body.querySelector('[data-addap]')?.addEventListener('click', () => UI.formModalFiles('Add payable', [
-          { name: 'payee', label: 'Payee name', required: true, col: 12 },
-          { name: 'category', label: 'Category', type: 'select', options: UI.list(d.categories), required: true, col: 6 }, { name: 'vehicle_id', label: 'Truck (optional)', type: 'select', options: UI.opts(d.trucks, v => v.plate_number), col: 6 },
-          { name: 'description', label: 'Description', required: true, col: 12 }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 6 }, { name: 'due_on', label: 'Due date', type: 'date', col: 6 },
-          { name: 'bill', label: 'Bill / invoice file (optional)', type: 'file', col: 12 }], 'Finance.payable_add')), 0);
+        setTimeout(() => body.querySelector('[data-addap]')?.addEventListener('click', () => FinUI.addPayable(d)), 0);
         return h;
       }],
       ['expenses', 'Expenses', (body) => {
