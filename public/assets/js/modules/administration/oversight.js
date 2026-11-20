@@ -770,8 +770,10 @@ const AnalyticsAutoSync = {
         basic('Overdue accounts',overdue.length,'Top 12 shown; see full records in Finance');
         plot('Receivables aging by due date','bar',aging.map(x=>x.label),
           [{label:'Balance',data:aging.map(x=>Number(x.value)),color:colors[1]}],{money:true});
-        plot('Largest overdue invoices','hbar',overdue.map(x=>x.invoice_number||x.client),
-          [{label:'Outstanding balance',data:overdue.map(x=>Number(x.balance)),color:colors[3]}],{money:true});
+        const payableCategories = d.payableByCategory || [];
+        plot('Payables by Expense Category','hbar',payableCategories.map(x=>x.label),
+          [{label:'Unpaid balance',data:payableCategories.map(x=>Number(x.value)),color:colors[3]}],
+          {money:true,note:'Compares currently unpaid balances grouped by their recorded payable category. Received, unpaid Purchase Orders have no expense category and appear separately as Purchase orders (uncategorized). These are current obligations, not a historical expense total. The grouping does not imply why payments remain outstanding.'});
         plot('Payables grouped by due date','bar',(d.payDue||[]).map(x=>x.label),
           [{label:'Balance',data:(d.payDue||[]).map(x=>Number(x.value)),color:colors[2]}],{money:true});
         supporting = recordTable(money,'Overdue accounts',12)+recordTable(money,'Billing by client',12);
