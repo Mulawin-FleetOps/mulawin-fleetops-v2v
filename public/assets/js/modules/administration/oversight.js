@@ -711,8 +711,20 @@ const AnalyticsAutoSync = {
         const byClient = ((trips.tables||[]).find(t=>t.title==='Per client')||{}).rows||[];
         plot('Trip volume by client', 'hbar', byClient.slice(0,9).map(x=>x.name),
           [{label:'Trips',data:byClient.slice(0,9).map(x=>Number(x.trips)),color:colors[1]}]);
-        plot('Delivered units by client · car carrier', 'bar', byClient.slice(0,9).map(x=>x.name),
-          [{label:'Units',data:byClient.slice(0,9).map(x=>Number(x.units)),color:colors[2]}]);
+        // Use the same scheduled-date and trip filters as the report's real SQL dataset.
+        // The backend includes zero-count Wing Van, Car Carrier and Container groups;
+        // each trip has one current status, even after redispatch/second attempts.
+        const vehicleStatusChart = (trips.charts || []).find(c => c.title === 'Trips by Vehicle Type and Status');
+        if (vehicleStatusChart) {
+          plot('Trips by Vehicle Type and Status', 'stack', vehicleStatusChart.labels || [],
+            (vehicleStatusChart.datasets || []).map((series, i) => ({
+              label: series.label,
+              data: (series.data || []).map(n => Number(n) || 0),
+              color: colors[i % colors.length]
+            })), {
+              note: 'Wing Van, Car Carrier, and Container are compared by current trip status. Ongoing includes Dispatched and In Transit; On Hold and For Reschedule remain separate. A rescheduled trip is counted once. Date range and trip filters match the report.'
+            });
+        }
         supporting = recordTable(trips,'Trip records (delivery and return)',12);
         note = '5.1.1 · Scheduled-date trip totals, delivered car-carrier units, and recorded incidents.';
       }
