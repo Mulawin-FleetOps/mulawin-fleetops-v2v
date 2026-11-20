@@ -199,17 +199,142 @@ const PurUI = {
     w._updatePartSupplier = update;
     update();
   },
+  /** Compact purchase request: context -> items -> supplier -> purpose.
+   *  Existing API payload, approval threshold, supplier history and purchasing
+   *  order/receiving workflow are deliberately preserved. */
   newPO(prefill = {}) {
     const d = PurUI.data;
-    UI.modal('Purchase Order Request', UI.fields([
-      ...PurUI.supplierFields(),
-      { name: 'part_request_id', label: 'Related parts request (optional)', type: 'select', col: 6, value: prefill.part_request_id, options: (d.linkableRequests || (d.requests || []).filter(r => ['Not Available', 'Partially Released', 'Requested'].includes(r.status))).map(r => [r.id, r.request_ref + ' · ' + r.plate_number]) },
-      { name: 'purpose', label: 'Purpose', required: true, col: 12, value: prefill.purpose }]) + '<div class="mt-2">' + PurUI.lineEditor(true, prefill.lines || []) + '</div>'
-      + (d.budget && d.budget.id && +d.budget.in_period ? `<div class="small text-muted mt-2">Purchasing budget available now: <b>${UI.money(d.budget.available)}</b> (checked again at approval).</div>`
-        : d.budget && d.budget.id ? `<div class="small text-danger mt-2">The purchasing budget period ended on ${UI.date(d.budget.period_end)}: approval will be rejected until Finance sets a new budget.</div>`
-        : '<div class="small text-danger mt-2">No active purchasing budget: approval will be rejected until Finance sets one.</div>'),
-      async (x, form, w) => { const r = await App.api('Purchasing.po_create', { ...x, lines: PurUI.readLines(w, true) }); UI.result(r); App.route(); },
-      { submit: 'Send for Approval', onShow: (w) => { w.classList.add('purchasing-po-modal'); PurUI.wireLines(w, true); PurUI.wireSupplier(w); PurUI.wirePartSuppliers(w); } });
+    const requests = d.linkableRequests || (d.requests || []).filter(r =>
+      ['Not Available', 'Partially Released', 'Requested'].includes(r.status));
+    const linked = !!prefill.part_request_id;
+    const sourceOptions = '<div class="po-simple-source" role="radiogroup" aria-label="Purchase type">' +
+      '<label class="po-simple-source-option"><input type="radio" name="po_purchase_type" value="motorpool" ' + (linked?'checked':'') + '><span><strong>For Motorpool Request</strong><small>Buy missing parts requested for a truck</small></span></label>' +
+      '<label class="po-simple-source-option"><input type="radio" name="po_purchase_type" value="restock" ' + (!linked?'checked':'') + '><span><strong>Inventory Restocking</strong><small>Purchase parts for available inventory</small></span></label></div>';
+    const requestOptions = requests.map(r => [r.id, r.request_ref + ' · ' + r.plate_number]);
+    const requestField = UI.fields([{ name: 'part_request_id',
+      label: 'Select Motorpool Request', type: 'select', col: 12,
+      value: prefill.part_request_id || '', options: requestOptions }]);
+    const supplierFields = PurUI.supplierFields();
+    const supplierMain = UI.fields([supplierFields[0]]);
+    const supplierOptional = UI.fields(supplierFields.slice(1));
+    const budgetMessage = d.budget && d.budget.id && +d.budget.in_period
+      ? 'Purchasing budget available now: <b>' + UI.money(d.budget.available) + '</b> (checked again at approval).'
+      : d.budget && d.budget.id
+        ? 'The purchasing budget period ended on ' + UI.date(d.budget.period_end) + '. Finance must set a new budget before approval.'
+        : 'There is no active purchasing budget. Finance must create one before approval.';
+    const html = '<div class="po-simple-form">' +
+      '<section class="po-simple-section"><h6>1. What is this purchase for?</h6>' + sourceOptions +
+        '<div data-po-request-section ' + (linked ? '' : 'hidden') + '>' + requestField +
+          '<p class="po-simple-hint" data-po-request-hint>Select a request to load its unreserved missing parts.</p>' +
+          '<button type="button" class="btn btn-outline-primary btn-sm" data-po-load-request ' + (linked?'':'disabled') + '>Load Missing Parts</button>' +
+        '</div></section>' +
+      '<section class="po-simple-section"><h6>2. Items to Purchase</h6>' +
+        PurUI.lineEditor(true, prefill.lines || []) + '</section>' +
+      '<section class="po-simple-section"><h6>3. Supplier</h6>' + supplierMain +
+        '<details class="po-simple-supplier-details"><summary>View / Edit supplier details <span class="text-muted">(optional)</span></summary>' +
+        supplierOptional + '</details></section>' +
+      '<section class="po-simple-section"><h6>4. Purpose</h6>' +
+        UI.fields([{ name: 'purpose', label: 'Reason for this purchase', required: true, col: 12,
+          type: 'textarea', rows: 2, value: prefill.purpose || (linked ? '' : 'Inventory restocking'),
+          placeholder: 'e.g. Replenish heavy tire inventory' }]) + '</section>' +
+      '<p class="small ' + (d.budget && d.budget.id && +d.budget.in_period ? 'text-muted' : 'text-danger') + ' mt-3">' + budgetMessage + '</p>' +
+      '</div>';
+    UI.modal('Create Purchase Order', html,
+      async (values, form, w) => {
+        const type = form.querySelector('[name="po_purchase_type"]:checked')?.value;
+        const reqId = form.querySelector('[name="part_request_id"]').value;
+        if (type === 'motorpool' && !reqId) throw new Error('Select a Motorpool parts request first.');
+        const lines = PurUI.readLines(w, true);
+        const payload = { ...values, part_request_id: type === 'motorpool' ? reqId : '', lines };
+        delete payload.po_purchase_type;
+        const r = await App.api('Purchasing.po_create', payload);
+        UI.result(r);
+        App.route();
+      },
+      { submit: 'Send for Approval', onShow: (w) => {
+        w.classList.add('purchasing-po-modal','po-simplified-modal');
+        PurUI.wireLines(w, true);
+        PurUI.wireSupplier(w);
+        PurUI.wirePartSuppliers(w);
+        const form = w.querySelector('form');
+        const requestSection = form.querySelector('[data-po-request-section]');
+        const requestSelect = form.querySelector('[name="part_request_id"]');
+        const requestHint = form.querySelector('[data-po-request-hint]');
+        const load = form.querySelector('[data-po-load-request]');
+        const purpose = form.querySelector('[name="purpose"]');
+        let autoPurpose = prefill.purpose || (linked ? '' : 'Inventory restocking');
+        let sequence = 0;
+        const setPurpose = text => {
+          if (!purpose.value.trim() || purpose.value === autoPurpose) purpose.value = text;
+          autoPurpose = text;
+        };
+        const setSource = () => {
+          const mode = form.querySelector('[name="po_purchase_type"]:checked')?.value;
+          requestSection.hidden = mode !== 'motorpool';
+          requestSelect.disabled = mode !== 'motorpool';
+          load.disabled = mode !== 'motorpool' || !requestSelect.value;
+          if (mode === 'restock') {
+            setPurpose('Inventory restocking');
+          } else if (requestSelect.value) {
+            const selected = requests.find(r => String(r.id) === requestSelect.value);
+            if (selected) setPurpose('Parts for ' + selected.plate_number + ' (' + selected.request_ref + ')');
+          }
+        };
+        const loadRequested = async (force = false) => {
+          const id = requestSelect.value;
+          if (!id || form.querySelector('[name="po_purchase_type"]:checked')?.value !== 'motorpool') return;
+          const current = ++sequence;
+          load.disabled = true;
+          requestHint.textContent = 'Checking outstanding items…';
+          try {
+            const result = await App.api('Purchasing.request_details', { request_id: id });
+            if (current !== sequence || requestSelect.value !== id || !w.isConnected) return;
+            const shortages = (result.lines || []).map(line => ({
+              part_id: +line.part_id,
+              quantity: Math.max(0, (+line.quantity || 0) - (+line.released_qty || 0) - (+line.reserved_qty || 0)),
+              unit_price: (d.parts || []).find(p => +p.id === +line.part_id)?.unit_cost ?? 0
+            })).filter(line => line.part_id && line.quantity > 0);
+            if (!shortages.length) {
+              requestHint.textContent = 'No unreserved shortage remains for this request. Reserved stock should be released, not purchased again.';
+              return;
+            }
+            const linesHost = w.querySelector('[data-lines]');
+            const hasEntered = [...linesHost.querySelectorAll('.pl-row')].some(row =>
+              row.querySelector('[data-part]').value || row.querySelector('[data-qty]').value);
+            if (hasEntered && !force) {
+              requestHint.textContent = 'This request needs ' + shortages.length +
+                ' part type(s). Existing items are kept. Select "Load Missing Parts" to replace them.';
+              return;
+            }
+            const newEditor = document.createElement('div');
+            newEditor.innerHTML = PurUI.lineEditor(true, shortages);
+            linesHost.innerHTML = newEditor.querySelector('[data-lines]').innerHTML;
+            linesHost.dispatchEvent(new Event('input', { bubbles:true }));
+            w._updatePartSupplier?.();
+            requestHint.textContent = 'Loaded ' + shortages.length +
+              ' missing part type(s). Review quantity, unit price and supplier before submitting.';
+          } catch (error) {
+            if (current === sequence) requestHint.textContent = 'Unable to load request items: ' + error.message;
+          } finally {
+            if (current === sequence) load.disabled = !requestSelect.value;
+          }
+        };
+        form.querySelectorAll('[name="po_purchase_type"]').forEach(input =>
+          input.addEventListener('change', () => { ++sequence; setSource(); }));
+        requestSelect.addEventListener('change', () => {
+          ++sequence;
+          setSource();
+          requestHint.textContent = requestSelect.value ?
+            'Checking unreserved missing parts…' : 'Choose a Motorpool parts request.';
+          if (requestSelect.value) loadRequested();
+        });
+        load.addEventListener('click', () => loadRequested(true));
+        // The Buy Missing Parts shortcut already provides precise prefilled lines.
+        // Do not fetch or overwrite them when the modal opens.
+        if (linked) requestHint.textContent =
+          'Linked from Parts Requests. Missing items are already filled; review before submitting.';
+        setSource();
+      } });
   },
   async processRequest(rq) {
     const r = await App.api('Purchasing.request_details', { request_id: rq.id });
