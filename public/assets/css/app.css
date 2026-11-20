@@ -3914,3 +3914,58 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
     justify-self: end;
   }
 }
+
+/* MOTORPOOL_TEAM_CHECKLIST_V1 — one mechanic checklist, no lead/assistant choice. */
+.mp-final-team-picker {
+  border: 1px solid #d5e5db;
+  border-radius: 9px;
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+}
+.mp-final-team-picker > input[type="search"] {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e2ede6;
+  border-radius: 0;
+  min-height: 42px;
+}
+.mp-final-team-picker > input[type="search"]:focus {
+  position: relative;
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px #b9dcc7;
+}
+.mp-final-team-list {
+  max-height: 216px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mp-final-team-choice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 13px;
+  border-bottom: 1px solid #edf1ee;
+  cursor: pointer;
+  min-width: 0;
+  margin: 0;
+}
+.mp-final-team-choice:last-of-type { border-bottom: 0; }
+.mp-final-team-choice:hover,
+.mp-final-team-choice:has(input:checked) { background: #f0f8f2; }
+.mp-final-team-choice > input { accent-color: #247247; flex: 0 0 auto; width: 16px; height: 16px; }
+.mp-final-team-choice > span { display: grid; gap: 1px; min-width: 0; }
+.mp-final-team-choice strong { font-size: 12.5px; color: #244936; font-weight: 650; }
+.mp-final-team-choice small { font-size: 11px; color: #678071; line-height: 1.4; overflow-wrap: anywhere; }
+.mp-final-team-foot {
+  padding: 7px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #f8fbf9;
+  border-top: 1px solid #e4ede7;
+  font-size: 12px;
+  color: #466d56;
+}
+.mp-final-team-foot .btn-link { font-size: 12px; padding: 3px 5px; }
