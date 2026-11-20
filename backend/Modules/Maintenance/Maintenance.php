@@ -754,9 +754,10 @@ final class Maintenance {
         requireRole($u, ...self::ACT);
         $id = idField($d, 'job_id');
         $performed = field($d, 'repair_performed', 2000);
-        $done = dateField($d, 'completed_on');
-        must($done <= date('Y-m-d'), 'Completion date cannot be in the future.');
-        $remarks = optField($d, 'remarks', 500);
+        // Completion date is the authoritative server date when Complete Repair is submitted.
+        // Never accept a client-selected completion date.
+        $done = date('Y-m-d');
+        $remarks = null; // Preserve earlier remarks on the repair record, if any.
         return transaction(function (PDO $p) use ($u, $id, $performed, $done, $remarks) {
             $j = self::lockJob($p, $id);
             must($j['status'] === 'Under Repair', $j['status'] === 'Under Inspection' ? 'Record the inspection findings and diagnosis first.' : 'Only records Under Repair can be completed (now: ' . $j['status'] . ').', 409);
