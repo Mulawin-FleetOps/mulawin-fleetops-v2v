@@ -1641,7 +1641,7 @@ App.page('inventory', {
     ], rows, {
       title: 'Inventory parts (' + rows.length + ')',
       showAllColumns: true, preserveTableWidth: true, directActions: true, limit: 10,
-      actions: () => UI.btn('view', 'View Details', 'outline-primary'),
+      actions: () => UI.btn('view', 'Details', 'outline-success', 'bi-eye').replace('class="btn ', 'class="btn purchasing-inventory-details-btn '),
       onAction: (_action, p) => PurUI.openPart(p, k),
       rowClick: p => PurUI.openPart(p, k),
       empty: 'No parts match these filters.'
