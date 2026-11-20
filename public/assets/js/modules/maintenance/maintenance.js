@@ -129,17 +129,14 @@ const MaintUI = {
           <div id="motorpool-truck-results" class="mp-truck-results" data-truck-results role="listbox" aria-label="Matching trucks" hidden></div>
         </div>
         <div class="form-help" data-truck-search-count aria-live="polite">Click to choose from 3 suggested trucks, or search by plate / truck number.</div>` },
-      { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
-        placeholder:'Describe what is wrong and where the problem is located.' },
       { name:'findings', label:'Inspection findings', type:'textarea', required:true, col:12,
         placeholder:'Record the actual condition and findings for this garage report.' },
       { name:'diagnosis', label:'Diagnosis', type:'textarea', required:true, col:12,
         placeholder:'State the cause or suspected cause of the problem.' },
-      { name:'remarks', label:'Additional remarks (optional)', col:12 },
       { name:'photos', label:'Photos of the reported problem', type:'file', multiple:true, required:true, col:12,
         attrs:'accept="image/png,image/jpeg"', help:'Attach evidence of the truck condition. Photos are required.' }
     ]);
-    const body = `<p class="modal-intro">Record the truck problem, inspection findings and diagnosis in one form. The date is recorded automatically and the truck is taken out of service. Next, assign the lead and assisting mechanics together in one form.</p>
+    const body = `<p class="modal-intro">Record the inspection findings and diagnosis in one form. The date is recorded automatically and the truck is taken out of service. Next, assign the lead and assisting mechanics together in one form.</p>
       <div class="purchasing-receive-section">Truck problem report</div>${fields}`;
     const wrap = UI.modal('Report a truck problem', body, async (values, form) => {
       if (!values.vehicle_id) throw new Error('Choose a valid affected truck from the suggestions.');
