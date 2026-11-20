@@ -1333,7 +1333,7 @@ App.page('purchasing_overview', {
         'Rejected for insufficient budget on ' + UI.date(o.decided_at) + ': create a new PO if still needed', UI.badge(o.status))),
     ];
     const refGo = (m) => m.reference_type === 'purchase_order' ? 'purchase_orders?open=' + m.reference_id : m.reference_type === 'part_request' ? 'parts_requests?open=' + m.reference_id
-      : m.reference_type === 'stock_count' ? 'inventory?view=counts&open=' + m.reference_id : 'stock_movements';
+      : m.reference_type === 'stock_count' ? 'stock_movements' : 'stock_movements';
     const activity = (Array.isArray(d.activity) ? d.activity : []).map(m => UI.wsEntry(refGo(m), `<b>${UI.esc(m.movement_type)}</b> · ${UI.esc(m.part_number)} <span class="mo-ref">${+m.quantity_delta > 0 ? '+' : ''}${UI.num(m.quantity_delta)} ${UI.esc(m.unit)}</span>`,
       `${m.ref ? UI.esc(m.ref) + ' · ' : ''}${UI.esc(m.actor)} · ${UI.datetime(m.created_at)}`, ''));
     const budgetRej = (d.approvals || []).filter(o => o.status !== 'Pending Approval').length;
@@ -1606,11 +1606,9 @@ App.page('inventory', {
   subtitle: 'See current stock and item availability.',
   render(ctx) {
     ctx.el.classList.add('purchasing-live-v1', 'purchasing-table-inventory');
-    // Inventory Parts and Stock Counts are separate table layouts even when switching tabs.
     ctx.el.classList.remove('purchasing-inventory-parts-view');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query;
     if (can.stock) PurUI.tool(ctx, '+ Add Part', 'bi-plus-lg', () => k.partForm(), 'btn-primary');
-    // Physical counts remain available from View Details and the Stock Counts view.
     const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +(p.available_qty ?? p.quantity_on_hand) <= 0);
     
     // Keep inventory-health KPIs; avoid summing incompatible part units
@@ -1625,7 +1623,7 @@ App.page('inventory', {
     const view = 'parts';
     const types = [...new Set(parts.map(p => p.part_type).filter(Boolean))].sort();
     const link = (extra) => 'inventory?' + new URLSearchParams(Object.fromEntries(Object.entries({ ...q, ...extra }).filter(([, v]) => v)));
-    // UI_REFERENCE_V1: stock tabs (?stock=) and the Stock counts tab (?view=counts) instead of a KPI row.
+    // Inventory availability tabs only; legacy stock-count interface is removed.
     const stockKey = ['available', 'low', 'out', 'inactive', 'active'].includes(q.stock) ? q.stock : 'all';
     // Compact inventory status is a presentation of existing real stock values.
     // Never substitute these labels for persisted stock or approval states.
@@ -1646,7 +1644,6 @@ App.page('inventory', {
     box.classList.add('purchasing-records-card','purchasing-ref-records');
     box.insertAdjacentHTML('afterbegin', `<div class="purchasing-ref-records-head"><div><strong>Inventory Parts Records</strong><small>${UI.num(parts.length)} records</small></div><span>Parts catalog and availability</span></div>`);
     const body = document.createElement('div'); body.className='purchasing-ref-records-body'; box.append(body);
-    // Keep Inventory table widths independent from the Stock Counts table.
     ctx.el.classList.add('purchasing-inventory-parts-view');
     const selectedType = q.part_type || '';
     const rows = parts.filter(p => (!selectedType || p.part_type === selectedType)
@@ -1717,8 +1714,8 @@ App.page('stock_movements', {
     const box = document.createElement('div'); ctx.el.append(box);
     const target = PurRef.recordBox(box,'Stock Movement Records','Stock in, stock out and adjustments',rows.length);
     const ref = (m) => m.reference_type === 'purchase_order' ? 'purchase_orders?open=' + m.reference_id : m.reference_type === 'part_request' ? 'parts_requests?open=' + m.reference_id
-      : m.reference_type === 'stock_count' ? 'inventory?view=counts&open=' + m.reference_id : '';
-    const refLabel = { purchase_order: ['View Purchase Order', ''], part_request: ['View Parts Request', ''], stock_count: ['View Stock Count', ''] };
+      : m.reference_type === 'stock_count' ? 'stock_movements' : '';
+    const refLabel = { purchase_order: ['View Purchase Order', ''], part_request: ['View Parts Request', ''], stock_count: ['View Movements', ''] };
     target.innerHTML = UI.table([
       ['Date and time', 'created_at', 'datetime'],
       ['Part', 'part_number', (v, m) => `<b>${UI.esc(v)}</b><div class="cell-sub cell-clamp">${UI.esc(m.description)}</div>`],
