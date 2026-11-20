@@ -3130,3 +3130,48 @@ body.ref-body .modal:has(.mp-incident-assessment) .modal-footer {
   .mp-incident-report-grid { grid-template-columns: 1fr; }
   .mp-incident-report-wide { grid-column: auto; }
 }
+
+/* MOTORPOOL_INCIDENT_CLEARANCE_LAYOUT_V1 — align the table action and its
+   matching Motorpool details drawer without changing garage repair screens. */
+#pageContent .mp-repair-records-table .data-table .row-icons > .mp-repair-step-btn {
+  min-height: 35px;
+  border-radius: 8px;
+  text-align: center;
+  padding: 7px 12px;
+}
+#pageContent .mp-repair-records-table .data-table .row-actions,
+#pageContent .mp-repair-records-table .data-table .row-icons {
+  vertical-align: middle;
+  gap: 8px !important;
+}
+.app-drawer:has(.mp-repair-overview-summary) {
+  --bs-offcanvas-width: min(640px, 100vw);
+  width: min(640px, 100vw);
+  max-width: 100vw;
+}
+.app-drawer:has(.mp-repair-overview-summary) .offcanvas-body {
+  padding: 16px 20px 24px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-overview-summary {
+  padding: 13px 15px;
+  gap: 9px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-next {
+  padding: 10px 0;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action .btn {
+  white-space: nowrap;
+}
+@media (max-width: 575.98px) {
+  .app-drawer:has(.mp-repair-overview-summary) .offcanvas-body { padding: 12px 14px 20px; }
+  .app-drawer:has(.mp-repair-overview-summary) .mp-repair-main-action {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
