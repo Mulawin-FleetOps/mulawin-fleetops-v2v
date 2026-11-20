@@ -587,7 +587,14 @@ const AnalyticsAutoSync = {
           + 'Recorded total: ' + totalText + '. ' + leading +
           (ranked.length > 4 ? ' · Other categories are available in the chart legend.' : '') +
           (explanation ? ' ' + escape(explanation) : '');
-      } else if (explanation) explanation = escape(explanation);
+      } else {
+        const generic = type === 'line' ? 'This chart shows how recorded values changed across the selected time buckets.'
+          : type === 'hbar' ? 'This chart ranks recorded values by item so the largest contributors can be compared.'
+          : type === 'stack' ? 'This chart compares stacked recorded contributions across the displayed groups.'
+          : 'This chart compares the recorded values across the displayed groups.';
+        explanation = generic + (explanation ? ' ' + escape(explanation) : '') +
+          (diagnostic ? ' The chart identifies patterns and contributors, not a proven root cause.' : '');
+      }
       const guide = explanation ? '<p class="ax-chart-explain"><strong>Why this chart?</strong> ' + explanation + '</p>' : '';
       charts.push('<div class="ax-chart-card">' + UI.wsPanel(title, 'bi-bar-chart-line',
         '<div class="ax-chart-inner">' + body + guide + '</div>', {}) + '</div>');
