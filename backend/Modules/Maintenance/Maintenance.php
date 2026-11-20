@@ -44,9 +44,13 @@ final class Maintenance {
         $p = db();
         if ($page === 'maintenance_overview') return self::overview($u, $p);
         if ($page === 'maint_history') return self::history($u, $p);
+        // Expose the saved RA lock to the list page. Older installations
+        // without the Motorpool catalog migration still render safely.
+        $finalizedField = self::catalogReady($p)
+            ? 'm.assignment_finalized_at' : 'NULL AS assignment_finalized_at';
         $data = readSections([
             'jobs' => fn() => many($p, "SELECT m.id, m.job_ref, m.vehicle_id, m.source, m.problem, m.reported_on, m.priority, m.severity, m.status, m.mechanic_id, m.trip_id, m.incident_id,
-                    m.expected_completion, m.completed_on, m.verified_at, m.created_at, mc.full_name AS mechanic, mc.mechanic_code,
+                    $finalizedField, m.expected_completion, m.completed_on, m.verified_at, m.created_at, mc.full_name AS mechanic, mc.mechanic_code,
                     v.plate_number, v.truck_number, v.truck_type, v.status AS truck_status,
                     i.incident_ref, i.status AS incident_status, t.trip_ref, t.status AS trip_status,
                     (SELECT COALESCE(SUM(c.amount),0) FROM maintenance_costs c WHERE c.maintenance_job_id=m.id) AS other_cost,
