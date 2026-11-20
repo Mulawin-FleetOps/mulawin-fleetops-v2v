@@ -587,3 +587,24 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
   outline: 2px solid #997329;
   outline-offset: 2px;
 }
+
+
+/* MOTORPOOL_THREE_KPI_ROW_V1: keep the three useful metrics on one row. */
+#pageContent .mp-action-stages.mp-parts-summary,
+#pageContent .mp-action-stages.mp-attendance-kpis {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+@media(max-width:900px) {
+  #pageContent .mp-action-stages.mp-parts-summary,
+  #pageContent .mp-action-stages.mp-attendance-kpis {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:560px) {
+  #pageContent .mp-action-stages.mp-parts-summary,
+  #pageContent .mp-action-stages.mp-attendance-kpis {
+    grid-template-columns:minmax(0,1fr);
+  }
+}
