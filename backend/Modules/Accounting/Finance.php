@@ -165,8 +165,19 @@ final class Finance {
             must((float)$amount <= $payable, 'The amount is more than the value of the received items not yet paid (PHP ' . number_format($payable, 2) . ').');
             $disb = Money::disburse($p, $u, 'purchase_order', $id, $o['supplier'], $amount, $pay);
             Files::store($p, $u, 'or_doc', 'purchase', $id, 'Official Receipt / Payment Confirmation', true, 'official receipt or payment confirmation');
-            $fromReserve = round(min((float)$amount, (float)$o['reserved_amount']), 2);
-            if ($o['budget_id']) run($p, 'UPDATE budgets SET reserved_amount=GREATEST(reserved_amount-?,0), spent_amount=spent_amount+? WHERE id=?', [$fromReserve, $amount, $o['budget_id']]);
+            // New receipts already convert reserved budget to spent.
+            // Older receipts (recorded before this rule) can still have their
+            // delivered value in reserved_amount. Convert only that legacy
+            // portion, never the undelivered reservation, and never count a
+            // newly recorded payment as another budget expense.
+            $undelivered = (float)one($p, 'SELECT COALESCE(SUM((quantity-received_qty)*unit_price),0) AS v FROM purchase_order_lines WHERE purchase_order_id=?', [$id])['v'];
+            $legacyReceivedReserve = max(0.0, round((float)$o['reserved_amount'] -
+                (in_array($o['status'], ['Received', 'Closed'], true) ? 0.0 : $undelivered), 2));
+            $fromReserve = round(min((float)$amount, $legacyReceivedReserve), 2);
+            if ($o['budget_id'] && $fromReserve > 0) {
+                run($p, 'UPDATE budgets SET reserved_amount=reserved_amount-?, spent_amount=spent_amount+? WHERE id=?',
+                    [$fromReserve, $fromReserve, $o['budget_id']]);
+            }
             run($p, 'UPDATE purchase_orders SET paid_amount=paid_amount+?, reserved_amount=GREATEST(reserved_amount-?,0), supplier_invoice_no=? WHERE id=?', [$amount, $fromReserve, $invoice, $id]);
             Actions::load('Purchasing');
             Purchasing::refreshPayment($p, $id);
