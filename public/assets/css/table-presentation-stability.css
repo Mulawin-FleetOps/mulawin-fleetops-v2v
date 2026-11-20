@@ -363,3 +363,77 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
 #pageContent:has(.mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs {
   margin:0;
 }
+
+
+/* MOTORPOOL_PREVIEW_TABS_PRIORITY_V3
+   Override legacy Motorpool reference selectors (more specific than the
+   shared quick-tab rules). Same unboxed underline design as Purchasing. */
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px 20px;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+  padding:0;
+  margin:0 0 12px;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs > button.tab,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs > button.tab {
+  flex:none;
+  width:auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:9px 4px;
+  min-height:38px;
+  margin:0;
+  background:transparent;
+  color:#667e6b;
+  border:0;
+  border-bottom:2px solid transparent;
+  border-radius:0;
+  box-shadow:none;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.3;
+  white-space:nowrap;
+  cursor:pointer;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs > button.tab.active,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs > button.tab.active {
+  color:#176b3d;
+  background:transparent;
+  border:0;
+  border-bottom:2px solid #176b3d;
+  border-radius:0;
+  box-shadow:none;
+  font-weight:750;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs > button.tab:hover,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs > button.tab:hover {
+  color:#145e35;
+  background:transparent;
+  border-bottom-color:#9ac4a6;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs > button.tab.active:hover,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs > button.tab.active:hover {
+  border-bottom-color:#176b3d;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs > button.tab .tab-count,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs > button.tab .tab-count {
+  display:none;
+}
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .line-tabs.ws-status-tabs > button.tab:focus-visible,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .record-workspace-category-row .line-tabs.ws-status-tabs > button.tab:focus-visible {
+  outline:2px solid #237548;
+  outline-offset:2px;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) .maintenance-operations-records .record-workspace-category-row {
+  padding:0 18px 12px;
+  margin:0;
+  border:0;
+}
