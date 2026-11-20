@@ -826,7 +826,7 @@ PurUI.showWorkflow = async (kind, id) => {
         },
         {
           label:'Place Order',
-          state:rejected?'skipped':ordered||legacy&&approved?'complete':approved?'current':'pending',
+          state:rejected?'skipped':ordered?'complete':legacy&&approved?'skipped':approved?'current':'pending',
           at:po.ordered_at,
           note:ordered?'Purchasing confirmed the supplier order'
             :legacy&&approved?'Legacy PO — separate order confirmation was not required'
@@ -851,7 +851,7 @@ PurUI.showWorkflow = async (kind, id) => {
           +'<span class="po-progress-step-index" aria-hidden="true">'
             +(stage.state==='pending'?String(index+1):'<i class="bi '+stageIcons[stage.state]+'"></i>')+'</span>'
           +'<div class="po-progress-step-content"><strong>'+UI.esc(stage.label)+'</strong>'
-          +'<span class="po-progress-step-state">'+stageLabels[stage.state]+'</span>'
+          +'<span class="po-progress-step-state">'+(legacy && approved && index===2 && !ordered ? 'Not required (legacy)' : stageLabels[stage.state])+'</span>'
           +(stage.at?'<small>'+UI.datetime(stage.at)+'</small>':'')
           +'<p>'+UI.esc(stage.note)+'</p></div></li>').join('')+'</ol>';
       const next = PurUI.poNext(po);
