@@ -651,3 +651,59 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
     width:100%;
   }
 }
+
+
+/* PURCHASING_INVENTORY_COMPACT_PREVIEW_V1
+   Approved Inventory Parts preview: five equal-purpose columns and a single
+   View Details button. Stock quantities/pricing remain in the detail drawer.
+   Keep Stock Counts view's separate eight-column layout unchanged. */
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table {
+  width:100%;
+  min-width:0;
+  table-layout:fixed;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(1) {width:16% !important}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(2) {width:17% !important}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(3) {width:25% !important}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(4) {width:20% !important}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(th,td):nth-child(5) {width:22% !important}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-icons,
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table .row-actions {
+  display:flex;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+  width:auto;
+  gap:6px;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(.row-icons,.row-actions) > .btn:not(.icon-act) {
+  width:auto;
+  max-width:100%;
+  min-height:35px;
+  padding:7px 12px;
+  border:1px solid #bdd9c6;
+  border-radius:8px;
+  color:#176b3d;
+  background:#fff;
+  font-size:12px;
+  font-weight:650;
+  white-space:nowrap;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table :is(.row-icons,.row-actions) > .btn:not(.icon-act):hover {
+  background:#edf7f0;
+  border-color:#88ba97;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table th,
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table td {
+  padding:15px 16px;
+  vertical-align:middle;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table tbody tr {
+  height:60px;
+}
+@media(max-width:700px) {
+  #pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table {
+    min-width:690px !important;
+  }
+}
