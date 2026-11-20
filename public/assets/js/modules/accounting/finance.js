@@ -324,7 +324,9 @@ App.page('finance_budgets', {
       ['Reference','id',(v)=>'<b>GBR-'+String(v).padStart(6,'0')+'</b>'],
       ['Submitted','submitted_at','datetime'],['Amount','amount','money'],
       ['Period','period_start',(v,r)=>UI.date(v)+' – '+UI.date(r.period_end)],
-      ['Submitted by','submitted_by_name'],['Status','status','badge']
+      ['Submitted by','submitted_by_name'],['Status','status','badge'],
+      ['Decided by','decided_by_name',(v)=>UI.esc(v||'—')],['Decision date','decided_at','datetime'],
+      ['Remarks','remarks',(v,r)=>UI.esc(r.decision_notes||v||'—')]
     ],requests,{title:'General Budget requests ('+requests.length+')',limit:5,showAllColumns:true,
       empty:'No General Budget requests submitted yet.'});
     const history=UI.table([
@@ -346,8 +348,7 @@ App.page('finance_budgets', {
     const expenses=UI.table([
       ['Date','incurred_on','date'],['Description','description'],
       ['Amount','amount','money'],['Recorded by','recorded_by_name'],
-      ['Reference','reference_number',(v,r)=>UI.esc(v||r.source||'—')],
-      ['Category','category']
+      ['Reference','reference_number',(v,r)=>UI.esc(v||r.source||'—')]
     ],exp,{title:'Expense records ('+exp.length+')',showAllColumns:true,limit:10,
       empty:'No expenses recorded in this date range.'});
     box.innerHTML=alert+status+
