@@ -742,3 +742,50 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
   font-weight:650;
   box-shadow:none;
 }
+
+
+/* Motorpool mechanic assignment: searchable, one-click radio checklist. */
+body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
+  max-height:310px;
+  overflow-y:auto;
+  border:1px solid #dbe7de;
+  border-radius:10px;
+  background:#fff;
+  padding:5px;
+}
+.modal .mp-mechanic-checklist {
+  max-height:310px;
+  overflow-y:auto;
+  border:1px solid #dbe7de;
+  border-radius:10px;
+  background:#fff;
+  padding:5px;
+}
+.modal .mp-mechanic-checklist-item {
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding:11px 12px;
+  margin:0;
+  border:1px solid transparent;
+  border-radius:8px;
+  cursor:pointer;
+}
+.modal .mp-mechanic-checklist-item:hover {background:#f5faf6}
+.modal .mp-mechanic-checklist-item:has(input:checked) {
+  background:#eaf5ed;
+  border-color:#87b99a;
+}
+.modal .mp-mechanic-checklist-item:focus-within {outline:2px solid #176b3d;outline-offset:-2px}
+.modal .mp-mechanic-checklist-item input {
+  width:17px;
+  height:17px;
+  flex:0 0 17px;
+  margin-top:3px;
+  accent-color:#176b3d;
+}
+.modal .mp-mechanic-checklist-copy {display:flex;flex-direction:column;gap:3px;min-width:0}
+.modal .mp-mechanic-checklist-copy strong {font-size:13px;color:#244632}
+.modal .mp-mechanic-checklist-copy small {font-size:12px;color:#698073;line-height:1.4}
+.modal .mp-mechanic-checklist-item[hidden],
+.modal .mp-mechanic-checklist [hidden] {display:none!important}
