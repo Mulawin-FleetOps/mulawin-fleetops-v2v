@@ -201,7 +201,7 @@ App.page('mechanic_attendance', {
       ['Current repair', 'job_ref', (v, m) => v ? `${UI.esc(v)}<div class="cell-sub">${UI.esc(m.job_truck || '')} · ${UI.esc(m.job_status || '')}</div>` : '<span class="text-muted">—</span>'],
       ...(isAdmin ? [['Daily mark', 'daily_mark', (v) => v ? UI.badge(v) : '<span class="text-muted">Not marked</span>']] : [])], rows,
       { showAllColumns: true, directActions: true, limit: 10, groupBy: m => m.open_time_in ? 'Timed In' : 'Not Timed In', groupLabel: 'Duty status',
-        actions: (m) => (can.edit ? `<button type="button" class="btn btn-sm ${m.open_time_in ? 'ds-attendance-action-out' : 'ds-attendance-action-in'}" data-act="toggle" aria-label="${m.open_time_in ? 'Time Out' : 'Time In'} ${UI.esc(m.full_name)}">${m.open_time_in ? 'Time Out' : 'Time In'}</button>` : '') + UI.ibtn('view', 'Open mechanic', 'bi-eye'),
+        actions: (m) => (can.edit ? `<button type="button" class="btn btn-sm ${m.open_time_in ? 'ds-attendance-action-out' : 'ds-attendance-action-in'}" data-act="toggle" aria-label="${m.open_time_in ? 'Time Out' : 'Time In'} ${UI.esc(m.full_name)}">${m.open_time_in ? 'Time Out' : 'Time In'}</button>` : '') + UI.btn('view', 'Details', 'outline-primary'),
         onAction: (a, m, b) => a === 'toggle' ? MechUI.toggle(m, b) : MechUI.open(m.id),
         rowClick: (m) => MechUI.open(m.id),
         empty: board.length ? 'No mechanic in this list.' : 'No active mechanics. Add mechanics in the Mechanic Masterlist.' });
