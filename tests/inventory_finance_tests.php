@@ -26,6 +26,7 @@ try {
     $extensionSql=preg_replace('/ALTER TABLE users ADD COLUMN dispatcher_truck_types JSON NULL AFTER dispatcher_truck_type\s*;/is','',$extensionSql);
     test_import($p,$extensionSql);
     $p->exec("CREATE TABLE IF NOT EXISTS schema_migrations (id VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+    test_import($p,test_sql('database/migrations/2026-11-19_02_part_type_name_brand.sql'));
     test_import($p,test_sql('database/migrations/2026-11-21_01_general_budget_approvals.sql'));
     foreach (['Purchasing','Finance'] as $module) Actions::load($module);
     $users=[];
@@ -41,9 +42,8 @@ try {
     };
     $truck=insert($p,'vehicles',['plate_number'=>'INV-001','truck_type'=>'Wing Van']);
     // Integrated stock control (luis-maintenance-ui): a new part starts at 0; stock enters only through PO receiving or an Admin-reviewed count.
-    $part=['part_number'=>'INV-TIRE','description'=>'Test tire','unit'=>'piece','unit_cost'=>'100','reorder_level'=>2];
-    Purchasing::action($buyer,'part_save',$part);
-    $pid=(int)one($p,'SELECT id FROM parts WHERE part_number=?',['INV-TIRE'])['id'];
+    $part=['part_type'=>'Tire','description'=>'Test tire','unit'=>'piece','unit_cost'=>'100','reorder_level'=>2];
+    $pid=(int)Purchasing::action($buyer,'part_save',$part)['id'];
     $stock=fn()=>(int)one($p,'SELECT quantity_on_hand FROM parts WHERE id=?',[$pid])['quantity_on_hand'];
     verify($stock()===0,'New part starts with 0 on hand');
     $setGeneral(['amount'=>'1000','period_start'=>date('Y-m-d'),'period_end'=>date('Y-m-d',time()+86400)]);
@@ -53,7 +53,7 @@ try {
     $pol=(int)one($p,'SELECT id FROM purchase_order_lines WHERE purchase_order_id=?',[$po])['id'];
     Purchasing::action($buyer,'po_receive',['po_id'=>$po,'receive'=>[['line_id'=>$pol,'qty'=>5]],'supplier_invoice_no'=>'SI-INV-1']);
     verify($stock()===5,'Stock received on an approved PO');
-    refused(fn()=>Purchasing::action($buyer,'part_save',$part),409,'Duplicate part number rejected');
+    refused(fn()=>Purchasing::action($buyer,'part_save',$part),409,'Duplicate part type, name and brand rejected');
     refused(fn()=>Purchasing::action($buyer,'adjust',['part_id'=>$pid,'quantity_delta'=>-6,'reason'=>'Test']),403,'Manual stock adjustment rejected (stock count review only)');
     verify($stock()===5,'Rejected adjustment leaves stock unchanged');
     $request=['vehicle_id'=>$truck,'purpose'=>'Replace damaged tire','lines'=>[['part_id'=>$pid,'quantity'=>3]]];
