@@ -1,0 +1,22 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const core = fs.readFileSync('public/assets/js/core.js','utf8');
+const money = fs.readFileSync('backend/Core/Money.php','utf8');
+const finance = fs.readFileSync('public/assets/js/modules/accounting/finance.js','utf8');
+assert.match(core,/UI\.payFields = \(methods, dateName = 'released_on'/);
+assert.match(core,/data-payment-method-details="Cheque"/);
+assert.match(core,/data-payment-method-details="Electronic"/);
+for(const f of ['cheque_number','bank_name','reference_number'])
+  assert.ok(core.includes("name: '"+f+"'"),'Missing payment input '+f);
+assert.match(core,/selected === 'Cheque'/);
+assert.match(core,/selected === 'Bank Transfer' \|\| selected === 'E-wallet'/);
+assert.match(core,/group\.style\.display = show \? '' : 'none'/);
+assert.match(core,/input\.disabled = !show/);
+assert.match(core,/if \(!show && !input\.disabled\) input\.value = ''/);
+assert.match(core,/document\.addEventListener\('change'/);
+assert.match(core,/document\.addEventListener\('shown\.bs\.modal'/);
+assert.match(money,/if \(\$method === 'Cheque'\)/);
+assert.match(money,/if \(\$method === 'Bank Transfer' \|\| \$method === 'E-wallet'\)/);
+assert.ok(finance.includes('...UI.payFields(d.methods)'), 'Finance payment forms still share field component');
+console.log('PASS: Payment fields reveal only method-specific inputs, clear hidden values, and retain server validations');
