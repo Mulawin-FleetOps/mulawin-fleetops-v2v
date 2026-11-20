@@ -123,10 +123,12 @@ const MaintUI = {
     const trucks = (d.trucks || []).filter(v => ['Available', 'Assigned'].includes(v.status) && !v.open_job && !v.on_road);
     const fields = UI.fields([
       { type:'html', col:12, html:`<label class="form-label" for="motorpool-truck-search">Affected truck *</label>
-        <input id="motorpool-truck-search" type="search" class="form-control" data-report-truck-search placeholder="Search plate or truck number…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="motorpool-truck-results" required>
-        <input type="hidden" name="vehicle_id" value="">
-        <div id="motorpool-truck-results" class="mp-truck-results" data-truck-results role="listbox" aria-label="Matching trucks" hidden></div>
-        <div class="form-help" data-truck-search-count aria-live="polite">Type at least 2 characters to search for a truck.</div>` },
+        <div class="mp-truck-search-field">
+          <input id="motorpool-truck-search" type="search" class="form-control" data-report-truck-search placeholder="Select a truck or search plate / truck number…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="motorpool-truck-results" required>
+          <input type="hidden" name="vehicle_id" value="">
+          <div id="motorpool-truck-results" class="mp-truck-results" data-truck-results role="listbox" aria-label="Matching trucks" hidden></div>
+        </div>
+        <div class="form-help" data-truck-search-count aria-live="polite">Click to choose from 3 suggested trucks, or search by plate / truck number.</div>` },
       { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
         placeholder:'Describe what is wrong and where the problem is located.' },
       { name:'findings', label:'Inspection findings', type:'textarea', required:true, col:12,
@@ -176,13 +178,16 @@ const MaintUI = {
         const chosen=truckOptions.find(v=>v.id===select.value);
         if(chosen&&search.value===chosen.label){close();return;}
         select.value='';
-        if(term.length<2){close();count.textContent='Type at least 2 characters to search for a truck.';return;}
-        const found=truckOptions.filter(v=>v.haystack.includes(term));
-        matches=found.slice(0,6);active=-1;
-        if(!found.length){close();count.textContent='No matching trucks found.';return;}
+        // First focus or click: preview three eligible trucks without requiring typing.
+        // Typed searches show up to six matches in the fixed-height overlay.
+        const found=term ? truckOptions.filter(v=>v.haystack.includes(term)) : truckOptions;
+        matches=found.slice(0,term ? 6 : 3);active=-1;
+        if(!matches.length){close();count.textContent=term?'No matching trucks found.':'No available trucks to select.';return;}
         results.innerHTML=matches.map((v,i)=>`<button type="button" class="mp-truck-option" id="motorpool-truck-option-${i}" role="option" aria-selected="false" data-truck-id="${UI.esc(v.id)}">${UI.esc(v.label)}</button>`).join('');
         results.hidden=false;search.setAttribute('aria-expanded','true');
-        count.textContent=found.length>6?'Showing 6 of '+found.length+' matches. Type more to narrow results.':'Choose a matching truck below.';
+        count.textContent=term
+          ? (found.length>6?'Showing 6 of '+found.length+' matches. Type more to narrow results.':'Select a matching truck.')
+          : 'Showing '+matches.length+' suggested truck'+(matches.length===1?'':'s')+'. Type to search all eligible trucks.';
       };
       results.addEventListener('mousedown',e=>{if(e.target.closest('[data-truck-id]'))e.preventDefault();});
       results.addEventListener('click',e=>{
@@ -190,6 +195,8 @@ const MaintUI = {
         const found=button&&matches.find(v=>v.id===button.dataset.truckId);
         if(found)choose(found);
       });
+      search.addEventListener('focus',update);
+      search.addEventListener('click',update);
       search.addEventListener('input',update);
       search.addEventListener('keydown',e=>{
         if(e.key==='Escape'){close();return;}
