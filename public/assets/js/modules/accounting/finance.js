@@ -90,10 +90,10 @@ App.page('finance_overview', {
     const used = b.id ? +b.spent_amount + +b.reserved_amount : 0, pct = (v) => b.id && +b.amount ? Math.min(100, v / b.amount * 100).toFixed(1) : 0;
     const budget = `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Purchasing budget</h2>${UI.canGo('finance_budgets') ? '<div class="panel-tools"><button type="button" class="btn btn-link btn-sm p-0" data-go="finance_budgets">Budgets & Expenses</button></div>' : ''}</div><div class="panel-body">
       ${b.id ? `<div class="d-flex justify-content-between flex-wrap gap-1"><span><b>${UI.money(b.available)}</b> available</span><span class="text-muted small">${UI.date(b.period_start)} – ${UI.date(b.period_end)}</span></div>
-        <div class="ws-budget-meter" role="img" aria-label="Paid ${pct(b.spent_amount)} percent, reserved ${pct(b.reserved_amount)} percent"><span class="m-spent" style="width:${pct(b.spent_amount)}%"></span><span class="m-res" style="width:${pct(b.reserved_amount)}%"></span></div>
-        <div class="ws-legend"><span><i style="background:var(--blue)"></i>Paid ${UI.money(b.spent_amount)}</span><span><i style="background:var(--amber)"></i>Reserved ${UI.money(b.reserved_amount)}</span><span>Budget ${UI.money(b.amount)}</span></div>
+        <div class="ws-budget-meter" role="img" aria-label="Spent on received orders ${pct(b.spent_amount)} percent, reserved ${pct(b.reserved_amount)} percent"><span class="m-spent" style="width:${pct(b.spent_amount)}%"></span><span class="m-res" style="width:${pct(b.reserved_amount)}%"></span></div>
+        <div class="ws-legend"><span><i style="background:var(--blue)"></i>Spent ${UI.money(b.spent_amount)}</span><span><i style="background:var(--amber)"></i>Reserved ${UI.money(b.reserved_amount)}</span><span>Budget ${UI.money(b.amount)}</span></div>
         ${!+b.in_period ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">The budget period has ended: every new PO approval is rejected until you set a new budget.</div>' : ''}
-        ${+b.amount && used / b.amount >= 0.8 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">Budget alert: ${Math.round(used / b.amount * 100)}% is paid or reserved (rule: alert at 80%).</div>` : ''}`
+        ${+b.amount && used / b.amount >= 0.8 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">Budget alert: ${Math.round(used / b.amount * 100)}% is spent or reserved (rule: alert at 80%).</div>` : ''}`
       : '<div class="text-muted">No active purchasing budget. Purchase orders are rejected until you set one.</div>'}
       <div class="ws-foot">Expenses this month: ${UI.money(c.expenses_month || 0)} (all sources).</div></div></section>`;
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">${UI.kpiTiles(tiles)}
@@ -192,7 +192,7 @@ const HeadFinancePage = {
       ['disb', 'Disbursements', () => period + UI.table([['Voucher', 'voucher_number'], ['Date', 'released_on', 'date'], ['For', 'source_type', (v) => ({ fund_request: 'Trip fund', purchase_order: 'Purchase order', payable: 'Payable' }[v] || v)],
         ['Payee', 'payee'], ['Method', 'payment_method'], ['Reference', 'reference_number'], ['Amount', 'amount', 'money']], d.disbursements, { title: 'Cash released (payment vouchers)',actions:()=>UI.btn('details','View Details'),onAction:(action,row)=>{const drawer=UI.drawer(UI.esc(row.voucher_number),UI.h('Transaction')+UI.kv([['Voucher',UI.e(row.voucher_number)],['Source',UI.e(row.source_type)],['Payee',UI.e(row.payee)],['Amount',UI.money(row.amount)],['Method',UI.e(row.payment_method)],['Reference',UI.e(row.reference_number)],['Release date',UI.date(row.released_on)]])+UI.h('Recorded Activity')+UI.kv([['Recorded at',UI.datetime(row.created_at)],['Recorded by',UI.e(row.recorded_by_name)]]),{subtitle:'Disbursement details'});UI.drawerSections(drawer,[['summary','Summary',['Transaction']],['activity','Recorded Activity',['Recorded Activity']]],{key:'disbursement-details'});} })],
       ['budget', 'Purchasing budget', (body) => {
-        const h = `<div class="small text-muted mb-2">Purchase orders are approved only when the active budget can cover them. The amount is <b>reserved</b> at approval and becomes <b>spent</b> when Finance pays.</div>`
+        const h = `<div class="small text-muted mb-2">Purchase orders are approved only when the active budget can cover them. The amount is <b>reserved</b> at approval and becomes <b>spent</b> as Purchasing records delivery. Actual cash is only released when Finance records payment.</div>`
           + UI.table([['Period', 'period_start', (v, r) => UI.date(v) + ' – ' + UI.date(r.period_end)], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'], ['Available', 'available', 'money'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets,
             { title: 'Budgets', tools: act ? '<button class="btn btn-sm btn-primary" data-setb><i class="bi bi-plus"></i> Set new budget</button>' : '', empty: 'No budget yet.' });
         setTimeout(() => body.querySelector('[data-setb]')?.addEventListener('click', () => UI.formModal('Set purchasing budget', [
@@ -267,7 +267,7 @@ App.page('finance', {
 // ---------------------------------------------------------------- Budgets & Expenses
 App.page('finance_budgets', {
   title: 'Budgets & Expenses',
-  subtitle: 'Purchasing budget (reserved at PO approval, spent at payment), operating and maintenance expenses, cash flow.',
+  subtitle: 'Purchasing budget (reserved at PO approval, spent at receipt), operating and maintenance expenses, cash flow.',
   render(ctx) {
     const d = ctx.data, act = d.can.act, q = ctx.query;
     if (act) { UI.tool(ctx, 'Add expense', () => FinUI.addExpense(d), 'bi-plus-lg', 'outline-secondary'); UI.tool(ctx, 'Set new budget', () => FinUI.setBudget(d), 'bi-piggy-bank', 'primary'); }
@@ -279,11 +279,11 @@ App.page('finance_budgets', {
     const util = b && +b.amount ? Math.round((+b.spent_amount + +b.reserved_amount) / b.amount * 100) : null;
     ctx.el.innerHTML = `${UI.crumb('finance_overview', 'Finance Overview')}${UI.kpiTiles([
       { label: 'Budget available', value: b ? UI.money(b.available) : 'No budget', note: b ? UI.date(b.period_start) + ' – ' + UI.date(b.period_end) : 'set a purchasing budget', icon: 'bi-piggy-bank', tone: b ? (util >= 80 ? 'amber' : 'green') : 'red' },
-      { label: 'Budget used', value: util === null ? '—' : util + '%', note: b ? `paid ${UI.money(b.spent_amount)} + reserved ${UI.money(b.reserved_amount)}` : '', icon: 'bi-speedometer', tone: util >= 80 ? 'amber' : 'gray' },
+      { label: 'Budget used', value: util === null ? '—' : util + '%', note: b ? `spent ${UI.money(b.spent_amount)} + reserved ${UI.money(b.reserved_amount)}` : '', icon: 'bi-speedometer', tone: util >= 80 ? 'amber' : 'gray' },
       { label: 'Expenses in period', value: UI.money(total), note: exp.length + ' record(s), ' + UI.date(d.period.from) + ' – ' + UI.date(d.period.to), icon: 'bi-wallet2', tone: 'blue' },
       { label: 'Maintenance and parts', value: UI.money(maint), note: total ? Math.round(maint / total * 100) + '% of the expenses in period' : 'no expenses in period', icon: 'bi-tools', tone: 'gray', go: 'finance_budgets?category=Maintenance' + (q.from ? '&from=' + q.from + '&to=' + (q.to || '') : '') }])}`;
     const box = document.createElement('div'); ctx.el.append(box);
-    const budgets = UI.table([['Period', 'period_start', (v, r) => `<span class="cell-nowrap">${UI.date(v)} – ${UI.date(r.period_end)}</span>`], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Paid', 'spent_amount', 'money'],
+    const budgets = UI.table([['Period', 'period_start', (v, r) => `<span class="cell-nowrap">${UI.date(v)} – ${UI.date(r.period_end)}</span>`], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'],
       ['Available', 'available', 'money'], ['Used', 'amount', (v, r) => +v ? Math.round((+r.spent_amount + +r.reserved_amount) / v * 100) + '%' : '—'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets || [],
       { title: 'Purchasing budgets', showAllColumns: true, empty: 'No budget yet.', limit: 5 });
     const cats = [...new Set(exp.map(e => e.category))].sort(), srcs = [...new Set(exp.map(e => e.source))].sort();
