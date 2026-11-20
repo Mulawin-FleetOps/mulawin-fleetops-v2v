@@ -3205,37 +3205,37 @@ body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-mark
 .app-drawer:has(.mp-remote-incident-detail) .ui-record-sections .tab-body {
   padding-top: 12px;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-grid {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
   margin: 9px 0 15px;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-field {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-field {
   min-width: 0;
   border: 1px solid #e0ebe4;
   border-radius: 9px;
   background: #fff;
   padding: 10px 13px;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-wide {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-wide {
   grid-column: 1 / -1;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-field small {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-field small {
   display: block;
   margin-bottom: 4px;
   font-size: 11px;
   font-weight: 500;
   color: #7a8c81;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-field > div {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-field > div {
   font-size: 13px;
   line-height: 1.5;
   color: #284637;
   overflow-wrap: anywhere;
   white-space: normal;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-updates {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-updates {
   margin: 4px 0 14px;
   padding: 10px 12px;
   border: 1px solid #e0ebe4;
@@ -3243,16 +3243,16 @@ body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-mark
   background: #fff;
   font-size: 12px;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-updates summary {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-updates summary {
   color: #23613e;
   font-weight: 650;
   cursor: pointer;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-update {
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-update {
   padding: 9px 0;
   border-top: 1px solid #e3ede6;
 }
-.app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-update:first-of-type { margin-top: 9px; }
+.app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-update:first-of-type { margin-top: 9px; }
 .app-drawer:has(.mp-remote-incident-detail) .mp-repair-overview-summary {
   padding: 13px 15px;
   gap: 9px;
@@ -3265,6 +3265,6 @@ body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-mark
 @media (max-width: 600px) {
   body.ref-body:has(#pageContent.ws-scope.ref-scope #pageBody > .mp-wireframe-marker)
     .offcanvas.app-drawer:has(.mp-remote-incident-detail) .offcanvas-body { padding: 12px 14px 20px; }
-  .app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-grid { grid-template-columns: 1fr; }
-  .app-drawer:has(.mp-remote-incident-detail) .mp-incident-detail-wide { grid-column: auto; }
+  .app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-grid { grid-template-columns: 1fr; }
+  .app-drawer:has(.mp-repair-overview-summary) .mp-incident-detail-wide { grid-column: auto; }
 }
