@@ -496,6 +496,9 @@ final class Maintenance {
         $lead = idField($d,'mechanic_id');
         $helpers = $d['assistant_mechanic_ids'] ?? [];
         $components = $d['component_ids'] ?? [];
+        // Additional unlisted components are retained in repair activity, not
+        // inserted as unverified catalog entries or given fabricated skill mappings.
+        $otherComponents = optField($d,'other_components',250);
         $parts = choiceField($d,'parts_requirement',['No Parts Needed','Parts Required']);
         must(is_array($helpers) && count($helpers)<=10 && is_array($components) && count($components)<=31,'Invalid repair selections.',422);
         $helpers = array_map('intval',$helpers);
@@ -504,7 +507,7 @@ final class Maintenance {
         must(count($components)===count(array_unique($components)),'Duplicate component.',422);
         $lines = $d['parts_lines'] ?? [];
         must(is_array($lines) && count($lines)<=30 && (!$lines || $parts==='Parts Required'),'Invalid parts requirement.',422);
-        return transaction(function(PDO $p) use($u,$jobId,$lead,$helpers,$components,$parts,$lines) {
+        return transaction(function(PDO $p) use($u,$jobId,$lead,$helpers,$components,$otherComponents,$parts,$lines) {
             must(self::catalogReady($p),'Apply the approved Motorpool catalog migration before finalizing.',409);
             $j=self::lockJob($p,$jobId);
             must(in_array($j['status'],['Under Inspection','Under Repair'],true),'Repair must be under inspection or repair.',409);
@@ -551,7 +554,10 @@ final class Maintenance {
                 Purchasing::createForRepair($p,$u,(int)$j['vehicle_id'],$jobId,cut((string)$j['problem'],255),$lines);
             }
             run($p,'UPDATE maintenance_jobs SET assignment_finalized_at=NOW(),assignment_finalized_by=?,parts_requirement=? WHERE id=?',[$u['id'],$parts,$jobId]);
-            self::event($p,$jobId,$j['status'],$j['status'],$u['id'],'repair assignment finalized; parts: '.$parts);
+            self::event($p,$jobId,$j['status'],$j['status'],$u['id'],
+                'repair assignment finalized; parts: '.$parts
+                .($otherComponents !== null && trim($otherComponents) !== ''
+                    ? '; Other affected components: '.trim($otherComponents) : ''));
             audit($p,$u['id'],'Maintenance','job '.$jobId,'repair assignment finalized',$j['job_ref']);
             return ['message'=>'Repair assignment finalized. Assigned mechanics are locked.'];
         });
