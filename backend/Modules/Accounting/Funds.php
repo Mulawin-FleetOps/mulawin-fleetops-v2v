@@ -83,7 +83,7 @@ final class Funds {
             $budget = one($p, "SELECT amount, reserved_amount, spent_amount, period_start, period_end,
                 amount-reserved_amount-spent_amount AS available,
                 (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period
-                FROM budgets WHERE category='Trip Operations' AND status='Active' ORDER BY id DESC LIMIT 1");
+                FROM budgets WHERE category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Trip Operations' END) AND status='Active' ORDER BY id DESC LIMIT 1");
             $data['tripBudget'] = $budget ?? [];
         }
         $data['releaseLeadHours'] = Settings::value('fund_release_lead_hours');
@@ -288,7 +288,7 @@ final class Funds {
             must($f['status'] === 'Pending Approval', 'This request is ' . $f['status'] . ', not Pending Approval.', 409);
             must(!in_array($f['trip_status'], ['Cancelled', 'Rejected', 'Completed'], true), 'The trip is ' . $f['trip_status'] . '.', 409);
             if ($decision === 'approve') {
-                $budget = one($p, "SELECT * FROM budgets WHERE category='Trip Operations' AND status='Active' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
+                $budget = one($p, "SELECT * FROM budgets WHERE category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Trip Operations' END) AND status='Active' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
                 $available = $budget ? round((float)$budget['amount'] - (float)$budget['reserved_amount'] - (float)$budget['spent_amount'], 2) : 0.0;
                 if (!$budget || $available < (float)$f['amount']) {
                     // Retain the request for Head review; no funds are reserved and no approval is recorded.
@@ -333,7 +333,7 @@ final class Funds {
             must(time() >= $opensAt, 'Too early to release the fund. Finance may release ' .
                 $leadHours . ' hour(s) before dispatch (' . date('M j, Y g:i A', $opensAt) .
                 ' Philippine time).', 409);
-            $budget = one($p, "SELECT * FROM budgets WHERE category='Trip Operations' AND status='Active' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
+            $budget = one($p, "SELECT * FROM budgets WHERE category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Trip Operations' END) AND status='Active' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
             must((bool)$budget, 'Trip Operations budget is not active for today. Finance must set a valid budget before releasing funds.', 409);
             must(round((float)$budget['reserved_amount'], 2) >= round((float)$f['amount'], 2),
                 'This approved fund has no sufficient Trip Operations budget reservation. Finance must renew the budget to carry outstanding approved requests.', 409);
