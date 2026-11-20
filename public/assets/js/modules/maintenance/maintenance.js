@@ -220,8 +220,25 @@ const MaintUI = {
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
-      <div class="purchasing-receive-section">Affected components (Tractor Head / Trailer)</div>
-      <div class="row g-2 mb-2">${comps.map(c=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2 h-100"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}" ${(r.selectedComponents || []).includes(+c.id)?'checked':''}><span><b>${UI.esc(c.label)}</b><small class="d-block text-muted">${c.section_key==='trailer'?'Trailer':'Tractor Head'}</small></span></label></div>`).join('')}</div>
+      <div class="purchasing-receive-section">Affected components</div>
+      <div class="mp-final-component-tabs" role="tablist" aria-label="Component category">
+        <button type="button" class="mp-final-component-tab active" role="tab" aria-selected="true" data-comp-tab="tractor_head">Tractor Head</button>
+        <button type="button" class="mp-final-component-tab" role="tab" aria-selected="false" data-comp-tab="trailer">Trailer</button>
+        <button type="button" class="mp-final-component-tab" role="tab" aria-selected="false" data-comp-tab="others">Others</button>
+      </div>
+      <div class="mp-final-components-pane" data-comp-pane="tractor_head">
+        ${comps.filter(c=>c.section_key==='tractor_head').map(c=>`<label class="mp-final-component-choice"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}" ${(r.selectedComponents || []).includes(+c.id)?'checked':''}><span>${UI.esc(c.label)}</span></label>`).join('') || '<p class="text-muted small">No Tractor Head components recorded.</p>'}
+      </div>
+      <div class="mp-final-components-pane" data-comp-pane="trailer" hidden>
+        ${comps.filter(c=>c.section_key==='trailer').map(c=>`<label class="mp-final-component-choice"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}" ${(r.selectedComponents || []).includes(+c.id)?'checked':''}><span>${UI.esc(c.label)}</span></label>`).join('') || '<p class="text-muted small">No Trailer components recorded.</p>'}
+      </div>
+      <div class="mp-final-components-pane" data-comp-pane="others" hidden>
+        ${comps.filter(c=>!['tractor_head','trailer'].includes(c.section_key)).map(c=>`<label class="mp-final-component-choice"><input type="checkbox" data-component="${+c.id}" data-suggestions="${UI.esc(c.suggested_skills || '')}" ${(r.selectedComponents || []).includes(+c.id)?'checked':''}><span>${UI.esc(c.label)}</span></label>`).join('')}
+        <label class="form-label mt-2" for="mp-final-other-component">Component not listed? Describe it here (optional)</label>
+        <textarea id="mp-final-other-component" class="form-control" maxlength="250" rows="2" data-other-components placeholder="Name the additional affected component(s) and location."></textarea>
+        <p class="small text-muted mt-1">Custom descriptions are saved in repair activity; only catalog checkboxes have verified skill mappings.</p>
+      </div>
+      <div class="small text-muted mt-2 mb-2" data-component-summary>0 components selected</div>
       <div class="small mb-3" data-specialization-suggest>Choose components to see suggested specializations.</div>
       <div class="purchasing-receive-section">Lead and assisting mechanics</div>
       <label class="form-label mt-2" for="mp-final-lead-search">Lead mechanic *</label>
@@ -231,7 +248,13 @@ const MaintUI = {
         <p class="small text-muted mb-0 p-2" data-final-lead-empty hidden>No mechanics match your search.</p>
       </div>
       <div class="small text-muted mb-2" data-final-lead-selected>Choose one lead mechanic above.</div>
-      <label class="form-label">Assisting mechanics (optional)</label><div class="row g-2 mb-2">${allMechs.map(m=>`<div class="col-md-6"><label class="d-flex align-items-start gap-2 border rounded p-2"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span>${UI.esc(m.full_name)}<small class="d-block text-muted">${UI.esc(m.specialization || '')}</small></span></label></div>`).join('')}</div>
+      <label class="form-label" for="mp-final-helper-search">Assisting mechanics (optional)</label>
+      <input id="mp-final-helper-search" class="form-control mb-2" type="search" autocomplete="off" placeholder="Search name, ID or specialization…" data-final-helper-search>
+      <div class="mp-final-helper-list" aria-label="Select assisting mechanics">
+        ${allMechs.map(m=>`<label class="mp-final-helper-choice" data-helper-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLowerCase())}"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)} · ${UI.esc(m.specialization || 'No listed specialization')}</small></span></label>`).join('')}
+        <p class="small text-muted p-2" data-helper-empty hidden>No assisting mechanics match the search.</p>
+      </div>
+      <div class="small text-muted mt-2" data-helper-count>0 assisting mechanics selected</div>
       <div class="small mb-3" data-team-preview></div>
       <div class="purchasing-receive-section">Parts requirement</div>
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
@@ -241,21 +264,25 @@ const MaintUI = {
       const lead = +(form.querySelector('[data-final-lead]:checked')?.value || 0);
       const helpers = [...form.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper);
       const components = [...form.querySelectorAll('[data-component]:checked')].map(x=>+x.dataset.component);
+      const other_components = form.querySelector('[data-other-components]').value.trim();
       const parts_requirement = form.querySelector('[data-final-parts]').value;
       const parts_lines = [...form.querySelectorAll('[data-final-part-row]')].map(el=>({part_id:+el.querySelector('[data-part-id]').value,quantity:+el.querySelector('[data-part-qty]').value}));
       if (!lead) throw new Error('Choose a lead mechanic.');
+      if (other_components.length > 250) throw new Error('Other component description is too long.');
       if (helpers.includes(lead)) throw new Error('Lead mechanic cannot also be an assistant.');
       if (!['No Parts Needed','Parts Required'].includes(parts_requirement)) throw new Error('Confirm whether replacement parts are required.');
       if (parts_lines.some(x=>!x.part_id||!Number.isInteger(x.quantity)||x.quantity<1)) throw new Error('Choose a part and valid quantity.');
       if (new Set(parts_lines.map(x=>x.part_id)).size!==parts_lines.length) throw new Error('Combine duplicate parts into one request.');
       if (parts_requirement !== 'Parts Required' && parts_lines.length) throw new Error('Select Parts Required before adding parts.');
       if (!window.confirm('Finalize this repair assignment? The mechanic team will be locked afterward.')) return;
-      const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,parts_requirement,parts_lines});
+      const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,other_components,parts_requirement,parts_lines});
       UI.result(response); if(after) after(); else App.route();
     },{submit:'Finalize Repair Assignment',size:'modal-xl'});
 
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
+      const custom=dialog.querySelector('[data-other-components]').value.trim();
+      dialog.querySelector('[data-component-summary]').textContent=picked.length+' catalog component(s) selected'+(custom?' · Other component described':'');
       const names=[...new Set(picked.flatMap(x=>x.dataset.suggestions.split(',').map(y=>y.trim()).filter(Boolean)))];
       const target=dialog.querySelector('[data-specialization-suggest]');
       target.textContent=names.length?'Suggested skills: '+names.join(' · ')+' (Motorpool must confirm coverage)':'No specialization mapping; review actual diagnosis and mechanic qualifications.';
@@ -264,6 +291,7 @@ const MaintUI = {
       const team=[lead,...[...dialog.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper)];
       const covered=[...new Set((d.mechanicSkills||[]).filter(x=>team.includes(+x.mechanic_id)).map(x=>x.name))];
       dialog.querySelector('[data-team-preview]').textContent='Selected team: '+team.map(id=>(d.mechanics||[]).find(m=>+m.id===id)?.full_name).filter(Boolean).join(' · ')+' | Verified skill coverage: '+(covered.join(', ')||'None recorded');
+      dialog.querySelector('[data-helper-count]').textContent=(team.length-(lead?1:0))+' assisting mechanic(s) selected';
       dialog.querySelector('[data-parts-input]').hidden=dialog.querySelector('[data-final-parts]').value!=='Parts Required';
     };
     const leadSearch=dialog.querySelector('[data-final-lead-search]');
@@ -280,6 +308,25 @@ const MaintUI = {
         : 'Choose one lead mechanic above.';
     };
     leadSearch.addEventListener('input',refreshLeadChoices);
+    const helperSearch=dialog.querySelector('[data-final-helper-search]');
+    const helperRows=[...dialog.querySelectorAll('.mp-final-helper-choice')];
+    const helperEmpty=dialog.querySelector('[data-helper-empty]');
+    const filterHelpers=()=>{
+      const term=helperSearch.value.trim().toLocaleLowerCase();
+      let shown=0;
+      helperRows.forEach(row=>{row.hidden=!row.dataset.helperText.includes(term);if(!row.hidden)shown++});
+      helperEmpty.hidden=shown>0;
+    };
+    helperSearch.addEventListener('input',filterHelpers);
+    filterHelpers();
+    dialog.querySelectorAll('[data-comp-tab]').forEach(button=>button.addEventListener('click',()=>{
+      const key=button.dataset.compTab;
+      dialog.querySelectorAll('[data-comp-tab]').forEach(tab=>{
+        const on=tab===button;tab.classList.toggle('active',on);tab.setAttribute('aria-selected',on?'true':'false');
+      });
+      dialog.querySelectorAll('[data-comp-pane]').forEach(pane=>pane.hidden=pane.dataset.compPane!==key);
+    }));
+    dialog.querySelector('[data-other-components]').addEventListener('input',update);
     dialog.querySelectorAll('[data-component],[data-final-helper],[data-final-lead],[data-final-parts]').forEach(x=>x.addEventListener('change',()=>{update();refreshLeadChoices()}));
     refreshLeadChoices();
     dialog.querySelector('[data-final-add-part]').onclick=()=>{
