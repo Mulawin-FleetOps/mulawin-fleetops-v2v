@@ -909,6 +909,25 @@ App.page('purchasing_overview', {
         'Finance / Admin approval · ' + UI.money(o.total_amount), UI.badge(o.status))),
 
     ];
+    // Purchasing dashboard only: page records instead of nested scrollable
+    // card lists. Each section has independent pagination; links stay intact.
+    const dashboardPageSize = 4;
+    const pagedList = (items, empty, key) => {
+      if (!items.length) return UI.wsList(items, empty);
+      const pages = Math.max(1, Math.ceil(items.length / dashboardPageSize));
+      return `<div class="purchasing-dashboard-pager" data-purchasing-dash-pager="${key}" data-page="1" data-size="${dashboardPageSize}">
+        <ul class="mo-list purchasing-dashboard-page-list">${items.map((html, i) =>
+          `<li class="purchasing-dashboard-page-item" data-dash-index="${i}">${html}</li>`).join('')}</ul>
+        <div class="purchasing-dashboard-page-footer no-print">
+          <span data-dash-range>Showing 1–${Math.min(dashboardPageSize,items.length)} of ${items.length}</span>
+          <span class="purchasing-dashboard-page-controls">
+            <button type="button" data-dash-prev disabled>Previous</button>
+            <span data-dash-current>Page 1 of ${pages}</span>
+            <button type="button" data-dash-next ${pages===1?'disabled':''}>Next</button>
+          </span>
+        </div>
+      </div>`;
+    };
     ctx.el.innerHTML = `<div class="maint-overview mp-ws purchasing-dashboard-ref">${UI.kpiTiles(tiles,'ws-kpi4')}
       ${UI.quickBar([can.stock ? { label:'Process requests', icon:'bi-box-arrow-up', go:'parts_requests?tab=todo' } : null,
         can.stock ? { label:'New purchase order', icon:'bi-cart-plus', act:'newpo', primary:true } : null,
@@ -916,15 +935,32 @@ App.page('purchasing_overview', {
         { label:'Stock movements', icon:'bi-arrow-left-right', go:'stock_movements' }])}
       <div class="purchasing-ref-panels purchasing-content-columns">
         <div class="purchasing-content-column">
-          ${UI.wsPanel('Parts Requests Needing Action','bi-box-seam', UI.wsList(requestsAction.slice(0,5),'No open parts requests.'), {cls:'ws-l1',count:outstanding.length,go:'parts_requests?tab=todo',goLabel:'View all'})}
-          ${UI.wsPanel('Purchase Order Status','bi-cart-check',UI.wsList(poRows,'No outstanding POs.'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
+          ${UI.wsPanel('Parts Requests Needing Action','bi-box-seam', pagedList(requestsAction,'No open parts requests.','requests'), {cls:'ws-l1',count:outstanding.length,go:'parts_requests?tab=todo',goLabel:'View all'})}
+          ${UI.wsPanel('Purchase Order Status','bi-cart-check',pagedList(poRows,'No outstanding POs.','po-status'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
         </div>
         <div class="purchasing-content-column">
-          ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',UI.wsList(incoming.slice(0,5),'No deliveries to receive.'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
-          ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',UI.wsList(alerts.slice(0,5),'No low-stock items or outstanding shortages.'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
+          ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',pagedList(incoming,'No deliveries to receive.','receiving'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
+          ${UI.wsPanel('Stock Alerts','bi-exclamation-triangle',pagedList(alerts,'No low-stock items or outstanding shortages.','stock-alerts'),{cls:'ws-r2',count:alerts.length,go:'inventory?stock=low',goLabel:'View inventory'})}
         </div>
-        ${UI.wsPanel('PO Approval Dependencies','bi-diagram-3',UI.wsList(poDependencies,'No external approvals pending.'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
+        ${UI.wsPanel('PO Approval Dependencies','bi-diagram-3',pagedList(poDependencies,'No external approvals pending.','dependencies'),{cls:'purchasing-full-panel',go:'purchase_orders?tab=all',goLabel:'All POs'})}
       </div></div>`;
+    ctx.el.querySelectorAll('[data-purchasing-dash-pager]').forEach(pager => {
+      const items = [...pager.querySelectorAll(':scope > .purchasing-dashboard-page-list > [data-dash-index]')];
+      const size = dashboardPageSize, pages = Math.max(1, Math.ceil(items.length / size));
+      let page = 1;
+      const prev = pager.querySelector('[data-dash-prev]');
+      const next = pager.querySelector('[data-dash-next]');
+      const draw = () => {
+        items.forEach((item, index) => { item.hidden = index < (page - 1) * size || index >= page * size; });
+        pager.querySelector('[data-dash-range]').textContent =
+          'Showing ' + ((page - 1) * size + 1) + '–' + Math.min(page * size,items.length) + ' of ' + items.length;
+        pager.querySelector('[data-dash-current]').textContent = 'Page ' + page + ' of ' + pages;
+        prev.disabled = page === 1; next.disabled = page === pages;
+      };
+      prev.addEventListener('click', () => { if (page > 1) { page--; draw(); } });
+      next.addEventListener('click', () => { if (page < pages) { page++; draw(); } });
+      draw();
+    });
     ctx.el.querySelector('[data-qa="newpo"]')?.addEventListener('click', () => App.go('purchase_orders', { new: 1 }));
   },
 });
