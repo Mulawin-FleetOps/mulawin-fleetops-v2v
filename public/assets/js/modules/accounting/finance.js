@@ -71,7 +71,7 @@ const FinUI = {
 // ---------------------------------------------------------------- Finance Overview
 App.page('finance_overview', {
   title: 'Finance Overview',
-  subtitle: 'What is waiting for Finance: approvals, fund releases, payments due and the purchasing budget.',
+  subtitle: 'What is waiting for Finance: approvals, fund releases, payments due and the General Budget.',
   render(ctx) {
     const d = ctx.data, c = d.counts || {}, b = d.budget || {}, today = d.today;
     const tiles = [
@@ -91,13 +91,13 @@ App.page('finance_overview', {
       x.kind === 'po' ? 'Purchase order · received items not yet paid' : 'Payable' + (x.due_on ? ' · due ' + UI.date(x.due_on) : ' · no due date'),
       `<b>${UI.money(x.due)}</b>${FinUI.overdue(x.due_on, today) ? ' <span class="badge-s red">Overdue</span>' : ''}`, x.kind === 'po' ? `data-po="${+x.id}"` : ''));
     const used = b.id ? +b.spent_amount + +b.reserved_amount : 0, pct = (v) => b.id && +b.amount ? Math.min(100, v / b.amount * 100).toFixed(1) : 0;
-    const budget = `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Purchasing budget</h2>${UI.canGo('finance_budgets') ? '<div class="panel-tools"><button type="button" class="btn btn-link btn-sm p-0" data-go="finance_budgets">Budgets & Expenses</button></div>' : ''}</div><div class="panel-body">
+    const budget = `<section class="panel"><div class="panel-head"><h2 class="panel-title"><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>General Budget</h2>${UI.canGo('finance_budgets') ? '<div class="panel-tools"><button type="button" class="btn btn-link btn-sm p-0" data-go="finance_budgets">Budgets & Expenses</button></div>' : ''}</div><div class="panel-body">
       ${b.id ? `<div class="d-flex justify-content-between flex-wrap gap-1"><span><b>${UI.money(b.available)}</b> available</span><span class="text-muted small">${UI.date(b.period_start)} – ${UI.date(b.period_end)}</span></div>
         <div class="ws-budget-meter" role="img" aria-label="Spent on received orders ${pct(b.spent_amount)} percent, reserved ${pct(b.reserved_amount)} percent"><span class="m-spent" style="width:${pct(b.spent_amount)}%"></span><span class="m-res" style="width:${pct(b.reserved_amount)}%"></span></div>
         <div class="ws-legend"><span><i style="background:var(--blue)"></i>Spent ${UI.money(b.spent_amount)}</span><span><i style="background:var(--amber)"></i>Reserved ${UI.money(b.reserved_amount)}</span><span>Budget ${UI.money(b.amount)}</span></div>
         ${!+b.in_period ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">The budget period has ended: every new PO approval is rejected until you set a new budget.</div>' : ''}
         ${+b.amount && used / b.amount >= 0.8 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">Budget alert: ${Math.round(used / b.amount * 100)}% is spent or reserved (rule: alert at 80%).</div>` : ''}`
-      : '<div class="text-muted">No active purchasing budget. Purchase orders are rejected until you set one.</div>'}
+      : '<div class="text-muted">No active approved budget for purchase orders. Submit a General Budget for Admin approval.</div>'}
       <div class="ws-foot">Expenses this month: ${UI.money(c.expenses_month || 0)} (all sources).</div></div></section>`;
     ctx.el.innerHTML = `<div class="maint-overview mp-ws">${UI.kpiTiles(tiles)}
       ${UI.quickBar([{ label: 'Approve purchase orders', icon: 'bi-check2-square', go: 'purchase_orders?tab=approval' }, { label: 'Release trip funds', icon: 'bi-cash-coin', go: 'funds' },
@@ -115,7 +115,7 @@ App.page('finance_overview', {
 // ---------------------------------------------------------------- Payables & Payments (page id 'finance')
 const HeadFinancePage = {
   title: 'Finance',
-  subtitle: 'Payables, payments, expenses, purchasing budget and cash flow.',
+  subtitle: 'Payables, payments, recorded expenses and General Budget.',
   render(ctx) {
     // Admin combines multiple Finance sections; empty/missing optional lists
     // must not crash the entire page when a section is unavailable.
@@ -127,7 +127,7 @@ const HeadFinancePage = {
     }
     const act = !!d.can?.act;
     const head = UI.role('admin');
-    const b = d.budgets.find(x => x.status === 'Active' && x.category === 'Purchasing');
+    const b = d.budgets.find(x => x.status === 'Active' && x.category === 'General') || d.budgets.find(x => x.status === 'Active' && x.category === 'Purchasing');
     const poDue = d.poPayables.reduce((a, o) => a + Math.max(0, +o.received_value - +o.paid_amount), 0);
     const apDue = d.payables.filter(p => p.status !== 'Paid').reduce((a, p) => a + +p.balance, 0);
     ctx.el.innerHTML = UI.cards([
@@ -135,7 +135,7 @@ const HeadFinancePage = {
       { label: 'Other payables', value: apDue, format: 'money', icon: 'bi-receipt', color: 'amber' },
       { label: 'Expenses in period', value: d.expenses.reduce((a, e) => a + +e.amount, 0), format: 'money', icon: 'bi-wallet2', color: 'red' },
       { label: 'Cash out in period', value: d.disbursements.reduce((a, e) => a + +e.amount, 0), format: 'money', icon: 'bi-box-arrow-up-right', color: 'red' },
-      ...(!head ? [{ label: 'Budget available', value: b ? +b.available : 'No budget', format: b ? 'money' : '', icon: 'bi-piggy-bank', color: 'green', hint: b ? `Reserved ${UI.money(b.reserved_amount)} · spent ${UI.money(b.spent_amount)} of ${UI.money(b.amount)}` : 'Set a purchasing budget' }] : []),
+      ...(!head ? [{ label: 'Budget available', value: b ? +b.available : 'No budget', format: b ? 'money' : '', icon: 'bi-piggy-bank', color: 'green', hint: b ? `Reserved ${UI.money(b.reserved_amount)} · spent ${UI.money(b.spent_amount)} of ${UI.money(b.amount)}` : 'Submit a General Budget for Admin approval' }] : []),
     ]);
     const paymentAlerts = [
       {label:'Purchase orders awaiting payment',count:d.poPayables.filter(o=>+o.received_value>+o.paid_amount).length,go:act?'finance?tab=po':null},
@@ -194,10 +194,10 @@ const HeadFinancePage = {
       }],
       ['disb', 'Disbursements', () => period + UI.table([['Voucher', 'voucher_number'], ['Date', 'released_on', 'date'], ['For', 'source_type', (v) => ({ fund_request: 'Trip fund', purchase_order: 'Purchase order', payable: 'Payable' }[v] || v)],
         ['Payee', 'payee'], ['Method', 'payment_method'], ['Reference', 'reference_number'], ['Amount', 'amount', 'money']], d.disbursements, { title: 'Cash released (payment vouchers)',actions:()=>UI.btn('details','View Details'),onAction:(action,row)=>{const drawer=UI.drawer(UI.esc(row.voucher_number),UI.h('Transaction')+UI.kv([['Voucher',UI.e(row.voucher_number)],['Source',UI.e(row.source_type)],['Payee',UI.e(row.payee)],['Amount',UI.money(row.amount)],['Method',UI.e(row.payment_method)],['Reference',UI.e(row.reference_number)],['Release date',UI.date(row.released_on)]])+UI.h('Recorded Activity')+UI.kv([['Recorded at',UI.datetime(row.created_at)],['Recorded by',UI.e(row.recorded_by_name)]]),{subtitle:'Disbursement details'});UI.drawerSections(drawer,[['summary','Summary',['Transaction']],['activity','Recorded Activity',['Recorded Activity']]],{key:'disbursement-details'});} })],
-      ['budget', 'Purchasing budget', (body) => {
+      ['budget', 'General Budget', (body) => {
         const h = `<div class="small text-muted mb-2">Purchase orders are approved only when the active budget can cover them. The amount is <b>reserved</b> at approval and becomes <b>spent</b> as Purchasing records delivery. Actual cash is only released when Finance records payment.</div>`
-          + UI.table([['Period', 'period_start', (v, r) => UI.date(v) + ' – ' + UI.date(r.period_end)], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'], ['Available', 'available', 'money'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets.filter(x => x.category === 'Purchasing'),
-            { title: 'Budgets', tools: act ? '<button class="btn btn-sm btn-primary" data-setb><i class="bi bi-plus"></i> Set new budget</button>' : '', empty: 'No budget yet.' });
+          + UI.table([['Period', 'period_start', (v, r) => UI.date(v) + ' – ' + UI.date(r.period_end)], ['Budget', 'amount', 'money'], ['Reserved', 'reserved_amount', 'money'], ['Spent', 'spent_amount', 'money'], ['Available', 'available', 'money'], ['Status', 'status', 'badge'], ['Set by', 'set_by_name']], d.budgets.filter(x => x.category === 'General'),
+            { title: 'Budgets', tools: act ? '<button class="btn btn-sm btn-primary" data-setb><i class="bi bi-plus"></i> Submit General Budget</button>' : '', empty: 'No budget yet.' });
         setTimeout(() => body.querySelector('[data-setb]')?.addEventListener('click', () => FinUI.setBudget(d)), 0);
         return h;
       }],
