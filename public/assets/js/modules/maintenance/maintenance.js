@@ -250,6 +250,7 @@ const MaintUI = {
       <div class="small text-muted mb-2" data-final-lead-selected>Choose one lead mechanic above.</div>
       <label class="form-label" for="mp-final-helper-search">Assisting mechanics (optional)</label>
       <div class="mp-final-skill-needs small mb-2" data-final-skill-needs aria-live="polite">Choose affected components to see required skills and recommended mechanics.</div>
+      <div class="mp-final-skill-warning mb-2" data-final-skill-warning role="status" aria-live="polite" tabindex="-1" hidden></div>
       <div class="mp-final-helper-tools mb-2">
         <input id="mp-final-helper-search" class="form-control" type="search" autocomplete="off" placeholder="Search name, ID or specialization…" data-final-helper-search>
         <label class="mp-final-helper-filter"><input type="checkbox" data-helper-recommended-only> Recommended only</label>
@@ -274,6 +275,21 @@ const MaintUI = {
       if (!lead) throw new Error('Choose a lead mechanic.');
       if (other_components.length > 250) throw new Error('Other component description is too long.');
       if (helpers.includes(lead)) throw new Error('Lead mechanic cannot also be an assistant.');
+      // Explain missing skill coverage beside the assistant checklist before
+      // submitting; retain the authoritative server-side validation.
+      const requiredSkills=[...new Set([...form.querySelectorAll('[data-component]:checked')]
+        .flatMap(input=>(input.dataset.suggestions||'').split(',').map(skill=>skill.trim()).filter(Boolean)))];
+      const chosenTeam=[lead,...helpers];
+      const confirmedSkills=new Set((d.mechanicSkills||[])
+        .filter(item=>chosenTeam.includes(+item.mechanic_id)).map(item=>item.name));
+      const missingSkills=requiredSkills.filter(skill=>!confirmedSkills.has(skill));
+      if (missingSkills.length) {
+        const warning=form.querySelector('[data-final-skill-warning]');
+        warning.hidden=false;
+        warning.focus({preventScroll:true});
+        warning.scrollIntoView({block:'center',behavior:'smooth'});
+        throw new Error('Mechanic team lacks: '+missingSkills.join(', ')+'. See the Assisting Mechanics section for affected parts.');
+      }
       if (!['No Parts Needed','Parts Required'].includes(parts_requirement)) throw new Error('Confirm whether replacement parts are required.');
       if (parts_lines.some(x=>!x.part_id||!Number.isInteger(x.quantity)||x.quantity<1)) throw new Error('Choose a part and valid quantity.');
       if (new Set(parts_lines.map(x=>x.part_id)).size!==parts_lines.length) throw new Error('Combine duplicate parts into one request.');
@@ -294,6 +310,22 @@ const MaintUI = {
       dialog.querySelectorAll('[data-final-helper]').forEach(x=>{x.disabled=+x.dataset.finalHelper===lead;if(x.disabled)x.checked=false});
       const team=[lead,...[...dialog.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper)];
       const covered=[...new Set((d.mechanicSkills||[]).filter(x=>team.includes(+x.mechanic_id)).map(x=>x.name))];
+      const missing=names.filter(skill=>!covered.includes(skill));
+      const warning=dialog.querySelector('[data-final-skill-warning]');
+      if (missing.length) {
+        const detail=missing.map(skill=>{
+          const affected=picked.filter(input=>input.dataset.suggestions.split(',').map(x=>x.trim()).includes(skill))
+            .map(input=>input.closest('label')?.querySelector('span')?.textContent.trim())
+            .filter(Boolean);
+          return skill+(affected.length?' — needed for: '+affected.join(', '):'');
+        });
+        warning.textContent='Mechanic team lacks: '+missing.join(', ')+'. '+detail.join(' · ')+
+          '. Select an assistant with the verified skill below.';
+        warning.hidden=false;
+      } else {
+        warning.textContent='';
+        warning.hidden=true;
+      }
       dialog.querySelector('[data-team-preview]').textContent='Selected team: '+team.map(id=>(d.mechanics||[]).find(m=>+m.id===id)?.full_name).filter(Boolean).join(' · ')+' | Verified skill coverage: '+(covered.join(', ')||'None recorded');
       dialog.querySelector('[data-helper-count]').textContent=(team.length-(lead?1:0))+' assisting mechanic(s) selected';
       refreshHelperRecommendations(names, covered, lead);
