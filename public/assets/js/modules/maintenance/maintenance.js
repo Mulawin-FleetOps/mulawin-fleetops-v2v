@@ -60,6 +60,59 @@ const MaintUI = {
       wrap.querySelector('.mech-pick').onchange = () => { wrap.querySelector('[data-mcount]').textContent = wrap.querySelectorAll('.mech-pick input:checked').length + ' selected'; };
     }
   },
+  /** One-click lead selection, without the browser's long native dropdown. */
+  assignMechanic(j, after) {
+    const choices = (MaintUI.data?.mechanics || [])
+      .filter(m => m.availability === 'Available' && +m.id !== +j.mechanic_id);
+    const changing = Boolean(j.mechanic_id);
+    const html = `<p class="modal-intro">Select one available mechanic below. Mechanics with active repair assignments are not eligible.</p>
+      <label class="form-label" for="mp-assign-search">Search mechanics</label>
+      <input id="mp-assign-search" class="form-control mb-2" type="search"
+        placeholder="Search name, mechanic ID or specialization…" autocomplete="off" data-mechanic-search>
+      <div class="mp-mechanic-checklist" role="radiogroup" aria-label="Available mechanics">
+        ${choices.length ? choices.map(m => `<label class="mp-mechanic-checklist-item" data-mechanic-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLowerCase())}">
+            <input type="radio" name="mechanic_id" value="${+m.id}" required>
+            <span class="mp-mechanic-checklist-copy">
+              <strong>${UI.esc(m.full_name)}</strong>
+              <small>${UI.esc(m.mechanic_code)}${m.specialization ? ' · ' + UI.esc(m.specialization) : ''}</small>
+            </span>
+          </label>`).join('') : '<p class="text-muted small mb-0">No available mechanics. Time In a mechanic first.</p>'}
+        <p class="text-muted small mb-0" data-mechanic-empty hidden>No mechanics match your search.</p>
+      </div>
+      <p class="small text-muted mt-2" data-mechanic-selection>None selected</p>
+      ${changing ? '<label class="form-label mt-2" for="mp-mechanic-reason">Reason for the change *</label><textarea id="mp-mechanic-reason" class="form-control" name="reason" rows="2" required></textarea>' : ''}`;
+    const dialog = UI.modal((changing ? 'Change mechanic for ' : 'Assign mechanic to ') + UI.esc(j.job_ref),
+      html, async (_values, form) => {
+        const checked = form.querySelector('input[name="mechanic_id"]:checked');
+        if (!checked) throw new Error('Choose one mechanic.');
+        const payload = { job_id:j.id, mechanic_id:+checked.value };
+        if (changing) {
+          payload.reason = form.querySelector('[name="reason"]').value.trim();
+          if (!payload.reason) throw new Error('Enter the reason for changing mechanics.');
+        }
+        const response = await App.api('Maintenance.assign_mechanic', payload);
+        UI.result(response);
+        if (after) after(response); else App.route();
+      }, { size:'modal-lg', submit:changing ? 'Change mechanic' : 'Assign mechanic', confirmBeforeSubmit:false });
+    const input = dialog.querySelector('[data-mechanic-search]');
+    const count = dialog.querySelector('[data-mechanic-selection]');
+    const rows = [...dialog.querySelectorAll('.mp-mechanic-checklist-item')];
+    const empty = dialog.querySelector('[data-mechanic-empty]');
+    const update = () => {
+      const term = input.value.trim().toLocaleLowerCase();
+      let visible = 0;
+      rows.forEach(row => {
+        row.hidden = !row.dataset.mechanicText.includes(term);
+        if (!row.hidden) visible++;
+      });
+      empty.hidden = !choices.length || visible > 0;
+      const selected = dialog.querySelector('input[name="mechanic_id"]:checked');
+      count.textContent = selected ? 'Selected: ' + (selected.closest('label')?.querySelector('strong')?.textContent || 'Mechanic') : 'None selected';
+    };
+    input.addEventListener('input', update);
+    dialog.querySelectorAll('input[name="mechanic_id"]').forEach(radio => radio.addEventListener('change',update));
+    update();
+  },
   mechanicOptions(currentId) {
     return (MaintUI.data.mechanics || []).filter(m => m.availability === 'Available' || +m.id === +currentId)
       .map(m => [m.id, `${m.full_name} · ${m.mechanic_code}${m.specialization ? ' · ' + m.specialization : ''}`]);
@@ -415,10 +468,7 @@ const MaintUI = {
           { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12, options: [['Minor', 'Potential on-site resolution; trip stays On Hold pending clearance'], ['Major', 'Not Fit to Continue; reschedule the trip'], ['Needs More Information', 'Request missing details from Dispatcher; keep trip On Hold']] },
           { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12 }],
         'Maintenance.assess', { extra: { job_id: j.id }, intro: `<b>Dispatcher incident report (read-only)</b><div class="mt-2"><b>Problem:</b> ${UI.esc(i.problem)}<br><b>Location:</b> ${UI.esc(i.location)}<br><b>Reported:</b> ${UI.datetime(i.incident_at)}<br><b>Original details:</b> ${UI.e(i.details)}</div>${(r.incidentClarifications || []).length ? '<div class="mt-2"><b>Dispatcher updates</b>'+r.incidentClarifications.map(c=>'<div class="small border-bottom py-2">'+UI.esc(c.actor)+' · '+UI.datetime(c.created_at)+'<div>'+UI.esc(c.details)+'</div></div>').join('')+'</div>' : ''}<div class="mt-2 small text-muted">Assess based on available reports; no mechanic or physical inspection is required now. If the report is insufficient, choose Needs More Information (trip remains On Hold). A Major classification moves the trip to For Reschedule. Assign a mechanic separately when inspection or repair can begin.</div>`, after: reopen });
-      if (a === 'mech') UI.formModal((j.mechanic_id ? 'Change mechanic for ' : 'Assign mechanic to ') + UI.esc(j.job_ref), [
-          { name: 'mechanic_id', label: 'Mechanic', type: 'select', required: true, col: 12, options: mech.filter(o => +o[0] !== +j.mechanic_id), placeholder: mech.length ? 'Choose…' : 'No mechanic is available' },
-          ...(j.mechanic_id ? [{ name: 'reason', label: 'Reason for the change', required: true, col: 12 }] : [])],
-        'Maintenance.assign_mechanic', { extra: { job_id: j.id }, size: '', intro: 'Only Available mechanics are listed. A mechanic can work on one repair at a time.', after: reopen });
+      if (a === 'mech') return MaintUI.assignMechanic(j, reopen);
       if (a === 'inspect') UI.formModalFiles('Inspection findings for ' + UI.esc(j.job_ref), [
           { name: 'findings', label: 'Inspection findings', type: 'textarea', required: true, col: 12, placeholder: 'What the mechanic found when checking the truck' },
           { name: 'diagnosis', label: 'Diagnosis', type: 'textarea', required: true, col: 12, placeholder: 'Cause of the problem and what must be repaired or replaced' },
