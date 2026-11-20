@@ -819,11 +819,17 @@ const AnalyticsAutoSync = {
           [{label:'Value issued',data:used.map(x=>Number(x.value)),color:colors[0]}],{money:true});
         plot('Part use frequency · releases','bar',used.map(x=>x.part_number),
           [{label:'Releases',data:used.map(x=>Number(x.releases)),color:colors[1]}]);
-        const shortage = (purchase.shortages||[]).slice(0,12);
-        plot('Parts with requests not fully released','hbar',shortage.map(x=>x.part_number),
-          [{label:'Requests',data:shortage.map(x=>Number(x.requests)),color:colors[3]}]);
+        // Third diagnostic measure complements issued value and release frequency:
+        // actual stock-out quantity per specific part (never sum unlike units).
+        // Labels retain the specific Part ID, recorded description and unit.
+        const issuedParts = used.filter(x=>Number(x.units)>0);
+        const issuedLabel = x => [x.description, x.part_number].filter(Boolean).join(' · ') +
+          (x.unit ? ' ('+x.unit+')' : '');
+        plot('Parts Issued Quantity by Part','hbar',issuedParts.map(issuedLabel),
+          [{label:'Issued quantity per part',data:issuedParts.map(x=>Number(x.units)),color:colors[3]}],
+          {note:'Shows the recorded quantity issued for each part during the selected period. Each bar belongs to one specific Part ID and its unit of measure; quantities of different parts or units are not added together.'});
         supporting = reportTable('Frequently used parts', [['Part','part_number'],['Unit','unit'],['Issued quantity','units'],['Issued value',x=>moneyFmt(x.value)],['Releases','releases']],used,12);
-        note = '5.2.4 · Rankings by monetary value and issue frequency avoid adding incompatible item quantities.';
+        note = '5.2.4 · Issued value, release frequency and issued quantity are separate recorded measures. Quantities are compared per part and unit of measure, never added across incompatible units.';
       } else {
         basic('Stock-in movements',Number(by('Stock In').movements||0),'Recorded stock-in events');
         basic('Stock-out movements',Number(by('Stock Out').movements||0),'Recorded stock-out events');
