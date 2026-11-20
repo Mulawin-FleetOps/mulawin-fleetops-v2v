@@ -129,11 +129,15 @@ const MaintUI = {
         <div class="form-help" data-truck-search-count aria-live="polite">Type at least 2 characters to search for a truck.</div>` },
       { name:'problem', label:'Problem or defect', type:'textarea', required:true, col:12,
         placeholder:'Describe what is wrong and where the problem is located.' },
+      { name:'findings', label:'Inspection findings', type:'textarea', required:true, col:12,
+        placeholder:'Record the actual condition and findings for this garage report.' },
+      { name:'diagnosis', label:'Diagnosis', type:'textarea', required:true, col:12,
+        placeholder:'State the cause or suspected cause of the problem.' },
       { name:'remarks', label:'Additional remarks (optional)', col:12 },
       { name:'photos', label:'Photos of the reported problem', type:'file', multiple:true, required:true, col:12,
         attrs:'accept="image/png,image/jpeg"', help:'Attach evidence of the truck condition. Photos are required.' }
     ]);
-    const body = `<p class="modal-intro">Report the problem first. The date is recorded automatically and the truck is taken out of service. Assign mechanics, confirm affected components and request parts from the repair record after reporting.</p>
+    const body = `<p class="modal-intro">Record the truck problem, inspection findings and diagnosis in one form. The date is recorded automatically and the truck is taken out of service. Next, assign the lead and assisting mechanics together in one form.</p>
       <div class="purchasing-receive-section">Truck problem report</div>${fields}`;
     const wrap = UI.modal('Report a truck problem', body, async (values, form) => {
       if (!values.vehicle_id) throw new Error('Choose a valid affected truck from the suggestions.');
@@ -216,7 +220,7 @@ const MaintUI = {
     </label>`).join('');
     const allMechs = (d.mechanics || []).filter(m => m.availability === 'Available' || assigned.includes(+m.id));
     const summary = j.source === 'Incident' ? `<div class="alert alert-light border small"><b>Incident-related repair:</b> Original Dispatcher incident details stay read-only in Repair Details. Classification: ${UI.esc(j.severity || 'Not assessed')}.</div>` : '';
-    const html = `<div class="small text-muted mb-3">Complete the repair setup in this one form. The final submission locks the mechanic team. Inspection and repair completion remain separate.</div>
+    const html = `<div class="small text-muted mb-3">Assign the lead and assisting mechanics together. Confirm affected components and parts in this one form. Garage inspection findings were already recorded with the truck problem report.</div>
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
@@ -265,7 +269,7 @@ const MaintUI = {
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
       <div data-parts-input hidden><div data-final-lines></div><button type="button" class="btn btn-outline-primary btn-sm" data-final-add-part>Add part</button></div>`;
-    const dialog = UI.modal('Finalize RA · ' + UI.esc(j.job_ref),html,async (_values,form)=>{
+    const dialog = UI.modal((j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team · ' : 'Finalize RA · ') + UI.esc(j.job_ref),html,async (_values,form)=>{
       const lead = +(form.querySelector('[data-final-lead]:checked')?.value || 0);
       const helpers = [...form.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper);
       const components = [...form.querySelectorAll('[data-component]:checked')].map(x=>+x.dataset.component);
@@ -296,7 +300,7 @@ const MaintUI = {
       if (parts_requirement !== 'Parts Required' && parts_lines.length) throw new Error('Select Parts Required before adding parts.');
       const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,other_components,parts_requirement,parts_lines});
       UI.result(response); if(after) after(); else App.route();
-    },{submit:'Finalize RA',size:'modal-xl'});
+    },{submit:j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team' : 'Finalize RA',size:'modal-xl'});
 
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
@@ -599,7 +603,7 @@ const MaintUI = {
     const acts = [];
     if (act) {
       if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Assess incident', 'primary', 'bi-clipboard-pulse']);
-      if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
+      if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['finalize', 'Assign Mechanic Team', 'primary', 'bi-people']);
       if (j.status === 'Under Inspection') acts.push(j.mechanic_id ? ['inspect', 'Record findings', 'primary', 'bi-search'] : ['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
       if (j.status === 'Under Repair') acts.push(d.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'primary', 'bi-lock'] : (+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']));
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
@@ -789,7 +793,7 @@ const MaintUI = {
   /** WS_DESIGN_V1: the one next workflow step offered directly on a Repair Management row (Motorpool only). */
   rowStep(j) {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
-    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
+    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['finalize', 'Assign Mechanic Team', 'bi-people'];
     if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
     if (j.status === 'Completed') return null; // Details are read-only after completion.
