@@ -72,6 +72,31 @@ final class Oversight {
                 'next' => $pending ? 'Admin' : (in_array($o['status'], ['Approved', 'Partially Received'], true) ? 'Purchasing (receiving)' : '—'),
                 'decided_at' => $o['decided_at'], 'decider' => $o['decider'], 'notes' => $o['decision_notes'], 'actionable' => $pending, 'go' => 'purchase_orders?open=' . $o['id']];
         }
+        // General Budget requests are owned by Finance; Admin alone makes the approval decision.
+        Actions::load('Finance');
+        if (Finance::budgetRequestsReady($p)) {
+            $budgetHistory = $history ? " OR r.decided_at >= NOW() - INTERVAL 90 DAY" : '';
+            foreach(many($p, "SELECT r.*, su.full_name AS requester, du.full_name AS decider
+                    FROM general_budget_requests r
+                    JOIN users su ON su.id=r.submitted_by LEFT JOIN users du ON du.id=r.decided_by
+                    WHERE r.status='Pending Approval'$budgetHistory ORDER BY r.id DESC LIMIT 300") as $r) {
+                $pending=$r['status']==='Pending Approval';
+                $rows[]=[
+                    'key'=>'budget:'.$r['id'],'kind'=>'budget','id'=>(int)$r['id'],
+                    'ref'=>'GBR-'.str_pad((string)$r['id'],6,'0',STR_PAD_LEFT),
+                    'type'=>'General Budget allocation','dept'=>'Finance',
+                    'requester'=>$r['requester'],'submitted'=>$r['submitted_at'],
+                    'amount'=>(float)$r['amount'],'status'=>$pending?'Pending':$r['status'],
+                    'raw_status'=>$r['status'],
+                    'summary'=>$r['period_start'].' to '.$r['period_end'].($r['remarks']?' · '.$r['remarks']:''),
+                    'next'=>$pending?'Admin':'—',
+                    'decided_at'=>$r['decided_at'],'decider'=>$r['decider'],
+                    'notes'=>$r['decision_notes'],
+                    'actionable'=>$pending && (int)$r['submitted_by']!==$me,
+                    'own'=>(int)$r['submitted_by']===$me,'go'=>'finance_budgets'
+                ];
+            }
+        }
         Actions::load('Purchasing');
         if (Purchasing::countsReady($p)) {
             $hist2 = $history ? " OR c.reviewed_at >= NOW() - INTERVAL 90 DAY" : '';
