@@ -249,10 +249,14 @@ const MaintUI = {
       </div>
       <div class="small text-muted mb-2" data-final-lead-selected>Choose one lead mechanic above.</div>
       <label class="form-label" for="mp-final-helper-search">Assisting mechanics (optional)</label>
-      <input id="mp-final-helper-search" class="form-control mb-2" type="search" autocomplete="off" placeholder="Search name, ID or specialization…" data-final-helper-search>
+      <div class="mp-final-skill-needs small mb-2" data-final-skill-needs aria-live="polite">Choose affected components to see required skills and recommended mechanics.</div>
+      <div class="mp-final-helper-tools mb-2">
+        <input id="mp-final-helper-search" class="form-control" type="search" autocomplete="off" placeholder="Search name, ID or specialization…" data-final-helper-search>
+        <label class="mp-final-helper-filter"><input type="checkbox" data-helper-recommended-only> Recommended only</label>
+      </div>
       <div class="mp-final-helper-list" aria-label="Select assisting mechanics">
-        ${allMechs.map(m=>`<label class="mp-final-helper-choice" data-helper-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLowerCase())}"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)} · ${UI.esc(m.specialization || 'No listed specialization')}</small></span></label>`).join('')}
-        <p class="small text-muted p-2" data-helper-empty hidden>No assisting mechanics match the search.</p>
+        ${allMechs.map(m=>`<label class="mp-final-helper-choice" data-helper-mid="${+m.id}" data-helper-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLowerCase())}"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)} · ${UI.esc(m.specialization || 'No listed specialization')}</small><em data-helper-match hidden></em></span></label>`).join('')}
+        <p class="small text-muted p-2" data-helper-empty hidden>No assisting mechanics match the current filters.</p>
       </div>
       <div class="small text-muted mt-2" data-helper-count>0 assisting mechanics selected</div>
       <div class="small mb-3" data-team-preview></div>
@@ -292,6 +296,7 @@ const MaintUI = {
       const covered=[...new Set((d.mechanicSkills||[]).filter(x=>team.includes(+x.mechanic_id)).map(x=>x.name))];
       dialog.querySelector('[data-team-preview]').textContent='Selected team: '+team.map(id=>(d.mechanics||[]).find(m=>+m.id===id)?.full_name).filter(Boolean).join(' · ')+' | Verified skill coverage: '+(covered.join(', ')||'None recorded');
       dialog.querySelector('[data-helper-count]').textContent=(team.length-(lead?1:0))+' assisting mechanic(s) selected';
+      refreshHelperRecommendations(names, covered, lead);
       dialog.querySelector('[data-parts-input]').hidden=dialog.querySelector('[data-final-parts]').value!=='Parts Required';
     };
     const leadSearch=dialog.querySelector('[data-final-lead-search]');
@@ -311,14 +316,69 @@ const MaintUI = {
     const helperSearch=dialog.querySelector('[data-final-helper-search]');
     const helperRows=[...dialog.querySelectorAll('.mp-final-helper-choice')];
     const helperEmpty=dialog.querySelector('[data-helper-empty]');
+    const recommendedOnly=dialog.querySelector('[data-helper-recommended-only]');
+    const verifiedSkills=new Map();
+    (d.mechanicSkills||[]).forEach(item=>{
+      const id=+item.mechanic_id;
+      if(!verifiedSkills.has(id))verifiedSkills.set(id,new Set());
+      verifiedSkills.get(id).add(item.name);
+    });
+    // The actual selected catalog components drive recommendations. Never infer
+    // verified credentials from mechanics.specialization (legacy free text).
+    let recommendedIds=new Set();
     const filterHelpers=()=>{
       const term=helperSearch.value.trim().toLocaleLowerCase();
       let shown=0;
-      helperRows.forEach(row=>{row.hidden=!row.dataset.helperText.includes(term);if(!row.hidden)shown++});
+      helperRows.forEach(row=>{
+        const checked=row.querySelector('[data-final-helper]').checked;
+        const matchesSearch=row.dataset.helperText.includes(term);
+        const matchesRecommend=!recommendedOnly.checked||recommendedIds.has(+row.dataset.helperMid)||checked;
+        row.hidden=!matchesSearch||!matchesRecommend;
+        if(!row.hidden)shown++;
+      });
       helperEmpty.hidden=shown>0;
     };
+    const refreshHelperRecommendations=(needed,covered,lead)=>{
+      const uncovered=needed.filter(skill=>!covered.includes(skill));
+      const selected=[lead,...[...dialog.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper)];
+      const totalLeadCoverage=needed.filter(skill=>(verifiedSkills.get(lead)||new Set()).has(skill));
+      const skillInfo=dialog.querySelector('[data-final-skill-needs]');
+      skillInfo.textContent=needed.length
+        ? 'Required skills: '+needed.join(', ')+'. Lead covers: '+(totalLeadCoverage.join(', ')||'none verified')+
+          '. Remaining skills for this team: '+(uncovered.join(', ')||'all covered')+'.'
+        : 'No verified component-skill requirements selected. Choose mechanics based on your inspection and their qualifications.';
+      const beforeAssist=needed.filter(skill=>!(verifiedSkills.get(lead)||new Set()).has(skill));
+      recommendedIds=new Set();
+      helperRows.forEach(row=>{
+        const id=+row.dataset.helperMid;
+        const checkbox=row.querySelector('[data-final-helper]');
+        const skills=verifiedSkills.get(id)||new Set();
+        // Rank candidates by skills missing from the lead, then by the
+        // remaining gaps after already-selected assistants.
+        const matches=beforeAssist.filter(skill=>skills.has(skill));
+        const fills=uncovered.filter(skill=>skills.has(skill));
+        const recommended=!!needed.length&&!!matches.length&&id!==lead;
+        if(recommended)recommendedIds.add(id);
+        row.dataset.recommendScore=String(fills.length*100+matches.length);
+        const badge=row.querySelector('[data-helper-match]');
+        badge.textContent=matches.length
+          ? 'Verified match: '+matches.join(', ')+(fills.length?' · fills '+fills.length+' remaining gap(s)':'')
+          : needed.length?'No verified match to selected component skills':'';
+        badge.hidden=!needed.length;
+        row.classList.toggle('mp-helper-recommended',recommended);
+        row.classList.toggle('mp-helper-skill-gap',fills.length>0);
+        row.classList.toggle('mp-helper-already-chosen',checkbox.checked);
+      });
+      helperRows.sort((a,b)=>{
+        const ac=a.querySelector('[data-final-helper]').checked?1:0;
+        const bc=b.querySelector('[data-final-helper]').checked?1:0;
+        return bc-ac || (+b.dataset.recommendScore)-(+a.dataset.recommendScore)
+          || a.dataset.helperText.localeCompare(b.dataset.helperText);
+      }).forEach(row=>row.parentNode.insertBefore(row,helperEmpty));
+      filterHelpers();
+    };
     helperSearch.addEventListener('input',filterHelpers);
-    filterHelpers();
+    recommendedOnly.addEventListener('change',filterHelpers);
     dialog.querySelectorAll('[data-comp-tab]').forEach(button=>button.addEventListener('click',()=>{
       const key=button.dataset.compTab;
       dialog.querySelectorAll('[data-comp-tab]').forEach(tab=>{
@@ -329,6 +389,7 @@ const MaintUI = {
     dialog.querySelector('[data-other-components]').addEventListener('input',update);
     dialog.querySelectorAll('[data-component],[data-final-helper],[data-final-lead],[data-final-parts]').forEach(x=>x.addEventListener('change',()=>{update();refreshLeadChoices()}));
     refreshLeadChoices();
+    update();
     dialog.querySelector('[data-final-add-part]').onclick=()=>{
       if(!catalog.length)return UI.toast('Parts catalog is unavailable. Use the existing Parts Requests screen.', 'warning');
       const holder=dialog.querySelector('[data-final-lines]');
