@@ -45,4 +45,16 @@ assert.match(admin,/quantities of different parts or units are not added togethe
 assert.ok(admin.includes("plot('Most used parts by issued value'"),'Preserve issued value chart');
 assert.ok(admin.includes("plot('Part use frequency · releases'"),'Preserve release frequency chart');
 console.log('PASS: Admin Diagnostic Inventory uses recorded issued quantity per Part ID and unit, replacing empty unfulfilled-request chart');
+assert.ok(!admin.includes("plot('Largest overdue invoices'"),'Old empty Finance Diagnostic chart should not return');
+assert.match(admin,/plot\('Payables by Expense Category','hbar'/);
+assert.match(admin,/d\.payableByCategory \|\| \[\]/);
+assert.match(oversight,/\$payableCategories = \[\]/);
+assert.match(oversight,/\$payable\['category'\]/);
+assert.match(oversight,/\$payable\['balance'\]/);
+assert.match(oversight,/\$po\['received_value'\] - \(float\)\$po\['paid_amount'\]/);
+assert.match(oversight,/Purchase orders \(uncategorized\)/);
+assert.match(oversight,/'payableByCategory' => \$payableByCategory/);
+assert.ok(admin.includes("plot('Receivables aging by due date'"),'Retain receivables aging chart');
+assert.ok(admin.includes("plot('Payables grouped by due date'"),'Retain payables due-date chart');
+console.log('PASS: Admin Finance Diagnostic uses recorded payables by category including uncategorized PO balance');
 console.log('PASS: Descriptive vehicle type/status chart contract, filters, statuses, and KPI preservation');
