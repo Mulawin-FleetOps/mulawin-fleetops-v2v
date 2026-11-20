@@ -608,3 +608,46 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
     grid-template-columns:minmax(0,1fr) !important;
   }
 }
+
+
+/* MOTORPOOL_ATTENDANCE_BULK_ACTIONS_V1 — match Operations header action buttons. */
+#pageContent .mp-mechanic-attendance-table .mp-attendance-bulk-actions {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-left:auto;
+}
+#pageContent .mp-mechanic-attendance-table .mp-attendance-bulk-actions > .btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:36px;
+  padding:8px 12px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:650;
+  white-space:nowrap;
+}
+#pageContent .mp-mechanic-attendance-table .mp-attendance-bulk-actions > .btn-outline-primary {
+  color:#176b3d;
+  border-color:#9fcab0;
+  background:#f3faf5;
+}
+#pageContent .mp-mechanic-attendance-table .mp-attendance-bulk-actions > .btn-outline-secondary {
+  color:#3d6450;
+  border-color:#d5e2d9;
+  background:#fff;
+}
+#pageContent .mp-mechanic-attendance-table .mp-attendance-bulk-actions > .btn:disabled {
+  opacity:.45;
+  cursor:not-allowed;
+}
+@media(max-width:740px) {
+  #pageContent .mp-mechanic-attendance-table .mp-attendance-bulk-actions {
+    margin-left:0;
+    justify-content:flex-start;
+    width:100%;
+  }
+}
