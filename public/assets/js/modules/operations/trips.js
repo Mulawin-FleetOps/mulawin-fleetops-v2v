@@ -62,7 +62,7 @@ const TripUI = {
         if (t.incident_status === 'Reported') return 'Maintenance assesses the damage (minor or major).';
         if (t.incident_status === 'Repaired - Cleared to Continue') return 'Motorpool recorded Fit to Continue. Dispatcher resumes the trip.';
         return 'Motorpool is arranging inspection, repair or clearance. The trip remains On Hold.';
-      case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Truck is repaired. Dispatcher reschedules the trip.' : 'Truck is being repaired (major damage). Then the dispatcher reschedules.';
+      case 'For Reschedule': return t.truck_status === 'Assigned' ? 'Replacement truck is assigned. Set the new schedule and complete pre-dispatch checks.' : 'Select an eligible replacement truck now. The original truck can remain under garage repair.';
       case 'Missed': return 'Scheduled dispatch missed. No resources were assigned before departure.';
       case 'Completed':
         if (+t.awaiting_arrival) return 'Delivered. The truck is returning: the dispatcher does the arrival checklist when it is back.' + (t.billing_status ? ' · Billing: ' + t.billing_status : '');
@@ -76,7 +76,7 @@ const TripUI = {
     if (UI.isDispatcher() && Number(t.responsible_dispatcher_id) === Number(App.me.user.id)) {
       return (t.status === 'Pre-Assigned') || (t.status === 'Ready for Dispatch' && (t.fund_status === 'Released' || (!t.fund_status && +t.attempt_number > 1)))
         || t.fund_status === 'Rejected' || (t.status === 'On Hold - Incident Reported' && t.incident_status === 'Repaired - Cleared to Continue')
-        || (t.status === 'For Reschedule' && t.truck_status === 'Assigned') || (t.status === 'Completed' && +t.awaiting_arrival);
+        || t.status === 'For Reschedule' || (t.status === 'Completed' && +t.awaiting_arrival);
     }
     if (r === 'finance') return t.fund_status === 'Ready for Release';
     if (r === 'motorpool') return t.status === 'On Hold - Incident Reported' && t.incident_status === 'Reported';
@@ -420,9 +420,10 @@ const TripUI = {
         if (!ok) why = 'Resume is enabled after Maintenance confirms the on-site repair (now: ' + t.incident_status + ').';
       }
       if (t.status === 'For Reschedule') {
-        const ok = t.truck_status === 'Assigned' || !t.vehicle_id;
-        acts.push(btn('reschedule', 'Reschedule trip', ok ? 'primary' : 'secondary', 'bi-calendar-plus', !ok));
-        if (!ok) why = 'The truck is ' + t.truck_status + '. Reschedule after Maintenance confirms the repair (or the Dispatcher selects another eligible fixed pair).';
+        const ready = t.truck_status === 'Assigned';
+        if (!ready) acts.push(btn('replace_truck', 'Select replacement truck', 'primary', 'bi-truck'));
+        acts.push(btn('reschedule', 'Confirm new schedule', ready ? 'primary' : 'secondary', 'bi-calendar-plus', !ready));
+        if (!ready) why = 'Choose an eligible replacement truck first. The original incident truck remains unavailable until Motorpool clearance; garage repair does not block the trip.';
       }
       if (t.status === 'Completed' && +t.awaiting_arrival) acts.push(btn('arrival', 'Arrival checklist', 'primary', 'bi-clipboard-check'));
       // CHECKLIST_27_TRIP_DETAILS_LOCK_V1: match backend pre-dispatch edit rule.
@@ -544,8 +545,9 @@ const TripUI = {
         'Trips.incident_reschedule', { extra: { trip_id: t.id }, submit: 'Move to For Reschedule', after: () => { TripUI.open(t.id); App.route(); },
           intro: 'Motorpool recorded <b>Not Fit to Continue</b> for this Minor incident. The classification and history are kept; the dispatcher reschedules after the repair is verified, or selects another eligible fixed pair.' });
       if (a === 'resume') UI.confirmAction('Resume ' + UI.esc(t.trip_ref), 'The trip continues (In Transit). This is not a second attempt.', 'Trips.resume', { trip_id: t.id }, { submit: 'Resume trip' });
+      if (a === 'replace_truck') { UI.closeDrawer(); DispatcherUI.assignResources(t.id); }
       if (a === 'reschedule') UI.formModal('Reschedule ' + UI.esc(t.trip_ref), [{ name: 'scheduled_at', label: 'New dispatch schedule', type: 'datetime', required: true, col: 12, attrs: `min="${UI.nowManila()}" max="${UI.nowManila(365 * 1440)}"`, help: 'Present or future date and time (Philippine time).' }], 'Trips.reschedule',
-        { extra: { trip_id: t.id }, intro: 'After rescheduling, do the pre-dispatch checklist again. Confirm Redispatch records the Second Attempt.', after: () => { TripUI.open(t.id); App.route(); } });
+        { extra: { trip_id: t.id }, intro: 'The replacement truck is already assigned. The incident truck stays in Motorpool repair. After rescheduling, repeat the pre-dispatch checklist; Confirm Redispatch records the Second Attempt.', after: () => { TripUI.open(t.id); App.route(); } });
       if (a === 'printfund') FundUI.print(fund.id);
     });
     if (!ops && !UI.isDispatcher()) UI.drawerSections(el,[['overview','Overview',['Trip']],['funds','Trip Funds & Fuel',['Fund request']],['pre','Pre-Dispatch',['Pre-dispatch checklist']],['progress','Dispatch & Progress',['Updates and delays','History']],['incidents','Incidents & Maintenance',['Incidents']],['arrival','Arrival & Completion',['Arrival checklist','Completion','Documents']]]);
