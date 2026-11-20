@@ -20,6 +20,12 @@ on:
       - 'tests/purchasing_finance_tests.php'
       - 'tests/general_budget_integration_tests.php'
       - 'tests/run_general_budget_integration_tests.php'
+      - 'tests/incident_resume_ui_contract.test.cjs'
+      - 'public/assets/js/modules/operations/dispatcher.js'
+      - 'public/assets/js/modules/operations/trips.js'
+      - 'public/assets/js/modules/operations/ops-head.js'
+      - 'backend/Modules/Operations/Trips.php'
+      - 'backend/Modules/Maintenance/Maintenance.php'
       - 'tests/migration_release_checks.php'
       - '.github/workflows/migration-safety.yml'
   pull_request:
@@ -41,6 +47,12 @@ on:
       - 'tests/purchasing_finance_tests.php'
       - 'tests/general_budget_integration_tests.php'
       - 'tests/run_general_budget_integration_tests.php'
+      - 'tests/incident_resume_ui_contract.test.cjs'
+      - 'public/assets/js/modules/operations/dispatcher.js'
+      - 'public/assets/js/modules/operations/trips.js'
+      - 'public/assets/js/modules/operations/ops-head.js'
+      - 'backend/Modules/Operations/Trips.php'
+      - 'backend/Modules/Maintenance/Maintenance.php'
       - 'tests/migration_release_checks.php'
       - '.github/workflows/migration-safety.yml'
   workflow_dispatch:
@@ -85,6 +97,11 @@ jobs:
           php -l tests/general_budget_integration_tests.php
           node --check public/assets/js/modules/accounting/finance.js
           node --check public/assets/js/modules/administration/oversight.js
+          node --check public/assets/js/modules/operations/dispatcher.js
+          node --check public/assets/js/modules/operations/trips.js
+          node --check public/assets/js/modules/operations/ops-head.js
+          php -l backend/Modules/Operations/Trips.php
+          php -l backend/Modules/Maintenance/Maintenance.php
           php -l scripts/approve_migration.php
           php -l scripts/lib/migration_sql.php
           php -l scripts/lib/migration_release.php
@@ -94,6 +111,8 @@ jobs:
           php -l tests/migration_safety_checks.php
           php -l tests/migration_mysql_integration.php
           php -l tests/migration_release_checks.php
+      - name: Incident Resume UI/server regression contract
+        run: node tests/incident_resume_ui_contract.test.cjs
       - name: Offline migration regression tests (no DB credentials)
         run: |
           php tests/migration_safety_checks.php
