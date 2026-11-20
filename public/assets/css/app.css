@@ -3710,3 +3710,28 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
  .pur-request-metric:nth-child(2) { border-right:0; }
  .pur-request-fact { grid-template-columns:minmax(0,1fr); gap:3px; }
 }
+
+
+/* Purchasing — compact Parts Request details drawer */
+.pur-request-details { display:grid; gap:14px; padding-bottom:4px; }
+.pur-request-detail-section { border:1px solid #e1e8e3; border-radius:10px; overflow:hidden; min-width:0; background:#fff; }
+.pur-request-detail-section > h3 { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0; padding:11px 14px; background:#f7f9f7; border-bottom:1px solid #e1e8e3; color:#536c5c; font-size:12px; letter-spacing:.045em; line-height:1.4; font-weight:750; text-transform:uppercase; }
+.pur-request-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 18px; padding:14px; }
+.pur-request-detail-field { min-width:0; overflow-wrap:anywhere; }
+.pur-request-detail-field > small { display:block; margin-bottom:4px; font-size:11px; color:#829589; line-height:1.4; font-weight:400; }
+.pur-request-detail-field > div { color:#293e33; font-size:13px; line-height:1.5; font-weight:600; min-width:0; overflow-wrap:anywhere; }
+.pur-request-detail-sub { display:block; color:#7a8b81; font-size:11px; font-weight:400; margin-top:3px; }
+.pur-request-part-list { padding:12px; display:grid; gap:10px; }
+.pur-request-part-card { min-width:0; border:1px solid #e5ebe7; border-radius:8px; padding:12px; background:#fff; }
+.pur-request-part-heading { display:flex; flex-wrap:wrap; gap:5px 9px; align-items:baseline; margin-bottom:11px; min-width:0; }
+.pur-request-part-heading strong { font-size:13px; color:#253b30; }
+.pur-request-part-heading span { color:#708278; font-size:12px; overflow-wrap:anywhere; }
+.pur-request-part-counts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+.pur-request-part-counts .pur-request-detail-field { min-width:0; background:#f7f9f7; padding:8px; border-radius:6px; }
+.pur-request-part-counts .pur-request-detail-field > div { font-variant-numeric:tabular-nums; }
+.pur-request-detail-content { padding:12px 14px; min-width:0; }
+.pur-request-detail-content .ws-trucks { margin-bottom:0; }
+@media(max-width:540px) {
+  .pur-request-detail-grid { grid-template-columns:minmax(0,1fr); gap:11px; }
+  .pur-request-part-counts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
