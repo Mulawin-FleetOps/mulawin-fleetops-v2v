@@ -72,13 +72,14 @@ mpok($j()['verified_at']!==null,'verified repair remains auditable');
 $garageTruck=insert($p,'vehicles',['plate_number'=>'MPV-002','truck_type'=>'Wing Van']);
 $_FILES=['photos'=>$file()];
 $garageReport=Maintenance::action($mp,'report',[
-    'vehicle_id'=>$garageTruck,'problem'=>'Garage headlight fault',
+    'vehicle_id'=>$garageTruck,
     'findings'=>'Headlight unlit','diagnosis'=>'Electrical circuit fault'
 ]);
 $_FILES=[];
 $garageJob=(int)$garageReport['job_id'];
 $garageState=fn()=>one($p,'SELECT * FROM maintenance_jobs WHERE id=?',[$garageJob]);
-mpok($garageState()['status']==='Reported' && $garageState()['findings']==='Headlight unlit',
+mpok($garageState()['status']==='Reported' && $garageState()['findings']==='Headlight unlit'
+    && $garageState()['problem']==='Headlight unlit',
     'new garage intake saves findings and diagnosis before mechanic assignment');
 Maintenance::action($mp,'finalize_assignment',[
     'job_id'=>$garageJob,'mechanic_id'=>$lead,'component_ids'=>[$headlight],
