@@ -878,7 +878,7 @@ final class Maintenance {
         // checks with evidence may support an unassigned Minor incident clearance.
         $roadside = $decision === 'Fit to Continue' && !empty($d['roadside_check']);
         $checkedBy = $roadside ? field($d, 'checked_by', 150) : null;
-        $onsiteRepair = $roadside ? field($d, 'repair_performed', 2000) : null;
+        $onsiteRepair = $roadside ? optField($d, 'repair_performed', 2000) : null;
         $onSiteConfirmed = !empty($d['on_site_checked']);
         return transaction(function (PDO $p) use ($u, $id, $decision, $findings, $inspectionOnly, $roadside, $checkedBy, $onsiteRepair, $onSiteConfirmed) {
             $j = self::lockJob($p, $id);
@@ -899,6 +899,7 @@ final class Maintenance {
                 must(!$inspectionOnly, 'Choose one clearance method.', 422);
                 must($j['status'] === 'Under Inspection' && !$j['mechanic_id'] && !$j['assignment_finalized_at'],
                     'Roadside clearance applies only to a Minor incident before garage repair.', 409);
+                must($onsiteRepair !== null, 'Document the completed onsite repair before declaring the truck Fit to Continue.', 422);
                 must($onSiteConfirmed, 'Confirm the physical on-site vehicle check before clearing the trip.', 422);
                 must(Files::has('evidence'), 'Attach supporting evidence of the on-site vehicle check.', 422);
                 must(!one($p, 'SELECT 1 FROM maintenance_costs WHERE maintenance_job_id=? LIMIT 1', [$id]),
