@@ -893,3 +893,19 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 .modal .mp-final-helper-choice [data-helper-match][hidden] {
   display:none!important;
 }
+
+
+/* MOTORPOOL_ASSISTANT_SKILL_WARNING_V1
+   Keep actionable missing-skill errors at the selection point. */
+.modal .mp-final-skill-warning {
+  padding:11px 13px;
+  border:1px solid #efb5ae;
+  border-radius:8px;
+  background:#fff0ef;
+  color:#a32d26;
+  font-size:12.5px;
+  line-height:1.6;
+  font-weight:550;
+}
+.modal .mp-final-skill-warning[hidden] {display:none!important}
+.modal .mp-final-skill-warning:focus {outline:2px solid #c76a5f;outline-offset:2px}
