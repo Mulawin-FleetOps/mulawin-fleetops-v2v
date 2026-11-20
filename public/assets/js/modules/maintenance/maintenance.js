@@ -766,7 +766,6 @@ const MaintUI = {
       if (a === 'complete' && +r.pending_parts_units > 0) return UI.toast('Purchasing must release the requested parts first (' + r.pending_parts_units + ' units pending).', 'error');
       if (a === 'complete') UI.formModalFiles('Complete repair ' + UI.esc(j.job_ref), [
           { name: 'repair_performed', label: 'Corrective action performed', type: 'textarea', required: true, col: 12 },
-          { name: 'completed_on', label: 'Completion date', type: 'date', value: UI.today(), required: true, col: 6 }, { name: 'remarks', label: 'Remarks', col: 6 },
           { name: 'evidence', label: 'Evidence of the repair (photos or documents, required)', type: 'file', multiple: true, required: true, col: 12, attrs: 'accept="application/pdf,image/png,image/jpeg"' }],
         'Maintenance.complete', { extra: { job_id: j.id }, submit: 'Complete repair', intro: 'Add parts and labor costs before completing. The mechanic becomes available again. The truck stays out of service until you verify it.', after: reopen });
       if (a === 'clearance') UI.formModalFiles('Vehicle clearance · ' + UI.esc(i.incident_ref), [
