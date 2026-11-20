@@ -280,7 +280,10 @@ const MaintUI = {
       <div class="purchasing-receive-section">Parts requirement</div>
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
-      <div data-parts-input hidden><div data-final-lines></div><button type="button" class="btn btn-outline-primary btn-sm" data-final-add-part>Add part</button></div>`;
+      <div class="mp-final-parts" data-parts-input hidden>
+        <div class="mp-final-parts-list" data-final-lines></div>
+        <button type="button" class="btn btn-outline-primary btn-sm mp-final-add-part" data-final-add-part><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add Part</button>
+      </div>`;
     const dialog = UI.modal((j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team · ' : 'Finalize RA · ') + UI.esc(j.job_ref),html,async (_values,form)=>{
       const lead = +(form.querySelector('[data-final-lead]')?.value || 0);
       const helpers = [...form.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper);
@@ -519,9 +522,9 @@ const MaintUI = {
       const used = new Set([...partsHolder.querySelectorAll('[data-part-id]')].map(el => el.value).filter(Boolean));
       if (partsHolder.querySelectorAll('[data-part-id]').length >= catalog.length)
         return UI.toast('All available parts already have a row.', 'warning');
-      const line=document.createElement('div');line.className='d-flex align-items-end gap-2 mb-2';
+      const line=document.createElement('div');line.className='mp-final-part-row';
       line.setAttribute('data-final-part-row','');
-      line.innerHTML=`<div class="flex-grow-1"><label class="form-label">Part</label><select class="form-select" data-part-id><option value="">Choose part</option></select></div><div style="max-width:110px"><label class="form-label">Qty</label><input class="form-control" type="number" min="1" step="1" value="1" data-part-qty></div><button type="button" class="btn btn-outline-danger">Remove</button>`;
+      line.innerHTML=`<div class="mp-final-part-name"><label class="form-label">Part Name</label><select class="form-select" data-part-id aria-label="Select part"><option value="">Choose part</option></select></div><div class="mp-final-part-qty"><label class="form-label">Qty</label><input class="form-control" type="number" min="1" step="1" value="1" data-part-qty aria-label="Part quantity"></div><button type="button" class="btn btn-outline-danger btn-sm mp-final-part-remove">Remove</button>`;
       line.querySelector('[data-part-id]').addEventListener('change', event => {
         const selectedPart = event.target.value;
         if (selectedPart && [...partsHolder.querySelectorAll('[data-part-id]')]
