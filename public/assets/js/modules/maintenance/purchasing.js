@@ -58,9 +58,13 @@ const PurUI = {
       if (!part || !price || !note) return;
       const cost = part.selectedOptions[0]?.dataset.cost;
       const known = cost !== undefined && cost !== '' && Number(cost) > 0;
-      const previousAuto = price.dataset.autoValue || '';
-      const wasAuto = price.dataset.priceSource === 'catalog' && price.value === previousAuto;
-      if (changedPart && wasAuto) price.value = '';
+      // A price belongs to its part. On a different part selection, clear
+      // even a manually entered price so the previous part's price is not reused.
+      if (changedPart) {
+        price.value = '';
+        delete price.dataset.autoValue;
+        price.dataset.priceSource = '';
+      }
       if (part.value && !price.value && known) {
         price.value = String(Number(cost).toFixed(2));
         price.dataset.autoValue = price.value;
