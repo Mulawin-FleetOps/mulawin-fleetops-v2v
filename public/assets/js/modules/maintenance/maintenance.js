@@ -291,6 +291,7 @@ const MaintUI = {
       const missingSkills=requiredSkills.filter(skill=>!confirmedSkills.has(skill));
       if (missingSkills.length) {
         const warning=form.querySelector('[data-final-skill-warning]');
+        warning.closest('details')?.setAttribute('open', '');
         warning.hidden=false;
         warning.focus({preventScroll:true});
         warning.scrollIntoView({block:'center',behavior:'smooth'});
