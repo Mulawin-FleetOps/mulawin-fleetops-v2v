@@ -181,7 +181,39 @@ HM.chart = (cv, kind, labels, datasets, opt = {}) => {
       plugins: { legend: { display: isDonut ? true : datasets.length > 1, position: isDonut ? 'right' : 'top', align: 'start', labels: { usePointStyle: true, pointStyle: isLine ? 'line' : 'rect', boxWidth: 14, boxHeight: isLine ? 3 : 10, padding: 12, font: { size: 12 } } },
         tooltip: { callbacks: { title: (it) => opt.titles ? opt.titles[it[0].dataIndex] : it[0].label, label: (it) => `${it.dataset.label || it.label}: ${fmt(it.raw)}` } } },
       onClick: (evt, els, ch) => { if (!opt.detail) return; const hit = isLine ? ch.getElementsAtEventForMode(evt, 'index', { intersect: false }, false) : els; if (hit.length) open(hit[0].index, hit[0].datasetIndex); } } };
-  if (isDonut) cfg.options.cutout = '66%';
+  if (isDonut) {
+    cfg.options.cutout = '66%';
+    // Show the live recorded total in the doughnut hole; the explanatory
+    // breakdown below the chart retains the full-precision amount.
+    cfg.plugins = [{
+      id: 'hmDoughnutTotalCenter',
+      afterDatasetsDraw(chart) {
+        const arc = chart.getDatasetMeta(0)?.data?.[0];
+        if (!arc || !Number.isFinite(arc.innerRadius) || arc.innerRadius <= 0) return;
+        const sum = datasets.reduce((total, dataset) =>
+          total + (dataset.data || []).reduce((a, raw) => a + Math.max(0, Number(raw) || 0), 0), 0);
+        const label = 'TOTAL VALUE';
+        const amount = money ? UI.compactMoney(sum) : UI.num(sum);
+        const cx = arc.x, cy = arc.y, radius = arc.innerRadius;
+        const context = chart.ctx;
+        context.save();
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = '#73867b';
+        context.font = '600 ' + Math.max(9, Math.min(11, radius / 6)) + 'px sans-serif';
+        context.fillText(label, cx, cy - Math.min(13, radius / 5));
+        let fontSize = Math.min(23, radius / 3);
+        context.font = '700 ' + fontSize + 'px sans-serif';
+        while (fontSize > 10 && context.measureText(amount).width > radius * 1.7) {
+          fontSize -= 1;
+          context.font = '700 ' + fontSize + 'px sans-serif';
+        }
+        context.fillStyle = '#1f5137';
+        context.fillText(amount, cx, cy + Math.min(10, radius / 7));
+        context.restore();
+      }
+    }];
+  }
   const ch = new Chart(cv, cfg); HM.charts.push(ch);
   const rect = (i, j) => () => { const r = cv.getBoundingClientRect(), el = ch.getDatasetMeta(j || 0).data[i]; const x = el ? el.x : ch.chartArea.left, y = el ? el.y : ch.chartArea.top;
     return { left: r.left + x, right: r.left + x, top: r.top + y - 6, bottom: r.top + y + 6 }; };
