@@ -539,3 +539,27 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
 @media(max-width:900px){
   #pageContent .mp-history-records .data-table{min-width:850px}
 }
+
+
+/* MOTORPOOL_GOLD_KPI_OUTLINE_V1
+   Repair Management, Motorpool Parts Requests, Mechanic Masterlist and
+   Mechanic Attendance: override the older reference-style gray KPI borders.
+   Only cards directly under the actual Motorpool page are affected. */
+#pageContent:has(#pageBody > .mp-wireframe-marker) #pageBody > .mp-action-stages > .mp-action-stage,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) #pageBody > .mp-action-stages > .mp-action-stage,
+#pageContent:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages > .mp-action-stage,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) .mp-reference-stages > .mp-action-stage {
+  border:1px solid #caa650;
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(18,53,28,.035);
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) button.mp-action-stage:hover,
+#pageContent.ws-scope.ref-scope:has(#pageBody > .mp-wireframe-marker) button.mp-action-stage:hover {
+  border-color:#b38d31;
+  background:#fffdf5;
+}
+#pageContent:has(#pageBody > .mp-wireframe-marker) button.mp-action-stage:focus-visible {
+  outline:2px solid #9f7a27;
+  outline-offset:2px;
+}
