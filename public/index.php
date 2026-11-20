@@ -38,7 +38,18 @@ if (isset($_GET['api'])) {
         }
         switch ($api) {
             case 'whoami':
-                jsonOut(['ok' => true, 'signedIn' => (bool)($_SESSION['uid'] ?? false), 'csrf' => $_SESSION['csrf']]);
+                // Never trust uid alone: expired, disabled, password-reset or
+                // invalid-role sessions must not unlock the browser app.
+                $signedIn = false;
+                if (!empty($_SESSION['uid'])) {
+                    try {
+                        currentUser();
+                        $signedIn = true;
+                    } catch (BusinessRuleException $e) {
+                        session_unset();
+                    }
+                }
+                jsonOut(['ok' => true, 'signedIn' => $signedIn, 'csrf' => $_SESSION['csrf'] ?? '']);
             case 'password_recovery_request':
             case 'password_recovery_confirm':
                 must($_SERVER['REQUEST_METHOD'] === 'POST', 'POST required.', 405);
@@ -136,6 +147,12 @@ if (isset($_GET['api'])) {
     }
 }
 
+// The HTML shell contains no business data, but must not be cached by a
+// browser, intermediary or another person using this computer.
+header('Cache-Control: private, no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+header('Vary: Cookie');
 // ---------------- HTML shell ----------------
 // Each module script is separate: if one file fails, the other pages still work.
 // Screen files naka-grupo ayon sa department (public/assets/js/modules/<department>/<file>.js).
