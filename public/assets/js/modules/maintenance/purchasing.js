@@ -913,7 +913,8 @@ App.page('purchasing_overview', {
     // card lists. Each section has independent pagination; links stay intact.
     const dashboardPageSize = 4;
     const pagedList = (items, empty, key) => {
-      if (!items.length) return UI.wsList(items, empty);
+      // A pager is useful only when the queue exceeds one full page.
+      if (items.length <= dashboardPageSize) return UI.wsList(items, empty);
       const pages = Math.max(1, Math.ceil(items.length / dashboardPageSize));
       return `<div class="purchasing-dashboard-pager" data-purchasing-dash-pager="${key}" data-page="1" data-size="${dashboardPageSize}">
         <ul class="mo-list purchasing-dashboard-page-list">${items.map((html, i) =>
@@ -936,7 +937,7 @@ App.page('purchasing_overview', {
       <div class="purchasing-ref-panels purchasing-content-columns">
         <div class="purchasing-content-column">
           ${UI.wsPanel('Parts Requests Needing Action','bi-box-seam', pagedList(requestsAction,'No open parts requests.','requests'), {cls:'ws-l1',count:outstanding.length,go:'parts_requests?tab=todo',goLabel:'View all'})}
-          ${UI.wsPanel('Purchase Order Status','bi-cart-check',pagedList(poRows,'No outstanding POs.','po-status'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
+          ${UI.wsPanel('Purchase Order Status','bi-cart-check',UI.wsList(poRows,'No outstanding POs.'),{cls:'ws-l2',go:'purchase_orders?tab=all',foot:budgetFoot})}
         </div>
         <div class="purchasing-content-column">
           ${UI.wsPanel('Receiving Queue','bi-box-arrow-in-down',pagedList(incoming,'No deliveries to receive.','receiving'),{cls:'ws-r1',count:incoming.length,go:'purchase_orders?tab=receive',goLabel:'View all'})}
