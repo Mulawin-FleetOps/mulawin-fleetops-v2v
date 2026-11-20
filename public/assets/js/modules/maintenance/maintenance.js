@@ -754,8 +754,7 @@ const MaintUI = {
       const mech = MaintUI.mechanicOptions(j.mechanic_id);
       if (a === 'assess') UI.formModal('Incident assessment · ' + UI.esc(i.incident_ref), [
           { name: 'severity', label: 'Damage classification', type: 'select', required: true, col: 12,
-            options: [['Minor', 'Minor'], ['Major', 'Major'],
-              ['Needs More Information', 'Needs More Information']] },
+            options: [['Minor', 'Minor'], ['Major', 'Major']] },
           { name: 'recommendation', label: 'Assessment and recommendation', type: 'textarea', required: true, col: 12,
             placeholder: 'Describe the assessment and recommended next action.' }],
         'Maintenance.assess', { extra: { job_id: j.id },
@@ -768,7 +767,7 @@ const MaintUI = {
               <div class="mp-incident-report-field mp-incident-report-wide"><small>Original details</small><div>${UI.e(i.details)}</div></div>
             </div>
             ${(r.incidentClarifications || []).length ? `<details class="mp-incident-updates"><summary>Dispatcher updates (${r.incidentClarifications.length})</summary>${r.incidentClarifications.map(c => `<div class="mp-incident-update"><small>${UI.esc(c.actor)} · ${UI.datetime(c.created_at)}</small><div>${UI.esc(c.details)}</div></div>`).join('')}</details>` : ''}
-            <p class="mp-incident-assessment-guidance">Assess from the Dispatcher report; physical inspection is not required at this stage. Choose <b>Needs More Information</b> to keep the trip On Hold, or <b>Major</b> if the truck is not fit to continue and the trip needs rescheduling.</p>
+            <p class="mp-incident-assessment-guidance">Assess from the Dispatcher report; no garage mechanic or physical inspection is required at this stage. <b>Minor</b> keeps the trip On Hold pending safe vehicle clearance. <b>Major</b> marks the truck Not Fit to Continue and moves the trip to For Reschedule.</p>
           </section>`,
           after: reopen });
       if (a === 'mech') return MaintUI.assignMechanic(j, reopen);
