@@ -128,6 +128,7 @@ const PurUI = {
       host.querySelectorAll('[data-remove-row]').forEach(b => b.disabled = host.querySelectorAll('.pl-row').length <= 1);
       if (!withPrice) return;
       w.querySelector('[data-total]').textContent = 'Estimated total: ' + UI.money(total);
+      w._updateBudgetGate?.(total);
       const lim = +PurUI.data.threshold;
       w.querySelector('[data-route]').innerHTML = total
         ? (total <= lim ? `Approval route: <b>Finance</b> (up to ${UI.money(lim)}).` : `Approval route: <b>Admin</b> (above ${UI.money(lim)}).`) : '';
@@ -299,11 +300,7 @@ const PurUI = {
     const supplierFields = PurUI.supplierFields();
     const supplierMain = UI.fields([{ ...supplierFields[0], col: 12 }]);
     const supplierOptional = UI.fields(supplierFields.slice(1));
-    const budgetMessage = d.budget && d.budget.id && +d.budget.in_period
-      ? 'Purchasing budget available now: <b>' + UI.money(d.budget.available) + '</b>. Inventory restock requests over this amount are automatically rejected when submitted; approved requests are rechecked at approval.'
-      : d.budget && d.budget.id
-        ? 'The purchasing budget period ended on ' + UI.date(d.budget.period_end) + '. An Inventory Restock request will be automatically rejected until an active budget is available.'
-        : 'There is no active purchasing budget. Inventory Restock requests will be automatically rejected until an active budget is available.';
+    const budgetMessage = 'The available Purchasing budget is checked before approval submission and checked again by the system when submitted.';
     const html = '<div class="po-simple-form">' +
       '<section class="po-simple-section"><h6>1. What is this purchase for?</h6>' + sourceOptions +
         '<div data-po-request-section ' + (linked ? '' : 'hidden') + '>' + requestField +
@@ -319,7 +316,8 @@ const PurUI = {
         UI.fields([{ name: 'purpose', label: 'Reason for this purchase', required: true, col: 12,
           type: 'textarea', rows: 2, value: prefill.purpose || (linked ? '' : 'Inventory restocking'),
           placeholder: 'e.g. Replenish heavy tire inventory' }]) + '</section>' +
-      '<p class="small ' + (d.budget && d.budget.id && +d.budget.in_period ? 'text-muted' : 'text-danger') + ' mt-3">' + budgetMessage + '</p>' +
+      '<div class="po-budget-check" data-po-budget-check aria-live="polite"></div>' +
+      '<p class="small text-muted mt-2">' + budgetMessage + '</p>' +
       '</div>';
     UI.modal('Create Purchase Order', html,
       async (values, form, w) => {
@@ -328,6 +326,19 @@ const PurUI = {
         if (type === 'motorpool' && !reqId) throw new Error('Select a Motorpool parts request first.');
         if (type === 'motorpool' && form.dataset.poRequestNoShortage === '1') {
           throw new Error('All requested parts are already reserved or accounted for. Release them from Parts Requests instead of making another PO.');
+        }
+        // Prevent sending a PO that fails the budget shown in this form.
+        // The server remains authoritative and rechecks the active budget atomically.
+        const total = Math.round([...w.querySelectorAll('.pl-row')].reduce((sum, row) =>
+          sum + (Number(row.querySelector('[data-qty]').value) || 0) *
+            (Number(row.querySelector('[data-price]').value) || 0), 0) * 100) / 100;
+        const budget = PurUI.data.budget || {};
+        const available = Number(budget.available) || 0;
+        if (!budget.id || !Number(budget.in_period) || total > available) {
+          throw new Error(!budget.id || !Number(budget.in_period)
+            ? 'Cannot send for approval: no active Purchasing budget. Ask Finance to set a budget.'
+            : 'Cannot send for approval: PO total ' + UI.money(total) +
+              ' exceeds available Purchasing budget ' + UI.money(available) + '. Adjust the quantities or prices.');
         }
         const lines = PurUI.readLines(w, true);
         const payload = { ...values, part_request_id: type === 'motorpool' ? reqId : '', lines };
@@ -343,6 +354,36 @@ const PurUI = {
         PurUI.wireSupplier(w);
         PurUI.wirePartSuppliers(w);
         const form = w.querySelector('form');
+        const budgetBox = w.querySelector('[data-po-budget-check]');
+        const submitButton = w.querySelector('button[type="submit"]');
+        const activeBudget = d.budget && d.budget.id && Number(d.budget.in_period);
+        const available = activeBudget ? Math.max(0, Number(d.budget.available) || 0) : 0;
+        w._updateBudgetGate = (total) => {
+          if (!budgetBox) return;
+          const ready = total > 0 && !!activeBudget && total <= available;
+          const reason = !activeBudget ? 'No active Purchasing budget — cannot send for approval.'
+            : total <= 0 ? 'Enter the parts, quantity and unit price to check the budget.'
+            : total > available ? 'Insufficient budget — adjust this PO before approval.'
+            : 'Within budget — ready to submit for approval.';
+          budgetBox.className = 'po-budget-check ' + (ready ? 'is-ready' : total > 0 || !activeBudget ? 'is-blocked' : '');
+          budgetBox.innerHTML = '<strong>' + (ready ? 'Ready for Approval' : 'Not Ready for Approval') +
+            '</strong><span>PO total: ' + UI.money(total) + ' · Available budget: ' +
+            (activeBudget ? UI.money(available) : 'No active budget') + '</span><small>' + reason + '</small>';
+          if (submitButton) {
+            submitButton.disabled = !ready;
+            submitButton.title = ready ? '' : reason;
+          }
+          form.dataset.poBudgetReady = ready ? '1' : '0';
+        };
+        // wireLines handles edits, add/remove and auto-filled parts.
+        const updateBudgetFromLines = () => {
+          const total = [...w.querySelectorAll('.pl-row')].reduce((sum, row) =>
+            sum + (Number(row.querySelector('[data-qty]').value) || 0) *
+              (Number(row.querySelector('[data-price]').value) || 0), 0);
+          w._updateBudgetGate(Math.round(total * 100) / 100);
+        };
+        updateBudgetFromLines();
+
         const requestSection = form.querySelector('[data-po-request-section]');
         const requestSelect = form.querySelector('[name="part_request_id"]');
         const requestHint = form.querySelector('[data-po-request-hint]');
