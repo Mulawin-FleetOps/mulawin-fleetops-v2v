@@ -730,8 +730,7 @@ const MaintUI = {
       </div>
       ${(r.incidentClarifications||[]).length ? `<details class="mp-incident-detail-updates"><summary>Dispatcher updates (${r.incidentClarifications.length})</summary>${r.incidentClarifications.map(c=>`<div class="mp-incident-detail-update"><small>${UI.esc(c.actor)} · ${UI.datetime(c.created_at)}</small><div>${UI.e(c.details)}</div></div>`).join('')}</details>` : ''}
       ` : '';
-    const html = `<div class="mp-repair-detail-root ${remoteIncident?'mp-remote-incident-detail':''}">
-      <div class="mp-repair-overview-summary">
+    const html = `<div class="mp-repair-overview-summary ${remoteIncident?'mp-remote-incident-detail':''}">
         <div class="mp-repair-overview-top"><span class="small text-muted">Current status</span>${UI.badge(j.verified_at ? 'Returned to service'
           : i && j.status === 'Under Inspection' && !j.mechanic_id && i.severity === 'Minor'
             ? (i.clearance === 'Not Fit to Continue' ? 'Not Fit to Continue' : 'Awaiting Clearance')
@@ -801,8 +800,7 @@ const MaintUI = {
       </div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
       ${UI.h('Status history')}${statusHistory}
-      ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}
-      </div>`;
+      ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
     const el = UI.drawer(UI.esc(j.job_ref) + ' · ' + UI.esc(j.plate_number), html, { subtitle: 'Corrective maintenance · ' + UI.esc(j.verified_at ? 'Returned to service' : j.status) });
     UI.drawerSections(el,remoteIncident
       ? [['overview','Overview',['Incident & truck','Vehicle clearance']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]]
