@@ -416,10 +416,14 @@ final class Maintenance {
     private static function report(array $u, array $d): array {
         requireRole($u, ...self::ACT);
         $vid = idField($d, 'vehicle_id');
-        $problem = field($d, 'problem', 500);
-        // Garage intake captures the findings once; older API callers may still provide them later.
+        // Use the intake findings as the problem summary when the simplified Motorpool form
+        // omits the legacy problem field. Preserve existing API callers and report history.
         $findings = optField($d, 'findings', 2000);
         $diagnosis = optField($d, 'diagnosis', 2000);
+        $problem = isset($d['problem']) && trim((string)$d['problem']) !== ''
+            ? field($d, 'problem', 500)
+            : cut((string)($findings ?? ''), 500);
+        must(trim($problem) !== '', 'Inspection findings are required to report a truck problem.', 422);
         // The Report Truck Problem form does not ask for a date. The server is
         // authoritative, so never require or trust a client-supplied reported_on.
         $date = date('Y-m-d');
