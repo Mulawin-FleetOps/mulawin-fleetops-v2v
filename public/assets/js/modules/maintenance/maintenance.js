@@ -603,7 +603,9 @@ const MaintUI = {
     const acts = [];
     if (act) {
       if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Assess incident', 'primary', 'bi-clipboard-pulse']);
-      if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['finalize', 'Assign Mechanic Team', 'primary', 'bi-people']);
+      if (j.source !== 'Incident' && j.status === 'Reported') acts.push(j.findings && j.diagnosis
+        ? ['finalize', 'Assign Mechanic Team', 'primary', 'bi-people']
+        : ['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
       if (j.status === 'Under Inspection') acts.push(j.mechanic_id ? ['inspect', 'Record findings', 'primary', 'bi-search'] : ['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
       if (j.status === 'Under Repair') acts.push(d.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'primary', 'bi-lock'] : (+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']));
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
@@ -793,7 +795,7 @@ const MaintUI = {
   /** WS_DESIGN_V1: the one next workflow step offered directly on a Repair Management row (Motorpool only). */
   rowStep(j) {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
-    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['finalize', 'Assign Mechanic Team', 'bi-people'];
+    if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : (j.findings && j.diagnosis ? ['finalize', 'Assign Mechanic Team', 'bi-people'] : ['mech', 'Assign mechanic', 'bi-person-plus']);
     if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
     if (j.status === 'Completed') return null; // Details are read-only after completion.
