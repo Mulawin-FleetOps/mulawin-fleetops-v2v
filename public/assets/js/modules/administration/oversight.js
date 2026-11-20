@@ -782,8 +782,27 @@ const AnalyticsAutoSync = {
         const financial = (money.charts||[]).find(x=>x.title==='Billed vs collected vs expenses');
         if(financial)plot('Billed amount vs collections vs expenses','bar',financial.labels,
           (financial.datasets||[]).map((x,i)=>({label:x.label,data:x.data,color:colors[i]})),{money:true});
-        plot('Client collections by week','line',(d.weeks||[]).map(x=>x.label),
-          [{label:'Collections',data:(d.weeks||[]).map(x=>Number(x.amount)),color:colors[0]}],{money:true});
+        // Current approved allocation snapshot; selected report dates continue to
+        // filter historical finance charts, but not today's budget position.
+        const budget = d.generalBudgetUtilization;
+        if (budget && Number(budget.amount) > 0) {
+          const total = Number(budget.amount), spent = Math.max(0,Number(budget.spent_amount)||0);
+          const reserved = Math.max(0,Number(budget.reserved_amount)||0);
+          const available = Math.max(0,Number(budget.available)||0);
+          plot('General Budget Utilization','stack',['Approved General Budget'],[
+            {label:'Spent',data:[spent],color:colors[0]},
+            {label:'Reserved',data:[reserved],color:colors[2]},
+            {label:'Available',data:[available],color:colors[1]}
+          ],{money:true,note:'Current approved budget: '+UI.money(total)+
+            '. Spent: '+UI.money(spent)+'; Reserved: '+UI.money(reserved)+
+            '; Available: '+UI.money(available)+
+            '. Effective '+escape(budget.period_start)+' to '+escape(budget.period_end)+
+            '. This is the current approved General Budget balance, not a historical amount filtered by the selected report dates.'});
+        } else {
+          charts.push('<div class="ax-chart-card">'+UI.wsPanel('General Budget Utilization','bi-bar-chart-line',
+            '<div class="ax-chart-inner"><p class="small text-muted mb-0">No currently effective, Admin-approved General Budget. Pending requests and legacy category budgets are not counted.</p>'+
+            '<p class="ax-chart-explain"><strong>Why this chart?</strong> Shows the spent, reserved and available amounts of the currently approved General Budget. The chart appears when an approved budget is effective today.</p></div>',{})+'</div>');
+        }
         plot('Operating expense distribution','doughnut',(d.expenses||[]).map(x=>x.label),
           [{label:'Expenses',data:(d.expenses||[]).map(x=>Number(x.value)),colors:colors}],{money:true,note:'Expenses are grouped by their recorded expense category for the selected dates; unrecorded categories cannot be inferred.'});
         supporting = recordTable(money,'Billing by client',12);
