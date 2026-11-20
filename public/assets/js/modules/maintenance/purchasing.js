@@ -1694,7 +1694,7 @@ App.page('stock_movements', {
       ['Type', 'movement_type', 'badge'], ['Qty', 'quantity_delta', (v) => `<span class="cell-nowrap">${v > 0 ? '+' : ''}${UI.num(v)}</span>`],
       ['Reason', 'reason', (v) => `<span class="cell-clamp">${UI.esc(v)}</span>`], ['Truck', 'plate_number'], ['By', 'actor']], rows,
       { title: 'Movements (' + rows.length + ')', showAllColumns: true, directActions: true, limit: 10,
-        actions: (m) => ref(m) && UI.canGo(ref(m)) ? UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary') : '',
+        actions: (m) => ref(m) && UI.canGo(ref(m)) ? (m.reference_type === 'purchase_order' ? UI.btn('ref', 'PO', 'outline-success', 'bi-eye').replace('class="btn ', 'class="btn purchasing-movement-po-btn ') : UI.btn('ref', refLabel[m.reference_type][0], 'outline-primary')) : '',
         onAction: (a, m) => UI.goTo(ref(m)), empty: 'No stock movement matches.' });
     PurRef.recordLayout(ctx, box, {
       filters: [{ name: 'part', label: 'Part', type: 'select', col: 12, options: parts.map(part => [part, part]) },
