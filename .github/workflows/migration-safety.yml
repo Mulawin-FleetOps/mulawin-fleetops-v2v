@@ -71,6 +71,9 @@ jobs:
           php -l backend/Core/DieselPo.php
           php -l backend/Core/Access.php
           php -l backend/Modules/Administration/Oversight.php
+          php -l backend/Modules/General/Analytics.php
+          php -l tests/inventory_finance_tests.php
+          php -l tests/purchasing_finance_tests.php
           node --check public/assets/js/modules/accounting/finance.js
           node --check public/assets/js/modules/administration/oversight.js
           php -l scripts/approve_migration.php
@@ -95,3 +98,11 @@ jobs:
           MYSQL_TEST_USER: root
           MYSQL_TEST_PASS: ''
         run: php tests/migration_mysql_integration.php
+      - name: Finance and purchasing integrity regression (isolated test databases)
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: root
+          TEST_DB_PASS: ''
+        run: |
+          php tests/run_inventory_finance_tests.php
+          php tests/run_purchasing_finance_tests.php
