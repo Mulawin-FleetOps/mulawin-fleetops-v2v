@@ -227,7 +227,8 @@ const MaintUI = {
     const html = `<div class="small text-muted mb-3">Choose the affected components first. Recommended mechanics will appear in the checklist below.</div>
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
-      <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.tru      <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
+      <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
+      <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
       <summary>Affected components (choose first) <span data-component-summary>0 selected</span></summary>
       <div class="mp-final-optional-content">
       <div class="mp-final-component-tabs" role="tablist" aria-label="Component category">
@@ -263,8 +264,6 @@ const MaintUI = {
         <div class="mp-final-team-foot"><span data-team-count>0 mechanics selected</span><button type="button" class="btn btn-link btn-sm" data-team-clear>Clear selection</button></div>
       </div>
       <div class="mp-final-skill-warning mt-2" data-final-skill-warning role="status" aria-live="polite" tabindex="-1" hidden></div>
- components to see suggested skills.</div>
-      </div></details>
       <div class="purchasing-receive-section">Parts requirement</div>
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
