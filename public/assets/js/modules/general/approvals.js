@@ -9,6 +9,7 @@ App.page('approvals', {
     // The existing admin_approvals screen remains accessible for actual pending
     // approval actions (e.g. from the executive dashboard).
     if (role === 'admin') {
+      ctx.setTitle('History', 'Recorded approval decisions across Head Management workflows.');
       const d = ctx.data || {}, q = ctx.query || {};
       const all = Array.isArray(d.queue) ? d.queue : [];
       const decided = all.filter(r => r.status !== 'Pending' && r.decided_at);
