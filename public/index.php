@@ -47,6 +47,9 @@ if (isset($_GET['api'])) {
                         $signedIn = true;
                     } catch (BusinessRuleException $e) {
                         session_unset();
+                        // Keep the unauthenticated login form usable after
+                        // clearing an expired or revoked session.
+                        $_SESSION['csrf'] = bin2hex(random_bytes(24));
                     }
                 }
                 jsonOut(['ok' => true, 'signedIn' => $signedIn, 'csrf' => $_SESSION['csrf'] ?? '']);
