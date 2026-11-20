@@ -218,26 +218,28 @@ const MaintUI = {
     const comps = (d.components || []).filter(c => !(r.excludedComponents || []).includes(+c.id));
     let catalog = [];
     try { catalog = (await App.api('Purchasing.request_catalog')).parts || []; } catch (_) {}
-    const leadOptions = choices.map(m => ({ id: +m.id,
-      label: m.full_name + ' · ' + m.mechanic_code + (m.specialization ? ' · ' + m.specialization : ''),
-      search: [m.full_name, m.mechanic_code, m.specialization].join(' ').toLocaleLowerCase()
-    }));
     const allMechs = (d.mechanics || []).filter(m => m.availability === 'Available' || assigned.includes(+m.id));
+    const teamOptions = allMechs.map(m => `<label class="mp-final-team-choice" data-team-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLocaleLowerCase())}">
+      <input type="checkbox" data-team-mechanic value="${+m.id}" ${assigned.includes(+m.id) ? 'checked' : ''}>
+      <span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)}${m.specialization ? ' · '+UI.esc(m.specialization) : ''}</small></span>
+    </label>`).join('');
     const summary = j.source === 'Incident' ? `<div class="alert alert-light border small"><b>Incident-related repair:</b> Original Dispatcher incident details stay read-only in Repair Details. Classification: ${UI.esc(j.severity || 'Not assessed')}.</div>` : '';
-    const html = `<div class="small text-muted mb-3">Choose the lead mechanic and confirm parts. Open the optional sections only when needed.</div>
+    const html = `<div class="small text-muted mb-3">Select the mechanics who will work on this truck, then confirm the parts needed.</div>
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
       <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
-      <div class="purchasing-receive-section">Mechanic assignment</div>
-      <label class="form-label mt-2" for="mp-final-lead">Lead mechanic *</label>
-      <div class="mp-final-lead-picker mb-2" data-final-lead-picker>
-        <input id="mp-final-lead" class="form-control" type="search" data-final-lead-search
-          placeholder="Click to select or search a mechanic…" autocomplete="off"
-          role="combobox" aria-autocomplete="list" aria-controls="mp-final-lead-results"
-          aria-expanded="false" required>
-        <input type="hidden" data-final-lead name="final_lead_mechanic" value="${+j.mechanic_id || ''}">
-        <div id="mp-final-lead-results" class="mp-final-lead-results" data-final-lead-results role="listbox" aria-label="Available lead mechanics" hidden></div>
+      <div class="purchasing-receive-section">Assign mechanics</div>
+      <label class="form-label mt-2" for="mp-final-team-search">Select mechanics *</label>
+      <div class="mp-final-team-picker">
+        <input id="mp-final-team-search" type="search" class="form-control" data-team-search
+          placeholder="Search mechanic name, ID, or specialization…" autocomplete="off">
+        <div class="mp-final-team-list" data-team-list>
+          ${teamOptions || '<p class="small text-muted p-2">No available mechanics to assign.</p>'}
+          <p class="small text-muted p-2" data-team-empty hidden>No mechanics match your search.</p>
+        </div>
+        <div class="mp-final-team-foot"><span data-team-count>0 mechanics selected</span><button type="button" class="btn btn-link btn-sm" data-team-clear>Clear selection</button></div>
       </div>
+      <div class="mp-final-skill-warning mt-2" data-final-skill-warning role="status" aria-live="polite" tabindex="-1" hidden></div>
       <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
       <summary>Affected components (optional) <span data-component-summary>0 selected</span></summary>
       <div class="mp-final-optional-content">
@@ -260,23 +262,6 @@ const MaintUI = {
       </div>
       <div class="small mb-2" data-specialization-suggest>Choose components to see suggested skills.</div>
       </div></details>
-      <details class="mp-final-optional-section mb-2" ${active.length ? 'open' : ''}>
-      <summary>Assisting mechanics (optional) <span data-helper-count>0 selected</span></summary>
-      <div class="mp-final-optional-content">
-      <label class="form-label" for="mp-final-helper-search">Search available assistants</label>
-      <div class="mp-final-skill-needs small mb-2" data-final-skill-needs aria-live="polite">Choose affected components to see required skills and recommended mechanics.</div>
-      <div class="mp-final-skill-warning mb-2" data-final-skill-warning role="status" aria-live="polite" tabindex="-1" hidden></div>
-      <div class="mp-final-helper-tools mb-2">
-        <input id="mp-final-helper-search" class="form-control" type="search" autocomplete="off" placeholder="Search name, ID or specialization…" data-final-helper-search>
-        <label class="mp-final-helper-filter"><input type="checkbox" data-helper-recommended-only> Recommended only</label>
-      </div>
-      <div class="mp-final-helper-list" aria-label="Select assisting mechanics">
-        ${allMechs.map(m=>`<label class="mp-final-helper-choice" data-helper-mid="${+m.id}" data-helper-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLowerCase())}"><input type="checkbox" data-final-helper="${+m.id}" ${active.includes(+m.id)?'checked':''}><span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)} · ${UI.esc(m.specialization || 'No listed specialization')}</small><em data-helper-match hidden></em></span></label>`).join('')}
-        <p class="small text-muted p-2" data-helper-empty hidden>No assisting mechanics match the current filters.</p>
-      </div>
-      <div class="small text-muted mt-2" data-helper-selection-note>Choose assistants only if needed.</div>
-      <div class="small mb-2" data-team-preview></div>
-      </div></details>
       <div class="purchasing-receive-section">Parts requirement</div>
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
@@ -285,30 +270,32 @@ const MaintUI = {
         <button type="button" class="btn btn-outline-primary btn-sm mp-final-add-part" data-final-add-part><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add Part</button>
       </div>`;
     const dialog = UI.modal((j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team · ' : 'Finalize RA · ') + UI.esc(j.job_ref),html,async (_values,form)=>{
-      const lead = +(form.querySelector('[data-final-lead]')?.value || 0);
-      const helpers = [...form.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper);
+      const mechanics = [...form.querySelectorAll('[data-team-mechanic]:checked')].map(x=>+x.value);
+      // Preserve the primary-reference database model without exposing lead/assistant steps.
+      const lead = mechanics.includes(+j.mechanic_id) ? +j.mechanic_id : mechanics[0];
+      const helpers = mechanics.filter(id => id !== lead);
       const components = [...form.querySelectorAll('[data-component]:checked')].map(x=>+x.dataset.component);
       const other_components = form.querySelector('[data-other-components]').value.trim();
       const parts_requirement = form.querySelector('[data-final-parts]').value;
       const parts_lines = [...form.querySelectorAll('[data-final-part-row]')].map(el=>({part_id:+el.querySelector('[data-part-id]').value,quantity:+el.querySelector('[data-part-qty]').value}));
-      if (!lead) throw new Error('Choose a lead mechanic.');
+      if (!lead) throw new Error('Select at least one mechanic.');
       if (other_components.length > 250) throw new Error('Other component description is too long.');
-      if (helpers.includes(lead)) throw new Error('Lead mechanic cannot also be an assistant.');
+      if (mechanics.length > 11) throw new Error('You can assign at most 11 mechanics to one repair.');
       // Explain missing skill coverage beside the assistant checklist before
       // submitting; retain the authoritative server-side validation.
       const requiredSkills=[...new Set([...form.querySelectorAll('[data-component]:checked')]
         .flatMap(input=>(input.dataset.suggestions||'').split(',').map(skill=>skill.trim()).filter(Boolean)))];
-      const chosenTeam=[lead,...helpers];
+      const chosenTeam=mechanics;
       const confirmedSkills=new Set((d.mechanicSkills||[])
         .filter(item=>chosenTeam.includes(+item.mechanic_id)).map(item=>item.name));
       const missingSkills=requiredSkills.filter(skill=>!confirmedSkills.has(skill));
       if (missingSkills.length) {
         const warning=form.querySelector('[data-final-skill-warning]');
-        warning.closest('details')?.setAttribute('open', '');
+        form.querySelector('.mp-final-optional-section')?.setAttribute('open', '');
         warning.hidden=false;
         warning.focus({preventScroll:true});
         warning.scrollIntoView({block:'center',behavior:'smooth'});
-        throw new Error('Mechanic team lacks: '+missingSkills.join(', ')+'. See the Assisting Mechanics section for affected parts.');
+        throw new Error('Selected mechanics lack: '+missingSkills.join(', ')+'. Select a qualified mechanic from the checklist.');
       }
       if (!['No Parts Needed','Parts Required'].includes(parts_requirement)) throw new Error('Confirm whether replacement parts are required.');
       if (parts_lines.some(x=>!x.part_id||!Number.isInteger(x.quantity)||x.quantity<1)) throw new Error('Choose a part and valid quantity.');
@@ -318,177 +305,41 @@ const MaintUI = {
       UI.result(response); if(after) after(); else App.route();
     },{submit:j.source === 'On-Premise' && j.status === 'Reported' ? 'Assign Mechanic Team' : 'Finalize RA',size:'modal-xl'});
 
-    // Floating, bounded picker: does not open the browser's full-height native select.
-    const picker = dialog.querySelector('[data-final-lead-picker]');
-    const leadSearch = picker.querySelector('[data-final-lead-search]');
-    const leadValue = picker.querySelector('[data-final-lead]');
-    const leadList = picker.querySelector('[data-final-lead-results]');
-    let leadMatches = [], leadActive = -1;
-    const closeLead = () => {
-      leadList.hidden = true;
-      leadList.replaceChildren();
-      leadActive = -1;
-      leadSearch.setAttribute('aria-expanded', 'false');
-      leadSearch.removeAttribute('aria-activedescendant');
+    const teamSearch=dialog.querySelector('[data-team-search]');
+    const teamRows=[...dialog.querySelectorAll('.mp-final-team-choice')];
+    const teamEmpty=dialog.querySelector('[data-team-empty]');
+    const teamCount=dialog.querySelector('[data-team-count]');
+    const selectedTeam=()=>[...dialog.querySelectorAll('[data-team-mechanic]:checked')].map(x=>+x.value);
+    const filterTeam=()=>{
+      const term=teamSearch.value.trim().toLocaleLowerCase();
+      let shown=0;
+      teamRows.forEach(row=>{
+        row.hidden=!row.dataset.teamText.includes(term);
+        if(!row.hidden)shown++;
+      });
+      teamEmpty.hidden=shown>0;
     };
-    const selectLead = (mechanic) => {
-      leadValue.value = String(mechanic.id);
-      leadSearch.value = mechanic.label;
-      closeLead();
-      update();
-    };
-    const renderLead = () => {
-      const selected = leadOptions.find(x => String(x.id) === leadValue.value);
-      if (selected && leadSearch.value === selected.label) {
-        // Clicking a selected mechanic still allows changing it.
-        leadSearch.select();
-      } else leadValue.value = '';
-      const query = selected && leadSearch.value === selected.label ? '' : leadSearch.value.trim().toLocaleLowerCase();
-      const found = query ? leadOptions.filter(x => x.search.includes(query)) : leadOptions;
-      // Keep every eligible match in the scrollable dropdown; CSS limits only visible height.
-      leadMatches = found;
-      leadActive = -1;
-      leadList.innerHTML = leadMatches.length
-        ? leadMatches.map((m,i) => `<button type="button" class="mp-final-lead-option" id="mp-final-lead-option-${i}" role="option" aria-selected="${String(m.id) === leadValue.value}" data-lead-id="${m.id}">${UI.esc(m.label)}</button>`).join('')
-        : '<div class="mp-final-lead-empty">No available mechanic matches your search.</div>';
-      leadList.hidden = false;
-      leadSearch.setAttribute('aria-expanded','true');
-    };
-    leadList.addEventListener('mousedown', e => { if (e.target.closest('[data-lead-id]')) e.preventDefault(); });
-    leadList.addEventListener('click', e => {
-      const hit = e.target.closest('[data-lead-id]');
-      const mechanic = hit && leadMatches.find(x => String(x.id) === hit.dataset.leadId);
-      if (mechanic) selectLead(mechanic);
-    });
-    leadSearch.addEventListener('focus', renderLead);
-    leadSearch.addEventListener('click', renderLead);
-    leadSearch.addEventListener('input', () => {
-      leadValue.value = '';
-      renderLead();
-      update();
-    });
-    leadSearch.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closeLead(); return; }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (leadList.hidden) renderLead();
-        if (!leadMatches.length) return;
-        leadActive = e.key === 'ArrowDown' ? (leadActive + 1) % leadMatches.length
-          : (leadActive <= 0 ? leadMatches.length - 1 : leadActive - 1);
-        leadList.querySelectorAll('[data-lead-id]').forEach((el,i) => {
-          el.classList.toggle('active', i === leadActive);
-          if (i === leadActive) { el.scrollIntoView({block:'nearest'}); leadSearch.setAttribute('aria-activedescendant',el.id); }
-        });
-      } else if (e.key === 'Enter' && !leadList.hidden) {
-        e.preventDefault();
-        if (leadMatches.length) selectLead(leadMatches[leadActive >= 0 ? leadActive : 0]);
-      }
-    });
-    leadSearch.addEventListener('blur', () => {
-      closeLead();
-      const selected = leadOptions.find(x => String(x.id) === leadValue.value);
-      leadSearch.value = selected?.label || '';
-    });
-    const selectedLead = leadOptions.find(x => x.id === +j.mechanic_id);
-    if (selectedLead) leadSearch.value = selectedLead.label;
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
       const custom=dialog.querySelector('[data-other-components]').value.trim();
-      dialog.querySelector('[data-component-summary]').textContent=picked.length+' catalog component(s) selected'+(custom?' · Other component described':'');
-      const names=[...new Set(picked.flatMap(x=>x.dataset.suggestions.split(',').map(y=>y.trim()).filter(Boolean)))];
-      const target=dialog.querySelector('[data-specialization-suggest]');
-      target.textContent=names.length?'Suggested skills: '+names.join(' · ')+' (Motorpool must confirm coverage)':'No specialization mapping; review actual diagnosis and mechanic qualifications.';
-      const lead=+(dialog.querySelector('[data-final-lead]')?.value || 0);
-      dialog.querySelectorAll('[data-final-helper]').forEach(x=>{x.disabled=+x.dataset.finalHelper===lead;if(x.disabled)x.checked=false});
-      const team=[lead,...[...dialog.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper)];
-      const covered=[...new Set((d.mechanicSkills||[]).filter(x=>team.includes(+x.mechanic_id)).map(x=>x.name))];
-      const missing=names.filter(skill=>!covered.includes(skill));
+      dialog.querySelector('[data-component-summary]').textContent=picked.length+' component(s) selected'+(custom?' · Other component described':'');
+      const names=[...new Set(picked.flatMap(x=>(x.dataset.suggestions||'').split(',').map(y=>y.trim()).filter(Boolean)))];
+      dialog.querySelector('[data-specialization-suggest]').textContent=names.length
+        ? 'Required skills: '+names.join(' · ') : 'No special skills mapped to selected components.';
+      const team=selectedTeam();
+      teamCount.textContent=team.length+' mechanic'+(team.length===1?'':'s')+' selected';
+      const covered=new Set((d.mechanicSkills||[]).filter(item=>team.includes(+item.mechanic_id)).map(item=>item.name));
+      const missing=names.filter(skill=>!covered.has(skill));
       const warning=dialog.querySelector('[data-final-skill-warning]');
-      if (missing.length) {
-        const detail=missing.map(skill=>{
-          const affected=picked.filter(input=>input.dataset.suggestions.split(',').map(x=>x.trim()).includes(skill))
-            .map(input=>input.closest('label')?.querySelector('span')?.textContent.trim())
-            .filter(Boolean);
-          return skill+(affected.length?' — needed for: '+affected.join(', '):'');
-        });
-        warning.textContent='Mechanic team lacks: '+missing.join(', ')+'. '+detail.join(' · ')+
-          '. Select an assistant with the verified skill below.';
-        warning.hidden=false;
-      } else {
-        warning.textContent='';
-        warning.hidden=true;
-      }
-      dialog.querySelector('[data-team-preview]').textContent='Selected team: '+team.map(id=>(d.mechanics||[]).find(m=>+m.id===id)?.full_name).filter(Boolean).join(' · ')+' | Verified skill coverage: '+(covered.join(', ')||'None recorded');
-      dialog.querySelector('[data-helper-count]').textContent=(team.length-(lead?1:0))+' selected';
-      refreshHelperRecommendations(names, covered, lead);
+      warning.textContent=missing.length?'Selected team needs: '+missing.join(', ')+'. Choose a qualified mechanic.':'';
+      warning.hidden=!missing.length;
       dialog.querySelector('[data-parts-input]').hidden=dialog.querySelector('[data-final-parts]').value!=='Parts Required';
     };
-    const helperSearch=dialog.querySelector('[data-final-helper-search]');
-    const helperRows=[...dialog.querySelectorAll('.mp-final-helper-choice')];
-    const helperEmpty=dialog.querySelector('[data-helper-empty]');
-    const recommendedOnly=dialog.querySelector('[data-helper-recommended-only]');
-    const verifiedSkills=new Map();
-    (d.mechanicSkills||[]).forEach(item=>{
-      const id=+item.mechanic_id;
-      if(!verifiedSkills.has(id))verifiedSkills.set(id,new Set());
-      verifiedSkills.get(id).add(item.name);
+    teamSearch.addEventListener('input',filterTeam);
+    dialog.querySelector('[data-team-clear]').addEventListener('click',()=>{
+      dialog.querySelectorAll('[data-team-mechanic]').forEach(input=>{input.checked=false;});
+      update();
     });
-    // The actual selected catalog components drive recommendations. Never infer
-    // verified credentials from mechanics.specialization (legacy free text).
-    let recommendedIds=new Set();
-    const filterHelpers=()=>{
-      const term=helperSearch.value.trim().toLocaleLowerCase();
-      let shown=0;
-      helperRows.forEach(row=>{
-        const checked=row.querySelector('[data-final-helper]').checked;
-        const matchesSearch=row.dataset.helperText.includes(term);
-        const matchesRecommend=!recommendedOnly.checked||recommendedIds.has(+row.dataset.helperMid)||checked;
-        row.hidden=!matchesSearch||!matchesRecommend;
-        if(!row.hidden)shown++;
-      });
-      helperEmpty.hidden=shown>0;
-    };
-    const refreshHelperRecommendations=(needed,covered,lead)=>{
-      const uncovered=needed.filter(skill=>!covered.includes(skill));
-      const selected=[lead,...[...dialog.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper)];
-      const totalLeadCoverage=needed.filter(skill=>(verifiedSkills.get(lead)||new Set()).has(skill));
-      const skillInfo=dialog.querySelector('[data-final-skill-needs]');
-      skillInfo.textContent=needed.length
-        ? 'Required skills: '+needed.join(', ')+'. Lead covers: '+(totalLeadCoverage.join(', ')||'none verified')+
-          '. Remaining skills for this team: '+(uncovered.join(', ')||'all covered')+'.'
-        : 'No verified component-skill requirements selected. Choose mechanics based on your inspection and their qualifications.';
-      const beforeAssist=needed.filter(skill=>!(verifiedSkills.get(lead)||new Set()).has(skill));
-      recommendedIds=new Set();
-      helperRows.forEach(row=>{
-        const id=+row.dataset.helperMid;
-        const checkbox=row.querySelector('[data-final-helper]');
-        const skills=verifiedSkills.get(id)||new Set();
-        // Rank candidates by skills missing from the lead, then by the
-        // remaining gaps after already-selected assistants.
-        const matches=beforeAssist.filter(skill=>skills.has(skill));
-        const fills=uncovered.filter(skill=>skills.has(skill));
-        const recommended=!!needed.length&&!!matches.length&&id!==lead;
-        if(recommended)recommendedIds.add(id);
-        row.dataset.recommendScore=String(fills.length*100+matches.length);
-        const badge=row.querySelector('[data-helper-match]');
-        badge.textContent=matches.length
-          ? 'Verified match: '+matches.join(', ')+(fills.length?' · fills '+fills.length+' remaining gap(s)':'')
-          : needed.length?'No verified match to selected component skills':'';
-        badge.hidden=!needed.length;
-        row.classList.toggle('mp-helper-recommended',recommended);
-        row.classList.toggle('mp-helper-skill-gap',fills.length>0);
-        row.classList.toggle('mp-helper-already-chosen',checkbox.checked);
-      });
-      helperRows.sort((a,b)=>{
-        const ac=a.querySelector('[data-final-helper]').checked?1:0;
-        const bc=b.querySelector('[data-final-helper]').checked?1:0;
-        return bc-ac || (+b.dataset.recommendScore)-(+a.dataset.recommendScore)
-          || a.dataset.helperText.localeCompare(b.dataset.helperText);
-      }).forEach(row=>row.parentNode.insertBefore(row,helperEmpty));
-      filterHelpers();
-    };
-    helperSearch.addEventListener('input',filterHelpers);
-    recommendedOnly.addEventListener('change',filterHelpers);
     dialog.querySelectorAll('[data-comp-tab]').forEach(button=>button.addEventListener('click',()=>{
       const key=button.dataset.compTab;
       dialog.querySelectorAll('[data-comp-tab]').forEach(tab=>{
@@ -497,7 +348,7 @@ const MaintUI = {
       dialog.querySelectorAll('[data-comp-pane]').forEach(pane=>pane.hidden=pane.dataset.compPane!==key);
     }));
     dialog.querySelector('[data-other-components]').addEventListener('input',update);
-    dialog.querySelectorAll('[data-component],[data-final-helper],[data-final-lead],[data-final-parts]').forEach(x=>x.addEventListener('change',update));
+    dialog.querySelectorAll('[data-component],[data-team-mechanic],[data-final-parts]').forEach(x=>x.addEventListener('change',update));
     update();
     const partsHolder = dialog.querySelector('[data-final-lines]');
     const addPartButton = dialog.querySelector('[data-final-add-part]');
