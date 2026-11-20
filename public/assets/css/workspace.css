@@ -2519,3 +2519,123 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
     margin-left:0;
   }
 }
+
+
+/* PURCHASING_SIMPLIFIED_PO_FORM_V1
+   Step-by-step Create Purchase Order, scoped to this modal only. */
+.purchasing-po-modal.po-simplified-modal .modal-body {
+  padding:18px 22px;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-form {
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-section {
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-width:0;
+  padding:15px;
+  border:1px solid #dfe9e2;
+  border-radius:11px;
+  background:#fff;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-section > h6 {
+  color:#1e5235;
+  font-size:13.5px;
+  font-weight:750;
+  margin:0 0 2px;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source-option {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  border:1px solid #dce6df;
+  border-radius:9px;
+  padding:12px 11px;
+  cursor:pointer;
+  min-width:0;
+  margin:0;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source-option:has(input:checked) {
+  border-color:#88bda0;
+  background:#edf8f0;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source-option input {
+  margin-top:3px;
+  accent-color:#176b3d;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source-option span {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source-option strong {
+  font-size:12.5px;
+  color:#2b543b;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-source-option small {
+  font-size:11.5px;
+  color:#718575;
+  line-height:1.4;
+}
+.purchasing-po-modal.po-simplified-modal [data-po-request-section] {
+  border-top:1px solid #e6eee8;
+  padding-top:11px;
+}
+.purchasing-po-modal.po-simplified-modal [data-po-request-section][hidden] {
+  display:none!important;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-hint {
+  color:#6f8073;
+  font-size:11.5px;
+  line-height:1.5;
+  margin:8px 0;
+}
+.purchasing-po-modal.po-simplified-modal .purchasing-line-editor {
+  padding:0;
+  margin:0;
+  border:0;
+  box-shadow:none;
+  background:transparent;
+}
+.purchasing-po-modal.po-simplified-modal .purchasing-line-title > div > strong {
+  display:none;
+}
+.purchasing-po-modal.po-simplified-modal .purchasing-line-title small {
+  margin-top:0;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-supplier-details {
+  border:1px solid #e0eae2;
+  border-radius:9px;
+  overflow:hidden;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-supplier-details summary {
+  padding:11px 13px;
+  font-weight:650;
+  font-size:12px;
+  color:#176b3d;
+  background:#fafdfb;
+  cursor:pointer;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-supplier-details[open] > .row {
+  padding:12px 13px 15px;
+  border-top:1px solid #e0eae2;
+}
+.purchasing-po-modal.po-simplified-modal .po-simple-section textarea {
+  min-height:70px;
+}
+@media(max-width:650px) {
+  .purchasing-po-modal.po-simplified-modal .po-simple-source {
+    grid-template-columns:minmax(0,1fr);
+  }
+  .purchasing-po-modal.po-simplified-modal .modal-body {padding:13px}
+  .purchasing-po-modal.po-simplified-modal .po-simple-section {padding:12px}
+}
