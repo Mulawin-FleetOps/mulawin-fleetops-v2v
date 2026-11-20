@@ -3337,16 +3337,30 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .mp-parts-records-table .data-table td { padding: 10px 9px; }
 }
 
-/* MOTORPOOL_TRUCK_SEARCH_V1 — contained, keyboard-operable truck results. */
+/* MOTORPOOL_TRUCK_SEARCH_V2 — click-to-preview overlay; it must not stretch the report form. */
+.mp-truck-search-field {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+}
+.mp-truck-search-field:has(.mp-truck-results:not([hidden])) {
+  z-index: 8;
+}
 .mp-truck-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
   width: 100%;
-  max-height: 240px;
+  max-height: 220px;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid #cadfd0;
   border-radius: 8px;
   background: #fff;
-  margin-top: 4px;
+  margin: 0;
+  box-shadow: 0 8px 22px rgba(15,48,28,.16);
+  z-index: 9;
 }
 .mp-truck-results[hidden] { display: none !important; }
 .mp-truck-option {
