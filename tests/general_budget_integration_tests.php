@@ -22,7 +22,7 @@ try {
     test_import($p,$ext);
     $p->exec("CREATE TABLE IF NOT EXISTS schema_migrations (id VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     test_import($p,test_sql('database/migrations/2026-11-21_01_general_budget_approvals.sql'));
-    foreach(['Finance','Purchasing'] as $module) Actions::load($module);
+    foreach(['Finance','Purchasing','Oversight'] as $module) Actions::load($module);
     $accounts=[];
     foreach(['finance','admin','purchasing'] as $role) {
         $id=insert($p,'users',['username'=>$role,'email'=>$role.'@example.test',
@@ -39,9 +39,18 @@ try {
     $first=$submit(10000);
     checkBudget(!$active(),'Finance submission does not activate unapproved budget');
     checkBudget(one($p,'SELECT status FROM general_budget_requests WHERE id=?',[$first])['status']==='Pending Approval','Request remains Pending Approval');
+    $adminPending=Oversight::queue($admin,$p,false);
+    checkBudget(count(array_filter($adminPending,static fn($row)=>($row['kind']??'')==='budget' && (int)$row['id']===$first && $row['status']==='Pending'))===1,
+        'General Budget request is visible in Admin Pending Approvals');
     Finance::action($admin,'budget_decide',['request_id'=>$first,'decision'=>'approve']);
     $one=$active();
     checkBudget($one && (float)$one['amount']===10000.0,'Admin approval activates General Budget');
+    $adminAfter=Oversight::queue($admin,$p,false);
+    checkBudget(!array_filter($adminAfter,static fn($row)=>($row['kind']??'')==='budget' && (int)$row['id']===$first),
+        'Approved General Budget leaves the Admin Pending queue');
+    $adminHistory=Oversight::queue($admin,$p,true);
+    checkBudget((bool)array_filter($adminHistory,static fn($row)=>($row['kind']??'')==='budget' && (int)$row['id']===$first && $row['status']==='Approved'),
+        'Approved General Budget appears in Admin History');
     $part=(int)Purchasing::action($buyer,'part_save',[
         'part_type'=>'Tire','description'=>'General budget test tire','unit'=>'piece',
         'unit_cost'=>'100','reorder_level'=>1
@@ -59,6 +68,8 @@ try {
     ]);
     checkBudget((float)$active()['spent_amount']===120.0,'Manual expense updates General Budget spent');
     $second=$submit(20000);
+    try { $submit(25000); throw new RuntimeException('Duplicate pending request was accepted'); }
+    catch(BusinessRuleException $e) { checkBudget($e->httpStatus===409,'Only one pending General Budget request is allowed'); }
     Finance::action($admin,'budget_decide',['request_id'=>$second,'decision'=>'approve']);
     $two=$active();
     checkBudget((int)$two['id']!==(int)$one['id'] && (float)$two['reserved_amount']===300.0,
