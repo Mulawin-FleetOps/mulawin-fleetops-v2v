@@ -617,7 +617,7 @@ PurUI.kit = (d, can) => {
       // A PO can always be inspected, including Received, Closed and Rejected.
       // The drawer already provides the full record, so do not show a redundant
       // Details action inside that same drawer.
-      let h = big ? '' : a('details', 'Details', 'bi-eye', 'outline-primary');
+      let h = big ? '' : UI.btn('details', 'Details', 'outline-success', 'bi-eye').replace('class="btn ', 'class="btn purchasing-po-details-btn ');
       if (o.status === 'Pending Approval' && ((o.approver_role === 'finance' && can.approveSmall) || (o.approver_role === 'admin' && can.approveBig))) h += a('approve', 'Approve PO', 'bi-check-lg', 'success') + (big ? a('reject', 'Reject PO', 'bi-x-lg', 'outline-danger') : '');
       if (can.stock && ['Approved', 'Partially Received'].includes(o.status)) h += a('receive', 'Receive Parts', 'bi-box-arrow-in-down', 'primary') + (big ? a('close', 'Close Remaining Order', 'bi-slash-circle', 'outline-secondary') : '');
       return h + (big ? a('print', 'Print PO', 'bi-printer', 'outline-secondary') : '');
