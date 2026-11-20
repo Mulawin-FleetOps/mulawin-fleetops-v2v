@@ -547,7 +547,7 @@ final class Oversight {
             Actions::load('Purchasing');
             $a = Purchasing::analytics($u, ['from' => $from, 'to' => $to]);
             $data += ['report' => ['flow' => ['in' => $a['flow']['in'] ?? [], 'out' => $a['flow']['out'] ?? []], 'buckets' => $a['buckets'] ?? [], 'topUsed' => $a['topUsed'] ?? [], 'poStatus' => $a['poStatus'] ?? []],
-                'inventory' => many($p, "SELECT COALESCE(category, 'Uncategorised') AS label, COUNT(*) AS n, ROUND(SUM(quantity_on_hand*unit_cost),2) AS value FROM parts WHERE active=1 GROUP BY label HAVING value > 0 ORDER BY value DESC"),
+                'inventory' => many($p, "SELECT COALESCE(NULLIF(TRIM(part_type), ''), 'Unclassified Part Type') AS label, COUNT(*) AS n, ROUND(SUM(quantity_on_hand*unit_cost),2) AS value FROM parts WHERE active=1 GROUP BY label HAVING value > 0 ORDER BY value DESC"),
                 'suggestions' => ['main' => $a['partTips'] ?? []]];
         } else {
             $fin = self::finance($p, []);
