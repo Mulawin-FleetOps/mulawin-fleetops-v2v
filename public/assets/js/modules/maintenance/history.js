@@ -45,9 +45,10 @@ const MaintHistoryDetails = {
           <div class="mp-repair-history-meta">${esc(e.actor || 'Actor not recorded')}${e.mechanic ? ' · Mechanic: '+esc(e.mechanic) : ''}</div>
         </div>
       </li>`).join('')}</ol>` : '<p class="mp-history-detail-empty">No status history recorded.</p>';
-    const docs = documents.length ? `<ul class="mp-history-document-list">${documents.map(d =>
-      `<li><i class="bi bi-file-earmark" aria-hidden="true"></i><span>${esc(d.original_name || d.file_name || d.name || d.category || 'Attached document')}</span></li>`).join('')}</ul>`
-      : '<p class="mp-history-detail-empty">No attached documents recorded.</p>';
+    // Reuse the authenticated shared document viewer: inline photo thumbnails,
+    // click-to-preview images/PDFs, and the existing protected download links.
+    // Keep this standalone Maintenance History drawer read-only.
+    const docs = UI.docs(documents, 'No attached documents recorded.');
     const html = `<div class="mp-history-detail-readonly">
       <div class="mp-history-detail-summary">
         <span class="mp-history-readonly-label">Recorded maintenance history · Read-only</span>
