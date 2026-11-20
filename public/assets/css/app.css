@@ -4022,3 +4022,19 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   .chart-grid { grid-template-columns:minmax(0,1fr); }
   .chart-why, .report-chart-why { font-size:11px; }
 }
+
+
+/* Purchasing Create PO: budget eligibility before approval submission */
+.po-budget-check {
+  margin-top:14px; padding:12px 14px; border:1px solid #d9e4dc;
+  border-radius:9px; background:#f7faf8; display:grid; gap:4px;
+  color:#405d4b; font-size:12px; line-height:1.5;
+}
+.po-budget-check strong {font-size:13px; font-weight:750; color:#3e594b;}
+.po-budget-check span {overflow-wrap:anywhere;}
+.po-budget-check small {color:#708075; font-size:11px;}
+.po-budget-check.is-ready {background:#eff8f2; border-color:#b9dec5;}
+.po-budget-check.is-ready strong {color:#167345;}
+.po-budget-check.is-blocked {background:#fff7f5; border-color:#f0d4cd;}
+.po-budget-check.is-blocked strong {color:#ab4633;}
+.po-budget-check.is-blocked small {color:#925746;}
