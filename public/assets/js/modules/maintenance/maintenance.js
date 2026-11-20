@@ -265,7 +265,7 @@ const MaintUI = {
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
       <div class="small text-muted mb-2">Existing linked parts requests remain valid. If parts are required, select them here or use a linked request later before repair completion.</div>
       <div data-parts-input hidden><div data-final-lines></div><button type="button" class="btn btn-outline-primary btn-sm" data-final-add-part>Add part</button></div>`;
-    const dialog = UI.modal('Finalize Repair Assignment · ' + UI.esc(j.job_ref),html,async (_values,form)=>{
+    const dialog = UI.modal('Finalize RA · ' + UI.esc(j.job_ref),html,async (_values,form)=>{
       const lead = +(form.querySelector('[data-final-lead]:checked')?.value || 0);
       const helpers = [...form.querySelectorAll('[data-final-helper]:checked')].map(x=>+x.dataset.finalHelper);
       const components = [...form.querySelectorAll('[data-component]:checked')].map(x=>+x.dataset.component);
@@ -297,7 +297,7 @@ const MaintUI = {
       if (!window.confirm('Finalize this repair assignment? The mechanic team will be locked afterward.')) return;
       const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,other_components,parts_requirement,parts_lines});
       UI.result(response); if(after) after(); else App.route();
-    },{submit:'Finalize Repair Assignment',size:'modal-xl'});
+    },{submit:'Finalize RA',size:'modal-xl'});
 
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
@@ -547,7 +547,7 @@ const MaintUI = {
       if (j.source === 'Incident' && j.status === 'Reported') acts.push(['assess', 'Assess incident', 'primary', 'bi-clipboard-pulse']);
       if (j.source !== 'Incident' && j.status === 'Reported') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-gear']);
       if (j.status === 'Under Inspection') acts.push(j.mechanic_id ? ['inspect', 'Record findings', 'primary', 'bi-search'] : ['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
-      if (j.status === 'Under Repair') acts.push(d.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize Repair Assignment', 'primary', 'bi-lock'] : (+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']));
+      if (j.status === 'Under Repair') acts.push(d.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'primary', 'bi-lock'] : (+r.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + r.pending_parts_units + ')', 'outline-secondary disabled', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'primary', 'bi-check2-circle']));
       if (j.status === 'Completed' && !j.verified_at) acts.push(['verify', 'Verify & return to service', 'primary', 'bi-shield-check']);
       // INCIDENT_CLEARANCE_V1: Motorpool's Fit / Not Fit to Continue decision for a Minor trip incident.
       if (i && i.severity === 'Minor' && !['Repaired - Cleared to Continue', 'Resolved'].includes(i.status)) acts.push(['clearance', 'Vehicle clearance', j.verified_at ? 'primary' : 'outline-primary', 'bi-sign-stop']);
@@ -673,7 +673,7 @@ const MaintUI = {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     if (j.status === 'Under Inspection') return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
-    if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize Repair Assignment', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
+    if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
     if (j.status === 'Completed') return ['verify', 'Verify & return to service', 'bi-shield-check'];
     return null;
   },
@@ -911,7 +911,7 @@ App.page('maintenance', {
         return (st ? st[0] === 'parts-pending' ? `<span class="badge-s amber" title="Complete Purchasing release before finishing repair">${UI.esc(st[1])}</span>` : `<button type="button" class="btn btn-sm btn-outline-primary mp-repair-step-btn" data-act="step:${UI.esc(st[0])}">${UI.esc(st[1])}</button>` : '')
           + (d.can.act && !d.motorpoolCatalogReady && d.helpersReady && j.mechanic_id && MaintUI.ACTIVE.includes(j.status) ? UI.btn('helpers', 'Add mechanics', 'outline-secondary') : '')
           + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) && (!d.motorpoolCatalogReady || j.assignment_finalized_at) ? UI.btn('parts', 'Request parts', 'outline-secondary') : '')
-          + UI.btn('view', 'Open record', 'outline-primary'); },
+          + UI.btn('view', 'Details', 'outline-primary'); },
       onAction: (a, j) => a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id) : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
       rowClick: (j) => MaintUI.open(j.id) };
     const box = document.createElement('div'); ctx.el.append(box);
