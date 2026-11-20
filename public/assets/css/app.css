@@ -3817,3 +3817,47 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
   padding: 8px 12px 13px;
   border-top: 1px solid #e4eee7;
 }
+
+/* MOTORPOOL_FLOATING_LEAD_PICKER_V1 — small floating list, not the browser's
+   full-screen native select. List scrolls without expanding the RA modal. */
+.mp-final-lead-picker {
+  position: relative;
+  min-width: 0;
+}
+.mp-final-lead-picker:has(.mp-final-lead-results:not([hidden])) { z-index: 20; }
+.mp-final-lead-picker > input[type="search"] { width: 100%; }
+.mp-final-lead-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 21;
+  max-height: 218px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border: 1px solid #c9dfcf;
+  border-radius: 9px;
+  box-shadow: 0 10px 26px rgba(15, 48, 28, .18);
+}
+.mp-final-lead-results[hidden] { display: none !important; }
+.mp-final-lead-option {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e7eee9;
+  background: #fff;
+  color: #244332;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  padding: 9px 11px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.mp-final-lead-option:last-of-type { border-bottom: 0; }
+.mp-final-lead-option:hover,
+.mp-final-lead-option.active,
+.mp-final-lead-option:focus-visible { background: #ecf7ef; outline: 2px solid #287b4c; outline-offset: -2px; }
+.mp-final-lead-empty { padding: 12px; color: #6b7d72; font-size: 12px; }
