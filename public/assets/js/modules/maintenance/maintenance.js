@@ -221,27 +221,14 @@ const MaintUI = {
     const allMechs = (d.mechanics || []).filter(m => m.availability === 'Available' || assigned.includes(+m.id));
     const teamOptions = allMechs.map(m => `<label class="mp-final-team-choice" data-team-text="${UI.esc([m.full_name,m.mechanic_code,m.specialization].join(' ').toLocaleLowerCase())}">
       <input type="checkbox" data-team-mechanic value="${+m.id}" ${assigned.includes(+m.id) ? 'checked' : ''}>
-      <span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)}${m.specialization ? ' · '+UI.esc(m.specialization) : ''}</small></span>
+      <span><strong>${UI.esc(m.full_name)}</strong><small>${UI.esc(m.mechanic_code)}${m.specialization ? ' · '+UI.esc(m.specialization) : ''}</small><em class="mp-final-team-recommended" data-team-match hidden></em></span>
     </label>`).join('');
     const summary = j.source === 'Incident' ? `<div class="alert alert-light border small"><b>Incident-related repair:</b> Original Dispatcher incident details stay read-only in Repair Details. Classification: ${UI.esc(j.severity || 'Not assessed')}.</div>` : '';
-    const html = `<div class="small text-muted mb-3">Select the mechanics who will work on this truck, then confirm the parts needed.</div>
+    const html = `<div class="small text-muted mb-3">Choose the affected components first. Recommended mechanics will appear in the checklist below.</div>
       ${summary}
       <div class="purchasing-receive-section">Truck and reported problem</div>
-      <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.truck_type)}<div class="small mt-1">${UI.esc(j.problem)}</div></div>
-      <div class="purchasing-receive-section">Assign mechanics</div>
-      <label class="form-label mt-2" for="mp-final-team-search">Select mechanics *</label>
-      <div class="mp-final-team-picker">
-        <input id="mp-final-team-search" type="search" class="form-control" data-team-search
-          placeholder="Search mechanic name, ID, or specialization…" autocomplete="off">
-        <div class="mp-final-team-list" data-team-list>
-          ${teamOptions || '<p class="small text-muted p-2">No available mechanics to assign.</p>'}
-          <p class="small text-muted p-2" data-team-empty hidden>No mechanics match your search.</p>
-        </div>
-        <div class="mp-final-team-foot"><span data-team-count>0 mechanics selected</span><button type="button" class="btn btn-link btn-sm" data-team-clear>Clear selection</button></div>
-      </div>
-      <div class="mp-final-skill-warning mt-2" data-final-skill-warning role="status" aria-live="polite" tabindex="-1" hidden></div>
-      <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
-      <summary>Affected components (optional) <span data-component-summary>0 selected</span></summary>
+      <div class="border rounded p-3 mb-3"><b>${UI.esc(j.plate_number)}</b> · ${UI.esc(j.tru      <details class="mp-final-optional-section mb-2" ${(r.selectedComponents || []).length ? 'open' : ''}>
+      <summary>Affected components (choose first) <span data-component-summary>0 selected</span></summary>
       <div class="mp-final-optional-content">
       <div class="mp-final-component-tabs" role="tablist" aria-label="Component category">
         <button type="button" class="mp-final-component-tab active" role="tab" aria-selected="true" data-comp-tab="tractor_head">Tractor Head</button>
@@ -261,6 +248,22 @@ const MaintUI = {
         <p class="small text-muted mt-1">Custom descriptions are saved in repair activity; only catalog checkboxes have verified skill mappings.</p>
       </div>
       <div class="small mb-2" data-specialization-suggest>Choose components to see suggested skills.</div>
+      </div></details>
+      <div class="purchasing-receive-section">Assign mechanics</div>
+      <p class="small text-muted mt-2 mb-2" data-team-suggestion>Choose affected components above to see recommended mechanics based on verified specializations.</p>
+      <label class="form-label mt-2" for="mp-final-team-search">Select mechanics *</label>
+      <div class="mp-final-team-picker">
+        <input id="mp-final-team-search" type="search" class="form-control" data-team-search
+          placeholder="Search mechanic name, ID, or specialization…" autocomplete="off">
+        <label class="mp-final-team-filter"><input type="checkbox" data-team-recommended-only> Recommended only</label>
+        <div class="mp-final-team-list" data-team-list>
+          ${teamOptions || '<p class="small text-muted p-2">No available mechanics to assign.</p>'}
+          <p class="small text-muted p-2" data-team-empty hidden>No mechanics match your search.</p>
+        </div>
+        <div class="mp-final-team-foot"><span data-team-count>0 mechanics selected</span><button type="button" class="btn btn-link btn-sm" data-team-clear>Clear selection</button></div>
+      </div>
+      <div class="mp-final-skill-warning mt-2" data-final-skill-warning role="status" aria-live="polite" tabindex="-1" hidden></div>
+ components to see suggested skills.</div>
       </div></details>
       <div class="purchasing-receive-section">Parts requirement</div>
       <label class="form-label mt-2">Confirm parts requirement *</label><select class="form-select mb-2" data-final-parts><option value="">Select confirmed requirement...</option><option value="No Parts Needed">No Parts Needed</option><option value="Parts Required">Parts Required</option></select>
@@ -309,15 +312,57 @@ const MaintUI = {
     const teamRows=[...dialog.querySelectorAll('.mp-final-team-choice')];
     const teamEmpty=dialog.querySelector('[data-team-empty]');
     const teamCount=dialog.querySelector('[data-team-count]');
+    const teamList=dialog.querySelector('[data-team-list]');
+    const recommendedOnly=dialog.querySelector('[data-team-recommended-only]');
+    const teamSuggestion=dialog.querySelector('[data-team-suggestion]');
+    // Use verified mechanic_skills from backend. Legacy specialization text is display-only.
+    const mechanicSkills=new Map();
+    (d.mechanicSkills||[]).forEach(item=>{
+      const id=+item.mechanic_id;
+      if(!mechanicSkills.has(id))mechanicSkills.set(id,new Set());
+      mechanicSkills.get(id).add(item.name);
+    });
     const selectedTeam=()=>[...dialog.querySelectorAll('[data-team-mechanic]:checked')].map(x=>+x.value);
     const filterTeam=()=>{
       const term=teamSearch.value.trim().toLocaleLowerCase();
       let shown=0;
       teamRows.forEach(row=>{
-        row.hidden=!row.dataset.teamText.includes(term);
+        const selected=row.querySelector('[data-team-mechanic]').checked;
+        const recommended=row.dataset.recommended==='true';
+        row.hidden=!row.dataset.teamText.includes(term) || (recommendedOnly.checked&&!recommended&&!selected);
         if(!row.hidden)shown++;
       });
       teamEmpty.hidden=shown>0;
+      teamEmpty.textContent=recommendedOnly.checked ? 'No matching recommended mechanics. Turn off Recommended only to see all.' : 'No mechanics match your search.';
+    };
+    const refreshRecommendations=(needed, selectedTeamIds)=>{
+      const covered=new Set((d.mechanicSkills||[]).filter(item=>selectedTeamIds.includes(+item.mechanic_id)).map(item=>item.name));
+      const uncovered=needed.filter(skill=>!covered.has(skill));
+      let totalRecommended=0;
+      teamRows.forEach(row=>{
+        const id=+row.querySelector('[data-team-mechanic]').value;
+        const matching=needed.filter(skill=>(mechanicSkills.get(id)||new Set()).has(skill));
+        const helps=uncovered.filter(skill=>(mechanicSkills.get(id)||new Set()).has(skill));
+        const recommended=matching.length>0;
+        row.dataset.recommended=String(recommended);
+        row.dataset.recommendScore=String(helps.length*100+matching.length);
+        row.classList.toggle('mp-team-recommended',recommended);
+        const match=row.querySelector('[data-team-match]');
+        match.textContent=matching.length ? 'Recommended · '+matching.join(', ') : '';
+        match.hidden=!recommended;
+        if(recommended)totalRecommended++;
+      });
+      teamRows.sort((a,b)=>{
+        const selectedA=a.querySelector('[data-team-mechanic]').checked?1:0;
+        const selectedB=b.querySelector('[data-team-mechanic]').checked?1:0;
+        return selectedB-selectedA || (+b.dataset.recommendScore)-(+a.dataset.recommendScore)
+          || a.dataset.teamText.localeCompare(b.dataset.teamText);
+      }).forEach(row=>teamList.insertBefore(row,teamEmpty));
+      teamSuggestion.textContent=needed.length
+        ? 'Needed specialization'+(needed.length===1?'':'s')+': '+needed.join(', ')+'. '+totalRecommended+
+          ' verified matching mechanic'+(totalRecommended===1?'':'s')+' marked Recommended.'
+        : 'Choose affected components above to see recommended mechanics based on verified specializations.';
+      filterTeam();
     };
     const update=()=>{
       const picked=[...dialog.querySelectorAll('[data-component]:checked')];
@@ -333,9 +378,11 @@ const MaintUI = {
       const warning=dialog.querySelector('[data-final-skill-warning]');
       warning.textContent=missing.length?'Selected team needs: '+missing.join(', ')+'. Choose a qualified mechanic.':'';
       warning.hidden=!missing.length;
+      refreshRecommendations(names, team);
       dialog.querySelector('[data-parts-input]').hidden=dialog.querySelector('[data-final-parts]').value!=='Parts Required';
     };
     teamSearch.addEventListener('input',filterTeam);
+    recommendedOnly.addEventListener('change',filterTeam);
     dialog.querySelector('[data-team-clear]').addEventListener('click',()=>{
       dialog.querySelectorAll('[data-team-mechanic]').forEach(input=>{input.checked=false;});
       update();
