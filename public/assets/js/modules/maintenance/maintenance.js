@@ -294,7 +294,6 @@ const MaintUI = {
       if (parts_lines.some(x=>!x.part_id||!Number.isInteger(x.quantity)||x.quantity<1)) throw new Error('Choose a part and valid quantity.');
       if (new Set(parts_lines.map(x=>x.part_id)).size!==parts_lines.length) throw new Error('Combine duplicate parts into one request.');
       if (parts_requirement !== 'Parts Required' && parts_lines.length) throw new Error('Select Parts Required before adding parts.');
-      if (!window.confirm('Finalize this repair assignment? The mechanic team will be locked afterward.')) return;
       const response = await App.api('Maintenance.finalize_assignment',{job_id:j.id,mechanic_id:lead,assistant_mechanic_ids:helpers,component_ids:components,other_components,parts_requirement,parts_lines});
       UI.result(response); if(after) after(); else App.route();
     },{submit:'Finalize RA',size:'modal-xl'});
