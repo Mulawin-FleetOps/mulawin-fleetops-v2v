@@ -593,18 +593,18 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
 #pageContent .mp-action-stages.mp-parts-summary,
 #pageContent .mp-action-stages.mp-attendance-kpis {
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
   gap:12px;
 }
 @media(max-width:900px) {
   #pageContent .mp-action-stages.mp-parts-summary,
   #pageContent .mp-action-stages.mp-attendance-kpis {
-    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
   }
 }
 @media(max-width:560px) {
   #pageContent .mp-action-stages.mp-parts-summary,
   #pageContent .mp-action-stages.mp-attendance-kpis {
-    grid-template-columns:minmax(0,1fr);
+    grid-template-columns:minmax(0,1fr) !important;
   }
 }
