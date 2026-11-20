@@ -306,9 +306,10 @@ final class Finance {
         $start = dateField($d, 'period_start');
         $end = dateField($d, 'period_end');
         $remarks = optField($d, 'remarks', 500);
-        must($end >= $start, 'The end date is before the start date.', 422);
-        must($start <= date('Y-m-d') && $end >= date('Y-m-d'),
-            'The General Budget effective period must include today.', 422);
+        must($start === date('Y-m-d'),
+            'The General Budget effective start date must be today (Philippine time).', 422);
+        must($end >= $start,
+            'The General Budget effective end date cannot be earlier than today.', 422);
         return transaction(function(PDO $p) use ($u,$amount,$start,$end,$remarks) {
             must(self::budgetRequestsReady($p), 'General Budget migration is required before submitting an allocation.', 409);
             must(!one($p, "SELECT id FROM general_budget_requests WHERE status='Pending Approval' LIMIT 1 FOR UPDATE"),
