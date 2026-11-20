@@ -148,7 +148,7 @@ final class Oversight {
             'Trips on hold or for reschedule', 'Status: On Hold - Incident Reported or For Reschedule', 'admin_operations', 'red');
         $add(self::n($p, "SELECT COUNT(*) AS n FROM billings WHERE status IN ('Invoiced','Partially Paid') AND due_date < CURRENT_DATE()"),
             'Overdue invoices', 'Receivables past their due date', 'billing_receivables', 'red');
-        $b = one($p, "SELECT amount, reserved_amount, spent_amount, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1");
+        $b = one($p, "SELECT amount, reserved_amount, spent_amount, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) ORDER BY id DESC LIMIT 1");
         if (!$b) $out[] = ['n' => 1, 'title' => 'No active purchasing budget', 'sub' => 'Purchase orders cannot be approved until Finance sets one', 'go' => 'finance_budgets', 'tone' => 'red'];
         elseif (!(int)$b['in_period']) $out[] = ['n' => 1, 'title' => 'Purchasing budget period has ended', 'sub' => 'Finance must set a new budget', 'go' => 'finance_budgets', 'tone' => 'red'];
         elseif ((float)$b['amount'] > 0 && ((float)$b['spent_amount'] + (float)$b['reserved_amount']) / (float)$b['amount'] >= 0.8)
@@ -344,7 +344,7 @@ final class Oversight {
                 many($p, "SELECT 'Trip fund (release by Finance)' AS kind, f.id, f.fund_ref AS ref, f.amount, f.approved_at AS since, 'funds?open=' AS go_base
                     FROM fund_requests f WHERE f.status='Ready for Release' ORDER BY f.approved_at")),
             'monthlyBudget' => fn() => one($p, "SELECT *, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period
-                FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? [],
+                FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) ORDER BY id DESC LIMIT 1") ?? [],
             'dueWindow' => fn() => one($p, "SELECT COALESCE(SUM(total_amount),0) AS due, COALESCE(SUM(amount_paid),0) AS paid, COUNT(*) AS n FROM billings
                 WHERE status IN ('Invoiced','Partially Paid','Paid') AND due_date BETWEEN CURRENT_DATE() - INTERVAL 30 DAY AND CURRENT_DATE() - INTERVAL 1 DAY"),
         ]);
