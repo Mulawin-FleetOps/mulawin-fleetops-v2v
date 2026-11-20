@@ -221,8 +221,9 @@ final class Access {
                 'fuel-adjustment' => ['Fuel & Operating Costs', 'Financial Oversight'],
                 'admin_descriptive_analytics' => ['Descriptive Analytics', 'Analytics'],
                 'admin_diagnostic_analytics' => ['Diagnostic Analytics', 'Analytics'],
-                'approvals' => ['Approvals', 'Management Control'],
-                // Legacy Management Action Center remains deep-linkable, but Approvals is the single sidebar entry.
+                'approvals' => ['History', 'Management Control'],
+                // Decision history is the Head Management sidebar entry. Actual pending
+                // approvals remain accessible through the executive dashboard.
                 'reports_center' => ['Reports', 'Management Control'],
                 'admin' => ['User & Access Management', 'Management Control'],
                 'head-settings' => ['System Configuration', 'Management Control'],
