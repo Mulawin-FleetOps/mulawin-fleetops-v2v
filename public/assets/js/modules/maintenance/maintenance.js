@@ -658,11 +658,44 @@ const MaintUI = {
         ['Damage classification', i.severity ? UI.esc(i.severity) + (i.assessed_by_name ? ' · ' + UI.esc(i.assessed_by_name) + ' · ' + UI.datetime(i.assessed_at) : '') : '<span class="text-muted">Not assessed yet</span>'],
         ['Vehicle clearance', i.clearance ? `${UI.badge(i.clearance)} · ${UI.e(i.cleared_by_name)} · ${UI.datetime(i.cleared_at)}<div class="small text-muted">${UI.e(i.clearance_findings)}</div>` : '<span class="text-muted">Not recorded</span>'],
         ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}
-      ${UI.h('Parts and costs', UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-link btn-sm p-0" data-partspage="${+j.vehicle_id}"><i class="bi bi-box-seam"></i> Open in Parts Requests</button>` : '')}
-      ${+r.pending_parts_units > 0 ? '<div class="alert alert-warning small">Repair completion is blocked: ' + UI.num(r.pending_parts_units) + ' requested unit(s) await Purchasing release. Open Parts Requests to follow up.</div>' : ''}
-      ${r.parts.length ? UI.table([['Request', 'request_ref'], ['Part ID', 'part_number'], ['Part Type', 'part_type'], ['Part Name', 'description'], ['Requested', 'quantity', 'num'], ['Released', 'released_qty', 'num'], ['Unit cost', 'unit_cost', 'money']], r.parts, { plain: true }) : '<div class="text-muted small mb-2">No parts requested.</div>'}
-      ${r.costs.length ? UI.table([['Type', 'cost_type'], ['Description', 'description'], ['Provider', 'provider'], ['Date', 'incurred_on', 'date'], ['Amount', 'amount', 'money']], r.costs, { plain: true }) : '<div class="text-muted small mb-2">No labor or outside costs.</div>'}
-      <div class="text-end small">Parts ${UI.money(partsCost)} + other ${UI.money(other)} = <b>${UI.money(partsCost + other)}</b></div>
+      ${UI.h('Parts and costs')}
+      <div class="mp-repair-parts-costs">
+        <div class="mp-repair-cost-summary">
+          <div><small>Parts cost</small><strong>${UI.money(partsCost)}</strong></div>
+          <div><small>Labor & other costs</small><strong>${UI.money(other)}</strong></div>
+          <div class="mp-repair-cost-total"><small>Total maintenance cost</small><strong>${UI.money(partsCost + other)}</strong></div>
+        </div>
+        <div class="mp-repair-cost-section">
+          <div class="mp-repair-cost-section-head"><strong>Requested parts</strong>
+            ${UI.canGo('mp_parts_requests') ? `<button type="button" class="btn btn-sm btn-outline-primary" data-partspage="${+j.vehicle_id}">Open Parts Requests</button>` : ''}
+          </div>
+          ${+r.pending_parts_units > 0 ? `<div class="mp-repair-cost-notice" role="status"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>${UI.num(r.pending_parts_units)} requested unit(s) still need Purchasing release before repair completion.</span></div>` : ''}
+          ${r.parts.length ? `<div class="mp-repair-parts-list">${r.parts.map(p=>`
+            <div class="mp-repair-part-entry">
+              <div class="mp-repair-part-main"><strong>${UI.esc(p.description || p.part_number || 'Part')}</strong>
+                <small>${UI.esc(p.part_number || '—')}${p.part_type ? ' · '+UI.esc(p.part_type) : ''} · Request ${UI.esc(p.request_ref || '—')}</small>
+              </div>
+              <div class="mp-repair-part-counts">
+                <span>Requested <b>${UI.num(p.quantity || 0)}</b></span>
+                <span>Released <b>${UI.num(p.released_qty || 0)}</b></span>
+                <span>Still needed <b>${UI.num(Math.max(0,(+p.quantity || 0)-(+p.released_qty || 0)))}</b></span>
+              </div>
+              <div class="mp-repair-part-price"><span>Released value</span><b>${UI.money((+p.released_qty || 0)*(+p.unit_cost || 0))}</b></div>
+            </div>`).join('')}</div>`
+            : '<div class="mp-repair-cost-empty"><i class="bi bi-box-seam" aria-hidden="true"></i><strong>No parts requested</strong><span>Parts requested for this repair will appear here, including their release progress.</span></div>'}
+        </div>
+        <div class="mp-repair-cost-section">
+          <div class="mp-repair-cost-section-head"><strong>Labor & outside costs</strong></div>
+          ${r.costs.length ? `<div class="mp-repair-other-costs">${r.costs.map(c=>`
+            <div class="mp-repair-other-entry">
+              <div><strong>${UI.esc(c.cost_type || 'Other cost')}</strong>
+                <small>${UI.esc(c.description || c.provider || 'Recorded expense')}${c.incurred_on ? ' · '+UI.date(c.incurred_on) : ''}</small>
+                ${c.description && c.provider ? `<small>Provider: ${UI.esc(c.provider)}</small>` : ''}
+              </div><b>${UI.money(c.amount || 0)}</b>
+            </div>`).join('')}</div>`
+            : '<div class="mp-repair-cost-empty"><i class="bi bi-receipt" aria-hidden="true"></i><strong>No labor or outside costs recorded</strong><span>Recorded repair expenses will appear here.</span></div>'}
+        </div>
+      </div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
       ${UI.h('Status history')}${UI.activity(r.events)}
       ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
