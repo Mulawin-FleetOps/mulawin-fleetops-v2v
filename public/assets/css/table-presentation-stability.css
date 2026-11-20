@@ -789,3 +789,53 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 .modal .mp-mechanic-checklist-copy small {font-size:12px;color:#698073;line-height:1.4}
 .modal .mp-mechanic-checklist-item[hidden],
 .modal .mp-mechanic-checklist [hidden] {display:none!important}
+
+
+/* MOTORPOOL_FINALIZE_COMPACT_PICKERS_V1
+   Compact tabs and scrollable component/assistant selection panels. */
+.modal .mp-final-component-tabs {
+  display:flex;flex-wrap:wrap;gap:16px;
+  border-bottom:1px solid #dce8df;margin:9px 0 10px;
+}
+.modal .mp-final-component-tab {
+  border:0;border-bottom:2px solid transparent;border-radius:0;
+  padding:9px 4px;background:transparent;color:#607968;
+  font-size:12.5px;font-weight:650;cursor:pointer;
+}
+.modal .mp-final-component-tab.active {
+  color:#176b3d;border-bottom-color:#176b3d;
+}
+.modal .mp-final-component-tab:focus-visible {outline:2px solid #176b3d;outline-offset:2px}
+.modal .mp-final-components-pane {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;max-height:240px;overflow-y:auto;
+  align-content:start;padding:7px;border:1px solid #e0e9e2;border-radius:9px;
+}
+.modal .mp-final-components-pane[hidden] {display:none!important}
+.modal .mp-final-components-pane[data-comp-pane="others"] {grid-template-columns:minmax(0,1fr)}
+.modal .mp-final-component-choice {
+  display:flex;gap:9px;align-items:flex-start;
+  padding:9px 10px;border:1px solid #dce8df;border-radius:8px;
+  font-size:12px;color:#314b3c;cursor:pointer;
+}
+.modal .mp-final-component-choice:has(input:checked) {border-color:#89b99c;background:#eef8f1}
+.modal .mp-final-component-choice input {accent-color:#176b3d;margin-top:2px}
+.modal .mp-final-helper-list {
+  max-height:225px;overflow-y:auto;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  align-content:start;gap:8px;padding:7px;
+  border:1px solid #dce8df;border-radius:9px;
+}
+.modal .mp-final-helper-choice {
+  display:flex;align-items:flex-start;gap:10px;
+  padding:9px 10px;border:1px solid #dce8df;border-radius:8px;
+  font-size:12px;color:#314b3c;cursor:pointer;min-width:0;
+}
+.modal .mp-final-helper-choice input {accent-color:#176b3d;margin-top:2px}
+.modal .mp-final-helper-choice > span {display:flex;flex-direction:column;gap:3px;min-width:0}
+.modal .mp-final-helper-choice small {font-size:11.5px;color:#728477}
+.modal .mp-final-helper-choice:has(input:checked) {border-color:#89b99c;background:#eef8f1}
+.modal .mp-final-helper-choice[hidden], .modal .mp-final-helper-list [hidden] {display:none!important}
+@media(max-width:620px) {
+  .modal .mp-final-components-pane,.modal .mp-final-helper-list {grid-template-columns:minmax(0,1fr)}
+}
