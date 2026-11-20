@@ -105,24 +105,28 @@ final class Oversight {
         }
         // Legacy route-rate requests remain actionable in Routes.decide; include
         // them here rather than leaving a second approval queue in Head Management.
+        $routeHistory = $history ? " OR rt.decided_at >= NOW() - INTERVAL 90 DAY" : '';
         foreach (many($p, "SELECT rt.id AS rate_id, rt.route_id, rt.rate_amount, rt.entered_at,
+                       rt.status, rt.decided_at, rt.decision_notes,
                        r.route_ref, r.origin_label, r.destination_label, c.company_name,
-                       u.full_name AS requester
+                       u.full_name AS requester, du.full_name AS decider
                 FROM client_route_rates rt
                 JOIN client_routes r ON r.id=rt.route_id
                 JOIN clients c ON c.id=r.client_id
                 LEFT JOIN users u ON u.id=rt.entered_by
-                WHERE rt.status='Pending Approval'
-                ORDER BY rt.entered_at ASC LIMIT 300") as $rt) {
+                LEFT JOIN users du ON du.id=rt.decided_by
+                WHERE (rt.status='Pending Approval'$routeHistory)
+                ORDER BY rt.id DESC LIMIT 300") as $rt) {
+            $pending = $rt['status'] === 'Pending Approval';
             $rows[] = ['key'=>'route:'.$rt['rate_id'], 'kind'=>'route', 'id'=>(int)$rt['rate_id'],
                 'route_id'=>(int)$rt['route_id'], 'ref'=>$rt['route_ref'],
                 'type'=>'Route rate approval', 'dept'=>'Client & Commercial',
                 'requester'=>$rt['requester'], 'submitted'=>$rt['entered_at'],
-                'amount'=>(float)$rt['rate_amount'], 'status'=>'Pending',
-                'raw_status'=>'Pending Approval',
+                'amount'=>(float)$rt['rate_amount'], 'status'=>$pending?'Pending':$rt['status'],
+                'raw_status'=>$rt['status'],
                 'summary'=>$rt['company_name'].' · '.$rt['origin_label'].' → '.$rt['destination_label'],
-                'next'=>'Admin','decided_at'=>null,'decider'=>null,'notes'=>null,
-                'actionable'=>true,'go'=>'routes'];
+                'next'=>$pending?'Admin':'—','decided_at'=>$rt['decided_at'],'decider'=>$rt['decider'],
+                'notes'=>$rt['decision_notes'],'actionable'=>$pending,'go'=>'routes'];
         }
         usort($rows, fn($a, $b) => [$b['status'] === 'Pending', $b['submitted']] <=> [$a['status'] === 'Pending', $a['submitted']]);
         return $rows;
