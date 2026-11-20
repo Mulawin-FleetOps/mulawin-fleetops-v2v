@@ -501,6 +501,18 @@ final class Oversight {
                 default => 'purchasing_reports'
             }, $q);
         }])['result'] ?? [];
+        // A live approved General Budget is a current allocation snapshot, NOT
+        // historical spending for the selected analytics date range. No pending
+        // request or legacy Purchasing/Fuel budget is presented as General.
+        if ($topic === 'finance' && $kind === 'general') {
+            $data['generalBudgetUtilization'] = readSections([
+                'budget' => fn() => one($p, "SELECT id, amount, spent_amount, reserved_amount,
+                        amount-reserved_amount-spent_amount AS available, period_start, period_end
+                    FROM budgets WHERE category='General' AND status='Active'
+                    AND CURRENT_DATE() BETWEEN period_start AND period_end
+                    ORDER BY id DESC LIMIT 1")
+            ])['budget'] ?? null;
+        }
         // Read-only evidence for the supported incident workflow. Filter by the
         // incident's own timestamp; join only the repair explicitly linked to
         // this incident, never infer a cause from an unrelated truck repair.
