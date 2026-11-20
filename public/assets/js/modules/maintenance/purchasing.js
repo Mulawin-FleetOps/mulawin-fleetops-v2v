@@ -1043,7 +1043,7 @@ App.page('inventory', {
     // Inventory Parts and Stock Counts are separate table layouts even when switching tabs.
     ctx.el.classList.remove('purchasing-inventory-parts-view');
     const { d, can, k } = PurUI.prep(ctx), q = ctx.query;
-    if (can.stock) PurUI.tool(ctx, 'Add part', 'bi-plus-lg', () => k.partForm(), 'btn-outline-secondary');
+    if (can.stock) PurUI.tool(ctx, '+ Add Part', 'bi-plus-lg', () => k.partForm(), 'btn-primary');
     // Physical counts remain available from View Details and the Stock Counts view.
     const parts = d.parts || [], active = parts.filter(p => +p.active), low = active.filter(p => +p.low_stock), out = active.filter(p => +(p.available_qty ?? p.quantity_on_hand) <= 0);
     const counts = d.counts || [], pending = counts.filter(c => c.status === 'Submitted');
@@ -1053,7 +1053,7 @@ App.page('inventory', {
       ? '<div class="alert alert-warning small">Part Type / Brand migration has not been applied to this database. Existing parts remain visible, but Add/Edit Part will be unavailable until the migration is installed.</div>' : '';
     const inventoryCards = PurRef.cards([
       {label:'Active Parts',value:active.length,note:'Active catalog entries',icon:'bi-box-seam',go:'inventory?stock=active'},
-      {label:'Low / Out of Stock',value:low.length,note:'Parts at or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
+      {label:'Low Stock',value:low.filter(p => +(p.available_qty ?? p.quantity_on_hand) > 0).length,note:'Available quantity at or below reorder level',icon:'bi-exclamation-triangle',go:'inventory?stock=low'},
       {label:'Stock Counts Awaiting Review',value:d.countsReady?pending.length:'—',note:'Submitted physical counts for Admin review',icon:'bi-clipboard-check',go:d.countsReady?'inventory?view=counts':undefined},
       {label:'Inventory Value',value:UI.money(active.reduce((v,p)=>v+(+p.stock_value||0),0)),note:'On-hand stock × recorded unit cost',icon:'bi-cash-coin'}
     ]);
@@ -1123,6 +1123,7 @@ App.page('inventory', {
         if (q.sort === 'reference') return String(a.part_number || '').localeCompare(String(b.part_number || ''));
         return (+b.id || 0) - (+a.id || 0); // Newest catalog record first
       });
+    box.querySelector('.purchasing-ref-records-head small').textContent = `${rows.length} matching record${rows.length === 1 ? '' : 's'}`;
     body.innerHTML = UI.table([
       ['Part ID', 'part_number', v => `<b class="cell-nowrap">${UI.esc(v)}</b>`],
       ['Part Type', 'part_type', v => v ? UI.esc(v) : '<span class="text-muted">Not classified</span>'],
