@@ -19,13 +19,20 @@ try {
     test_recreate($database); $p=db();
     verify($p->query('SELECT DATABASE()')->fetchColumn() === $database,'Active DB identity verified');
     test_import($p,test_sql('database/schema.sql')); test_import($p,test_sql('database/extension.sql'));
+    $p->exec("CREATE TABLE IF NOT EXISTS schema_migrations (id VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+    test_import($p,test_sql('database/migrations/2026-11-21_01_general_budget_approvals.sql'));
     foreach (['Purchasing','Finance'] as $module) Actions::load($module);
     $users=[];
-    foreach (['purchasing','motorpool','finance'] as $role) {
+    foreach (['purchasing','motorpool','finance','admin'] as $role) {
         $id=insert($p,'users',['username'=>$role,'email'=>$role.'@example.test','password_hash'=>'disabled','full_name'=>$role,'role'=>$role]);
         $users[$role]=['id'=>$id,'role'=>$role,'full_name'=>$role,'email'=>$role.'@example.test'];
     }
-    $buyer=$users['purchasing']; $pool=$users['motorpool']; $fin=$users['finance'];
+    $buyer=$users['purchasing']; $pool=$users['motorpool']; $fin=$users['finance']; $admin=$users['admin'];
+    $setGeneral=function(array $details) use ($fin,$admin,$p):void {
+        Finance::action($fin,'budget_set',$details);
+        $rid=(int)one($p,'SELECT MAX(id) AS id FROM general_budget_requests')['id'];
+        Finance::action($admin,'budget_decide',['request_id'=>$rid,'decision'=>'approve']);
+    };
     $truck=insert($p,'vehicles',['plate_number'=>'INV-001','truck_type'=>'Wing Van']);
     // Integrated stock control (luis-maintenance-ui): a new part starts at 0; stock enters only through PO receiving or an Admin-reviewed count.
     $part=['part_number'=>'INV-TIRE','description'=>'Test tire','unit'=>'piece','unit_cost'=>'100','reorder_level'=>2];
@@ -33,7 +40,7 @@ try {
     $pid=(int)one($p,'SELECT id FROM parts WHERE part_number=?',['INV-TIRE'])['id'];
     $stock=fn()=>(int)one($p,'SELECT quantity_on_hand FROM parts WHERE id=?',[$pid])['quantity_on_hand'];
     verify($stock()===0,'New part starts with 0 on hand');
-    Finance::action($fin,'budget_set',['amount'=>'1000','period_start'=>date('Y-m-d'),'period_end'=>date('Y-m-d',time()+86400)]);
+    $setGeneral(['amount'=>'1000','period_start'=>date('Y-m-d'),'period_end'=>date('Y-m-d',time()+86400)]);
     Purchasing::action($buyer,'po_create',['supplier_name'=>'Test supplier','supplier_address'=>'Test address','purpose'=>'Opening tire stock','lines'=>[['part_id'=>$pid,'quantity'=>5,'unit_price'=>100]]]);
     $po=(int)one($p,'SELECT MAX(id) AS id FROM purchase_orders')['id'];
     Purchasing::action($fin,'po_decide',['po_id'=>$po,'decision'=>'approve']);
@@ -76,9 +83,9 @@ try {
     $expense=one($p,"SELECT SUM(amount) AS amount FROM expenses WHERE source='Payable' AND source_id=?",[$aid]);
     verify($expense['amount']==='250.00','Expenses reconcile to actual payable payments');
     $budget=['amount'=>'1000','period_start'=>date('Y-m-d'),'period_end'=>date('Y-m-d',time()+86400)];
-    Finance::action($fin,'budget_set',$budget); Finance::action($fin,'budget_set',$budget);
-    verify((int)one($p,"SELECT COUNT(*) AS n FROM budgets WHERE category='Purchasing' AND status='Active'")['n']===1,'Only latest purchasing budget remains Active');
-    refused(fn()=>Finance::action($fin,'budget_set',array_replace($budget,['period_end'=>'2020-01-01'])),400,'Reversed budget dates rejected');
+    $setGeneral($budget); $setGeneral($budget);
+    verify((int)one($p,"SELECT COUNT(*) AS n FROM budgets WHERE category='General' AND status='Active'")['n']===1,'Only latest approved General Budget remains Active');
+    refused(fn()=>Finance::action($fin,'budget_set',array_replace($budget,['period_end'=>'2020-01-01'])),422,'Reversed budget dates rejected');
 } catch (Throwable $e) { verify(false,get_class($e).': '.$e->getMessage()); }
 echo "RESULT: $pass passed, $fail failed\n";
 exit($fail ? 1 : 0);
