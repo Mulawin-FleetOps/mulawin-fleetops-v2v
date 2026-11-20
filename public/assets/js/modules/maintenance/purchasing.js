@@ -34,7 +34,7 @@ const PurUI = {
       <div class="purchasing-line-fields"><div><label class="form-label">Part</label><select class="form-select" data-part aria-label="Select part to purchase"><option value="">Choose part…</option>
         ${parts.map(p => `<option value="${p.id}" data-cost="${p.unit_cost}" ${String(p.id) === String(l.part_id) ? 'selected' : ''}>${UI.esc([p.part_type, p.description, p.brand].filter(Boolean).join(' — '))}${!p.part_type ? ' (type not classified)' : ''}${withPrice ? "" : " · Available: " + UI.num(p.available_qty ?? p.quantity_on_hand) + " " + UI.esc(p.unit)}</option>`).join('')}</select></div>
         <div><label class="form-label">Quantity</label><input class="form-control" type="number" min="1" max="100000" step="1" placeholder="Qty" data-qty value="${UI.esc(l.quantity || '')}"></div>
-        ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"></div>` : ''}</div>
+        ${withPrice ? `<div><label class="form-label">Unit price (₱)</label><input class="form-control" type="number" min="0" step="0.01" placeholder="Price" data-price value="${UI.esc(l.unit_price ?? '')}"><small class="po-price-source" data-po-price-source aria-live="polite"></small></div>` : ''}</div>
       ${withPrice ? '<div class="purchasing-line-amount" data-lt></div>' : ''}
       <button type="button" class="btn btn-outline-danger btn-sm purchasing-remove" data-remove-row title="Remove item" aria-label="Remove item">Remove</button>
     </div>`;
@@ -48,6 +48,32 @@ const PurUI = {
   wireLines(w, withPrice) {
     const host = w.querySelector('[data-lines]');
     const template = host.querySelector('.pl-row').outerHTML;
+    // Inventory's unit_cost is a reference only, never a locked supplier quote.
+    // Suggest it when no PO price was entered; keep manual edits unchanged.
+    const suggestPrice = (row, changedPart = false) => {
+      if (!withPrice) return;
+      const part = row.querySelector('[data-part]');
+      const price = row.querySelector('[data-price]');
+      const note = row.querySelector('[data-po-price-source]');
+      if (!part || !price || !note) return;
+      const cost = part.selectedOptions[0]?.dataset.cost;
+      const known = cost !== undefined && cost !== '' && Number(cost) > 0;
+      const previousAuto = price.dataset.autoValue || '';
+      const wasAuto = price.dataset.priceSource === 'catalog' && price.value === previousAuto;
+      if (changedPart && wasAuto) price.value = '';
+      if (part.value && !price.value && known) {
+        price.value = String(Number(cost).toFixed(2));
+        price.dataset.autoValue = price.value;
+        price.dataset.priceSource = 'catalog';
+      } else if (price.value !== price.dataset.autoValue) {
+        price.dataset.priceSource = price.value ? 'manual' : '';
+        delete price.dataset.autoValue;
+      }
+      note.textContent = !part.value ? ''
+        : !price.value || +price.value === 0 ? 'No verified unit price. Confirm the supplier quote before approval.'
+        : price.dataset.priceSource === 'catalog' ? 'Suggested from Inventory unit cost. Edit if the supplier price differs.'
+        : 'Entered PO unit price. Verify against supplier quote.';
+    };
     const calc = () => {
       // Prevent a catalog part being selected twice in one PO / request.
       // Disabled options refresh after selection, row addition and row removal.
@@ -59,6 +85,7 @@ const PurUI = {
       });
       let total = 0;
       host.querySelectorAll('.pl-row').forEach(r => {
+        if (withPrice) suggestPrice(r);
         const qty = +r.querySelector('[data-qty]').value || 0;
         const price = withPrice ? +r.querySelector('[data-price]').value || 0 : 0;
         if (withPrice) r.querySelector('[data-lt]').textContent = qty && price ? UI.money(qty * price) : '';
@@ -85,11 +112,16 @@ const PurUI = {
       button.closest('.pl-row').remove(); calc();
       w._updatePartSupplier?.();
     });
-    host.addEventListener('input', calc);
+    host.addEventListener('input', e => {
+      if (withPrice && e.target.matches('[data-price]')) {
+        e.target.dataset.priceSource = 'manual';
+        delete e.target.dataset.autoValue;
+      }
+      calc();
+    });
     host.addEventListener('change', e => {
       if (withPrice && e.target.matches('[data-part]')) {
-        const input = e.target.closest('.pl-row').querySelector('[data-price]');
-        if (!input.value) input.value = e.target.selectedOptions[0]?.dataset.cost || '';
+        suggestPrice(e.target.closest('.pl-row'), true);
       }
       calc();
       if (e.target.matches('[data-part]')) w._updatePartSupplier?.();
@@ -536,14 +568,14 @@ PurUI.kit = (d, can) => {
       { name: 'description', label: 'Part Name / Specification', required: true, col: 4, value: p.description, placeholder: 'Specific item or size', attrs: 'maxlength="200"', help: 'Use the exact recorded specification; do not guess for legacy stock.' },
       { name: 'brand', label: 'Brand (optional)', col: 6, value: p.brand, attrs: 'maxlength="100"' },
       { name: 'unit', label: 'Unit of measure', required: true, col: 6, value: p.unit || 'pc', placeholder: 'pc, set, box, liter', attrs: 'maxlength="20"' },
-      { name: 'unit_cost', label: 'Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Cost per unit, not total stock value.' },
+      { name: 'unit_cost', label: 'Reference Unit Cost (₱)', type: 'money', required: true, col: 6, value: p.unit_cost ?? 0, help: 'Last known cost per unit, used to suggest the PO price. If unknown, 0 means unverified; confirm the actual price when ordering. Receiving updates this cost.' },
       { name: 'reorder_level', label: 'Reorder Level', type: 'number', required: true, col: 6, value: p.reorder_level ?? 0, help: 'Low-stock alert threshold; 0 disables the alert.' },
       { name: 'warranty_info', label: 'Warranty Notes (optional)', col: 12, value: p.warranty_info,
         placeholder: 'Supplier warranty terms, if known. Actual coverage is confirmed during receiving.',
         attrs: 'maxlength="150"' },
       ], 'Purchasing.part_save', { extra: p.id ? { id: p.id } : {}, size: 'modal-lg', submit: p.id ? 'Save changes' : 'Add part',
         transform: ({ part_id_display, ...data }) => data,
-        intro: p.id ? 'Update the verified item identity. Part ID and on-hand quantity will not change.' : 'Part ID is assigned automatically. New parts begin with 0 on hand; use actual specifications and the correct Part Type.' });
+        intro: p.id ? 'Update the verified item identity and reference unit cost. Part ID and on-hand quantity will not change.' : 'Part ID is assigned automatically and stock starts at 0. Enter the last known reference cost if available; the supplier PO price is confirmed separately.' });
     };
     const partAct = (a, p) => a === 'edit' ? partForm(p) : a === 'count' ? PurUI.countForm(d, p) : null;
   return { reqActs, reqAct, poActs, poAct, partActs, partForm, partAct };
