@@ -900,6 +900,8 @@ const MaintUI = {
     if (!MaintUI.data?.can?.act || j.status === 'Cancelled' || j.verified_at) return null;
     if (j.status === 'Reported') return j.source === 'Incident' ? ['assess', 'Assess incident', 'bi-clipboard-pulse'] : (j.findings && j.diagnosis ? ['finalize', 'Assign Mechanic Team', 'bi-people'] : ['mech', 'Assign mechanic', 'bi-person-plus']);
     if (j.status === 'Under Inspection') {
+      if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
+        return +j.garage_arrival_confirmed ? ['mech', 'Assign mechanic', 'bi-person-plus'] : ['garage_arrival', 'Confirm garage arrival', 'bi-truck'];
       if (j.source === 'Incident' && j.severity === 'Minor' && !j.mechanic_id)
         return j.incident_clearance ? null : ['clearance', 'Confirm onsite repair', 'bi-shield-check'];
       if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
@@ -1154,6 +1156,9 @@ App.page('maintenance', {
           + (d.can.act && ['Under Inspection', 'Under Repair'].includes(j.status) && (!d.motorpoolCatalogReady || j.assignment_finalized_at) ? UI.btn('parts', 'Request parts', 'outline-secondary') : '')
           + UI.btn('view', 'Details', 'outline-primary'); },
       onAction: (a, j) => a === 'verify' ? MaintUI.verifyForm(j, () => App.route())
+        : a === 'step:garage_arrival' ? UI.confirmAction('Confirm truck arrived at garage · ' + UI.esc(j.job_ref),
+          'Confirm only when the original incident truck is physically at the garage. The existing incident assessment and linked repair record will be reused.',
+          'Maintenance.garage_arrival', { job_id: j.id }, { submit: 'Confirm garage arrival', fields: [{ name: 'notes', label: 'Recovery / receiving notes', required: true, col: 12 }], after: () => App.route() })
         : a === 'parts' ? MaintUI.requestParts(j.vehicle_id, j.id)
         : MaintUI.open(j.id, a === 'helpers' ? 'helpers' : a.startsWith('step:') ? a.slice(5) : undefined),
       rowClick: (j) => MaintUI.open(j.id) };
