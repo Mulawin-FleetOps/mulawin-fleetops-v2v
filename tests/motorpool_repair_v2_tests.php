@@ -69,6 +69,24 @@ $_FILES=[];
 mpok($j()['status']==='Completed','repair can complete with confirmed no parts and evidence');
 Maintenance::action($mp,'verify',['job_id'=>$jid,'result'=>'Passed','verification_notes'=>'Headlight working']);
 mpok($j()['verified_at']!==null,'verified repair remains auditable');
+$garageTruck=insert($p,'vehicles',['plate_number'=>'MPV-002','truck_type'=>'Wing Van']);
+$_FILES=['photos'=>$file()];
+$garageReport=Maintenance::action($mp,'report',[
+    'vehicle_id'=>$garageTruck,'problem'=>'Garage headlight fault',
+    'findings'=>'Headlight unlit','diagnosis'=>'Electrical circuit fault'
+]);
+$_FILES=[];
+$garageJob=(int)$garageReport['job_id'];
+$garageState=fn()=>one($p,'SELECT * FROM maintenance_jobs WHERE id=?',[$garageJob]);
+mpok($garageState()['status']==='Reported' && $garageState()['findings']==='Headlight unlit',
+    'new garage intake saves findings and diagnosis before mechanic assignment');
+Maintenance::action($mp,'finalize_assignment',[
+    'job_id'=>$garageJob,'mechanic_id'=>$lead,'component_ids'=>[$headlight],
+    'assistant_mechanic_ids'=>[],'parts_requirement'=>'No Parts Needed'
+]);
+mpok($garageState()['status']==='Under Repair' && $garageState()['assignment_finalized_at']!==null,
+    'single team assignment moves new garage repair directly to Under Repair');
+
 mpok((bool)one($p,"SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='incident_clarifications'"),'append-only incident clarification table installed');
 @unlink($tmp);
 echo "TOTAL: $pass passed, $fail failed\n"; exit($fail?1:0);
