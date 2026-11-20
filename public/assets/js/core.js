@@ -1069,7 +1069,7 @@ const App = {
     // inside the analytics card; avoid a detached, empty shared header.
     if (header && actions && !['admin_descriptive_analytics', 'admin_diagnostic_analytics'].includes(page)) {
       const isReport = ['reports','operations_reports','financial_reports','billing_reports',
-        'maintenance_reports','purchasing_reports','audit_reports','admin_reports','admin_analytics',
+        'maintenance_reports','purchasing_reports','admin_reports','admin_analytics',
         'admin_descriptive_analytics','admin_diagnostic_analytics'].includes(page);
       const accessGroup = isReport ? document.createElement('div') : null;
       if (accessGroup) accessGroup.className = 'page-access-actions no-print';
@@ -1181,7 +1181,7 @@ const App = {
 UI.WS_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maintenance_reports',
   'purchasing_overview', 'parts_requests', 'purchase_orders', 'inventory', 'stock_movements', 'purchasing_reports', 'approvals',
   'admin_overview', 'admin_approvals', 'approvals', 'admin_operations', 'admin_maintenance', 'admin_purchasing', 'admin_finance', 'admin_reports', 'admin_analytics',
-  'finance_overview', 'finance', 'finance_budgets', 'funds', 'billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'audit_overview', 'audit_logs', 'audit_history', 'audit_reports']);
+  'finance_overview', 'finance', 'finance_budgets', 'funds', 'billing_overview', 'billing', 'billing_collections', 'billing_receivables', 'audit_overview', 'audit_logs', 'audit_history']);
 
 /** REF_FIDELITY_V1 — Motorpool and Purchasing pages drawn like docs/ui-reference/maintenance_reference.html. */
 UI.REF_PAGES = new Set(['maintenance_overview', 'maintenance', 'maint_history', 'mp_parts_requests', 'mechanics', 'mechanic_attendance', 'maintenance_reports',
@@ -2546,7 +2546,7 @@ UI.printReport = (sections, meta = {}) => {
   const e = UI.esc, u = App.me.user, co = (App.me.company || {}).name || '';
   const cards = (list) => (list || []).length ? `<div class="pr-cards">${list.map(c => `<div class="pr-card"><div class="pr-val">${c.format === 'money' ? UI.money(c.value) : e(typeof c.value === 'number' ? UI.num(c.value, 2) : c.value)}</div><div class="pr-lbl">${e(c.label)}</div>${c.hint ? `<div class="pr-hint">${e(c.hint)}</div>` : ''}</div>`).join('')}</div>` : '';
   const charts = (list) => (list || []).map(c => { const round = c.type === 'doughnut' || c.type === 'pie';
-    const img = round ? UI.chartImage(c, 520, 300) : UI.chartImage(c); return img ? `<div class="pr-chart${round ? ' pr-half' : ''}"><div class="pr-h3">${e(c.title)}</div><img src="${img}" alt="${e(c.title)}">${c.how ? `<div class="pr-note">${e(c.how)}</div>` : ''}</div>` : ''; }).join('');
+    const img = round ? UI.chartImage(c, 520, 300) : UI.chartImage(c); return img ? `<div class="pr-chart${round ? ' pr-half' : ''}"><div class="pr-h3">${e(c.title)}</div><img src="${img}" alt="${e(c.title)}"><div class="pr-note"><b>Why this chart?</b> ${e(c.how || (round ? "Shares of the recorded total across categories." : "Comparison of recorded values for the reporting period."))}</div></div>` : ''; }).join('');
   const tables = (list) => {
     const full = (list || []).filter(t => (t.rows || []).length), empty = (list || []).filter(t => !(t.rows || []).length);
     return full.map(t => `<div class="pr-table"><div class="pr-h3">${e(t.title)} <span class="pr-count">(${t.rows.length})</span></div><table><thead><tr>${t.columns.map(([l, , f]) => `<th class="${f === 'money' ? 'num' : ''}">${e(l)}</th>`).join('')}</tr></thead>
