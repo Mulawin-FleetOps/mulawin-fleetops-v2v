@@ -45,6 +45,7 @@ test_import($p, test_sql('database/schema.sql'));
     $extensionSql=preg_replace('/ALTER TABLE users ADD COLUMN dispatcher_truck_types JSON NULL AFTER dispatcher_truck_type\s*;/is','',$extensionSql);
     test_import($p,$extensionSql);
 $p->exec("CREATE TABLE IF NOT EXISTS schema_migrations (id VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+test_import($p, test_sql('database/migrations/2026-11-19_02_part_type_name_brand.sql'));
 test_import($p, test_sql('database/migrations/2026-11-21_01_general_budget_approvals.sql'));
 $staff = ['admin' => ['tvillanueva', 'Teresita Villanueva'], 'motorpool' => ['ebautista', 'Ernesto Bautista'], 'purchasing' => ['msantos', 'Maricel Santos'],
     'finance' => ['laquino', 'Lourdes Aquino'], 'audit' => ['amendoza', 'Arnel Mendoza'], 'billing' => ['jramos', 'Jocelyn Ramos']];
@@ -68,8 +69,8 @@ $pdf = function (string $name) use ($tmpDir): array {
     $path = $tmpDir . '/' . bin2hex(random_bytes(6)); $bytes = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"; file_put_contents($path, $bytes);
     return ['name' => $name, 'tmp_name' => $path, 'error' => UPLOAD_ERR_OK, 'size' => strlen($bytes)];
 };
-$part = fn(string $no, string $desc, float $cost) => (int)one($p, 'SELECT id FROM parts WHERE part_number=?',
-    [Purchasing::action($pur, 'part_save', ['part_number' => $no, 'description' => $desc, 'category' => 'Brakes', 'unit' => 'pc', 'unit_cost' => $cost, 'reorder_level' => 2]) ? $no : $no])['id'];
+$part = fn(string $no, string $desc, float $cost) => (int)Purchasing::action($pur, 'part_save',
+    ['part_type' => 'Brake / Cooling Part', 'description' => $desc, 'unit' => 'pc', 'unit_cost' => $cost, 'reorder_level' => 2])['id'];
 $P1 = $part('BRK-PAD-F-FVR', 'Front brake pad set, Isuzu FVR', 3250);
 $P2 = $part('RAD-HOSE-U-H500', 'Upper radiator hose, Hino 500', 1450);
 $budget = fn() => one($p, "SELECT id, amount, reserved_amount, spent_amount, status FROM budgets WHERE status='Active' AND category='General' ORDER BY id DESC LIMIT 1");
