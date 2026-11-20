@@ -77,6 +77,26 @@ const HMApproval = {
             'Purchasing.po_decide', { po_id: o.id, decision: 'approve' }, { submit: 'Approve' }),
           reject: () => UI.confirmAction('Reject ' + UI.esc(o.po_ref), 'The Purchasing Officer will be notified.', 'Purchasing.po_decide', { po_id: o.id, decision: 'reject' },
             { danger: true, submit: 'Reject', fields: [{ name: 'notes', label: 'Reason', required: true, col: 12 }] }) });
+      } else if (r.kind === 'budget') {
+        const el = UI.drawer(UI.esc(r.ref), `${HMApproval.next(r)}
+          ${UI.kv([['Request','General Budget allocation'],['Period',UI.esc(r.summary)],
+            ['Amount',UI.money(r.amount)],['Submitted by',UI.esc(r.requester)],
+            ['Submitted',UI.datetime(r.submitted)],
+            r.decided_at ? ['Decision',UI.esc(r.decider || '—')+' · '+UI.datetime(r.decided_at)] : null,
+            r.notes ? ['Decision remarks',UI.e(r.notes)] : null])}
+          <div class="d-flex gap-2 flex-wrap mt-3" data-acts>
+            ${r.actionable ? UI.btn('approve','Approve Budget','success','bi-check-lg')+UI.btn('reject','Reject Budget','outline-danger','bi-x-lg') : ''}
+            ${UI.canGo('finance_budgets') ? UI.btn('src','View Finance Budgets','outline-secondary','bi-eye') : ''}
+          </div>`,{subtitle:'Finance · General Budget approval'});
+        HMApproval.bind(el,r,{
+          approve:()=>UI.confirmAction('Approve '+UI.esc(r.ref),
+            'Activate this General Budget after validating all existing committed funds. The previous budget is closed only after approval.',
+            'Finance.budget_decide',{request_id:r.id,decision:'approve'},{submit:'Approve General Budget'}),
+          reject:()=>UI.confirmAction('Reject '+UI.esc(r.ref),
+            'The existing active budget remains unchanged. Finance receives the rejection reason.',
+            'Finance.budget_decide',{request_id:r.id,decision:'reject'},
+            {danger:true,submit:'Reject',fields:[{name:'reason',label:'Reason',required:true,col:12}]})
+        });
       } else if (r.kind === 'count') {
         const x = await App.api('Purchasing.count_details', { count_id: r.id }); if (seq !== App.navSeq) return; const c = x.count;
         const el = UI.drawer(UI.esc(c.count_ref), `${HMApproval.next(r)}
@@ -143,12 +163,12 @@ App.page('admin_approvals', {
     const d = ctx.data, q = ctx.query, all = Array.isArray(d.queue) ? d.queue : [];
     const types = [...new Set(all.map(r => r.type))].sort();
     const base = all.filter(r => !q.type || r.type === q.type);
-    const TABS = [['pending', 'Pending', r => r.status === 'Pending'], ['decided', 'Decided (90 days)', r => r.status !== 'Pending'], ['all', 'All', () => true]];
+    const TABS = [['pending', 'Pending', r => r.status === 'Pending'], ['decided', 'History', r => r.status !== 'Pending'], ['all', 'All', () => true]];
     const tab = TABS.some(t => t[0] === q.tab) ? q.tab : 'pending';
     const rows = base.filter(TABS.find(t => t[0] === tab)[2]);
     ctx.el.innerHTML = UI.statusTabs(ctx.page, q, 'tab', TABS.map(([k, l, f]) => [k, l, base.filter(f).length]), tab)
       + UI.generalFilters(ctx, [{ name: 'type', label: 'Request types', options: types }])
-      + `<div class="small text-muted mb-2">Only decisions the system assigns to the Admin appear here: purchase orders above the approval limit, stock count adjustments and billing charge requests.
+      + `<div class="small text-muted mb-2">Only decisions assigned to Admin appear here: General Budget allocations, purchase orders above the approval limit, stock count adjustments, route rates and billing charge requests.
          Purchase orders up to the limit are approved by Finance and trip funds by the Operations Head.</div>`;
     const box = document.createElement('div'); ctx.el.append(box);
     box.innerHTML = UI.table([
