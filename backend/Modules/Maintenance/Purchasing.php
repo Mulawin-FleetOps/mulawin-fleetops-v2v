@@ -76,7 +76,7 @@ final class Purchasing {
                 'parts' => fn() => $stock ? $partsFull() : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
-                'regularSupplierReady' => $stock && self::regularSupplierReady($p),
+                'regularSupplierReady' => fn() => $stock && self::regularSupplierReady($p),
                 'budget' => $budget,
             ]),
             'purchase_orders' => readSections([
@@ -91,7 +91,7 @@ final class Purchasing {
                     WHERE r.status IN ('Requested','Partially Released','Not Available') ORDER BY r.id DESC LIMIT 200") : [],
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 'partSupplierHistory' => fn() => $stock ? self::partSupplierHistory($p) : [],
-                'regularSupplierReady' => $stock && self::regularSupplierReady($p),
+                'regularSupplierReady' => fn() => $stock && self::regularSupplierReady($p),
                 'budget' => $budget,
                 'fuelTrips' => fn() => hasRole($u, 'finance', 'admin', 'audit') ? many($p, "SELECT t.id, t.trip_ref, t.truck_type, t.status, t.dispatcher_role, v.plate_number,
                     (SELECT COUNT(*) FROM documents d WHERE d.entity_type='trip' AND d.entity_id=t.id AND d.category='Diesel PO') AS diesel_po_docs
@@ -104,7 +104,7 @@ final class Purchasing {
                     WHERE d.category='Diesel PO' ORDER BY d.id DESC LIMIT 1000") : [],
             ]),
             'inventory' => readSections(['parts' => $partsFull,
-                'regularSupplierReady' => $stock && self::regularSupplierReady($p),
+                'regularSupplierReady' => fn() => $stock && self::regularSupplierReady($p),
                 'supplierSuggestions' => fn() => $stock ? self::supplierSuggestions($p) : [],
                 // STOCK_COUNT_RECONCILIATION_V1: counts waiting for review first, then the latest reviewed ones.
                 'counts' => fn() => self::countsReady($p) ? many($p, self::COUNT_SQL . " ORDER BY c.status='Submitted' DESC, c.id DESC LIMIT 300") : []]),
