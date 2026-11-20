@@ -2639,3 +2639,17 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   .purchasing-po-modal.po-simplified-modal .modal-body {padding:13px}
   .purchasing-po-modal.po-simplified-modal .po-simple-section {padding:12px}
 }
+
+
+/* PURCHASING_PO_REFERENCE_PRICE_HINT_V1 */
+.purchasing-po-modal .purchasing-line-fields .po-price-source {
+  display:block;
+  color:#6f8174;
+  font-size:10.5px;
+  line-height:1.45;
+  margin-top:5px;
+  max-width:175px;
+}
+.purchasing-po-modal .purchasing-line-fields [data-price]:user-invalid {
+  border-color:#c95350;
+}
