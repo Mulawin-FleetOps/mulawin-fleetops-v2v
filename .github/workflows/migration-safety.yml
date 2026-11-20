@@ -66,7 +66,13 @@ jobs:
         run: |
           php -l scripts/migrate.php
           php -l backend/Modules/Accounting/Finance.php
+          php -l backend/Modules/Accounting/Funds.php
+          php -l backend/Modules/Maintenance/Purchasing.php
+          php -l backend/Core/DieselPo.php
+          php -l backend/Core/Access.php
+          php -l backend/Modules/Administration/Oversight.php
           node --check public/assets/js/modules/accounting/finance.js
+          node --check public/assets/js/modules/administration/oversight.js
           php -l scripts/approve_migration.php
           php -l scripts/lib/migration_sql.php
           php -l scripts/lib/migration_release.php
