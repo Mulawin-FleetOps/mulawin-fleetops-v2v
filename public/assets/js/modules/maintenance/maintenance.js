@@ -496,12 +496,35 @@ const MaintUI = {
     dialog.querySelector('[data-other-components]').addEventListener('input',update);
     dialog.querySelectorAll('[data-component],[data-final-helper],[data-final-lead],[data-final-parts]').forEach(x=>x.addEventListener('change',update));
     update();
-    dialog.querySelector('[data-final-add-part]').onclick=()=>{
+    const partsHolder = dialog.querySelector('[data-final-lines]');
+    const addPartButton = dialog.querySelector('[data-final-add-part]');
+    // Rebuild the options on each change so an already chosen part cannot appear
+    // in another row. Keep part IDs as the saved values; show only part names.
+    const refreshPartChoices = () => {
+      const selects = [...partsHolder.querySelectorAll('[data-part-id]')];
+      const selected = selects.map(el => el.value).filter(Boolean);
+      selects.forEach(select => {
+        const own = select.value;
+        const takenElsewhere = new Set(selected.filter(id => id !== own));
+        select.innerHTML = '<option value="">Choose part</option>' + catalog
+          .filter(part => String(part.id) === own || !takenElsewhere.has(String(part.id)))
+          .map(part => `<option value="${+part.id}">${UI.esc(part.description)}</option>`).join('');
+        select.value = own;
+      });
+      addPartButton.disabled = catalog.length > 0 && new Set(selected).size >= catalog.length;
+      addPartButton.title = addPartButton.disabled ? 'All available parts are already selected.' : '';
+    };
+    addPartButton.onclick=()=>{
       if(!catalog.length)return UI.toast('Parts catalog is unavailable. Use the existing Parts Requests screen.', 'warning');
-      const holder=dialog.querySelector('[data-final-lines]');
+      const used = new Set([...partsHolder.querySelectorAll('[data-part-id]')].map(el => el.value).filter(Boolean));
+      if (used.size >= catalog.length) return UI.toast('All available parts are already selected.', 'warning');
       const line=document.createElement('div');line.className='d-flex align-items-end gap-2 mb-2';
-      line.innerHTML=`<div class="flex-grow-1"><label class="form-label">Part</label><select class="form-select" data-part-id><option value="">Choose part</option>${catalog.map(p=>`<option value="${+p.id}">${UI.esc(p.part_number)} · ${UI.esc(p.description)}</option>`).join('')}</select></div><div style="max-width:110px"><label class="form-label">Qty</label><input class="form-control" type="number" min="1" step="1" value="1" data-part-qty></div><button type="button" class="btn btn-outline-danger">Remove</button>`;
-      line.querySelector('button').onclick=()=>line.remove();holder.appendChild(line);
+      line.setAttribute('data-final-part-row','');
+      line.innerHTML=`<div class="flex-grow-1"><label class="form-label">Part</label><select class="form-select" data-part-id><option value="">Choose part</option></select></div><div style="max-width:110px"><label class="form-label">Qty</label><input class="form-control" type="number" min="1" step="1" value="1" data-part-qty></div><button type="button" class="btn btn-outline-danger">Remove</button>`;
+      line.querySelector('[data-part-id]').addEventListener('change', refreshPartChoices);
+      line.querySelector('button').onclick=()=>{line.remove();refreshPartChoices();};
+      partsHolder.appendChild(line);
+      refreshPartChoices();
     };
     update();
   },
