@@ -704,7 +704,34 @@ const MaintUI = {
           }).join('')}
         </ol>`
       : '<div class="mp-repair-history-empty">No status events have been recorded for this repair.</div>';
-    const html = `<div class="mp-repair-overview-summary">
+    const incidentField = (label, value, wide = false) =>
+      `<div class="mp-incident-detail-field${wide?' mp-incident-detail-wide':''}"><small>${label}</small><div>${value==null||value===''?'—':value}</div></div>`;
+    const incidentOverview = i && remoteIncident ? `
+      ${UI.h('Incident & truck')}
+      <div class="mp-incident-detail-grid">
+        ${incidentField('Truck',truckLine,true)}
+        ${incidentField('Trip',UI.esc(j.trip_ref||'—'))}
+        ${incidentField('Incident reference',UI.esc(i.incident_ref))}
+        ${incidentField('Location',UI.esc(i.location))}
+        ${incidentField('Reported',UI.datetime(i.incident_at))}
+        ${incidentField('Problem',UI.e(i.problem||j.problem),true)}
+        ${incidentField('Original details',UI.e(i.details),true)}
+        ${incidentField('Reported by',UI.e(i.reported_by_name))}
+        ${incidentField('Damage classification',UI.badge(i.severity||'Not assessed'))}
+      </div>
+      ${UI.h('Vehicle clearance')}
+      <div class="mp-incident-detail-grid">
+        ${incidentField('Trip status',UI.badge(j.trip_status||'On Hold'))}
+        ${incidentField('Clearance',i.clearance?UI.badge(i.clearance):'Awaiting clearance')}
+        ${incidentField('Assessment',UI.e(i.recommendation),true)}
+        ${i.clearance ? incidentField('Clearance findings',UI.e(i.clearance_findings),true) : ''}
+        ${i.cleared_at ? incidentField('Recorded by',UI.e(i.cleared_by_name)) + incidentField('Recorded on',UI.datetime(i.cleared_at)) : ''}
+        ${i.resumed_at ? incidentField('Trip resumed',UI.e(i.resumed_by_name)+' · '+UI.datetime(i.resumed_at),true) : ''}
+      </div>
+      ${(r.incidentClarifications||[]).length ? `<details class="mp-incident-detail-updates"><summary>Dispatcher updates (${r.incidentClarifications.length})</summary>${r.incidentClarifications.map(c=>`<div class="mp-incident-detail-update"><small>${UI.esc(c.actor)} · ${UI.datetime(c.created_at)}</small><div>${UI.e(c.details)}</div></div>`).join('')}</details>` : ''}
+      ` : '';
+    const html = `<div class="mp-repair-detail-root ${remoteIncident?'mp-remote-incident-detail':''}">
+      <div class="mp-repair-overview-summary">
         <div class="mp-repair-overview-top"><span class="small text-muted">Current status</span>${UI.badge(j.verified_at ? 'Returned to service'
           : i && j.status === 'Under Inspection' && !j.mechanic_id && i.severity === 'Minor'
             ? (i.clearance === 'Not Fit to Continue' ? 'Not Fit to Continue' : 'Awaiting Clearance')
@@ -714,7 +741,7 @@ const MaintUI = {
         ${mainAction ? `<div class="mp-repair-main-action"><span class="small text-muted">Recommended action</span>${actionButton(mainAction)}</div>` : ''}
       </div>
       ${supportActions.length ? `<div class="mp-repair-support-actions"><strong>Other actions</strong><div class="mp-repair-support-buttons">${supportActions.map(actionButton).join('')}</div></div>` : ''}
-      ${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at)
+      ${remoteIncident ? incidentOverview : `${UI.h('Problem')}${UI.kv([['Truck', truckLine], ['Source', j.source === 'Incident' ? 'Trip incident' + (j.trip_ref ? ' · ' + UI.esc(j.trip_ref) : '') : (r.arrival ? 'Arrival checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.arrival.actor) + ' · ' + UI.datetime(r.arrival.completed_at)
           : r.preDispatch ? 'Pre-dispatch checklist · ' + UI.esc(j.trip_ref || '') + ' · ' + UI.esc(r.preDispatch.actor) + ' · ' + UI.datetime(r.preDispatch.completed_at)
           : j.trip_ref ? 'Checklist-linked truck problem · ' + UI.esc(j.trip_ref) : 'Reported at the garage')],
         r.arrival && r.arrival.damage_notes ? ['Damage / missing (arrival)', UI.esc(r.arrival.damage_notes)] : null,
@@ -733,7 +760,7 @@ const MaintUI = {
         ['Incident date and time / location', UI.datetime(i.incident_at) + ' · ' + UI.esc(i.location)], ['Original details', UI.e(i.details)], ['Additional information', (r.incidentClarifications || []).length ? (r.incidentClarifications || []).map(c=>'<div class="border-bottom py-1"><small class="text-muted">'+UI.esc(c.actor)+' · '+UI.datetime(c.created_at)+'</small><div>'+UI.esc(c.details)+'</div></div>').join('') : '<span class="text-muted">None submitted</span>'], ['Persons involved', UI.e(i.persons_involved)], ['Reported by', UI.e(i.reported_by_name)], ['Recommendation', UI.e(i.recommendation)],
         ['Damage classification', i.severity ? UI.esc(i.severity) + (i.assessed_by_name ? ' · ' + UI.esc(i.assessed_by_name) + ' · ' + UI.datetime(i.assessed_at) : '') : '<span class="text-muted">Not assessed yet</span>'],
         ['Vehicle clearance', i.clearance ? `${UI.badge(i.clearance)} · ${UI.e(i.cleared_by_name)} · ${UI.datetime(i.cleared_at)}<div class="small text-muted">${UI.e(i.clearance_findings)}</div>` : '<span class="text-muted">Not recorded</span>'],
-        ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}
+        ['Trip resumed', i.resumed_at ? UI.e(i.resumed_by_name) + ' · ' + UI.datetime(i.resumed_at) : '—']]) : ''}`}
       ${UI.h('Parts and costs')}
       <div class="mp-repair-parts-costs">
         <div class="mp-repair-cost-summary">
@@ -774,9 +801,13 @@ const MaintUI = {
       </div>
       ${UI.h('Photos and documents')}${UI.docs(r.documents)}
       ${UI.h('Status history')}${statusHistory}
-      ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}`;
+      ${UI.h('Maintenance history of this truck')}${UI.table([['Record', 'job_ref'], ['Source', 'source'], ['Problem', 'problem'], ['Mechanic', 'mechanic'], ['Status', 'status', 'badge'], ['Date reported', 'reported_on', 'date'], ['Completed', 'completed_on', 'date']], r.history, { plain: true })}
+      </div>`;
     const el = UI.drawer(UI.esc(j.job_ref) + ' · ' + UI.esc(j.plate_number), html, { subtitle: 'Corrective maintenance · ' + UI.esc(j.verified_at ? 'Returned to service' : j.status) });
-    UI.drawerSections(el,[['overview','Overview',['Problem','Trip incident']],['repair','Inspection & Repairs',['Mechanics and repair']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]],{key:'maintenance-details'});
+    UI.drawerSections(el,remoteIncident
+      ? [['overview','Overview',['Incident & truck','Vehicle clearance']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]]
+      : [['overview','Overview',['Problem','Trip incident']],['repair','Inspection & Repairs',['Mechanics and repair']],['parts','Parts & Costs',['Parts and costs']],['docs','Documents',['Photos and documents']],['history','Status History',['Status history','Maintenance history of this truck']]],
+      {key:remoteIncident?'motorpool-incident-details':'maintenance-details'});
     el.querySelector('[data-partspage]')?.addEventListener('click', (e) => { UI.closeDrawer(); App.go('mp_parts_requests', { vehicle_id: e.currentTarget.dataset.partspage }); });
     const reopen = () => { MaintUI.open(j.id); App.route(); };
     el.querySelectorAll('[data-rmh]').forEach(b => b.onclick = () => UI.confirmAction('Remove ' + UI.esc(b.dataset.name) + ' from ' + UI.esc(j.job_ref),
