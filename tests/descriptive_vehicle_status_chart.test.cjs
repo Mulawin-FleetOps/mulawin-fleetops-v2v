@@ -69,4 +69,16 @@ for(const name of ['payee','reference_number','receipt'])assert.ok(expenseUI.inc
 assert.ok(financeUI.includes("() => FinUI.addExpense(d)"),'All expense-entry buttons reuse shared form');
 assert.ok(financeUI.includes("UI.formModalFiles('Add expense', this.expenseFields(d), 'Finance.expense_add'"),'Existing Finance expense endpoint retained');
 console.log('PASS: All Finance Add Expense entry points use four-field simplified form without truck');
+const payableFormStart=financeUI.indexOf('  payableFields(d) {');
+const payableFormEnd=financeUI.indexOf('  // Keep the expense form small:',payableFormStart);
+assert.ok(payableFormStart>=0 && payableFormEnd>payableFormStart,'Shared payable form exists');
+const payableUI=financeUI.slice(payableFormStart,payableFormEnd);
+for(const name of ['payee','category','amount','description','due_on','bill'])
+  assert.ok(payableUI.includes("name: '"+name+"'"),'Missing payable field '+name);
+assert.ok(!payableUI.includes("name: 'vehicle_id'"),'Truck selector must not appear in Add Payable');
+assert.match(payableUI,/Additional details \(optional\)/);
+assert.ok(financeUI.includes("() => FinUI.addPayable(d)"),'Both Add Payable entry points use shared form');
+assert.ok(financeUI.includes("UI.formModalFiles('Add payable', this.payableFields(d), 'Finance.payable_add'"),'Existing Finance payable API retained');
+console.log('PASS: Add Payable form uses four required fields and optional due date/file without truck');
+
 console.log('PASS: Descriptive vehicle type/status chart contract, filters, statuses, and KPI preservation');
