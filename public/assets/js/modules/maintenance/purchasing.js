@@ -951,17 +951,49 @@ PurUI.openRequest = async (r, k) => {
   if (seq !== App.navSeq) return;   // WS_NAV_STATE_V1: the user moved on while loading; do not open on the new page
   const lines = x.lines.map(l => ({ ...l, outstanding: Math.max(0, l.quantity - l.released_qty) }));
   const short = lines.filter(l => l.outstanding > 0 && l.outstanding > (+l.quantity_on_hand || 0)).length;
-  const html = `${PurUI.nextBox(PurUI.reqNext({ ...r, status: q.status }))}
-    ${UI.kv([['Status', UI.badge(q.status)], ['Reserved units', UI.num(lines.reduce((sum, line) => sum + (+line.reserved_qty || 0), 0))], ['Truck', UI.e(q.plate_number) + (q.truck_number ? ' · ' + UI.esc(q.truck_number) : '')], ['Repair', UI.e(q.job_ref)], ['Purpose', UI.e(q.purpose)],
-      ['Requested', UI.esc(q.requested_by_name) + ' · ' + UI.datetime(q.created_at)], ['Processed', q.processed_at ? UI.esc(q.processed_by_name || '') + ' · ' + UI.datetime(q.processed_at) : 'Not processed yet'],
-      q.notes ? ['Notes', UI.esc(q.notes)] : null])}
-    ${UI.h('Parts', short ? `<span class="badge-s red">${short} line(s) short in stock</span>` : '')}
-    <div class="table-wrap"><table class="data-table"><thead><tr><th>Part</th><th class="count-col">Requested</th><th class="count-col">Released</th><th class="count-col">Outstanding</th><th class="count-col">On hand</th></tr></thead>
-    <tbody>${lines.map(l => `<tr><td><b>${UI.esc(l.part_number)}</b><div class="cell-sub">${PurUI.partLabel(l)}</div></td><td class="count-col">${UI.num(l.quantity)}</td><td class="count-col">${UI.num(l.released_qty)}</td>
-      <td class="count-col">${l.outstanding ? `<b>${UI.num(l.outstanding)}</b>` : '0'}</td><td class="count-col">${UI.num(l.quantity_on_hand)} ${UI.esc(l.unit)}</td></tr>`).join('')}</tbody></table></div>
-    ${UI.h('Linked purchase orders')}${(x.orders || []).length ? `<ul class="ws-trucks">${x.orders.map(o => `<li class="${UI.canGo('purchase_orders') ? 'clickable' : ''}" data-po="${o.id}" tabindex="0"><span><b>${UI.esc(o.po_ref)}</b> · ${UI.esc(o.supplier || '')}<div class="cell-sub">${UI.date(o.created_at)} · ${UI.money(o.total_amount)}</div></span><span>${UI.badge(o.status === 'Approved' && o.ordered_at ? 'Ordered' : o.status)}</span></li>`).join('')}</ul>` : '<div class="text-muted small">No purchase order is linked to this request.</div>'}
-    ${UI.h('Activity')}${PurUI.timeline(x.history)}
-    <div class="d-flex flex-wrap gap-2 mt-3">${k.reqActs(r, true)}</div>`;
+  const field = (label, value) => '<div class="pur-request-detail-field"><small>' + UI.esc(label) +
+    '</small><div>' + value + '</div></div>';
+  const requestInfo = '<section class="pur-request-detail-section"><h3>Request information</h3>' +
+    '<div class="pur-request-detail-grid">' +
+    field('Status', UI.badge(q.status)) +
+    field('Reserved units', UI.num(lines.reduce((sum, line) => sum + (+line.reserved_qty || 0), 0))) +
+    field('Truck', UI.e(q.plate_number) + (q.truck_number ? ' · ' + UI.esc(q.truck_number) : '')) +
+    field('Repair', UI.e(q.job_ref)) +
+    field('Purpose', UI.e(q.purpose)) +
+    field('Requested by', UI.esc(q.requested_by_name || '—') + '<span class="pur-request-detail-sub">' + UI.datetime(q.created_at) + '</span>') +
+    field('Processed by', q.processed_at ? UI.esc(q.processed_by_name || '—') +
+      '<span class="pur-request-detail-sub">' + UI.datetime(q.processed_at) + '</span>' : 'Not processed yet') +
+    (q.notes ? field('Notes', UI.esc(q.notes)) : '') +
+    '</div></section>';
+  const partCards = lines.length ? lines.map(l =>
+    '<article class="pur-request-part-card"><div class="pur-request-part-heading"><strong>' +
+    UI.esc(l.part_number) + '</strong><span>' + PurUI.partLabel(l) + '</span></div>' +
+    '<div class="pur-request-part-counts">' +
+    field('Requested', UI.num(l.quantity)) +
+    field('Released', UI.num(l.released_qty)) +
+    field('Outstanding', '<strong>' + UI.num(l.outstanding) + '</strong>') +
+    field('On hand', UI.num(l.quantity_on_hand) + ' ' + UI.esc(l.unit || '')) +
+    '</div></article>').join('') : '<p class="small text-muted">No parts recorded.</p>';
+  const orderLinks = (x.orders || []).length
+    ? '<ul class="ws-trucks">' + x.orders.map(o =>
+      '<li class="' + (UI.canGo('purchase_orders') ? 'clickable' : '') +
+      '" data-po="' + UI.esc(o.id) + '" tabindex="0"><span><b>' + UI.esc(o.po_ref) +
+      '</b> · ' + UI.esc(o.supplier || '') +
+      '<div class="cell-sub">' + UI.date(o.created_at) + ' · ' + UI.money(o.total_amount) +
+      '</div></span><span>' + UI.badge(o.status === 'Approved' && o.ordered_at ? 'Ordered' : o.status) +
+      '</span></li>').join('') + '</ul>'
+    : '<div class="text-muted small">No purchase order is linked to this request.</div>';
+  const html = '<div class="pur-request-details">' +
+    PurUI.nextBox(PurUI.reqNext({ ...r, status: q.status })) +
+    requestInfo +
+    '<section class="pur-request-detail-section"><h3>Parts' +
+    (short ? ' <span class="badge-s red">' + short + ' line(s) short in stock</span>' : '') +
+    '</h3><div class="pur-request-part-list">' + partCards + '</div></section>' +
+    '<section class="pur-request-detail-section"><h3>Linked purchase orders</h3><div class="pur-request-detail-content">' +
+    orderLinks + '</div></section>' +
+    '<section class="pur-request-detail-section"><h3>Activity</h3><div class="pur-request-detail-content">' +
+    PurUI.timeline(x.history) + '</div></section>' +
+    '<div class="d-flex flex-wrap gap-2 mt-3">' + k.reqActs(r, true) + '</div></div>';
   const el = UI.drawer(UI.esc(q.request_ref), html, { subtitle: 'Parts request · ' + UI.esc(q.plate_number) });
   const root = el || document.querySelector('.offcanvas.app-drawer');
   root.querySelectorAll('[data-po]').forEach(li => li.addEventListener('click', () => { if (UI.canGo('purchase_orders')) { UI.closeDrawer(); App.go('purchase_orders', { open: li.dataset.po }); } }));
