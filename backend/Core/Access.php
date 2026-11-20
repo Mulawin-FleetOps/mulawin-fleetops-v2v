@@ -79,7 +79,8 @@ final class Access {
             // id => [label, icon, section, module, js file, roles]
             'dashboard'   => ['Dashboard', 'bi-grid-1x2', null, 'Analytics', 'general/dashboard', $dash],
             // Purchasing submits and tracks POs but has no approval decision authority.
-            // Purchasing and Billing have no decision authority in the general Approvals inbox.\n            // Remove that page from their navigation and direct access; Billing adjustments remain in Billing & Invoices.
+            // Purchasing and Billing have no decision authority in the general Approvals inbox.
+            // Remove that page from their navigation and direct access; Billing adjustments remain in Billing & Invoices.
             'approvals' => ['Approvals', 'bi-check2-square', null, 'Approvals', 'general/approvals', array_values(array_diff($all, ['motorpool', 'purchasing', 'billing']))],
             'trips'       => ['Trip Management', 'bi-signpost-split', null, 'Trips', 'operations/trips',
                               array_merge(['admin', 'operations_head', 'motorpool', 'billing', 'audit'], $D)],
