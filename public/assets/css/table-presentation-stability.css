@@ -465,3 +465,77 @@ body:has(#pageContent :is(.purchasing-live-v1,.mp-wireframe-marker)) .modal.show
     flex:1 1 100%;
   }
 }
+
+
+/* MOTORPOOL_MAINT_HISTORY_PREVIEW_V1
+   Maintenance History uses the same Operations record layout as Motorpool.
+   Keep the table fully stretched within the record card and actions readable. */
+#pageContent .mp-history-records,
+#pageContent .mp-history-records > :is(.ref-list,.panel),
+#pageContent .mp-history-records .ref-tablebox,
+#pageContent .mp-history-records .table-wrap {
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+#pageContent .mp-history-records .ref-tablebox {
+  display:block;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+#pageContent .mp-history-records .table-wrap {
+  overflow-x:auto;
+}
+#pageContent .mp-history-records .data-table {
+  width:100%;
+  min-width:900px;
+  table-layout:auto;
+  border-collapse:separate;
+  border-spacing:0;
+}
+#pageContent .mp-history-records .data-table th,
+#pageContent .mp-history-records .data-table td {
+  min-width:0;
+  padding:13px 15px;
+}
+#pageContent .mp-history-records .data-table td.actions-col,
+#pageContent .mp-history-records .data-table th.actions-col {
+  text-align:right;
+  white-space:nowrap;
+}
+#pageContent .mp-history-records .data-table .row-icons {
+  display:flex;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:6px;
+}
+#pageContent .mp-history-records .data-table .row-icons > .btn:not(.icon-act) {
+  width:auto;
+  min-height:34px;
+  padding:7px 12px;
+  border-radius:8px;
+  white-space:nowrap;
+}
+#pageContent .mp-history-records .record-workspace-search .ui-filter-toolbar {
+  margin:0;
+  display:flex;
+  align-items:center;
+  flex:0 1 auto;
+  gap:8px;
+}
+#pageContent .mp-history-records .record-workspace-category-row {
+  margin:0;
+  padding:0 18px 12px;
+}
+#pageContent .mp-history-records .table-pager {
+  display:flex;
+  min-height:48px;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+}
+@media(max-width:900px){
+  #pageContent .mp-history-records .data-table{min-width:850px}
+}
