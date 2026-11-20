@@ -67,7 +67,6 @@ final class Billing {
                 WHERE c.status='Pending Approval' ORDER BY c.id"),
         ]);
         $data['methods'] = Money::METHODS;
-        $data['vatRate'] = Settings::value('vat_rate');
         $data['can'] = ['act' => hasRole($u, 'billing'), 'decide' => hasRole($u, 'admin'), 'me' => (int)$u['id']];
         return $data;
     }
@@ -430,7 +429,6 @@ final class Billing {
                 WHERE c.billing_id=? AND NOT (' . self::counted('c') . ') ORDER BY (c.status=\'Pending Approval\') DESC, c.id DESC', [$id]),
             'collections' => many($p, 'SELECT co.*, u.full_name AS recorded_by_name FROM collections co JOIN users u ON u.id=co.recorded_by WHERE co.billing_id=? ORDER BY co.id', [$id]),
             'documents' => $docs,
-            'vatRate' => Settings::value('vat_rate'),
         ];
     }
 
