@@ -2942,13 +2942,48 @@ UI.signatureModal = () => {
 
 // Maps (UI.Map, UI.mapPicker, UI.routeMap) moved to assets/js/map.js (Checklist #5: OpenStreetMap + server-side road distance).
 
-/** Payment fields used by Finance and Billing. */
+/** Payment details follow the selected method in all Finance/Billing forms. */
 UI.payFields = (methods, dateName = 'released_on', dateLabel = 'Release date') => [
   { name: 'payment_method', label: 'Payment method', type: 'select', options: UI.list(methods), required: true, col: 6 },
   { name: dateName, label: dateLabel, type: 'date', value: UI.today(), required: true, col: 6 },
-  { name: 'reference_number', label: 'Reference no. (bank / e-wallet)', col: 4 },
-  { name: 'cheque_number', label: 'Cheque no.', col: 4 }, { name: 'bank_name', label: 'Bank', col: 4 },
+  { name: 'payment_details', type: 'html', col: 12, html:
+    '<div data-payment-method-details="Cheque" style="display:none">' +
+      UI.fields([
+        { name: 'cheque_number', label: 'Cheque no.', required: true, col: 6 },
+        { name: 'bank_name', label: 'Bank', required: true, col: 6 }
+      ]) +
+    '</div><div data-payment-method-details="Electronic" style="display:none">' +
+      UI.fields([
+        { name: 'reference_number', label: 'Transaction reference no.', required: true, col: 12 }
+      ]) + '</div>' }
 ];
+
+/** Reveal only the payment details required by the current method.
+ * Hidden fields are disabled so stale values cannot be submitted on a switch.
+ */
+UI.syncPaymentMethodDetails = form => {
+  if (!form) return;
+  const method = form.querySelector('select[name="payment_method"]');
+  if (!method) return;
+  const selected = method.value;
+  form.querySelectorAll('[data-payment-method-details]').forEach(group => {
+    const type = group.dataset.paymentMethodDetails;
+    const show = type === 'Cheque' ? selected === 'Cheque'
+      : type === 'Electronic' && (selected === 'Bank Transfer' || selected === 'E-wallet');
+    group.style.display = show ? '' : 'none';
+    group.querySelectorAll('input, select, textarea').forEach(input => {
+      if (!show && !input.disabled) input.value = '';
+      input.disabled = !show;
+    });
+  });
+};
+document.addEventListener('change', event => {
+  if (event.target.matches('select[name="payment_method"]'))
+    UI.syncPaymentMethodDetails(event.target.closest('form'));
+});
+document.addEventListener('shown.bs.modal', event => {
+  event.target.querySelectorAll('form').forEach(UI.syncPaymentMethodDetails);
+});
 
 
 // Chart.js look that matches the design system.
