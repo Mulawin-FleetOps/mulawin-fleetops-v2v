@@ -23,9 +23,39 @@ const PurUI = {
       {label:rejected?record.status:'Approval decision',at:record.decided_at,state:rejected?'exception':record.decided_at?'complete':'pending'},
       {label:'Parts received',state:received>0&&received===requested?'complete':received>0?'current':'pending',note:received+' of '+requested+' units recorded; dated receiving history is not provided by this endpoint.'}
     ]:[{label:'Requested',at:record.created_at,state:record.created_at?'complete':'pending'},{label:'Parts released',state:received>0&&received===requested?'complete':rejected?'exception':received>0?'current':'pending',note:received+' of '+requested+' units recorded.'}];
-    const html=UI.workflow(milestones,{status:record.status})+UI.h('Overview')+UI.kv([['Reference',UI.e(reference)],['Status',UI.badge(record.status)],['Requested by',UI.e(record.requested_by_name)],['Created',UI.datetime(record.created_at)],['Maintenance record',UI.e(record.job_ref)],['Approval role',UI.e(record.approver_role)],['Purpose',UI.e(record.purpose)],['Supplier',UI.e(record.supplier)],['Truck',UI.e(record.plate_number)],...(order?[['Order total',UI.money(record.total_amount)],['Received value',UI.money(lines.reduce((sum,line)=>sum+Number(line.received_qty||0)*Number(line.unit_price||0),0))],['Supplier invoice',UI.e(record.supplier_invoice_no)]]:[])])+UI.h('Items and Quantities')+UI.table([['Part','part_number'],['Description','description'],['Requested / Ordered','quantity','num'],[order?'Received':'Released',order?'received_qty':'released_qty','num'],...(order?[['Unit price','unit_price','money']]:[])],lines,{plain:true})+UI.h('Processing Record')+UI.kv([['Decision by',UI.e(record.decided_by_name)],['Decision date',UI.datetime(record.decided_at)],['Decision notes',UI.e(record.decision_notes)],['Processed by',UI.e(record.processed_by_name)],['Notes',UI.e(record.notes)]])+(App.me?.user?.role==='purchasing'?'':UI.h('Payments')+UI.table([['Voucher','voucher_number'],['Amount','amount','money'],['Released','released_on','date'],['Recorded by','recorded_by_name']],r.payments||[],{plain:true,empty:'No payment details returned for this record and role.'}))+UI.h('Documents')+UI.docs(r.documents||[]);
-    const drawer=UI.drawer(UI.esc(reference),html,{subtitle:(order?'Purchase Order':'Parts Request')+' details'});
-    UI.drawerSections(drawer,[['summary','Overview',['Overview']],['items','Items & Quantities',['Items and Quantities']],['record','Processing Record',['Processing Record']],...(App.me?.user?.role==='purchasing'?[]:[['payments','Payments',['Payments']]]),['docs','Documents',['Documents']]],{key:'purchasing-details'});
+    const paymentDetails = App.me?.user?.role === 'purchasing' ? '' :
+      UI.h('Payments') + UI.table([['Voucher','voucher_number'],['Amount','amount','money'],['Released','released_on','date'],['Recorded by','recorded_by_name']],r.payments||[],{plain:true,empty:'No payment details returned for this record and role.'});
+    const itemsDetails = UI.h('Items and Quantities') +
+      UI.table([['Part','part_number'],['Description','description'],['Requested / Ordered','quantity','num'],
+        [order?'Received':'Released',order?'received_qty':'released_qty','num'],
+        ...(order?[['Unit price','unit_price','money']]:[])],lines,{plain:true});
+    const processingDetails = UI.h('Processing Record') +
+      UI.kv([['Decision by',UI.e(record.decided_by_name)],['Decision date',UI.datetime(record.decided_at)],
+        ['Decision notes',UI.e(record.decision_notes)],['Processed by',UI.e(record.processed_by_name)],
+        ['Notes',UI.e(record.notes)]]);
+    const documentDetails = UI.h('Documents') + UI.docs(r.documents||[]);
+    if (order) {
+      // The Purchase Orders Details action must render the same compact layout as
+      // the PO records drawer, not the older tabbed workflow/vertical key-value view.
+      const html = PurUI.poDetailsLayout(record,r,record) +
+        itemsDetails + processingDetails + paymentDetails + documentDetails;
+      UI.drawer(UI.esc(reference),html,{subtitle:'Purchase Order details'});
+      return;
+    }
+    // Keep the existing Parts Request details workflow and navigation unchanged.
+    const html=UI.workflow(milestones,{status:record.status})+UI.h('Overview')+
+      UI.kv([['Reference',UI.e(reference)],['Status',UI.badge(record.status)],
+        ['Requested by',UI.e(record.requested_by_name)],['Created',UI.datetime(record.created_at)],
+        ['Maintenance record',UI.e(record.job_ref)],['Approval role',UI.e(record.approver_role)],
+        ['Purpose',UI.e(record.purpose)],['Supplier',UI.e(record.supplier)],
+        ['Truck',UI.e(record.plate_number)]])+
+      itemsDetails+processingDetails+paymentDetails+documentDetails;
+    const drawer=UI.drawer(UI.esc(reference),html,{subtitle:'Parts Request details'});
+    UI.drawerSections(drawer,[['summary','Overview',['Overview']],
+      ['items','Items & Quantities',['Items and Quantities']],
+      ['record','Processing Record',['Processing Record']],
+      ...(App.me?.user?.role==='purchasing'?[]:[['payments','Payments',['Payments']]]),
+      ['docs','Documents',['Documents']]],{key:'purchasing-details'});
   },
   /** Editable PO item list — Purchasing backend still validates all lines and prices. */
   lineEditor(withPrice, lines = []) {
