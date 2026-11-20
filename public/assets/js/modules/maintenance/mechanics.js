@@ -211,10 +211,12 @@ App.page('mechanic_attendance', {
       if (heading) {
         const actions = document.createElement('div');
         actions.className = 'mp-attendance-bulk-actions no-print';
-        const inCount = board.filter(m => !m.open_time_in).length;
-        const outCount = on.length;
-        actions.innerHTML = `<button type="button" class="btn btn-sm btn-outline-primary" data-att-bulk="in" ${inCount ? '' : 'disabled'}>Mark All Timed In (${inCount})</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-att-bulk="out" ${outCount ? '' : 'disabled'}>Mark All Timed Out (${outCount})</button>`;
+        // Show only the bulk action that applies to the active duty tab.
+        const timeIn = duty === 'out';
+        const count = rows.length;
+        actions.innerHTML = timeIn
+          ? `<button type="button" class="btn btn-sm btn-outline-primary" data-att-bulk="in" ${count ? '' : 'disabled'}>Mark All Timed In (${count})</button>`
+          : `<button type="button" class="btn btn-sm btn-outline-secondary" data-att-bulk="out" ${count ? '' : 'disabled'}>Mark All Timed Out (${count})</button>`;
         heading.append(actions);
         actions.querySelectorAll('[data-att-bulk]').forEach(button =>
           button.addEventListener('click', () => MechAtt.bulk(board, button.dataset.attBulk, button)));
