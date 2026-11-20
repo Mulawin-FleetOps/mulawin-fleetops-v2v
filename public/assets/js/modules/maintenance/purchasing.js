@@ -808,15 +808,38 @@ PurUI.showWorkflow = async (kind, id) => {
         ? UI.h('Linked purchase orders (only when needed)') +
           `<div class="purchasing-workflow-links">${linked.map(po => `<div class="purchasing-workflow-po"><b>${UI.esc(po.po_ref)}</b> ${UI.badge(po.status)}<small>${UI.esc(po.supplier || 'Supplier not recorded')}</small></div>`).join('')}</div>`
         : '<p class="small text-muted mb-0">No linked purchase order. A parts request does not require a PO when inventory can supply it.</p>';
-      UI.modal('Workflow progress · '+UI.esc(r.request_ref),
-        UI.workflow(stages, {status:r.status, label:'Parts request workflow progress'}) +
-        UI.h('Actual quantities') + UI.kv([['Requested',UI.num(total)],['Reserved',UI.num(reserved)],['Released',UI.num(released)],['Not yet reserved',UI.num(pending)]]) +
-        linkedBlock + UI.h('Recorded processing') + UI.kv([
-          ['Submitted', UI.datetime(r.created_at)],
-          ['Last processed', r.processed_at ? UI.datetime(r.processed_at) : 'Not recorded'],
-          ['Processed by', UI.e(r.processed_by_name)]
-        ]) + (data.history && data.history.length ? UI.h('Recorded activity') + PurUI.timeline(data.history) : ''),
-        null,{size:'modal-lg'});
+      // Compact, responsive request progress — render only persisted values.
+      const progressCards = stages.map((stage, index) => {
+        const icon = stage.state === 'complete' ? '✓' : stage.state === 'exception' ? '!' : '•';
+        const when = stage.at ? '<small>Recorded · '+UI.datetime(stage.at)+'</small>' : '<small>Not recorded</small>';
+        return '<div class="pur-request-stage '+UI.esc(stage.state)+'">'
+          +'<span class="pur-request-stage-icon" aria-hidden="true">'+icon+'</span>'
+          +'<div class="pur-request-stage-content"><span class="pur-request-stage-step">Step '+(index+1)+'</span>'
+          +'<strong>'+UI.esc(stage.label)+'</strong>'+when
+          +(stage.note?'<p>'+UI.esc(stage.note)+'</p>':'')+'</div></div>';
+      }).join('');
+      const metric = (label, value) => '<div class="pur-request-metric"><small>'+UI.esc(label)+'</small><b>'+UI.num(value)+'</b></div>';
+      const fact = (label,value) => '<div class="pur-request-fact"><span>'+UI.esc(label)+'</span><strong>'+value+'</strong></div>';
+      const html = '<div class="pur-request-workflow">'
+        +'<div class="pur-request-summary"><span>'+UI.badge(r.status)+'</span>'
+        +'<span>Parts request · '+UI.esc(r.request_ref)+'</span></div>'
+        +'<div class="pur-request-stage-grid">'+progressCards+'</div>'
+        +'<section class="pur-request-section"><h3>Actual quantities</h3>'
+        +'<div class="pur-request-metrics">'
+        +metric('Requested',total)+metric('Reserved',reserved)+metric('Released',released)+metric('Not yet reserved',pending)
+        +'</div></section>'
+        +'<section class="pur-request-section"><h3>Purchase order links</h3>'+linkedBlock+'</section>'
+        +'<section class="pur-request-section"><h3>Recorded processing</h3>'
+        +'<div class="pur-request-facts">'
+        +fact('Submitted',UI.datetime(r.created_at))
+        +fact('Last processed',r.processed_at?UI.datetime(r.processed_at):'Not recorded')
+        +fact('Processed by',UI.e(r.processed_by_name))
+        +'</div></section>'
+        +(data.history?.length?'<details class="pur-request-activity"><summary>Recorded activity ('+data.history.length+')</summary>'
+          +PurUI.timeline(data.history)+'</details>':'')
+        +'</div>';
+      const modal = UI.modal('Workflow progress · '+UI.esc(r.request_ref),html,null,{size:'modal-lg'});
+      modal?.classList.add('pur-request-workflow-modal');
     } else {
       const po = data.po, lines = data.lines || [];
       const total = lines.reduce((sum, line) => sum + (+line.quantity || 0), 0);
