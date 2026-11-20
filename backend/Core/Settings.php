@@ -78,8 +78,6 @@ final class Settings {
         'license_alert_days'          => ['Remind about expiring driver licenses', 30, 'days before', '', 1, 365],
         'default_payment_terms_days'  => ['Default client payment terms', 30, 'days',
             'Used when the client has no payment terms. Due date = invoice date + terms.', 0, 365],
-        'vat_rate'                    => ['VAT rate shown on the service invoice', 12, '%',
-            'Billed amounts are VAT-inclusive. The invoice shows VATable sales and VAT. Use 0 if not VAT-registered.', 0, 30],
         'km_per_liter'                => ['Kilometers per liter of diesel', 4, 'km/L',
             'For the estimated diesel cost of a trip (PDF #13: 1 liter = 4 km).', 0.1, 100],
         'fuel_price_per_liter'        => ['Diesel price per liter', 100, 'PHP/L',
