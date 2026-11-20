@@ -31,8 +31,8 @@ const MaintUI = {
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
     if (j.status === 'Reported') return j.source === 'Incident' ? 'Assess the incident from the Operations report; no garage mechanic is needed.' : 'Assign an available mechanic to start the inspection.';
     if (j.status === 'Under Inspection') {
+      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Major') return j.garageArrivalConfirmed ? 'Truck received at garage. Assign an available mechanic; incident assessment is already complete.' : 'Trip is For Reschedule. Confirm the truck has arrived at the garage before beginning repair; Operations can use a replacement truck.';
       if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Minor') return 'Trip is On Hold. Record the actual onsite repair and safety confirmation before the Dispatcher resumes the same trip.';
-      if (j.source === 'Incident' && !j.mechanic_id && j.severity === 'Major') return 'Trip is For Reschedule. Garage repair starts only after truck recovery.';
       return j.mechanic_id ? 'Record the inspection findings and diagnosis.' : 'Assign a mechanic when the truck is physically available for garage inspection.';
     }
     if (j.status === 'Under Repair') return 'Record the corrective action, the completion date and the evidence.';
@@ -609,6 +609,7 @@ const MaintUI = {
     const act = d.can.act && !['Completed','Cancelled'].includes(j.status) && !j.verified_at;
     if (i && j.incident_status === undefined) j.incident_status = i.status; // stage text needs the incident state
     if (i) j.incident_clearance = i.clearance;
+    j.garageArrivalConfirmed = !!r.garageArrivalConfirmed;
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
     if (act) {
@@ -619,7 +620,9 @@ const MaintUI = {
       if (j.status === 'Under Inspection') {
         if (j.mechanic_id) acts.push(['inspect', 'Record findings', 'primary', 'bi-search']);
         else if (j.source === 'Incident' && j.severity === 'Major')
-          acts.push(['mech', 'Start garage repair (after recovery)', 'outline-secondary', 'bi-wrench-adjustable']);
+          acts.push(j.garageArrivalConfirmed
+            ? ['mech', 'Assign mechanic & start garage repair', 'primary', 'bi-person-plus']
+            : ['garage_arrival', 'Confirm truck arrived at garage', 'primary', 'bi-truck']);
         else if (j.source !== 'Incident') acts.push(['mech', 'Assign mechanic', 'primary', 'bi-person-plus']);
         // Minor roadside incidents use Vehicle clearance below, not garage assignment.
       }
@@ -645,8 +648,8 @@ const MaintUI = {
           {label:i.severity+' assessed',state:'complete'},
           {label:i.severity==='Major'?'For Reschedule':'Roadside vehicle clearance',
             state:i.severity==='Major'||i.clearance==='Fit to Continue'?'complete':'current'},
-          {label:i.severity==='Major'?'Garage repair after recovery':'Dispatcher resumes trip',
-            state:i.status==='Resolved'?'complete':i.clearance==='Fit to Continue'?'current':'pending'}
+          {label:i.severity==='Major'?(j.garageArrivalConfirmed?'Assign mechanic & repair':'Await garage arrival'):'Dispatcher resumes trip',
+            state:i.severity==='Major'?(j.garageArrivalConfirmed?'current':'pending'):i.status==='Resolved'?'complete':i.clearance==='Fit to Continue'?'current':'pending'}
         ],{status:i.severity==='Major'?'For Reschedule':i.clearance==='Fit to Continue'?'Cleared for dispatcher':'On Hold',
           label:'Trip incident follow-up (no garage mechanic)'})
       : UI.workflow(MaintUI.STAGES.map((label,index)=>{
@@ -671,7 +674,7 @@ const MaintUI = {
     // Separate the single recommended workflow action from optional supporting tasks.
     // Vehicle clearance stays available for eligible Minor incidents but does not
     // compete visually with inspection, completion, or verification.
-    const mainAction = acts.find(([a]) => ['assess', 'mech', 'inspect', 'finalize', 'complete', 'verify'].includes(a) && (a !== 'mech' || (!j.mechanic_id && j.source !== 'Incident')))
+    const mainAction = acts.find(([a]) => ['assess', 'garage_arrival', 'mech', 'inspect', 'finalize', 'complete', 'verify'].includes(a) && (a !== 'mech' || !j.mechanic_id))
       || acts.find(([a]) => a === 'clearance');
     const supportActions = acts.filter(a => a !== mainAction);
     const actionButton = ([a, l, c, ic]) => `<button type="button" class="btn btn-sm btn-${c}" data-a="${a}">${ic ? `<i class="bi ${ic}" aria-hidden="true"></i> ` : ''}${UI.esc(l)}</button>`;
@@ -718,10 +721,11 @@ const MaintUI = {
         ${incidentField('Original details',UI.e(i.details),true)}
         ${incidentField('Reported by',UI.e(i.reported_by_name))}
         ${incidentField('Damage classification',UI.badge(i.severity||'Not assessed'))}
+        ${i.severity === 'Major' ? incidentField('Garage recovery',j.garageArrivalConfirmed?'Truck received at garage':'Awaiting truck arrival',true) : ''}
       </div>
       ${UI.h('Vehicle clearance')}
       <div class="mp-incident-detail-grid">
-        ${incidentField('Trip status',UI.badge(j.trip_status||'On Hold'))}
+        ${incidentField('Trip status',UI.badge(j.trip_status||'Unknown'))}
         ${incidentField('Clearance',i.clearance?UI.badge(i.clearance):'Awaiting clearance')}
         ${incidentField('Assessment',UI.e(i.recommendation),true)}
         ${i.clearance ? incidentField('Clearance findings',UI.e(i.clearance_findings),true) : ''}
@@ -835,6 +839,9 @@ const MaintUI = {
             <p class="mp-incident-assessment-guidance">Assess from the Dispatcher report; no garage mechanic or physical inspection is required at this stage. <b>Minor</b> opens onsite repair and safety confirmation before the same trip resumes. <b>Major</b> sends the trip For Reschedule immediately so Dispatch can select a replacement truck while the incident vehicle returns for garage repair.</p>
           </section>`,
           after: reopen });
+      if (a === 'garage_arrival') return UI.confirmAction('Confirm truck arrived at garage · ' + UI.esc(j.job_ref),
+        'Only confirm once the original incident truck is physically back at the garage. This uses the existing incident-linked repair record and will NOT reassess the incident.',
+        'Maintenance.garage_arrival', { job_id: j.id }, { submit: 'Confirm garage arrival', fields: [{ name: 'notes', label: 'Recovery / receiving notes', required: true, col: 12 }], after: reopen });
       if (a === 'mech') return MaintUI.assignMechanic(j, reopen);
       if (a === 'inspect') UI.formModalFiles('Inspection findings for ' + UI.esc(j.job_ref), [
           { name: 'findings', label: 'Inspection findings', type: 'textarea', required: true, col: 12, placeholder: 'What the mechanic found when checking the truck' },
@@ -896,7 +903,7 @@ const MaintUI = {
       if (j.source === 'Incident' && j.severity === 'Minor' && !j.mechanic_id)
         return j.incident_clearance ? null : ['clearance', 'Confirm onsite repair', 'bi-shield-check'];
       if (j.source === 'Incident' && j.severity === 'Major' && !j.mechanic_id)
-        return null; // Garage work starts after physical recovery, not as the roadside next step.
+        return null; // Open the incident record to confirm garage arrival, then assign a mechanic.
       return j.mechanic_id ? ['inspect', 'Record findings', 'bi-search'] : ['mech', 'Assign mechanic', 'bi-person-plus'];
     }
     if (j.status === 'Under Repair') return MaintUI.data?.motorpoolCatalogReady && !j.assignment_finalized_at ? ['finalize', 'Finalize RA', 'bi-lock'] : (+j.pending_parts_units > 0 ? ['parts-pending', 'Waiting for parts (' + j.pending_parts_units + ')', 'bi-hourglass-split'] : ['complete', 'Complete repair', 'bi-check2-circle']);
