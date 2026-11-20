@@ -3861,3 +3861,56 @@ body:is(.operations-head,.dispatcher-role) .fleet-data-table[data-standard-table
 .mp-final-lead-option.active,
 .mp-final-lead-option:focus-visible { background: #ecf7ef; outline: 2px solid #287b4c; outline-offset: -2px; }
 .mp-final-lead-empty { padding: 12px; color: #6b7d72; font-size: 12px; }
+
+/* MOTORPOOL_FINALIZE_PART_ROWS_V1 — compact, aligned and responsive part rows. */
+.mp-final-parts {
+  min-width: 0;
+  margin-top: 10px;
+}
+.mp-final-parts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.mp-final-part-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 85px;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid #dce8df;
+  border-radius: 9px;
+  padding: 10px;
+  min-width: 0;
+  background: #fff;
+}
+.mp-final-part-name, .mp-final-part-qty { min-width: 0; }
+.mp-final-part-row .form-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mp-final-part-row .form-control,
+.mp-final-part-row .form-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 37px;
+  font-size: 13px;
+}
+.mp-final-part-row .mp-final-part-remove {
+  height: 37px;
+  white-space: nowrap;
+  padding-inline: 10px;
+}
+.mp-final-add-part { min-height: 35px; }
+@media (max-width: 575.98px) {
+  .mp-final-part-row {
+    grid-template-columns: minmax(0,1fr) 82px;
+    gap: 8px;
+  }
+  .mp-final-part-remove {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
