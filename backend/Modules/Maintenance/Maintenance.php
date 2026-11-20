@@ -417,6 +417,9 @@ final class Maintenance {
         requireRole($u, ...self::ACT);
         $vid = idField($d, 'vehicle_id');
         $problem = field($d, 'problem', 500);
+        // Garage intake captures the findings once; the next action assigns the whole mechanic team.
+        $findings = field($d, 'findings', 2000);
+        $diagnosis = field($d, 'diagnosis', 2000);
         // The Report Truck Problem form does not ask for a date. The server is
         // authoritative, so never require or trust a client-supplied reported_on.
         $date = date('Y-m-d');
@@ -439,7 +442,7 @@ final class Maintenance {
         must(is_array($rawParts), 'Invalid parts request.');
         must(count($rawParts) <= 30, 'At most 30 requested parts.');
         $partsPurpose = $rawParts ? cut($problem, 255) : null;
-        return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks, $assist, $rawParts, $partsPurpose) {
+        return transaction(function (PDO $p) use ($u, $vid, $problem, $date, $priority, $mechanicId, $remarks, $assist, $rawParts, $partsPurpose, $findings, $diagnosis) {
             $v = one($p, 'SELECT * FROM vehicles WHERE id=? FOR UPDATE', [$vid]);
             must($v && (int)$v['active'], 'Truck not found or inactive.', 404);
             must(in_array((string)$v['status'], ['Available', 'Assigned'], true), 'Only Available or Assigned trucks at the garage can be reported here. On-trip, returning, unavailable and under-maintenance trucks are excluded.', 409);
@@ -451,7 +454,7 @@ final class Maintenance {
             if ($mechanicId) self::freeMechanic($p, $mechanicId);
             $status = $mechanicId ? 'Under Inspection' : 'Reported';
             $jid = insert($p, 'maintenance_jobs', ['job_ref' => 'TMP-' . bin2hex(random_bytes(6)), 'vehicle_id' => $vid, 'source' => 'On-Premise',
-                'problem' => $problem, 'reported_on' => $date, 'priority' => $priority, 'status' => 'Reported', 'remarks' => $remarks, 'created_by' => $u['id']]);
+                'problem' => $problem, 'findings' => $findings, 'diagnosis' => $diagnosis, 'reported_on' => $date, 'priority' => $priority, 'status' => 'Reported', 'remarks' => $remarks, 'created_by' => $u['id']]);
             $ref = refNumber('CM', $jid);
             run($p, 'UPDATE maintenance_jobs SET job_ref=? WHERE id=?', [$ref, $jid]);
             self::event($p, $jid, null, 'Reported', $u['id'], $problem);
@@ -488,7 +491,7 @@ final class Maintenance {
             audit($p, $u['id'], 'Maintenance', 'job ' . $jid, 'truck problem reported', "$ref {$v['plate_number']}: " . cut($problem, 200));
             Notify::roles($p, ['operations_head'], 'Truck under maintenance', $v['plate_number'] . " has a reported problem ($ref). It cannot be assigned until the repair is verified.", 'maintenance', 'job-open-' . $jid);
             return ['job_id' => $jid, 'job_ref' => $ref, 'parts_request_ref' => $request['request_ref'] ?? null,
-                'message' => $msg . ($request ? ' ' . $request['message'] : '') . ($mechanicId ? '' : ' Assign a mechanic to start the inspection.')];
+                'message' => $msg . ($request ? ' ' . $request['message'] : '') . ($mechanicId ? '' : ' Assign the lead and assisting mechanics to start repair.')];
         });
     }
 
@@ -514,7 +517,9 @@ final class Maintenance {
         return transaction(function(PDO $p) use($u,$jobId,$lead,$helpers,$components,$otherComponents,$parts,$lines) {
             must(self::catalogReady($p),'Apply the approved Motorpool catalog migration before finalizing.',409);
             $j=self::lockJob($p,$jobId);
-            must(in_array($j['status'],['Under Inspection','Under Repair'],true),'Repair must be under inspection or repair.',409);
+            must(in_array($j['status'],['Under Inspection','Under Repair'],true)
+                || ($j['source']==='On-Premise' && $j['status']==='Reported' && trim((string)$j['findings'])!=='' && trim((string)$j['diagnosis'])!==''),
+                'Record inspection findings and diagnosis before assigning the repair team.',409);
             must(!$j['assignment_finalized_at'],'Repair assignment is finalized and locked.',409);
             if ($j['source']==='Incident') must($j['severity']!==null,'Assess the incident first.',409);
             // Allow the initial lead to be changed once before finalization.
@@ -557,8 +562,10 @@ final class Maintenance {
                 Actions::load('Purchasing');
                 Purchasing::createForRepair($p,$u,(int)$j['vehicle_id'],$jobId,cut((string)$j['problem'],255),$lines);
             }
-            run($p,'UPDATE maintenance_jobs SET assignment_finalized_at=NOW(),assignment_finalized_by=?,parts_requirement=? WHERE id=?',[$u['id'],$parts,$jobId]);
-            self::event($p,$jobId,$j['status'],$j['status'],$u['id'],
+            $targetStatus = $j['source']==='On-Premise' && $j['status']==='Reported' ? 'Under Repair' : $j['status'];
+            run($p,'UPDATE maintenance_jobs SET status=?, started_by=COALESCE(started_by,?), started_at=COALESCE(started_at,NOW()), assignment_finalized_at=NOW(), assignment_finalized_by=?, parts_requirement=? WHERE id=?',
+                [$targetStatus,$u['id'],$u['id'],$parts,$jobId]);
+            self::event($p,$jobId,$j['status'],$targetStatus,$u['id'],
                 'repair assignment finalized; parts: '.$parts
                 .($otherComponents !== null && trim($otherComponents) !== ''
                     ? '; Other affected components: '.trim($otherComponents) : ''));
