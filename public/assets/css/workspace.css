@@ -2762,3 +2762,168 @@ body.ref-body:has(#pageContent #pageBody > .mp-wireframe-marker) .modal:has(.mod
   .po-progress-quantity-grid > div {padding:10px}
   .po-progress-quantity-grid b {font-size:16px}
 }
+
+
+/* PURCHASING_INVENTORY_PART_DETAILS_V2
+   Compact, scannable details. Scoped to Inventory part drawer only. */
+.offcanvas.app-drawer:has(.purchasing-part-detail) {
+  width:min(540px,100vw);
+}
+.purchasing-part-detail {
+  display:flex;
+  flex-direction:column;
+  gap:15px;
+  min-width:0;
+  padding-bottom:16px;
+}
+.purchasing-part-detail .part-detail-heading {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  flex-wrap:wrap;
+  gap:12px;
+  padding:15px;
+  background:#f7faf8;
+  border:1px solid #dce8df;
+  border-radius:10px;
+}
+.purchasing-part-detail .part-detail-heading > div {min-width:0;flex:1}
+.purchasing-part-detail .part-detail-heading small {
+  color:#748577;
+  font-size:10px;
+  font-weight:750;
+  letter-spacing:.05em;
+}
+.purchasing-part-detail .part-detail-heading h3 {
+  font-size:18px;
+  font-weight:750;
+  margin:4px 0 3px;
+  color:#185c36;
+}
+.purchasing-part-detail .part-detail-heading p {
+  font-size:12.5px;
+  margin:0;
+  color:#486657;
+  overflow-wrap:anywhere;
+}
+.purchasing-part-detail .part-detail-section {
+  border:1px solid #e1e9e2;
+  border-radius:10px;
+  padding:14px;
+}
+.purchasing-part-detail .part-detail-section h4 {
+  margin:0 0 12px;
+  color:#294f37;
+  font-size:13px;
+  font-weight:750;
+}
+.purchasing-part-detail .part-detail-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:13px 16px;
+}
+.purchasing-part-detail .part-detail-field {
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  min-width:0;
+}
+.purchasing-part-detail .part-detail-field > span {
+  font-size:11px;
+  color:#728476;
+}
+.purchasing-part-detail .part-detail-field > strong {
+  font-size:12.5px;
+  line-height:1.45;
+  color:#2f4c3c;
+  font-weight:650;
+  overflow-wrap:anywhere;
+}
+.purchasing-part-detail .part-detail-stock {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-bottom:16px;
+}
+.purchasing-part-detail .part-detail-stat {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:3px;
+  padding:11px;
+  border:1px solid #dfebe1;
+  border-radius:8px;
+  background:#fbfdfb;
+  min-width:0;
+}
+.purchasing-part-detail .part-detail-stat > span {
+  color:#6c8070;
+  font-size:10.5px;
+  font-weight:650;
+}
+.purchasing-part-detail .part-detail-stat > strong {
+  font-size:19px;
+  color:#245a39;
+  line-height:1.15;
+}
+.purchasing-part-detail .part-detail-stat > small {
+  color:#728678;
+  font-size:10.5px;
+}
+.purchasing-part-detail .part-detail-stat.part-detail-available {
+  background:#edf7f0;
+  border-color:#bddac6;
+}
+.purchasing-part-detail .part-detail-disclosure {
+  border:1px solid #e0e9e2;
+  border-radius:9px;
+  overflow:hidden;
+}
+.purchasing-part-detail .part-detail-disclosure > summary {
+  cursor:pointer;
+  padding:12px 14px;
+  font-size:12.5px;
+  color:#275a3a;
+  font-weight:750;
+}
+.purchasing-part-detail .part-detail-disclosure[open] > summary {
+  border-bottom:1px solid #e5eee7;
+}
+.purchasing-part-detail .part-detail-count {
+  color:#617d69;
+  font-size:11px;
+  font-weight:500;
+  margin-left:5px;
+}
+.purchasing-part-detail .part-detail-table {
+  padding:8px;
+  max-width:100%;
+  overflow-x:auto;
+}
+.purchasing-part-detail .part-detail-table .table {
+  min-width:530px;
+  font-size:11.5px;
+}
+.purchasing-part-detail .part-detail-legacy-note {
+  border:1px solid #e5ebdf;
+  background:#fafbf8;
+  border-radius:9px;
+  padding:12px;
+  font-size:12px;
+}
+.purchasing-part-detail .part-detail-legacy-note p {
+  margin:6px 0 0;
+  color:#677b6a;
+}
+.purchasing-part-detail .part-detail-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:10px 0;
+  border-top:1px solid #e4ece5;
+}
+@media(max-width:410px) {
+  .purchasing-part-detail .part-detail-grid {grid-template-columns:minmax(0,1fr)}
+  .purchasing-part-detail .part-detail-stock {gap:4px}
+  .purchasing-part-detail .part-detail-stat {padding:8px}
+}
