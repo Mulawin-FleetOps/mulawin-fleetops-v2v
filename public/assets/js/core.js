@@ -2262,11 +2262,31 @@ UI.chartEmpty = (c) => !c.labels || !c.labels.length || c.datasets.every(d => !d
 UI.chartHtml = (c) => {
   const id = 'ch' + Math.random().toString(36).slice(2, 8);
   UI._charts[id] = c;
-  // Horizontal bars: height follows the number of names so the bars are not crowded.
+  const round = c.type === 'doughnut' || c.type === 'pie';
   const h = c.horizontal ? Math.max(220, Math.min(640, 70 + c.labels.length * 30)) : 0;
-  return `<section class="panel chart-panel"><div class="panel-head"><h2 class="panel-title">${UI.esc(c.title)}</h2></div><div class="panel-body">
-    ${UI.chartEmpty(c) ? '<div class="table-empty"><i class="bi bi-bar-chart"></i><span>No data for this period.</span></div>' : `<div class="chart-box${c.horizontal ? ' chart-box-h' : ''}" ${h ? `style="height:${h}px"` : ''}><canvas data-chart="${id}"></canvas></div>`}
-    ${c.how ? `<div class="chart-how"><i class="bi bi-info-circle"></i> ${UI.esc(c.how)}</div>` : ''}</div></section>`;
+  const datasets = c.datasets || [];
+  const positive = datasets.flatMap(d => d.data || []).filter(v => Number(v) > 0);
+  const total = datasets.reduce((a, d) => a + (d.data || []).reduce((n, v) => n + Math.max(0, Number(v) || 0), 0), 0);
+  const count = round ? ((datasets[0] || {}).data || []).filter(v => Number(v) > 0).length : 0;
+  const first = datasets[0] || {};
+  const peak = round && total > 0 ? (first.data || []).map((v, i) => ({name:c.labels[i],amount:Math.max(0,Number(v)||0)}))
+    .sort((a,b)=>b.amount-a.amount)[0] : null;
+  const meaning = round
+    ? (count === 1 ? 'Only one category has a positive recorded value, so it accounts for the whole visible distribution.'
+      : 'Each segment represents its category share of the total recorded value.')
+    : c.horizontal ? 'The horizontal bars compare recorded values across named items.'
+      : c.type === 'line' ? 'The lines show how recorded values changed across the reported dates.'
+      : 'The bars compare the recorded values across the listed groups.';
+  const share = peak && total ? ' Largest category: ' + UI.esc(String(peak.name)) + ' (' + (peak.amount / total * 100).toFixed(1) + '%).' : '';
+  const why = '<div class="chart-why"><strong><i class="bi bi-info-circle" aria-hidden="true"></i> Why this chart?</strong><p>' +
+    meaning + share + (c.how ? ' ' + UI.esc(c.how) : '') +
+    ' Values come from recorded system data and are not evidence of a cause by themselves.</p></div>';
+  return '<section class="panel chart-panel"><div class="panel-head"><h2 class="panel-title">' +
+    UI.esc(c.title) + '</h2></div><div class="panel-body">' +
+    (UI.chartEmpty(c) ? '<div class="table-empty"><i class="bi bi-bar-chart"></i><span>No data for this period.</span></div>'
+      : '<div class="chart-box' + (c.horizontal ? ' chart-box-h' : '') + '"' + (h ? ' style="height:' + h + 'px"' : '') +
+        '><canvas data-chart="' + id + '"></canvas></div>') +
+    why + '</div></section>';
 };
 /** Chart.js settings from a chart spec: peso format, %, colors by meaning, horizontal, stacked. */
 UI.chartConfig = (c, forPrint = false) => {
@@ -2277,7 +2297,30 @@ UI.chartConfig = (c, forPrint = false) => {
   const valueAxis = c.horizontal ? 'x' : 'y', nameAxis = c.horizontal ? 'y' : 'x';
   // Counts (trips, units): whole numbers only on the axis.
   const whole = !money && c.datasets.every(d => d.data.every(x => Number.isInteger(+x)));
+  const centerValuePlugin = {
+    id: 'reportCenterTotal',
+    afterDatasetsDraw(chart) {
+      if (!round || !chart.getDatasetMeta(0)?.data?.length) return;
+      const arc = chart.getDatasetMeta(0).data[0];
+      if (!arc || !arc.innerRadius) return;
+      const total = c.datasets.reduce((sum,d)=>sum+(d.data||[]).reduce((a,v)=>a+Math.max(0,Number(v)||0),0),0);
+      const value = money ? UI.compactMoney(total) : UI.num(total);
+      const radius = arc.innerRadius, ctx = chart.ctx;
+      ctx.save();
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#73867b';
+      ctx.font='600 ' + Math.max(9,Math.min(11,radius/6))+'px sans-serif';
+      ctx.fillText('TOTAL',arc.x,arc.y-12);
+      let size=Math.min(23,radius/3);
+      ctx.font='700 '+size+'px sans-serif';
+      while(size>10&&ctx.measureText(value).width>radius*1.7){size-=1;ctx.font='700 '+size+'px sans-serif';}
+      ctx.fillStyle='#24543c';
+      ctx.fillText(value,arc.x,arc.y+9);
+      ctx.restore();
+    }
+  };
   return {
+    plugins: round ? [centerValuePlugin] : [],
     type: c.type,
     data: { labels: c.labels, datasets: c.datasets.map((d, i) => ({ ...d,
       backgroundColor: round ? c.labels.map((l, j) => UI.colorOf(l, j)) : UI.colorOf(d.label, i),
