@@ -24,6 +24,8 @@ const MaintUI = {
   /** Plain-language next step shown on the record. */
   nextStep(j) {
     if (j.status === 'Cancelled') return 'Cancelled.';
+    if (j.source === 'Incident' && j.incident_clearance === 'Fit to Continue' && j.incident_status !== 'Resolved')
+      return 'Roadside vehicle clearance recorded. Dispatcher can resume the trip; no garage mechanic was assigned.';
     if (j.verified_at) return j.source === 'Incident' && j.severity === 'Minor' && j.incident_status !== 'Resolved' && j.incident_status !== 'Repaired - Cleared to Continue'
       ? 'Repair verified. The trip stays On Hold until Motorpool records the vehicle clearance.'
       : (j.repair_performed ? 'Repair verified. The truck is back in service.' : 'Inspection only: no repair was needed. The truck is back in service.');
@@ -606,6 +608,7 @@ const MaintUI = {
     // immutable. Verification remains a separate action in the dedicated queue.
     const act = d.can.act && !['Completed','Cancelled'].includes(j.status) && !j.verified_at;
     if (i && j.incident_status === undefined) j.incident_status = i.status; // stage text needs the incident state
+    if (i) j.incident_clearance = i.clearance;
     const [stage, warn] = MaintUI.stageOf(j);
     const acts = [];
     if (act) {
@@ -635,17 +638,36 @@ const MaintUI = {
     }
     const partsCost = r.parts.reduce((a, p) => a + (+p.released_qty) * (+p.unit_cost || 0), 0), other = r.costs.reduce((a, c) => a + +c.amount, 0);
     const truckLine = `<b>${UI.esc(j.plate_number)}</b>${j.truck_number ? ' · #' + UI.esc(j.truck_number) : ''} · ${UI.esc(j.truck_type)} · ${UI.badge(j.truck_status)}`;
-    const progress = UI.workflow(MaintUI.STAGES.map((label,index)=>{
-      const status=index===4?'Completed':label,event=(r.events||[]).find(e=>e.to_status===status);
-      const at=index===4?j.verified_at:event?.created_at;
-      const recorded=index===4?!!j.verified_at:!!event;
-      return {label,at,state:j.status==='Cancelled'&&!recorded?'exception':index<4&&j.status===label&&!j.verified_at?'current':recorded?'complete':'pending'};
-    }),{status:j.verified_at?'Returned to service':j.status,label:'Recorded corrective repair progress'});
-    const readiness=UI.readiness([
-      {label:'Inspection findings and diagnosis',state:j.findings&&j.diagnosis?'complete':'unknown'},
-      {label:'Corrective repair recorded',state:j.repair_performed&&j.completed_on?'complete':'unknown'},
-      {label:'Return-to-service verification',state:j.verified_at?'complete':'unknown',detail:j.verified_at?'Recorded verification':'The existing verification action remains required before return to service.'}
-    ],{title:'Return-to-service record'});
+    const remoteIncident = i && !j.mechanic_id && ['Minor', 'Major'].includes(i.severity);
+    const progress = remoteIncident
+      ? UI.workflow([
+          {label:'Incident reported', state:'complete'},
+          {label:i.severity+' assessed',state:'complete'},
+          {label:i.severity==='Major'?'For Reschedule':'Roadside vehicle clearance',
+            state:i.severity==='Major'||i.clearance==='Fit to Continue'?'complete':'current'},
+          {label:i.severity==='Major'?'Garage repair after recovery':'Dispatcher resumes trip',
+            state:i.status==='Resolved'?'complete':i.clearance==='Fit to Continue'?'current':'pending'}
+        ],{status:i.severity==='Major'?'For Reschedule':i.clearance==='Fit to Continue'?'Cleared for dispatcher':'On Hold',
+          label:'Trip incident follow-up (no garage mechanic)'})
+      : UI.workflow(MaintUI.STAGES.map((label,index)=>{
+          const status=index===4?'Completed':label,event=(r.events||[]).find(e=>e.to_status===status);
+          const at=index===4?j.verified_at:event?.created_at;
+          const recorded=index===4?!!j.verified_at:!!event;
+          return {label,at,state:j.status==='Cancelled'&&!recorded?'exception':index<4&&j.status===label&&!j.verified_at?'current':recorded?'complete':'pending'};
+        }),{status:j.verified_at?'Returned to service':j.status,label:'Recorded corrective repair progress'});
+    const readiness=remoteIncident
+      ? UI.readiness([
+          {label:'Damage classification',state:'complete'},
+          {label:i.severity==='Major'?'Not Fit to Continue':'Roadside condition review',
+            state:i.severity==='Major'||i.clearance?'complete':'unknown'},
+          {label:'Vehicle clearance',state:i.clearance?'complete':'unknown',
+            detail:i.clearance?'Recorded: '+i.clearance:'Trip remains On Hold until clearance is recorded'}
+        ],{title:'Incident handling (garage mechanic not required)'})
+      : UI.readiness([
+          {label:'Inspection findings and diagnosis',state:j.findings&&j.diagnosis?'complete':'unknown'},
+          {label:'Corrective repair recorded',state:j.repair_performed&&j.completed_on?'complete':'unknown'},
+          {label:'Return-to-service verification',state:j.verified_at?'complete':'unknown',detail:j.verified_at?'Recorded verification':'The existing verification action remains required before return to service.'}
+        ],{title:'Return-to-service record'});
     // Separate the single recommended workflow action from optional supporting tasks.
     // Vehicle clearance stays available for eligible Minor incidents but does not
     // compete visually with inspection, completion, or verification.
