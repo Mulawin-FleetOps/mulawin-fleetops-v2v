@@ -1564,3 +1564,44 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 #pageContent .mp-history-records .ref-tablebox .data-table td:nth-child(4) {
   overflow-wrap:anywhere;
 }
+
+
+/* PURCHASING_INVENTORY_ACTION_HEADER_CENTER_V1
+   Inventory Parts five-column layout only: put Actions and View Details on
+   the same centerline, unlike the legacy left-aligned action container. */
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table th.actions-col,
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table td.actions-col {
+  box-sizing:border-box;
+  padding:11px 12px !important;
+  text-align:center !important;
+  vertical-align:middle;
+  white-space:nowrap;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table th.actions-col .visually-hidden {
+  display:inline-block !important;
+  position:static !important;
+  width:auto !important;
+  height:auto !important;
+  margin:0 !important;
+  overflow:visible !important;
+  clip:auto !important;
+  text-align:center !important;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table td.actions-col .row-actions,
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table td.actions-col .row-icons {
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  flex-wrap:nowrap !important;
+  width:100% !important;
+  max-width:none !important;
+  margin:0 !important;
+}
+#pageContent .purchasing-inventory-parts-view .ref-tablebox .data-table td.actions-col .row-icons > .btn {
+  flex:0 0 auto;
+  min-height:35px;
+  min-width:116px;
+  width:auto !important;
+  margin:0 !important;
+  padding:7px 12px;
+}
