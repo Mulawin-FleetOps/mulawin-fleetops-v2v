@@ -53,7 +53,7 @@ final class Purchasing {
         // S4B-2D-B: only roles that handle purchasing money see the budget.
         $budget = fn() => hasRole($u, 'purchasing', 'finance', 'admin', 'audit')
             // ACCOUNTING_INTEGRITY_G7: in_period = the same date rule po_decide uses; an expired budget is shown as ended, not as available.
-            ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category='Purchasing' ORDER BY id DESC LIMIT 1") ?? []) : [];
+            ? (one($p, "SELECT *, amount-reserved_amount-spent_amount AS available, (CURRENT_DATE() BETWEEN period_start AND period_end) AS in_period FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) ORDER BY id DESC LIMIT 1") ?? []) : [];
         $warrantyReady = self::warrantyReady($p);
         $warrantyExpirySql = $warrantyReady
             ? "(SELECT MIN(w.warranty_expires) FROM part_warranty_batches w WHERE w.part_id=pt.id AND w.warranty_expires IS NOT NULL)"
@@ -776,7 +776,7 @@ final class Purchasing {
             // This does not reserve funds. Approval rechecks atomically because
             // available budget may change after the PO was composed.
             $restockRejectedReason = null;
-            $budget = one($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
+            $budget = one($p, "SELECT * FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
             $available = $budget ? round((float)$budget['amount'] - (float)$budget['reserved_amount'] - (float)$budget['spent_amount'], 2) : 0.0;
             if (!$budget || $available < $total) {
                 $restockRejectedReason = !$budget
@@ -836,7 +836,7 @@ final class Purchasing {
                 Notify::user($p, (int)$o['requested_by'], 'PO rejected', $o['po_ref'] . ' was rejected: ' . $notes, 'purchase_orders');
                 return ['message' => 'Purchase order rejected.'];
             }
-            $b = one($p, "SELECT * FROM budgets WHERE status='Active' AND category='Purchasing' AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
+            $b = one($p, "SELECT * FROM budgets WHERE status='Active' AND category=(CASE WHEN EXISTS(SELECT 1 FROM budgets gb WHERE gb.category='General' AND gb.status='Active') THEN 'General' ELSE 'Purchasing' END) AND CURRENT_DATE() BETWEEN period_start AND period_end ORDER BY id DESC LIMIT 1 FOR UPDATE");
             $available = $b ? round((float)$b['amount'] - (float)$b['reserved_amount'] - (float)$b['spent_amount'], 2) : 0.0;
             if (!$b || $available < (float)$o['total_amount']) {
                 $why = !$b ? 'no active purchasing budget for today' : 'available budget PHP ' . number_format($available, 2) . ' is less than PHP ' . number_format((float)$o['total_amount'], 2);
