@@ -46,6 +46,10 @@ date_default_timezone_set(envValue('APP_TIMEZONE', 'Asia/Manila'));
 const SESSION_IDLE_MINUTES_DEFAULT = 60;
 
 if (PHP_SAPI !== 'cli' && session_status() !== PHP_SESSION_ACTIVE) {
+    // A shared URL must never carry authentication via PHPSESSID or URL rewriting.
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
+    ini_set('session.cache_limiter', 'nocache');
     ini_set('session.use_strict_mode', '1');
     ini_set('session.cookie_httponly', '1');
     ini_set('session.cookie_samesite', 'Strict');
