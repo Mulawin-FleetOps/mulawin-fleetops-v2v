@@ -1391,3 +1391,39 @@ body:has(#pageContent .mp-wireframe-marker) .modal .mp-mechanic-checklist {
 #pageContent .mp-mechanic-records-table .ref-tablebox .data-table td:nth-child(5) {
   overflow-wrap:anywhere;
 }
+
+
+/* MOTORPOOL_MECHANIC_ACTION_HEADER_CENTER_V3
+   The header must share the same horizontal centerline as Details buttons.
+   Previous right-align rules placed the header to the button's right. */
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table th.actions-col,
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td.actions-col {
+  width:13% !important;
+  min-width:0 !important;
+  max-width:none !important;
+  box-sizing:border-box;
+  padding:11px 10px !important;
+  text-align:center !important;
+  vertical-align:middle;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table th.actions-col .visually-hidden {
+  display:inline-block !important;
+  position:static !important;
+  width:auto !important;
+  height:auto !important;
+  clip:auto !important;
+  overflow:visible !important;
+  margin:0 !important;
+  text-align:center !important;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td.actions-col .row-actions,
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td.actions-col .row-icons {
+  display:flex !important;
+  justify-content:center !important;
+  align-items:center !important;
+  width:100% !important;
+  margin:0 !important;
+}
+#pageContent .mp-mechanic-records-table .ref-tablebox .data-table td.actions-col .row-icons > .btn {
+  margin:0 auto !important;
+}
