@@ -878,8 +878,9 @@ final class Maintenance {
         // checks with evidence may support an unassigned Minor incident clearance.
         $roadside = $decision === 'Fit to Continue' && !empty($d['roadside_check']);
         $checkedBy = $roadside ? field($d, 'checked_by', 150) : null;
+        $onsiteRepair = $roadside ? field($d, 'repair_performed', 2000) : null;
         $onSiteConfirmed = !empty($d['on_site_checked']);
-        return transaction(function (PDO $p) use ($u, $id, $decision, $findings, $inspectionOnly, $roadside, $checkedBy, $onSiteConfirmed) {
+        return transaction(function (PDO $p) use ($u, $id, $decision, $findings, $inspectionOnly, $roadside, $checkedBy, $onsiteRepair, $onSiteConfirmed) {
             $j = self::lockJob($p, $id);
             must($j['source'] === 'Incident' && $j['incident_id'] && $j['trip_id'], 'Clearance is recorded on a trip incident repair record.', 409);
             $inc = one($p, 'SELECT * FROM incidents WHERE id=? FOR UPDATE', [$j['incident_id']]);
@@ -919,15 +920,15 @@ final class Maintenance {
             if ($roadside) {
                 // Close the incident-linked maintenance record as a roadside
                 // safety check, not a fabricated garage repair or mechanic job.
-                $record = 'Roadside vehicle check by ' . $checkedBy . ': ' . $findings;
-                run($p, "UPDATE maintenance_jobs SET status='Completed', findings=?, repair_performed=NULL,
+                $record = 'Onsite repair confirmed by ' . $checkedBy . ': ' . $findings;
+                run($p, "UPDATE maintenance_jobs SET status='Completed', findings=?, repair_performed=?,
                          completed_on=CURRENT_DATE(), completed_by=?, completed_at=NOW(), verified_at=NOW(),
                          verified_by=?, verification_notes=? WHERE id=?",
-                    [$record, $u['id'], $u['id'], cut($record, 500), $id]);
+                    [$record, $onsiteRepair, $u['id'], $u['id'], cut($record, 500), $id]);
                 self::event($p, $id, $j['status'], 'Completed', $u['id'],
-                    'roadside safety check; no garage mechanic or repair: ' . cut($record, 400));
+                    'onsite repair completed and safety verified: ' . cut($onsiteRepair, 350));
                 audit($p, $u['id'], 'Maintenance', 'incident '.$inc['id'],
-                    'roadside vehicle condition accepted', $inc['incident_ref'].': '.cut($record, 250));
+                    'onsite repair and vehicle clearance', $inc['incident_ref'].': '.cut($record, 250));
             } elseif ($inspectionOnly) {
                 run($p, "UPDATE maintenance_jobs SET status='Completed', findings=COALESCE(findings, ?), repair_performed=NULL, completed_on=CURRENT_DATE(), completed_by=?, completed_at=NOW(),
                          verified_at=NOW(), verified_by=?, verification_notes=? WHERE id=?",
@@ -939,7 +940,7 @@ final class Maintenance {
             run($p, 'UPDATE incidents SET clearance=?, clearance_findings=?, cleared_by=?, cleared_at=NOW()' . ($decision === 'Fit to Continue' ? ", status='Repaired - Cleared to Continue'" : '') . ' WHERE id=?',
                 [$decision, $findings, $u['id'], $inc['id']]);
             Files::store($p, $u, 'evidence', 'incident', (int)$inc['id'],
-                $roadside ? 'Roadside Safety Evidence' : ($inspectionOnly ? 'Incident Photo' : 'Repair Evidence'),
+                $roadside ? 'Onsite Repair and Safety Evidence' : ($inspectionOnly ? 'Incident Photo' : 'Repair Evidence'),
                 $roadside);
             $truckNow = FleetState::reconcile($p, (int)$t['vehicle_id'], $u['id'], 'Vehicle clearance ' . $inc['incident_ref'] . ': ' . $decision); // Not Fit -> Under Maintenance
             Actions::load('Trips');
@@ -948,7 +949,7 @@ final class Maintenance {
                 ['Clearance' => $before], ['Clearance' => $decision]);
             if ($decision === 'Fit to Continue') {
                 Notify::tripRoles($p, $t, [$t['dispatcher_role']], 'Cleared to continue', $t['trip_ref'] . ': Motorpool recorded Fit to Continue. Resume the trip.', 'trips', 'trip-resume-' . $inc['id']);
-                return ['message' => 'Fit to Continue recorded for ' . $inc['incident_ref'] . ($roadside ? ' (roadside safety check; no garage mechanic assigned)' : ($inspectionOnly ? ' (inspection only, no repair performed)' : '')) . '. The dispatcher can resume ' . $t['trip_ref'] . '.'];
+                return ['message' => 'Fit to Continue recorded for ' . $inc['incident_ref'] . ($roadside ? ' (onsite repair completed; no garage mechanic assigned)' : ($inspectionOnly ? ' (inspection only, no repair performed)' : '')) . '. The dispatcher can resume ' . $t['trip_ref'] . '.'];
             }
             Notify::tripRoles($p, $t, [$t['dispatcher_role'], 'operations_head'], 'Not fit to continue', $t['trip_ref'] . ': Motorpool recorded Not Fit to Continue. The trip stays On Hold.', 'trips');
             return ['message' => 'Not Fit to Continue recorded for ' . $inc['incident_ref'] . '. Trip remains On Hold; Operations Head can move it to For Reschedule. Garage repair starts after truck recovery if required.'];
