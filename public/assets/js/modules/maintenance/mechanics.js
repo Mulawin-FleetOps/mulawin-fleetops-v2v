@@ -143,7 +143,7 @@ App.page('mechanic_attendance', {
       <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Timed In</b><small>Currently on duty</small></span><strong class="mp-action-stage-count">${on.length}</strong></div>
       <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Not Timed In</b><small>Not currently on duty</small></span><strong class="mp-action-stage-count">${board.length-on.length}</strong></div>
       <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Total Mechanics</b><small>Active duty board</small></span><strong class="mp-action-stage-count">${board.length}</strong></div>
-      <div class="mp-action-stage"><span class="mp-action-stage-content"><b>Attendance Sessions</b><small>Selected date range</small></span><strong class="mp-action-stage-count">${sessions.length}</strong></div>
+
     </div>`;
     ctx.el.innerHTML = '<div class="mp-wireframe-marker" hidden></div>' + attendanceKpis + attendanceIntro
       + UI.statusTabs('mechanic_attendance', q, 'tab', [
