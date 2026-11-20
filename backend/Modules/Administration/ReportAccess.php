@@ -13,7 +13,6 @@ final class ReportAccess {
         'billing_reports' => 'Billing Reports',
         'maintenance_reports' => 'Maintenance Reports',
         'purchasing_reports' => 'Purchasing Reports',
-        'audit_reports' => 'Audit Reports',
         'admin_reports' => 'Executive Reports',
         'admin_analytics' => 'Analytics',
         'admin_descriptive_analytics' => 'Descriptive Analytics',
@@ -21,7 +20,7 @@ final class ReportAccess {
     ];
 
     /** Existing admin-only analytics contain executive information and stay admin-only. */
-    public const DELEGATABLE = ['operations_reports','maintenance_reports','purchasing_reports','financial_reports','billing_reports','audit_reports'];
+    public const DELEGATABLE = ['operations_reports','maintenance_reports','purchasing_reports','financial_reports','billing_reports'];
 
     private static function installed(): bool {
         try {
