@@ -5,10 +5,57 @@ App.page('approvals', {
   subtitle:'Requests requiring a decision from your account.',
   render(ctx) {
     const role = App.me?.user?.role || '';
-    // Admin's existing full approval page already contains PO, stock-count and
-    // billing review drawers, and enforces separation of duties.
-    if (role === 'admin' && App.pages.admin_approvals) {
-      return App.pages.admin_approvals.render(ctx);
+    // Head Management uses this sidebar entry as a read-only decision history.
+    // The existing admin_approvals screen remains accessible for actual pending
+    // approval actions (e.g. from the executive dashboard).
+    if (role === 'admin') {
+      const d = ctx.data || {}, q = ctx.query || {};
+      const all = Array.isArray(d.queue) ? d.queue : [];
+      const decided = all.filter(r => r.status !== 'Pending' && r.decided_at);
+      const tabs = [
+        ['all','All', () => true],
+        ['approved','Approved / Posted', r => /^(Approved|Posted|Partially Received|Received|Completed)$/i.test(r.status)],
+        ['rejected','Rejected',r => /reject/i.test(r.status)],
+        ['other','Other decisions',r => !/^(Approved|Posted|Partially Received|Received|Completed)$/i.test(r.status) && !/reject/i.test(r.status)]
+      ];
+      const selected = tabs.some(t=>t[0]===q.tab) ? q.tab : 'all';
+      const types = [...new Set(decided.map(r=>r.type).filter(Boolean))].sort();
+      const rows = decided.filter(tabs.find(t=>t[0]===selected)[2])
+        .filter(r=>!q.type || r.type===q.type)
+        .sort((a,b)=>String(b.decided_at).localeCompare(String(a.decided_at)));
+      ctx.el.innerHTML = `<section class="panel mb-3"><div class="panel-body">
+        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+          <div><h3 class="h6 mb-1">Approval Decision History</h3>
+            <p class="small text-muted mb-0">Read-only record of management decisions from the last 90 days.</p></div>
+          <button type="button" class="btn btn-sm btn-outline-primary" data-admin-pending>
+            <i class="bi bi-clipboard-check" aria-hidden="true"></i> Pending Approvals
+          </button>
+        </div></div></section>`
+        + UI.statusTabs(ctx.page,q,'tab',tabs.map(([key,label,match])=>[key,label,decided.filter(match).length]),selected)
+        + UI.generalFilters(ctx,[{name:'type',label:'Decision type',options:types}]);
+      ctx.el.querySelector('[data-admin-pending]')?.addEventListener('click',()=>App.go('admin_approvals'));
+      if (Object.keys(d._errors||{}).length)
+        ctx.el.insertAdjacentHTML('beforeend','<div class="alert alert-warning">Some history records could not be loaded. Please refresh.</div>');
+      const container = document.createElement('div');
+      container.className='head-approval-history-table mp-reference-table mp-ops-table';
+      ctx.el.append(container);
+      container.innerHTML = UI.table([
+        ['Reference','ref',(v,r)=>`<b>${UI.esc(v)}</b><div class="cell-sub">${UI.esc(r.summary||'')}</div>`],
+        ['Decision type','type'],['Department','dept'],
+        ['Decision','status','badge'],['Decided by','decider',v=>UI.esc(v||'Not recorded')],
+        ['Decision date','decided_at','datetime'],
+        ['Amount','amount','money']
+      ],rows,{
+        title:'Decision History ('+rows.length+')',showAllColumns:true,limit:12,
+        directActions:true,
+        actions:()=>UI.btn('view','Details','outline-primary'),
+        onAction:(action,r)=>App.pages.admin_approvals
+          ? HMApproval.open({...r,actionable:false})
+          : UI.goTo(r.go),
+        rowClick:r=>App.pages.admin_approvals ? HMApproval.open({...r,actionable:false}) : UI.goTo(r.go),
+        empty:'No recorded approval decisions match these filters in the last 90 days.'
+      });
+      return;
     }
     const data = ctx.data || {}, all = Array.isArray(data.queue) ? data.queue : [];
     const failed = Object.keys(data._errors || {});
