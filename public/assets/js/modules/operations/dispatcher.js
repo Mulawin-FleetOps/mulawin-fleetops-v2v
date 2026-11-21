@@ -1461,7 +1461,22 @@ const DispatcherUI = {
       +'<span class="badge-s '+(completed?'green':'')+'">'+UI.esc(completed?
         (+t.awaiting_arrival?'Arrival inspection pending':'Completed'):'Not started')+'</span></div>';
     if(completed){const details=parts.get('Completion & Arrival');if(details)completionSection.append(details);}
-    else completionSection.insertAdjacentHTML('beforeend','<p class="small text-muted mb-0">Available after dispatch and delivery.</p>');
+    else if(['Dispatched','In Transit'].includes(t.status)&&responsibleDispatcher){
+      // TripUI.open already creates and authorizes Complete Trip; the compact
+      // layout must place that action in the visible Completion & Arrival stage.
+      // Moving the original node keeps the existing completion form handler.
+      const original=actions?.querySelector('[data-tact="complete"]');
+      const button=original||document.createElement('button');
+      button.type='button';
+      button.dataset.tact='complete';
+      button.className='btn btn-sm btn-success';
+      button.innerHTML='<i class="bi bi-flag" aria-hidden="true"></i> Complete Trip';
+      if(!original)button.onclick=()=>TripUI.complete(t);
+      completionSection.append(button);
+      completionSection.insertAdjacentHTML('beforeend',
+        '<p class="small text-muted mt-2 mb-0">After delivery, record completion and attach the required documents.</p>');
+    }else completionSection.insertAdjacentHTML('beforeend',
+      '<p class="small text-muted mb-0">Available after dispatch and delivery.</p>');
     panels.operations.append(completionSection);
     // Documents: compact at-a-glance requirement rows instead of the large
     // shared readiness checklist. Keep actual attachments and their handlers.
