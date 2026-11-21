@@ -22,7 +22,7 @@ const checks=[
     dispatcher.includes("completionSection.append(completeButton)") &&
     dispatcher.includes("next.append(quickComplete)") &&
     dispatcher.includes("quickComplete.onclick=()=>completionAction?completionAction.click():TripUI.complete(t)") &&
-    dispatcher.includes("if(button.dataset.tact==='complete' && panels.operations.contains(button))return") &&
+    dispatcher.includes("if(['complete','arrival'].includes(button.dataset.tact) && panels.operations.contains(button))return") &&
     tripsUI.includes("acts.push(btn('complete', 'Complete trip'")],
  ['Completion fallback opens original required-documents form for the responsible Dispatcher',
     dispatcher.includes("if(!completionAction)completeButton.onclick=()=>TripUI.complete(t)") &&
