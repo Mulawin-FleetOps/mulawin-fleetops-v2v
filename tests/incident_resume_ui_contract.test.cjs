@@ -18,6 +18,14 @@ const checks=[
     dispatcher.includes("next.append(currentAction)") &&
     dispatcher.includes("if(button===currentAction)return") &&
     dispatcher.includes("button.dataset.tact==='resume'")],
+ ['Completed Trip action is shown at top for dispatched/in-transit trips, using its existing handler',
+    dispatcher.includes("button.dataset.tact==='complete'") &&
+    dispatcher.includes("currentAction.textContent=currentAction.dataset.tact==='complete'?'Complete Trip':'Resume Trip'") &&
+    dispatcher.includes("next.append(currentAction)") &&
+    tripsUI.includes("acts.push(btn('complete', 'Complete trip'")],
+ ['Other Dispatcher accounts get a permission hint, not a Complete Trip button',
+    dispatcher.includes("Only the responsible Dispatcher can complete this trip.") &&
+    dispatcher.includes("if(button===currentAction)return")],
  ['Dispatcher checks ownership before offering direct Resume Trip',
     dispatcher.includes("Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id)")],
  ['Generic trip details offer Resume only on a Motorpool-cleared hold',
