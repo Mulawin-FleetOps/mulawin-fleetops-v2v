@@ -1368,6 +1368,15 @@ const DispatcherUI = {
       hint.textContent='Only the responsible Dispatcher can complete this trip.';
       next.append(hint);
     }
+    if(t.status==='Completed' && +t.awaiting_arrival && isResponsibleDispatcher){
+      const arrivalAction=buttons.find(button=>button.dataset.tact==='arrival'&&!button.disabled);
+      const quickArrival=document.createElement('button');
+      quickArrival.type='button';
+      quickArrival.className='btn btn-sm btn-primary';
+      quickArrival.textContent='Start Arrival Checklist';
+      quickArrival.onclick=()=>arrivalAction?arrivalAction.click():TripUI.checklist(t,'Arrival',inspection||null);
+      next.append(quickArrival);
+    }
     page.append(next);
     const nav=document.createElement('nav');nav.className='d-flex flex-wrap gap-2 border-bottom pb-2 mb-3';
     nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Trip detail tabs');
