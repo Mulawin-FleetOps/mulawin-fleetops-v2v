@@ -14,18 +14,20 @@ const checks=[
     dispatcher.includes("return ['Resume Trip','resume']") &&
     dispatcher.includes("b.dataset.dsAction==='resume'") &&
     dispatcher.includes("'Trips.resume',{trip_id:id}")],
- ['Resume action is visible at top of Dispatcher drawer, not hidden in Operations',
+ ['Resume action remains in Next Step when Motorpool cleared the hold',
     dispatcher.includes("next.append(currentAction)") &&
-    dispatcher.includes("if(button===currentAction)return") &&
-    dispatcher.includes("button.dataset.tact==='resume'")],
- ['Completed Trip action is shown at top for dispatched/in-transit trips, using its existing handler',
-    dispatcher.includes("button.dataset.tact==='complete'") &&
-    dispatcher.includes("currentAction.textContent=currentAction.dataset.tact==='complete'?'Complete Trip':'Resume Trip'") &&
-    dispatcher.includes("next.append(currentAction)") &&
+    dispatcher.includes("currentAction.dataset.tact==='resume'") &&
+    dispatcher.includes("if(button===currentAction && currentAction.dataset.tact==='resume')return")],
+ ['Completion action stays in Operations > Completion & Arrival and has a separate quick shortcut',
+    dispatcher.includes("completionSection.append(completeButton)") &&
+    dispatcher.includes("next.append(quickComplete)") &&
+    dispatcher.includes("quickComplete.onclick=()=>completionAction?completionAction.click():TripUI.complete(t)") &&
+    dispatcher.includes("if(button.dataset.tact==='complete' && panels.operations.contains(button))return") &&
     tripsUI.includes("acts.push(btn('complete', 'Complete trip'")],
- ['Other Dispatcher accounts get a permission hint, not a Complete Trip button',
-    dispatcher.includes("Only the responsible Dispatcher can complete this trip.") &&
-    dispatcher.includes("if(button===currentAction)return")],
+ ['Completion fallback opens original required-documents form for the responsible Dispatcher',
+    dispatcher.includes("if(!completionAction)completeButton.onclick=()=>TripUI.complete(t)") &&
+    dispatcher.includes("const canComplete=isResponsibleDispatcher&&['Dispatched','In Transit'].includes(t.status)") &&
+    dispatcher.includes("Only the responsible Dispatcher can complete this trip.")],
  ['Dispatcher checks ownership before offering direct Resume Trip',
     dispatcher.includes("Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id)")],
  ['Generic trip details offer Resume only on a Motorpool-cleared hold',
