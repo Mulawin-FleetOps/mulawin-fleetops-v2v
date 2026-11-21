@@ -1332,13 +1332,25 @@ const DispatcherUI = {
         (t.status==='On Hold - Incident Reported' && t.incident_status==='Repaired - Cleared to Continue' && button.dataset.tact==='resume')
       )
     );
-    if(currentAction){
-      currentAction.textContent=currentAction.dataset.tact==='complete'?'Complete Trip':'Resume Trip';
+    const isResponsibleDispatcher=UI.isDispatcher()
+      && Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id);
+    const canComplete=isResponsibleDispatcher&&['Dispatched','In Transit'].includes(t.status);
+    // Keep a single source of action handling. The top shortcut only invokes
+    // the actual Operations button; it must never remove that button.
+    const completionAction=currentAction?.dataset.tact==='complete'?currentAction:null;
+    if(completionAction || canComplete){
+      const quickComplete=document.createElement('button');
+      quickComplete.type='button';
+      quickComplete.className='btn btn-sm btn-success';
+      quickComplete.textContent='Complete Trip';
+      quickComplete.dataset.quickComplete='1';
+      quickComplete.onclick=()=>completionAction?completionAction.click():TripUI.complete(t);
+      next.append(quickComplete);
+    } else if(currentAction?.dataset.tact==='resume') {
+      currentAction.textContent='Resume Trip';
       currentAction.className='btn btn-sm btn-success';
       next.append(currentAction);
     } else if(['Dispatched','In Transit'].includes(t.status)) {
-      // A visible next-step label with no action is confusing when the
-      // viewing account is not the responsible Dispatcher.
       const hint=document.createElement('span');
       hint.className='small text-muted';
       hint.textContent='Only the responsible Dispatcher can complete this trip.';
@@ -1501,7 +1513,23 @@ const DispatcherUI = {
       +'<span class="badge-s '+(completed?'green':'')+'">'+UI.esc(completed?
         (+t.awaiting_arrival?'Arrival inspection pending':'Completed'):'Not started')+'</span></div>';
     if(completed){const details=parts.get('Completion & Arrival');if(details)completionSection.append(details);}
-    else completionSection.insertAdjacentHTML('beforeend','<p class="small text-muted mb-0">Available after dispatch and delivery.</p>');
+    else if(canComplete){
+      // The action belongs in Operations > Completion & Arrival. If a previous
+      // layout dropped the original button, use the same TripUI.complete form.
+      const completeButton=completionAction||document.createElement('button');
+      completeButton.type='button';
+      completeButton.dataset.tact='complete';
+      completeButton.className='btn btn-sm btn-success';
+      completeButton.textContent='Complete Trip';
+      if(!completionAction)completeButton.onclick=()=>TripUI.complete(t);
+      completionSection.append(completeButton);
+      completionSection.insertAdjacentHTML('beforeend','<p class="small text-muted mt-2 mb-0">After delivery, record the waybill and required delivery documents to finalize this trip.</p>');
+    } else {
+      completionSection.insertAdjacentHTML('beforeend','<p class="small text-muted mb-0">'+
+        (['Dispatched','In Transit'].includes(t.status)
+          ? 'Only the responsible Dispatcher can complete this trip.'
+          : 'Available after dispatch and delivery.')+'</p>');
+    }
     panels.operations.append(completionSection);
     // Documents: compact at-a-glance requirement rows instead of the large
     // shared readiness checklist. Keep actual attachments and their handlers.
@@ -1582,7 +1610,8 @@ const DispatcherUI = {
     buttons.forEach(button=>{
       // The checklist button already sits inside the Pre-Dispatch Checklist section.
       // Do not relocate it to the generic Operations action bar.
-      if(button===currentAction)return; // existing bound action is already in Next step
+      if(button===currentAction && currentAction.dataset.tact==='resume')return; // Resume is in Next step
+      if(button.dataset.tact==='complete' && panels.operations.contains(button))return; // Complete is in Completion & Arrival
       if(['checklist','dispatch','incident'].includes(button.dataset.tact)
         &&panels.operations.contains(button))return;
       const key=targets[button.dataset.tact]||'overview';
