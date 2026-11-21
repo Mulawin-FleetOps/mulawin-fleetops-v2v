@@ -15,8 +15,9 @@ const checks=[
     dispatcher.includes("b.dataset.dsAction==='resume'") &&
     dispatcher.includes("'Trips.resume',{trip_id:id}")],
  ['Resume action is visible at top of Dispatcher drawer, not hidden in Operations',
-    dispatcher.includes("next.append(resumeAction)") &&
-    dispatcher.includes("if(button===resumeAction)return")],
+    dispatcher.includes("next.append(currentAction)") &&
+    dispatcher.includes("if(button===currentAction)return") &&
+    dispatcher.includes("button.dataset.tact==='resume'")],
  ['Dispatcher checks ownership before offering direct Resume Trip',
     dispatcher.includes("Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id)")],
  ['Generic trip details offer Resume only on a Motorpool-cleared hold',
