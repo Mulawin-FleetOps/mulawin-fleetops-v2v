@@ -28,6 +28,18 @@ const checks=[
     dispatcher.includes("if(!completionAction)completeButton.onclick=()=>TripUI.complete(t)") &&
     dispatcher.includes("const canComplete=isResponsibleDispatcher&&['Dispatched','In Transit'].includes(t.status)") &&
     dispatcher.includes("Only the responsible Dispatcher can complete this trip.")],
+ ['Original completion and arrival action handlers survive compact drawer reconstruction',
+    dispatcher.includes("if(preservedActions)preservedActions.remove()") &&
+    dispatcher.includes("pendingActions.append(preservedActions)") &&
+    dispatcher.includes("body.append(pendingActions)")],
+ ['Dispatcher sees Start Arrival Checklist both in Next Step and Completion & Arrival',
+    dispatcher.includes("quickArrival.textContent='Start Arrival Checklist'") &&
+    dispatcher.includes("next.append(quickArrival)") &&
+    dispatcher.includes("completionSection.prepend(arrival)") &&
+    dispatcher.includes("arrival.onclick=()=>TripUI.checklist(t,'Arrival',inspection||null)")],
+ ['Completed delivery still requires arrival inspection before vehicle release',
+    backend.includes("FleetState::awaitingArrival($p, $id)") &&
+    backend.includes("FleetState::release($p, $id)")],
  ['Dispatcher checks ownership before offering direct Resume Trip',
     dispatcher.includes("Number(t.responsible_dispatcher_id)===Number(App.me?.user?.id)")],
  ['Generic trip details offer Resume only on a Motorpool-cleared hold',
