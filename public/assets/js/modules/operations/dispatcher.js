@@ -1202,8 +1202,20 @@ const DispatcherUI = {
       +'<div class="ds-trip-overview-grid">'+readinessItems.map(item=>'<div class="ds-trip-overview-check"><span class="ds-trip-overview-check-icon '+(item.done?'is-complete':item.optional?'is-optional':'is-pending')+'"><i class="bi '+(item.done?'bi-check-circle-fill':item.optional?'bi-file-earmark':'bi-clock-history')+'" aria-hidden="true"></i></span><div><span class="ds-trip-overview-label">'+UI.esc(item.label)+'</span><strong>'+item.detail+'</strong></div></div>').join('')+'</div>'
       +(blockers.length?'<div class="ds-trip-overview-alert" role="status"><strong>Dispatch restrictions</strong><ul>'+blockers.map(b=>'<li>'+UI.esc(b)+'</li>').join('')+'</ul></div>':'')
       +'</section>';
+    // Preserve the original action DOM nodes and their TripUI click handlers.
+    // Replacing body.innerHTML while they are still inside it used to delete
+    // Complete Trip / Arrival Checklist and leave only an inert Next Step label.
+    const preservedActions=actions;
+    if(preservedActions)preservedActions.remove();
     body.innerHTML=readinessHtml+'<div data-ds-sections></div>';
     const container=body.querySelector('[data-ds-sections]');
+    if(preservedActions){
+      const pendingActions=document.createElement('div');
+      pendingActions.hidden=true;
+      pendingActions.dataset.dsPendingActions='1';
+      pendingActions.append(preservedActions);
+      body.append(pendingActions);
+    }
     const append=(title,content,open=false)=>{const detail=document.createElement('details');detail.className='ds-detail';detail.open=open;const summary=document.createElement('summary');summary.textContent=title;const inner=document.createElement('div');inner.className='ds-detail-body';if(typeof content==='string')inner.innerHTML=content;else if(content)inner.append(content);detail.append(summary,inner);container.append(detail);return inner;};
     const overview=append('Trip Overview','<div class="ds-trip-overview-info">'
       +'<section class="ds-trip-overview-info-card"><div class="ds-trip-overview-info-title"><i class="bi bi-info-circle" aria-hidden="true"></i><h4>Trip Information</h4></div>'
@@ -1512,7 +1524,22 @@ const DispatcherUI = {
       +'<h3 class="fs-6 fw-semibold mb-0">Completion & Arrival</h3>'
       +'<span class="badge-s '+(completed?'green':'')+'">'+UI.esc(completed?
         (+t.awaiting_arrival?'Arrival inspection pending':'Completed'):'Not started')+'</span></div>';
-    if(completed){const details=parts.get('Completion & Arrival');if(details)completionSection.append(details);}
+    if(completed){
+      const details=parts.get('Completion & Arrival');
+      if(details)completionSection.append(details);
+      if(+t.awaiting_arrival){
+        const arrivalButton=buttons.find(button=>button.dataset.tact==='arrival'&&!button.disabled);
+        const arrival=arrivalButton||document.createElement('button');
+        arrival.type='button';
+        arrival.dataset.tact='arrival';
+        arrival.className='btn btn-sm btn-primary';
+        arrival.textContent='Start Arrival Checklist';
+        if(!arrivalButton)arrival.onclick=()=>TripUI.checklist(t,'Arrival',inspection||null);
+        completionSection.prepend(arrival);
+        completionSection.insertAdjacentHTML('beforeend',
+          '<p class="small text-muted mt-2 mb-0">Delivery is recorded. The truck and crew remain assigned until the arrival inspection is submitted after the truck returns.</p>');
+      }
+    }
     else if(canComplete){
       // The action belongs in Operations > Completion & Arrival. If a previous
       // layout dropped the original button, use the same TripUI.complete form.
@@ -1611,7 +1638,7 @@ const DispatcherUI = {
       // The checklist button already sits inside the Pre-Dispatch Checklist section.
       // Do not relocate it to the generic Operations action bar.
       if(button===currentAction && currentAction.dataset.tact==='resume')return; // Resume is in Next step
-      if(button.dataset.tact==='complete' && panels.operations.contains(button))return; // Complete is in Completion & Arrival
+      if(['complete','arrival'].includes(button.dataset.tact) && panels.operations.contains(button))return; // Completion & Arrival owns these buttons
       if(['checklist','dispatch','incident'].includes(button.dataset.tact)
         &&panels.operations.contains(button))return;
       const key=targets[button.dataset.tact]||'overview';
