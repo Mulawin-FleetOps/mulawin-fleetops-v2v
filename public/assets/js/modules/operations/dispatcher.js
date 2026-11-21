@@ -1324,13 +1324,25 @@ const DispatcherUI = {
       return this.next(t);
     })();
     next.innerHTML='<span class="small"><span class="text-muted">Next step</span> <strong>'+UI.esc(note)+'</strong></span>';
-    // The Resume button must be visible at the top of the drawer, not hidden
-    // inside Operations. Move the already-bound action; never create another.
-    const resumeAction=buttons.find(button=>button.dataset.tact==='resume'&&!button.disabled);
-    if(t.status==='On Hold - Incident Reported' && t.incident_status==='Repaired - Cleared to Continue' && resumeAction){
-      resumeAction.textContent='Resume Trip';
-      resumeAction.className='btn btn-sm btn-success';
-      next.append(resumeAction);
+    // Surface the existing, already-bound current-step action next to the
+    // instructions. Do not duplicate the action or weaken role permissions.
+    const currentAction=buttons.find(button=>
+      !button.disabled && (
+        (['Dispatched','In Transit'].includes(t.status) && button.dataset.tact==='complete') ||
+        (t.status==='On Hold - Incident Reported' && t.incident_status==='Repaired - Cleared to Continue' && button.dataset.tact==='resume')
+      )
+    );
+    if(currentAction){
+      currentAction.textContent=currentAction.dataset.tact==='complete'?'Complete Trip':'Resume Trip';
+      currentAction.className='btn btn-sm btn-success';
+      next.append(currentAction);
+    } else if(['Dispatched','In Transit'].includes(t.status)) {
+      // A visible next-step label with no action is confusing when the
+      // viewing account is not the responsible Dispatcher.
+      const hint=document.createElement('span');
+      hint.className='small text-muted';
+      hint.textContent='Only the responsible Dispatcher can complete this trip.';
+      next.append(hint);
     }
     page.append(next);
     const nav=document.createElement('nav');nav.className='d-flex flex-wrap gap-2 border-bottom pb-2 mb-3';
@@ -1570,7 +1582,7 @@ const DispatcherUI = {
     buttons.forEach(button=>{
       // The checklist button already sits inside the Pre-Dispatch Checklist section.
       // Do not relocate it to the generic Operations action bar.
-      if(button===resumeAction)return; // already prominently placed in Next step
+      if(button===currentAction)return; // existing bound action is already in Next step
       if(['checklist','dispatch','incident'].includes(button.dataset.tact)
         &&panels.operations.contains(button))return;
       const key=targets[button.dataset.tact]||'overview';
